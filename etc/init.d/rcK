@@ -1,0 +1,94 @@
+#!/bin/sh
+# Bedrock Linux 0.1 "Appa" Shutdown script
+
+PATH="/bin:/sbin:/usr/bin:/usr/sbin"
+
+clear
+chvt 1
+
+echo -e "\033[1;37mBedrock Linux 0.1 Appa\033[0m"
+echo ""
+echo "Shutting down..."
+echo ""
+
+announce(){
+	printf "%-60s" "$1"
+}
+result(){
+	if [ $? -eq 0 ]
+	then
+		echo -e "\033[0;32mOKAY\033[0m"
+	else
+		echo -e "\033[0;31mFAILED\033[0m"
+	fi
+}
+
+announce "Running client shutdown scripts... "
+sh /etc/init.d/rcK.clients
+result
+
+announce "Killing all running processes... "
+for i in $(seq 1 10)
+do
+	killall5 -15
+done
+for i in $(seq 1 10)
+do
+	killall5 -9
+done
+result
+
+announce "Saving PRNG..."
+if [ -f /proc/sys/kernel/random/poolsize ]
+then
+	POOLSIZE=$(cat /proc/sys/kernel/random/poolsize)
+else
+	POOLSIZE=512
+fi
+dd if=/dev/urandom of=/var/lib/urandom/random-seed bs=$POOLSIZE count=1 2>/dev/null
+result
+
+announce "Cleaning temporary files..."
+RESULT=/bin/true
+find /tmp -mindepth 1 -exec rm -rf {} \;
+if [ "$(ls -A /tmp)" != "" ]
+then
+	RESULT=/bin/false
+fi
+eval $RESULT
+result
+
+announce "Unmounting all filesystems..."
+RESULT=/bin/true
+# Try to unmount everything except proc. If some things failed to unmount, it
+# could be because they had other things bind-mounted into them.  Keep looping
+# until we've found we're no longer making progress with unmounting.
+MOUNT_COUNT=$(expr $(cat /proc/mounts | wc -l) + 1)
+while [ "$(cat /proc/mounts | wc -l)" -lt "$MOUNT_COUNT" ]
+do
+	MOUNT_COUNT=$(cat /proc/mounts | wc -l)
+	for MOUNT in $(cat /proc/mounts | awk '$2 != "/proc" {print $2}' | sort -r)
+	do
+		umount $MOUNT
+	done
+done
+# if some things still fail to unmount, mount as read-only
+if [ $(cat /proc/mounts | wc -l) -gt 3 ]
+then
+	RESULT=/bin/false
+	echo ""
+	echo "Not all filesystems successfully unmounted, mounting remaining"
+        echo "mount points as read-only"
+	/bin/sh
+	for MOUNT in $(cat /proc/mounts | awk '$2 != "/proc" {print $2}' | sort -r)
+	do
+		echo "Mounting $MOUNT as read-only"
+		umount -r $MOUNT
+	done
+fi
+# Umount /proc and root directory now that they are no longer needed.
+umount /proc
+umount /
+umount /
+eval $RESULT
+result

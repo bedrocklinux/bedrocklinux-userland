@@ -1,0 +1,159 @@
+#!/bin/sh
+
+# This script will run a command in a chroot.
+
+# source settings and functions
+. /opt/bedrock/etc/rc.conf
+. /opt/bedrock/lib/brfunctions
+
+# check for need to print help
+if [ -z "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]
+then
+	echo "Usage: brc CLIENT_NAME [COMMAND]"
+	echo ""
+	echo "Arguments:"
+	echo "   -l   lists clients and exit"
+	exit 0
+fi
+
+# ensure config file is available
+if [ ! -r /opt/bedrock/etc/brclients.conf ]
+then
+	abort "Cannot read /opt/bedrock/etc/brclients.conf"
+fi
+
+# check to just list clients
+if [ "$1" = "-l" ]
+then
+	while read LINE
+	do
+		if linegrep "^\[.\+\]$"
+		then
+			echo $(linearg)
+		fi
+	done < /opt/bedrock/etc/brclients.conf
+	exit 0
+fi
+
+# parse config for mount requirements and mount if needed
+CLIENT=$1               # name of client
+shift                   # remaining arg will all be commands to send to client
+PARSE=/bin/false        # only want to parse part of config specific to desired client
+CLIENT_PATH=""          # will store client's path
+WARNED_MOUNT=/bin/false # stores whether warned yet about the need to mount (and consequent delay).
+while read LINE
+do
+	if linegrep "^\[$CLIENT\]$"  # found target client, begin parsing
+	then
+		PARSE=/bin/true
+	elif linegrep "^\[.*\]$"     # found another client, halt parsing
+	then
+		PARSE=/bin/false
+	elif $PARSE && linegrep "^path\s"  # found client path
+	then
+		if [ ! -z "$CLIENT_PATH" ] # possible problem if path set twice, abort
+		then
+			abort "ERROR: Path set more than once for \"$CLIENT\", aborting"
+		fi
+		CLIENT_PATH=$(linearg)
+		if [ ! -d "$CLIENT_PATH" ] # ensure client path is a directory
+		then
+			abort "ERROR: \"$CLIENT_PATH\" does not point to a directory, aborting"
+		fi
+		if ! grep -q "^$CLIENT_PATH$" /opt/bedrock/etc/capchroot.allow # ensure capchroot set to allow chroot into client
+		then
+			abort "ERROR: \"$CLIENT_PATH\" not present in /opt/bedrock/etc/capchroot.allow, aborting"
+		fi
+	elif $PARSE && linegrep "^mount\s" && [ ! -z "$CLIENT_PATH" ] # mount requirement for client found
+	then
+		MOUNT_POINT=$CLIENT_PATH$(linearg)
+		# TODO: make below check more robust to ensure user does have permission to mount
+		if ! awk '{print$2}' /etc/fstab | grep -q "^$MOUNT_POINT$" # ensure mount point is available in fstab
+		then
+			abort "ERROR: Mount point \"$MOUNT_POINT\" not available in fstab, aborting"
+		fi
+		if ! cut -d ' ' -f5 /proc/$$/mountinfo | grep -q "^$MOUNT_POINT$" # if already mounted, or if mount is needed
+		then
+			# mount is needed
+			if ! $WARNED_MOUNT && [ "$BRC_MOUNT_WARN" = "once" ]
+			then
+				echo "Mounting required, may take a few seconds"
+				WARNED_MOUNT=/bin/true
+			elif [ "$BRC_MOUNT_WARN" = "all" ]
+			then
+				echo "Mounting \"$MOUNT_POINT\" required, may take a few seconds"
+			fi
+			# check to ensure that mount source is available
+			if [ ! -e "$(linearg)" ]
+			then
+				abort "Mount source \"$(linearg)\" not present, aborting"
+			fi
+			# check to ensure that mount point is available
+			if [ ! -e "$MOUNT_POINT" ]
+			then
+				if [ "$BR_CREATE_MISSING" = "1" ] && [ "$(id -u)" = "0" ]
+				then
+					echo "WARNING: \"$MOUNT_POINT\" not present, creating"
+					if [ -f "$(linearg)" ] # normal file, create with "touch"
+					then
+						mkdir -p $(dirname $MOUNT_POINT)
+						touch $MOUNT_POINT
+					elif [ -d "$(linearg)" ] # directory, create with "mkdir"
+					then
+						mkdir -p $MOUNT_POINT
+					else
+						abort "ERROR: Not sure how to create same filetype as $(linearg), aborting"
+					fi
+				else
+					abort "ERROR: \"$MOUNT_POINT\" not present, aborting"
+				fi
+			fi
+			# mount is needed and requirements are in place, mount
+			mount $MOUNT_POINT
+			if [ "$?" -ne "0" ]
+			then
+				abort "ERROR mounting \"$MOUNT_POINT\", aborting"
+			fi
+		fi
+	fi
+done < /opt/bedrock/etc/brclients.conf
+
+# all required mount points should be available by this point
+
+if [ -z "$1" ] # check if any command was given
+then
+	# if no command, assume user wants to run $SHELL
+	COMMAND="$(basename $SHELL)"
+else
+	# command was given, pass along all arguments
+	COMMAND="$@"
+	# TODO: consider pros/cons of possibly more robust solution below
+#	for argindex in $(seq 1 $#)
+#	do
+#		eval arg=\$$argindex
+#		if echo $arg | grep -q "\s"
+#		then
+#			COMMAND="$COMMAND \"$arg\""
+#		else
+#			COMMAND="$COMMAND $arg"
+#		fi
+#	done
+fi
+
+# check pwd is available in client, fall back to / otherwise
+if [ ! -d "$CLIENT_PATH$(pwd)" ]
+then
+	echo "WARNING: $(pwd) not present in $CLIENT, falling back to root directory"
+	DIRECTORY="/"
+else
+	DIRECTORY="$(pwd)"
+fi
+
+# if AUTO_BRS is set, run brs
+if [ "$AUTO_BRS" = "1" ]
+then
+	capchroot -d / "$CLIENT_PATH" -- brs &
+fi
+
+# all preqrequisites are set, chroot into client
+capchroot -d "$DIRECTORY" "$CLIENT_PATH" -- $COMMAND

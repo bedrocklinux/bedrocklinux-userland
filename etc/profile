@@ -1,0 +1,12 @@
+#!/bin/sh
+. /opt/bedrock/etc/rc.conf
+export TZ=$TIMEZONE
+export LANG=$LANG
+PATH="/bin:/usr/bin:/usr/local/bin"
+PATH="/opt/bedrock/bin:$PATH"
+if [ "$(id -u)" = "0" ]
+then
+	PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin"
+	PATH="/opt/bedrock/sbin:$PATH"
+fi
+export PATH="$PATH:$BRPATH"

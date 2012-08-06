@@ -1,0 +1,64 @@
+#!/bin/sh
+
+# This script will run the update commands specified in
+# /opt/bedrock/etc/brclients.conf
+
+# source settings and functions
+. /opt/bedrock/etc/rc.conf
+. /opt/bedrock/lib/brfunctions
+
+# check for need to print help
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]
+then
+	echo "Usage: bru [CLIENT_NAMES]"
+	echo ""
+	echo "If given no arguments, bru will attempt to update all the"
+	echo "clients.  Otherwise, it will attempt to update the clients"
+	echo "given in the arguments."
+	exit 0
+fi
+
+
+# ensure config file is available
+if [ ! -r /opt/bedrock/etc/brclients.conf ]
+then
+	abort "Cannot read /opt/bedrock/etc/brclients.conf"
+fi
+
+# if given specific clients to update, ensure they are all present
+for REQUESTED_CLIENT in $@
+do
+	if ! brc -l | grep -q $REQUESTED_CLIENT
+	then
+		abort "Cannot find \"$REQUESTED_CLIENT\" in /opt/bedrock/etc/brclients.conf"
+	fi
+done
+
+CLIENT=""
+while read LINE
+do
+	if linegrep "^\[.\+\]$"
+	then
+		CLIENT=""
+		if [ -z "$1" ]
+		then
+			CLIENT=$(linearg)
+		else
+			for REQUESTED_CLIENT in $@
+			do
+				if [ "$(linearg)" = "$REQUESTED_CLIENT" ]
+				then
+					CLIENT=$(linearg)
+				fi
+			done
+		fi
+		if [ ! -z "$CLIENT" ]
+		then
+			echo "bru: updating $CLIENT"
+		fi
+	elif linegrep "^update\s" && [ ! -z "$CLIENT" ]
+	then
+		echo "Running: $(linearg)"
+		brc $CLIENT $(linearg)
+	fi
+done < /opt/bedrock/etc/brclients.conf

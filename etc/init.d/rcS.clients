@@ -1,0 +1,8 @@
+#!/bin/sh
+# Place commands for clients to run at boot in the order that you would like to
+# boot them.  For example, if you would like Debian squeeze's cups daemon to
+# start at boot:
+# brc squeeze /etc/init.d/cups start
+#
+# Note that this is being run as a full bourne shell script; if you would like
+# to try to be fancy and attempt to parallelize things it should be quite possible.

@@ -1,0 +1,30 @@
+# Things which should be mounted at boot go here.  Additionally, things which
+# should be mounted to share between clients should be placed here.
+#
+# For the items which should be shared, two special options need to be given:
+# "noauto" and "user" - the first specifies that the items are not mounted at
+# boot, and the second allows non-root users to mount the items.
+#
+# It is recommended to make the core Bedrock accessible as a client as well, so
+# that it can be accessed from within other clients.  To do so, uncomment the
+# following line (optionally changing /var/chroot/bedrock to where you would
+# like to place the bedrock client).
+#/		/var/chroot/bedrock		bind	defaults,bind			0 0
+#
+# Most clients will require access to /proc, /dev (and its subdirectories) and
+# /sys.  To make these acessible in a bedrock client, uncomment the following:
+#
+#/proc		/var/chroot/bedrock/proc	proc	noauto,user,exec		0 0
+#/dev		/var/chroot/bedrock/dev		bind	noauto,user,exec,dev,bind	0 0
+#/dev/pts	/var/chroot/bedrock/dev/pts	devpts	noauto,user,exec,dev		0 0
+#/dev/shm	/var/chroot/bedrock/dev/shm	bind	noauto,user,exec,dev,bind	0 0
+#/sys		/var/chroot/bedrock/sys		sysfs	noauto,user,exec,dev		0 0
+#
+# The items above will likely be needed for all clients; copy and paste as
+# desired, changing "/var/chroot/bedrock" as appropriate.
+#
+# To make something such as /home shared in the client, uncomment the following line:
+#/home		/var/chroot/bedrock/home	bind	noauto,user,exec,bind		0 0
+#
+# Many other directories will also likely need to be shared in many other
+# clients; make as many lines as needed with the required changes.

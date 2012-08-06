@@ -1,0 +1,109 @@
+#!/bin/sh
+
+# This script will attempt to determine which client it is being run in.
+# It achieves this by comparing mount points from the current script's point of
+# view against init's point of view.
+# This is less likely to be ruined accidentally than attempting to carry the
+# information through environmental variables set by brc.
+# However, if a client's path is fully contained and at the end of another
+# client's path, this will fail.  For example:
+#    Client 1 path: /bar/client
+#    Client 2 path: /foo/bar/client
+# Client 1's path is wholly contained and at the end of client 2's path.  brw
+# will fail in this situation.
+
+# source settings and functions
+. /opt/bedrock/etc/rc.conf
+. /opt/bedrock/lib/brfunctions
+
+# check for need to print help
+if [ ! -z "$2" ] || [ ! -z "$1" ] && [ "$1" != "-n" ] && [ "$1" != "-p" ] && [ "$1" != "-i" ]
+then
+	echo "Usage: brw [ARGUMENT]"
+	echo ""
+	echo "brw will only take one argument"
+	echo "Arguments:"
+	echo "   -n  print name of client currently in (default)"
+	echo "   -p  print path of client currently in, relative to parent"
+	echo "   -i  print path of client currently in, relative to init"
+	exit 1
+fi	
+
+# mounts are all numbered interally.  Find the highest-numbered mount so we
+# know where to stop.
+LAST_MOUNT=$(awk '$1 > HIGHEST_MOUNT {HIGHEST_MOUNT = $1}END{print HIGHEST_MOUNT}' /proc/1/mountinfo)
+# Iterate over all of the mounts from both init's point of view and the
+# script's point of view to find a mount that is in both.  Then, compare the
+# mounts from the two points of view to find in which client the script is
+# running.
+for MOUNT_NUMBER in $(seq 1 "$LAST_MOUNT")
+do
+	INIT_VIEW="$(cat /proc/1/mountinfo | grep "^$MOUNT_NUMBER " | cut -d' ' -f5)" # mount's location from init's POV
+	CLIENT_VIEW="$(cat /proc/$$/mountinfo | grep "^$MOUNT_NUMBER " | cut -d' ' -f5)" # mount's location from current POV
+	if [ ! -z "$INIT_VIEW" ] && [ ! -z "$CLIENT_VIEW" ] # mount is seen in both current POV and init's POV
+	then
+		# Current POV's path is appended to init's.  If current POV is
+		# not "/", then remove current POV to find where client's root
+		# is mounted.
+		if [ "$CLIENT_VIEW" = "/" ]
+		then
+			# if current POV is mounted at "/", then init's POV is absolute mount.
+			MOUNT_PATH="$INIT_VIEW"
+		else
+			# Find lengths of both paths and then find difference to find where client's root is mounted.
+			INIT_VIEW_LEN=$(echo "$INIT_VIEW" | wc -c)
+			CLIENT_VIEW_LEN=$(echo "$CLIENT_VIEW" | wc -c)
+			MOUNT_PATH=$(echo "$INIT_VIEW" | cut -c1-$(expr $INIT_VIEW_LEN - $CLIENT_VIEW_LEN))
+		fi
+		# The MOUNT_PATH we found is the mount point from init's point of view.  If this is what was requested, return it and quit.
+		if [ "$1" = "-i" ]
+		then
+			echo $MOUNT_PATH
+			exit 0
+		fi
+		# If that was not what was requested, we have to find which client could be mounted in the location found above.
+		# if init's POV and client's POV match, client is not chrooted
+		if [ "$INIT_VIEW" = "$CLIENT_VIEW" ]
+		then
+			if [ "$1" = "-p" ]
+			then
+				echo "/"
+			else
+				echo "bedrock"
+			fi
+			exit 0
+		fi
+		CLIENT=""
+		POSSIBILITIES=0
+		while read LINE
+		do
+			if linegrep "^\[.*\]$" # found a client
+			then
+				CLIENT=$(linearg)
+			elif [ ! -z "$CLIENT" ] && linegrep "^path\s" # found client's path
+			then
+				CLIENT_PATH=$(linearg)
+				if echo "$MOUNT_PATH" | grep -q "$CLIENT_PATH\$"   # check if client's path is at the end of path from init's POV
+				then
+					CURRENT_CLIENT="$CLIENT"                 # store successful match to offer later if only match
+					CURRENT_CLIENT_PATH="$CLIENT_PATH"
+					POSSIBILITIES=$(expr "$POSSIBILITIES" + 1) # incremend count of possible matches found
+				fi
+			fi
+		done < /opt/bedrock/etc/brclients.conf
+		if [ "$POSSIBILITIES" -eq 0 ]
+		then
+			abort "ERROR: Could not determine client for unknown reason"
+		elif [ "$POSSIBILITIES" -gt 1 ]
+		then
+			abort "ERROR: Could not determine client: multiple possible matches"
+		elif [ "$1" = "-p" ]
+		then
+			echo "$CURRENT_CLIENT_PATH"
+		else
+			echo "$CURRENT_CLIENT"
+		fi
+		exit 0
+	fi
+done
+abort "ERROR: Could not determine client for unknown reason"
