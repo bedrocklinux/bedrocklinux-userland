@@ -1,0 +1,5 @@
+# place the paths to clients which you would like to access via brc here
+#
+# Examples:
+# /var/chroot/bedrock
+# /var/chroot/squeeze

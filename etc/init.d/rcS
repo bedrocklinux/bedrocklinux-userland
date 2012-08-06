@@ -1,0 +1,170 @@
+#!/bin/sh
+# Bedrock Linux 0.1 "Appa" Init script
+
+# get settings from /opt/bedrock/etc/rc.conf
+. /opt/bedrock/etc/rc.conf
+
+PATH="/opt/bedrock/bin:/bin:/sbin:/usr/bin:/usr/sbin:$BRPATH"
+
+clear
+echo -e "\033[1;37mBedrock Linux 0.1 Appa\033[0m"
+echo ""
+echo "Booting..."
+echo ""
+
+announce(){
+	printf "%-60s" "$1"
+}
+result(){
+	if [ $? -eq 0 ]
+	then
+		echo -e "\033[0;32mOKAY\033[0m"
+	else
+		echo -e "\033[0;31mFAILED\033[0m"
+	fi
+}
+
+announce "Preparing /proc..."
+mount -t proc proc /proc
+result
+
+announce "Preparing /sys..."
+mount -t sysfs sysfs /sys
+result
+
+announce "Preparing /dev..."
+RESULT=/bin/true
+mount -w -t tmpfs tmpfs -o mode=755 /dev       || RESULT=/bin/false
+mkdir /dev/pts                                 || RESULT=/bin/false
+mount -w -t devpts devpts -o mode=620 /dev/pts || RESULT=/bin/false
+mkdir /dev/shm                                 || RESULT=/bin/false
+mount -w -t tmpfs tmpfs -o mode=777 /dev/shm   || RESULT=/bin/false
+echo /sbin/mdev > /proc/sys/kernel/hotplug     || RESULT=/bin/false
+mdev -s                                        || RESULT=/bin/false
+eval $RESULT
+result
+
+announce "Preparing swap..."
+swapon -a
+result
+
+announce "Checking filesystems..."
+RESULT=/bin/true
+ROOT_FS_TYPE=$(cat /proc/mounts | awk '$1 == "/dev/root" && $2 == "/" {print$3}')
+ROOT_DEVICE=/dev/$(readlink /dev/root)
+echo ""
+if [ -f /fastboot ] || grep -i -q -w "fastboot" /proc/cmdline
+then
+	echo "fastboot requested, skipping fsck"
+elif [ -f /forcefsck ] || grep -i -q -w "forcefsck" /proc/cmdline
+then
+	echo "forcefsck requested, forcing fsck"
+	fsck -a -C0 -f -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
+	fsck -a -A -C0 -f -T                                || RESULT=/bin/false
+else
+	fsck -a -C0 -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
+	fsck -a -A -C0 -T                                || RESULT=/bin/false
+fi
+eval $RESULT
+result
+
+announce "Preparing root filesystem..."
+mount / -o remount,rw
+result
+
+announce "Preparing /etc/fstab filesystems..."
+mount -a
+result
+
+announce "Cleaning temporary files..."
+RESULT=/bin/true
+if [ -f /forcefsck ]
+then
+	rm /forcefsck || RESULT=/bin/false
+fi
+if [ "$(ls -A /tmp)" != "" ]
+then
+	find /tmp -mindepth 1 -exec rm -rf {} \;
+	[ "$(ls -A /tmp)" == "" ] || $RESULT=/bin/false
+fi
+eval $RESULT
+result
+
+announce "Preparing clock..."
+RESULT=/bin/true
+if [ -z "$TIMEZONE" ]
+then
+	echo ""
+	echo "TIMEZONE not set in /etc/rc.conf, defaulting to UTC"
+	echo ""
+	RESULT=/bin/false
+else
+	export TZ=$TIMEZONE
+fi
+if [ "$HWCLOCK" = "LOCAL" ]
+then
+	hwclock -ls
+elif [ "$HWCLOCK" = "UTC" ]
+then
+	hwclock -us
+else
+	echo ""
+	echo "HWCLOCK not set in /etc/rc.conf, defaulting to UTC"
+	echo ""
+	RESULT=/bin/false
+	hwclock -us
+fi
+eval $RESULT
+result
+
+announce "Preparing PRNG..."
+if [ -f /proc/sys/kernel/random/poolsize ]
+then
+	POOLSIZE=$(cat /proc/sys/kernel/random/poolsize)
+else
+	POOLSIZE=512
+fi
+if [ ! -f /var/lib/urandom/random-seed ]
+then
+	echo "No PRNG seed found."
+	echo "  If this takes more than a second"
+	echo "  you may need to type nonsense into the"
+	echo "  keyboard to generate entropy."
+	echo "Creating new seed from /dev/random"
+	mkdir -p /var/lib/urandom 2>/dev/null
+	dd if=/dev/random of=/var/lib/urandom/random-seed bs=$POOLSIZE count=1 2>/dev/null
+fi
+dd if=/var/lib/urandom/random-seed of=/dev/urandom bs=$POOLSIZE count=1 2>/dev/null
+result
+
+if [ "$DEVICE_MANAGER" = "udev" ]
+then
+	announce "Preparing udev..."
+	if which udevd >/dev/null && which udevadm >/dev/null
+	then
+		echo "" > /proc/sys/kernel/hotplug
+		echo "" > /sys/kernel/uevent_helper
+		udevd --daemon
+		udevadm trigger --action=add --type=subsystems
+		udevadm trigger --action=add --type=devices
+		udevadm settle
+	else
+		RESULT=/bin/false
+	fi
+	result
+fi
+
+announce "Running client init scripts..."
+sh /etc/init.d/rcS.clients
+result
+
+if [ "$AUTO_BRS" = "1" ]
+then
+	announce "Running brs (background)..."
+	brs &	
+	result
+fi
+
+announce "Running /etc/rc.local..."
+/etc/rc.local
+result
