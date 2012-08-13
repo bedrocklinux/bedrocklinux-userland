@@ -12,12 +12,22 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]
 then
 	echo "Usage: bru [CLIENT_NAMES]"
 	echo ""
-	echo "If given no arguments, bru will attempt to update all the"
-	echo "clients.  Otherwise, it will attempt to update the clients"
-	echo "given in the arguments."
+	echo "If the first argument is -y, bru will respond \"y\" to all prompts"
+	echo "from update commands."
+	echo ""
+	echo "If given no arguments (other than a potential -y), bru will attempt"
+	echo "to update all the clients.  Otherwise, it will attempt to update the"
+	echo "clients given in the arguments."
 	exit 0
 fi
 
+if [ "$1" = "-y" ]
+then
+	RESPOND_YES=/bin/true
+	shift
+else
+	RESPOND_YES=/bin/false
+fi
 
 # ensure config file is available
 if [ ! -r /opt/bedrock/etc/brclients.conf ]
@@ -35,8 +45,12 @@ do
 done
 
 CLIENT=""
-while read LINE
+OLDIFS="$IFS"
+IFS='
+'
+for LINE in $(cat /opt/bedrock/etc/brclients.conf)
 do
+	IFS="$OLDIFS"
 	if linegrep "^\[.\+\]$"
 	then
 		CLIENT=""
@@ -58,7 +72,13 @@ do
 		fi
 	elif linegrep "^update\s" && [ ! -z "$CLIENT" ]
 	then
-		echo "Running: $(linearg)"
-		brc $CLIENT $(linearg)
+		if $RESPOND_YES
+		then
+			echo "Running and accepting everything from : $(linearg)"
+			yes | brc $CLIENT $(linearg)
+		else
+			echo "Running: $(linearg)"
+			brc $CLIENT $(linearg)
+		fi
 	fi
-done < /opt/bedrock/etc/brclients.conf
+done
