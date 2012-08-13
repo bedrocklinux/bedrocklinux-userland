@@ -1,30 +1,66 @@
+# Bedrock Linux 1.0alpha2 /etc/fstab
+#
 # Things which should be mounted at boot go here.  Additionally, things which
 # should be mounted to share between clients should be placed here.
+#
+# It is recommended to make the core Bedrock accessible as a client as well, so
+# that it can be accessed from within other clients.  This is the only item
+# described herein which should be mounted at boot.  To do so, uncomment the
+# following line (optionally changing /var/chroot/bedrock to where you would
+# like to place the bedrock client).
+#
+#/  /var/chroot/bedrock  bind  defaults,bind  0  0
 #
 # For the items which should be shared, two special options need to be given:
 # "noauto" and "user" - the first specifies that the items are not mounted at
 # boot, and the second allows non-root users to mount the items.
 #
-# It is recommended to make the core Bedrock accessible as a client as well, so
-# that it can be accessed from within other clients.  To do so, uncomment the
-# following line (optionally changing /var/chroot/bedrock to where you would
-# like to place the bedrock client).
-#/		/var/chroot/bedrock		bind	defaults,bind			0 0
-#
 # Most clients will require access to /proc, /dev (and its subdirectories) and
 # /sys.  To make these acessible in a bedrock client, uncomment the following:
 #
-#/proc		/var/chroot/bedrock/proc	proc	noauto,user,exec		0 0
-#/dev		/var/chroot/bedrock/dev		bind	noauto,user,exec,dev,bind	0 0
-#/dev/pts	/var/chroot/bedrock/dev/pts	devpts	noauto,user,exec,dev		0 0
-#/dev/shm	/var/chroot/bedrock/dev/shm	bind	noauto,user,exec,dev,bind	0 0
-#/sys		/var/chroot/bedrock/sys		sysfs	noauto,user,exec,dev		0 0
+#/proc     /var/chroot/bedrock/proc     proc    noauto,user,exec,nosuid           0  0
+#/dev      /var/chroot/bedrock/dev      bind    noauto,user,exec,dev,bind,nosuid  0  0
+#/dev/pts  /var/chroot/bedrock/dev/pts  devpts  noauto,user,exec,dev,nosuid       0  0
+#/dev/shm  /var/chroot/bedrock/dev/shm  bind    noauto,user,exec,dev,bind,nosuid  0  0
+#/sys      /var/chroot/bedrock/sys      sysfs   noauto,user,exec,dev,nosuid       0  0
 #
-# The items above will likely be needed for all clients; copy and paste as
-# desired, changing "/var/chroot/bedrock" as appropriate.
+# Other things which are recommended to be shared:
 #
-# To make something such as /home shared in the client, uncomment the following line:
-#/home		/var/chroot/bedrock/home	bind	noauto,user,exec,bind		0 0
+# Ensures client can itself prepare other clients:
+#/etc/fstab           /var/chroot/bedrock/etc/fstab            bind   noauto,user,bind,nosuid           0  0
+#/opt/bedrock         /var/chroot/bedrock/opt/bedrock          bind   noauto,user,bind,exec,suid        0  0
+#/var/chroot          /var/chroot/bedrock/var/chroot           bind   noauto,user,bind,exec,suid        0  0
+#/var/chroot/bedrock  /var/chroot/bedrock/var/chroot/bedrock   bind   noauto,user,bind,exec,suid        0  0
+# Ensures clients properly integrate users:
+#/etc/group           /var/chroot/bedrock/etc/group            bind   noauto,user,bind,nosuid           0  0
+#/etc/passwd          /var/chroot/bedrock/etc/passwd           bind   noauto,user,bind,nosuid           0  0
+#/etc/shadow          /var/chroot/bedrock/etc/shadow           bind   noauto,user,bind,nosuid           0  0
+#/etc/profile         /var/chroot/bedrock/etc/profile          bind   noauto,user,bind,nosuid           0  0
+#/home                /var/chroot/bedrock/home                 bind   noauto,user,bind,exec,nosuid      0  0
+#/root                /var/chroot/bedrock/root                 bind   noauto,user,bind,exec,nosuid      0  0
+# Needed for many applications:
+#/etc/hostname        /var/chroot/bedrock/etc/hostname         bind   noauto,user,bind,nosuid           0  0
+#/etc/hosts           /var/chroot/bedrock/etc/hosts            bind   noauto,user,bind,nosuid           0  0
+#/etc/resolv.conf     /var/chroot/bedrock/etc/resolv.conf      bind   noauto,user,bind,nosuid           0  0
+# Not overly much reason to keep these unique per client:
+#/etc/sudoers         /var/chroot/bedrock/etc/sudoers          bind   noauto,user,bind,nosuid           0  0
+#/tmp                 /var/chroot/bedrock/tmp                  bind   noauto,user,bind,exec,nosuid      0  0
+#/usr/src             /var/chroot/bedrock/usr/src              bind   noauto,user,bind,exec,nosuid      0  0
+#/boot                /var/chroot/bedrock/boot                 bind   noauto,user,bind,exec,nosuid      0  0
 #
-# Many other directories will also likely need to be shared in many other
-# clients; make as many lines as needed with the required changes.
+# Baring the first example item (/ /var/chroot/bedrock bind defaults,bind 0 0),
+# all of the items described above should be created for every client which you
+# would like fully integrated into the system (the exceptions being clients
+# which you would like to sandbox).  Copy the entire block of items for each
+# client, replacing the "/var/chroot/bedrock" which is at the beginning of the
+# second column with the location of the newly-being-added client.
+#
+# Remember that each item described above, baring the first one, should have a
+# corresponding mount line in /opt/bedrock/etc/brclients.conf
+#
+# Finally, /etc/fstab can be used as one would typically use it in a more
+# standard Linux distribution.  If you would like to mount, say, a Windows
+# partition on boot, or ensure users can automatically mount an optical disk
+# drive, those will also need lines in this file.
+
+
