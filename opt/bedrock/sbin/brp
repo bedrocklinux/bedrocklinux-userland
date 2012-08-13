@@ -69,7 +69,7 @@ done
 # ensure BRPATH exists
 if [ ! -d "$BRPATH" ]
 then
-	if [ "$BR_CREATE_MISSING" -eq "1" ]
+	if [ "$BR_CREATE_MISSING" -eq "1" ] && [ "$(id -u)" -eq "0" ]
 	then
 		echo "WARNING: \"$BRPATH\" not present, creating"
 		mkdir "$BRPATH"
