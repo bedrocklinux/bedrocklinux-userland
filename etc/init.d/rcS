@@ -1,5 +1,5 @@
 #!/bin/sh
-# Bedrock Linux 0.1 "Appa" Init script
+# Bedrock Linux 1.0alpha2 Momo Init Script
 
 # get settings from /opt/bedrock/etc/rc.conf
 . /opt/bedrock/etc/rc.conf
