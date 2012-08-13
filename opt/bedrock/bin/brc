@@ -1,5 +1,4 @@
 #!/bin/sh
-
 # This script will run a command in a chroot.
 
 # source settings and functions
@@ -120,24 +119,10 @@ done < /opt/bedrock/etc/brclients.conf
 
 # all required mount points should be available by this point
 
-if [ -z "$1" ] # check if any command was given
+# if AUTO_BRS is set and not overwritten by DISABLE_AUTO_BRS, run brs
+if [ "$AUTO_BRS" = "1" ] && [ "$DISABLE_AUTO_BRS" != "1" ]
 then
-	# if no command, assume user wants to run $SHELL
-	COMMAND="$(basename $SHELL)"
-else
-	# command was given, pass along all arguments
-	COMMAND="$@"
-	# TODO: consider pros/cons of possibly more robust solution below
-#	for argindex in $(seq 1 $#)
-#	do
-#		eval arg=\$$argindex
-#		if echo $arg | grep -q "\s"
-#		then
-#			COMMAND="$COMMAND \"$arg\""
-#		else
-#			COMMAND="$COMMAND $arg"
-#		fi
-#	done
+	capchroot -d / "$CLIENT_PATH" -- brs &
 fi
 
 # check pwd is available in client, fall back to / otherwise
@@ -149,11 +134,11 @@ else
 	DIRECTORY="$(pwd)"
 fi
 
-# if AUTO_BRS is set, run brs
-if [ "$AUTO_BRS" = "1" ]
+if [ -z "$1" ] # check if any command was given
 then
-	capchroot -d / "$CLIENT_PATH" -- brs &
+	# if no command, assume user wants to run $SHELL
+	capchroot -d "$DIRECTORY" "$CLIENT_PATH" -- "$(basename $SHELL)"
+else
+	# command was given, pass along all arguments
+	capchroot -d "$DIRECTORY" "$CLIENT_PATH" -- "$@"
 fi
-
-# all preqrequisites are set, chroot into client
-capchroot -d "$DIRECTORY" "$CLIENT_PATH" -- $COMMAND
