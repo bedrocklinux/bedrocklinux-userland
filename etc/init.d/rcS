@@ -4,13 +4,25 @@
 # get settings from /opt/bedrock/etc/rc.conf
 . /opt/bedrock/etc/rc.conf
 
+# If AUTO_BRS is set, it might be cause brs to be launched multiple times in
+# quick succession during init.  This can cause (harmless) error messages as
+# items are mounted in one brs between the time when another brs checks if they
+# need to be mounted and actually mounts them.  To avoid this, set
+# DISABLE_AUTO_BRS, which overrides AUTO_BRS and ensures brs is not run during
+# the boot scripts.
+export DISABLE_AUTO_BRS="1"
+
+# explicitly set PATH
 PATH="/opt/bedrock/bin:/bin:/sbin:/usr/bin:/usr/sbin:$BRPATH"
 
 clear
-echo -e "\033[1;37mBedrock Linux 0.1 Appa\033[0m"
-echo ""
-echo "Booting..."
-echo ""
+echo -ne "\033[0;37m"
+echo "__          __             __      "
+echo "\ \_________\ \____________\ \___  "
+echo " \  _ \  _\ _  \  _\ __ \ __\   /  "
+echo "  \___/\__/\__/ \_\ \___/\__/\_\_\ "
+echo "       Bedrock Linux 1.0alpha2 Momo"
+echo -ne "\033[0m"
 
 announce(){
 	printf "%-60s" "$1"
@@ -32,17 +44,23 @@ announce "Preparing /sys..."
 mount -t sysfs sysfs /sys
 result
 
-announce "Preparing /dev..."
-RESULT=/bin/true
-mount -w -t tmpfs tmpfs -o mode=755 /dev       || RESULT=/bin/false
-mkdir /dev/pts                                 || RESULT=/bin/false
-mount -w -t devpts devpts -o mode=620 /dev/pts || RESULT=/bin/false
-mkdir /dev/shm                                 || RESULT=/bin/false
-mount -w -t tmpfs tmpfs -o mode=777 /dev/shm   || RESULT=/bin/false
-echo /sbin/mdev > /proc/sys/kernel/hotplug     || RESULT=/bin/false
-mdev -s                                        || RESULT=/bin/false
-eval $RESULT
-result
+if [ "$DEVICE_MANAGER" = "static" ]
+then
+	announce "Static /dev, skipping preperation"
+	result
+else
+	announce "Preparing /dev..."
+	RESULT=/bin/true
+	mount -w -t tmpfs tmpfs -o mode=755 /dev       || RESULT=/bin/false
+	mkdir /dev/pts                                 || RESULT=/bin/false
+	mount -w -t devpts devpts -o mode=620 /dev/pts || RESULT=/bin/false
+	mkdir /dev/shm                                 || RESULT=/bin/false
+	mount -w -t tmpfs tmpfs -o mode=777 /dev/shm   || RESULT=/bin/false
+	echo /sbin/mdev > /proc/sys/kernel/hotplug     || RESULT=/bin/false
+	mdev -s                                        || RESULT=/bin/false
+	eval $RESULT
+	result
+fi
 
 announce "Preparing swap..."
 swapon -a
@@ -84,7 +102,7 @@ then
 fi
 if [ "$(ls -A /tmp)" != "" ]
 then
-	find /tmp -mindepth 1 -exec rm -rf {} \;
+	find /tmp -mindepth 1 -exec rm -rf {} \; 2>/dev/null
 	[ "$(ls -A /tmp)" == "" ] || $RESULT=/bin/false
 fi
 eval $RESULT
@@ -92,14 +110,14 @@ result
 
 announce "Preparing clock..."
 RESULT=/bin/true
-if [ -z "$TIMEZONE" ]
+if [ -z "$TZ" ]
 then
 	echo ""
-	echo "TIMEZONE not set in /etc/rc.conf, defaulting to UTC"
+	echo "TZ not set in /etc/rc.conf, defaulting to UTC"
 	echo ""
 	RESULT=/bin/false
 else
-	export TZ=$TIMEZONE
+	export TZ
 fi
 if [ "$HWCLOCK" = "LOCAL" ]
 then
@@ -140,16 +158,26 @@ result
 if [ "$DEVICE_MANAGER" = "udev" ]
 then
 	announce "Preparing udev..."
-	if which udevd >/dev/null && which udevadm >/dev/null
+	if brc -l | grep -q "^$UDEV_CLIENT$"
 	then
 		echo "" > /proc/sys/kernel/hotplug
 		echo "" > /sys/kernel/uevent_helper
-		udevd --daemon
-		udevadm trigger --action=add --type=subsystems
-		udevadm trigger --action=add --type=devices
-		udevadm settle
+		brc $UDEV_CLIENT udevd --daemon
+		brc $UDEV_CLIENT udevadm trigger --action=add --type=subsystems
+		brc $UDEV_CLIENT udevadm trigger --action=add --type=devices
+		brc $UDEV_CLIENT udevadm settle
 	else
-		RESULT=/bin/false
+		if which udevd >/dev/null && which udevadm >/dev/null
+		then
+			echo "" > /proc/sys/kernel/hotplug
+			echo "" > /sys/kernel/uevent_helper
+			udevd --daemon
+			udevadm trigger --action=add --type=subsystems
+			udevadm trigger --action=add --type=devices
+			udevadm settle
+		else
+			RESULT=/bin/false
+		fi
 	fi
 	result
 fi
@@ -158,13 +186,13 @@ announce "Running client init scripts..."
 sh /etc/init.d/rcS.clients
 result
 
+announce "Running /etc/rc.local..."
+sh /etc/rc.local
+result
+
 if [ "$AUTO_BRS" = "1" ]
 then
 	announce "Running brs (background)..."
-	brs &	
+	brs &
 	result
 fi
-
-announce "Running /etc/rc.local..."
-/etc/rc.local
-result
