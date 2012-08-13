@@ -69,7 +69,13 @@ done
 # ensure BRPATH exists
 if [ ! -d "$BRPATH" ]
 then
-	abort "Cannot find BRPATH: $BRPATH"
+	if [ "$BR_CREATE_MISSING" -eq "1" ]
+	then
+		echo "WARNING: \"$BRPATH\" not present, creating"
+		mkdir "$BRPATH"
+	else
+		abort "Cannot find BRPATH: $BRPATH"
+	fi
 fi
 
 if ! $APPEND_ONLY
@@ -146,13 +152,14 @@ do
 		do
 			if [ -d "$CLIENT_PATH$DIRECTORY" ]
 			then
-				for PROGRAM_PATH in echo $(find $CLIENT_PATH$DIRECTORY -mindepth 1)
+				cd $CLIENT_PATH
+				for PROGRAM_PATH in echo $(find .$DIRECTORY -mindepth 1 | sed 's/^.//')
 				do
 					PROGRAM=$(basename $PROGRAM_PATH)
 					if ! which $PROGRAM 1>/dev/null 2>/dev/null
 					then
 						echo "#!/bin/sh" > $BRPATH/$PROGRAM
-						echo "/opt/bedrock/bin/brc $CLIENT $PROGRAM_PATH "'$@' >> $BRPATH/$PROGRAM
+						echo "/opt/bedrock/bin/brc $CLIENT $PROGRAM_PATH "'"$@"' >> $BRPATH/$PROGRAM
 						chmod 555 $BRPATH/$PROGRAM
 					fi
 					COUNTER=$(expr $COUNTER + 1)
