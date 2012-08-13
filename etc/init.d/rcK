@@ -1,15 +1,17 @@
 #!/bin/sh
-# Bedrock Linux 0.1 "Appa" Shutdown script
+# Bedrock Linux 1.0alpha2 Momo Shutdown Script
 
 PATH="/bin:/sbin:/usr/bin:/usr/sbin"
 
 clear
 chvt 1
-
-echo -e "\033[1;37mBedrock Linux 0.1 Appa\033[0m"
-echo ""
-echo "Shutting down..."
-echo ""
+echo -ne "\033[0;37m"
+echo "__          __             __      "
+echo "\ \_________\ \____________\ \___  "
+echo " \  _ \  _\ _  \  _\ __ \ __\   /  "
+echo "  \___/\__/\__/ \_\ \___/\__/\_\_\ "
+echo "       Bedrock Linux 1.0alpha2 Momo"
+echo -ne "\033[0m"
 
 announce(){
 	printf "%-60s" "$1"
@@ -50,7 +52,7 @@ result
 
 announce "Cleaning temporary files..."
 RESULT=/bin/true
-find /tmp -mindepth 1 -exec rm -rf {} \;
+find /tmp -mindepth 1 -exec rm -rf {} \; 2>/dev/null
 if [ "$(ls -A /tmp)" != "" ]
 then
 	RESULT=/bin/false
@@ -59,14 +61,18 @@ eval $RESULT
 result
 
 announce "Unmounting all filesystems..."
+echo ""
 RESULT=/bin/true
-# Try to unmount everything except proc. If some things failed to unmount, it
-# could be because they had other things bind-mounted into them.  Keep looping
-# until we've found we're no longer making progress with unmounting.
+# Try to unmount everything except proc (as proc is needed to get mount
+# information). If some things failed to unmount, it could be because they had
+# other things bind-mounted into them.  Keep looping until we've found we're no
+# longer making progress with unmounting.
 MOUNT_COUNT=$(expr $(cat /proc/mounts | wc -l) + 1)
+MOUNT_DIGITS="$(printf $MOUNT_COUNT | wc -c)"
 while [ "$(cat /proc/mounts | wc -l)" -lt "$MOUNT_COUNT" ]
 do
 	MOUNT_COUNT=$(cat /proc/mounts | wc -l)
+	printf "Remaining mount points: %0${MOUNT_DIGITS}d\r" "$MOUNT_COUNT"
 	for MOUNT in $(cat /proc/mounts | awk '$2 != "/proc" {print $2}' | sort -r)
 	do
 		umount $MOUNT
@@ -85,8 +91,13 @@ then
 		echo "Mounting $MOUNT as read-only"
 		umount -r $MOUNT
 	done
+else
+	# We're being optimistic that the remaining mounts go successfully.  The
+	# all-zeros is more reassuring than the random-seeming 3 that would otherwise
+	# be printed during the final seconds of the shutdown procedure.
+	printf "Remaining mount points: %0${MOUNT_DIGITS}d\n" "0"
 fi
-# Umount /proc and root directory now that they are no longer needed.
+# Unmount /proc and root directory now that they are no longer needed.
 umount /proc
 umount /
 umount /
