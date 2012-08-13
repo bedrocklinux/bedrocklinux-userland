@@ -1,2 +1,5 @@
 #!/bin/sh
 # Place code here which you would like to be run at boot.
+#
+# Either setting the PATH or use a full path might be advisable.
+#PATH=/opt/bedrock/bin:/bin:/usr/bin:/usr/local/brpath:/opt/bedrock/sbin:/sbin:/usr/sbin:/usr/local/brpath
