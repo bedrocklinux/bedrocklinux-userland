@@ -182,6 +182,15 @@ then
 	result
 fi
 
+announce "Setting hostname..."
+if [ -r /etc/hostname ]
+then
+	hostname "$(cat /etc/hostname)"
+else
+	/bin/false
+fi
+result
+
 announce "Running client init scripts..."
 sh /etc/init.d/rcS.clients
 result
