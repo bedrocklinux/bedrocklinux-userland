@@ -1,4 +1,8 @@
 #!/bin/sh
+# brsh (BedRock SHell) for Bedrock Linux 1.0alpha3 "Bosco"
+# This script will launch the shell requested in ~/.brsh.conf, unless problems
+# are detected in which case it will fall back to /bin/sh
+#
 # TODO: find a better way to determine if login shell or not
 # TOOD: find a shell-agnostic way to launch as login shell instead of sourcing /etc/profile directly
 #  - perhaps force user to add the info to ~/.brsh.conf?
@@ -14,16 +18,14 @@ if [ -f ~/.brsh.conf ] && which $(basename $(cat ~/.brsh.conf)) >/dev/null
 then
 	export SHELL=$(cat ~/.brsh.conf)
 else
-	echo "Error: brsh can not find shell specified in ~/.brsh.conf, defaulting to /bin/sh"
+	echo "brsh WARNING: brsh can not find shell specified in ~/.brsh.conf, defaulting to /bin/sh"
 	export SHELL=/bin/sh
 fi
 
-
-if [ -z $TZ ]
+eval "$(basename $SHELL) $@"
+if [ "$?" -eq "255" ]
 then
-	. /etc/profile
-	exec $(basename $SHELL) "$@"
-else
-	exec $(basename $SHELL) "$@"
+	echo "brsh WARNING: Error with $(basename $SHELL) detected, falling back to /bin/sh"
+	export SHELL=/bin/sh
+	eval "sh $@"
 fi
-

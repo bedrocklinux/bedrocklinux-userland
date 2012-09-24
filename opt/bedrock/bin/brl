@@ -19,7 +19,7 @@ then
 	abort "Cannot read /opt/bedrock/etc/brclients.conf"
 fi
 
-for CLIENT in $(brc -l)
+for CLIENT in $(bri -l)
 do
 	echo "brl: running commands in $CLIENT"
 	brc $CLIENT "$@"
