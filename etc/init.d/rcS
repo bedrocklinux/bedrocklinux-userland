@@ -1,16 +1,8 @@
 #!/bin/sh
-# Bedrock Linux 1.0alpha2 Momo Init Script
+# Bedrock Linux 1.0alpha3 "Bosco" Init Script
 
 # get settings from /opt/bedrock/etc/rc.conf
 . /opt/bedrock/etc/rc.conf
-
-# If AUTO_BRS is set, it might be cause brs to be launched multiple times in
-# quick succession during init.  This can cause (harmless) error messages as
-# items are mounted in one brs between the time when another brs checks if they
-# need to be mounted and actually mounts them.  To avoid this, set
-# DISABLE_AUTO_BRS, which overrides AUTO_BRS and ensures brs is not run during
-# the boot scripts.
-export DISABLE_AUTO_BRS="1"
 
 # explicitly set PATH
 PATH="/opt/bedrock/bin:/bin:/sbin:/usr/bin:/usr/sbin:$BRPATH"
@@ -21,7 +13,7 @@ echo "__          __             __      "
 echo "\ \_________\ \____________\ \___  "
 echo " \  _ \  _\ _  \  _\ __ \ __\   /  "
 echo "  \___/\__/\__/ \_\ \___/\__/\_\_\ "
-echo "       Bedrock Linux 1.0alpha2 Momo"
+echo "      Bedrock Linux 1.0alpha3 Bosco"
 echo -ne "\033[0m"
 
 announce(){
@@ -183,12 +175,16 @@ then
 fi
 
 announce "Setting hostname..."
-if [ -r /etc/hostname ]
+if [ -f "/etc/hostname" ]
 then
 	hostname "$(cat /etc/hostname)"
 else
 	/bin/false
 fi
+result
+
+announce "Setting up clients (backgrounded)..."
+brs &
 result
 
 announce "Running client init scripts..."
@@ -198,10 +194,3 @@ result
 announce "Running /etc/rc.local..."
 sh /etc/rc.local
 result
-
-if [ "$AUTO_BRS" = "1" ]
-then
-	announce "Running brs (background)..."
-	brs &
-	result
-fi

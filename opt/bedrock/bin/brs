@@ -1,18 +1,14 @@
 #!/bin/sh
-# This script will attempt to make all necessary mounts for all possible
-# children clients of current client.
+# brs (BedRock Setup) for Bedrock Linux 1.0alpha3 "Bosco"
+# This script will setup mounts for children of current client
 
-# source settings and functions
-. /opt/bedrock/etc/rc.conf
-. /opt/bedrock/lib/brfunctions
-
-# check for need to print help
-if [ ! -z "$1" ] && [ "$1" != "-s" ]
+# print help
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]
 then
-	echo "Usage: brs [OPTIONS]"
+	echo "Usage: brs [CLIENTS]"
 	echo ""
-	echo "Options:"
-	echo "   -s   Don't mount, just show status"
+	echo "If no client is given, will setup all clients.  Otherwise will only"
+	echo "set up requested clients."
 	exit 0
 fi
 
@@ -23,99 +19,77 @@ then
 	exit 1
 fi
 
-if [ "$1" = "-s" ]
+if [ -z "$1" ]
 then
-	TOTAL_MOUNTS="0"
-	REQUIRED_MOUNTS="0"
-	while read LINE
-	do
-		if linegrep "^\[.*\]$"   # found client
-		then
-			CLIENT="$(linearg)"
-			CLIENT_PATH=""   # ensure we get a new path for client
-		elif [ ! -z "$CLIENT" ] && linegrep "^path\s"  # found client path
-		then
-			CLIENT_PATH=$(linearg)
-		elif [ ! -z "$CLIENT_PATH" ] && linegrep "^mount\s" # mount requirement for client found
-		then
-			MOUNT_POINT=$CLIENT_PATH$(linearg)
-			TOTAL_MOUNTS=$(expr $TOTAL_MOUNTS + 1)
-			if ! cut -d ' ' -f5 /proc/$$/mountinfo | grep -q "^$MOUNT_POINT$" # if already mounted, or if mount is needed
-			then
-				REQUIRED_MOUNTS=$(expr $REQUIRED_MOUNTS + 1)
-				echo "$MOUNT_POINT not mounted"
-			fi
-		fi
-	done < /opt/bedrock/etc/brclients.conf
-	echo "$(expr $(expr $TOTAL_MOUNTS - $REQUIRED_MOUNTS) \* 100 / $TOTAL_MOUNTS)% [$(expr $TOTAL_MOUNTS - $REQUIRED_MOUNTS)/$TOTAL_MOUNTS]"
-	exit 0
+	CLIENTS=" $(bri -l | xargs) "
+else
+	CLIENTS=" $@ "
 fi
 
-# parse config file, mounting everything possible
-CLIENT=""
-CLIENT_PATH=""
-while read LINE
+setup_client(){
+	awk '
+		/^\[.*\]$/ {
+			PARSE=0
+		}
+		/^\['$1'\]$/ {
+			PARSE=1
+		}
+		/^path[ \t]/ && PARSE==1 {
+			if(CLIENT_PATH != ""){
+				print "Path set more than once for "'$1'", aborting"
+				exit 1
+			}
+			CLIENT_PATH=$2
+			if(system("[ -d "CLIENT_PATH" ]")!=0){
+				print $2" is not a directory, aborting"
+				exit 1
+			}
+			if(system("grep -q "CLIENT_PATH" /opt/bedrock/etc/capchroot.allow")!=0){
+				print CLIENT_PATH" is not present in /opt/bedrock/etc/capchroot.allow, aborting"
+				exit 1
+			}
+		}
+		/^mount[ \t]/ && CLIENT_PATH!="" {
+			MOUNT_POINT=CLIENT_PATH$2
+			if(system("awk \"{print \\$2}\" /etc/fstab | grep -q \"^"MOUNT_POINT"$\"")!=0){
+				print "Mount point "MOUNT_POINT" not available in fstab, aborting"
+				exit 1
+			}
+			if(system("cut -d\" \" -f5 /proc/$$/mountinfo | grep -q \"^"MOUNT_POINT"$\"")!=0){
+				if(system("[ -e "$2" ]")!=0){
+					print "Mount source "MOUNT_POINT" not present, aborting"
+					exit 1
+				}
+				if(system("[ -e "MOUNT_POINT" ]")!=0){
+					if(system("[ $(id -u) = 0 ]")){
+						print "WARNING: "MOUNT_POINT" not present, creating"
+						if(system("[ -f "$2" ]")){
+							system("mkdir -p $(dirname "MOUNT_POINT"); touch "MOUNT_POINT)
+						}else if(system("[ -d "$2" ]")){
+							system("mkdir -p "MOUNT_POINT)
+						}else{
+							print MOUNT_POINT" not present, unsure how to create, aborting"
+							exit 1
+						}
+					}else{
+						print "WARNING: "MOUNT_POINT" not present, aborting"
+					}
+				}
+				if(system("mount "MOUNT_POINT)!=0){
+					1
+				}
+			}
+		}
+	' /opt/bedrock/etc/brclients.conf
+}
+
+PIDS=""
+for CLIENT in $CLIENTS
 do
-	if linegrep "^\[.*\]$"   # found client
-	then
-		CLIENT="$(linearg)"
-		CLIENT_PATH=""   # ensure we get a new path for client
-	elif [ ! -z "$CLIENT" ] && linegrep "^path\s"  # found client path
-	then
-		if [ ! -z "$CLIENT_PATH" ] # possible problem if path set twice, abort
-		then
-			abort "ERROR: Path set more than once for \"$CLIENT\", aborting"
-		fi
-		CLIENT_PATH=$(linearg)
-		if [ ! -d "$CLIENT_PATH" ] # ensure client path is a directory
-		then
-			abort "ERROR: \"$CLIENT_PATH\" does not point to a directory, aborting"
-		fi
-		if ! grep -q "^$CLIENT_PATH$" /opt/bedrock/etc/capchroot.allow # ensure capchroot set to allow chroot into client
-		then
-			abort "ERROR: \"$CLIENT_PATH\" not present in /opt/bedrock/etc/capchroot.allow, aborting"
-		fi
-	elif [ ! -z "$CLIENT_PATH" ] && linegrep "^mount\s" # mount requirement for client found
-	then
-		MOUNT_POINT=$CLIENT_PATH$(linearg)
-		# TODO: make below check more robust to ensure user does have permission to mount
-		if ! awk '{print$2}' /etc/fstab | grep -q "^$MOUNT_POINT$" # ensure mount point is available in fstab
-		then
-			abort "ERROR: Mount point \"$MOUNT_POINT\" not available in fstab, aborting"
-		fi
-		if ! cut -d ' ' -f5 /proc/$$/mountinfo | grep -q "^$MOUNT_POINT$" # if already mounted, or if mount is needed
-		then
-			# mount is needed
-			# check to ensure that mount source is available
-			if [ ! -e "$(linearg)" ]
-			then
-				abort "Mount source \"$(linearg)\" not present, aborting"
-			fi
-			# check to ensure that mount point is available
-			if [ ! -e "$MOUNT_POINT" ]
-			then
-				if [ "$BR_CREATE_MISSING" = "1" ] && [ "$(id -u)" = "0" ]
-				then
-					echo "WARNING: \"$MOUNT_POINT\" not present, creating"
-					if [ -f "$(linearg)" ] # normal file, create with "touch"
-					then
-						mkdir -p $(dirname $MOUNT_POINT)
-						touch $MOUNT_POINT
-					elif [ -d "$(linearg)" ] # directory, create with "mkdir"
-					then
-						mkdir -p $MOUNT_POINT
-					else
-						abort "ERROR: Not sure how to create same filetype as $(linearg), aborting"
-					fi
-				else
-					abort "ERROR: \"$MOUNT_POINT\" not present, aborting"
-				fi
-			fi
-			mount $MOUNT_POINT
-			if [ "$?" -ne "0" ]
-			then
-				abort "Mount error"
-			fi
-		fi
-	fi
-done < /opt/bedrock/etc/brclients.conf
+	setup_client "$CLIENT" &
+	PIDS="$PIDS $!"
+done
+for PID in $PIDS
+do
+	wait $PID
+done
