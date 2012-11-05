@@ -48,14 +48,14 @@
 #/usr/src             /var/chroot/bedrock/usr/src              bind   noauto,user,bind,exec,nosuid      0  0
 #/boot                /var/chroot/bedrock/boot                 bind   noauto,user,bind,exec,nosuid      0  0
 #
-# Baring the first example item (/ /var/chroot/bedrock bind defaults,bind 0 0),
+# Barring the first example item (/ /var/chroot/bedrock bind defaults,bind 0 0),
 # all of the items described above should be created for every client which you
 # would like fully integrated into the system (the exceptions being clients
 # which you would like to sandbox).  Copy the entire block of items for each
 # client, replacing the "/var/chroot/bedrock" which is at the beginning of the
 # second column with the location of the newly-being-added client.
 #
-# Remember that each item described above, baring the first one, should have a
+# Remember that each item described above, barring the first one, should have a
 # corresponding mount line in /opt/bedrock/etc/brclients.conf
 #
 # Finally, /etc/fstab can be used as one would typically use it in a more
