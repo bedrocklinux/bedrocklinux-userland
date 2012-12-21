@@ -7,7 +7,6 @@ cp -rp bedrocklinux-userland /tmp/get-bb-cmds-temp
 cd /tmp/get-bb-cmds-temp/
 make clean 1>/dev/null 2>/dev/null
 make remove-unnecessary 1>/dev/null 2>/dev/null
-rm get-bb-cmds.sh
 find . -type f -exec awk '{for(i=1;i<=NF;i++){words[$i]++}}END{for(word in words){print word}}' > /tmp/get-bb-words {} \;
 sed 's/[^a-zA-Z0-9]/\n/g' /tmp/get-bb-words | sort | uniq > /tmp/get-bb-words-2
 
