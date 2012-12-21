@@ -199,7 +199,7 @@ void break_out_of_chroot(){
 		chdir("..");
 		stat(".", &stat_pwd);
 		stat("..", &stat_parent);
-	} while(stat_pwd.st_ino != stat_parent.st_ino)
+	} while(stat_pwd.st_ino != stat_parent.st_ino);
 }
 
 int main(int argc, char* argv[]){
