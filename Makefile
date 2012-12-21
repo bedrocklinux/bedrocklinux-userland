@@ -14,25 +14,25 @@ install:
 	setcap cap_sys_chroot=ep bedrock/bin/brc
 	# git doesn't track empty directories, so they might not exist.  create
 	# them.
-	mkdir -p bedrock/brpath/bin:
-	mkdir -p bedrock/brpath/clients:
-	mkdir -p bedrock/brpath/sbin:
-	mkdir -p bin:
-	mkdir -p boot/extlinux:
-	mkdir -p dev:
-	mkdir -p etc/lib/fi:
-	mkdir -p etc/var/chroot:
-	mkdir -p home:
-	mkdir -p lib/firmware:
-	mkdir -p lib/modules:
-	mkdir -p proc:
-	mkdir -p root:
-	mkdir -p sbin:
-	mkdir -p sys:
-	mkdir -p tmp:
-	mkdir -p usr/bin:
-	mkdir -p usr/sbin:
-	mkdir -p var/lib/urandom:
+	mkdir -p bedrock/brpath/bin
+	mkdir -p bedrock/brpath/clients
+	mkdir -p bedrock/brpath/sbin
+	mkdir -p bin
+	mkdir -p boot/extlinux
+	mkdir -p dev
+	mkdir -p etc/lib/fi
+	mkdir -p etc/var/chroot
+	mkdir -p home
+	mkdir -p lib/firmware
+	mkdir -p lib/modules
+	mkdir -p proc
+	mkdir -p root
+	mkdir -p sbin
+	mkdir -p sys
+	mkdir -p tmp
+	mkdir -p usr/bin
+	mkdir -p usr/sbin
+	mkdir -p var/lib/urandom
 	# set permissions for the entire userland
 	find . -type d -exec chmod 755 {} \;
 	find . -type f -exec chmod 644 {} \;
@@ -70,25 +70,25 @@ package:
 	-rm -rf bedrock/brpath/clients/* 2>/dev/null
 	# git doesn't track empty directories, but tarballs do: ensure they're
 	# included
-	mkdir -p bedrock/brpath/bin:
-	mkdir -p bedrock/brpath/clients:
-	mkdir -p bedrock/brpath/sbin:
-	mkdir -p bin:
-	mkdir -p boot/extlinux:
-	mkdir -p dev:
-	mkdir -p etc/lib/fi:
-	mkdir -p etc/var/chroot:
-	mkdir -p home:
-	mkdir -p lib/firmware:
-	mkdir -p lib/modules:
-	mkdir -p proc:
-	mkdir -p root:
-	mkdir -p sbin:
-	mkdir -p sys:
-	mkdir -p tmp:
-	mkdir -p usr/bin:
-	mkdir -p usr/sbin:
-	mkdir -p var/lib/urandom:
+	mkdir -p bedrock/brpath/bin
+	mkdir -p bedrock/brpath/clients
+	mkdir -p bedrock/brpath/sbin
+	mkdir -p bin
+	mkdir -p boot/extlinux
+	mkdir -p dev
+	mkdir -p etc/lib/fi
+	mkdir -p etc/var/chroot
+	mkdir -p home
+	mkdir -p lib/firmware
+	mkdir -p lib/modules
+	mkdir -p proc
+	mkdir -p root
+	mkdir -p sbin
+	mkdir -p sys
+	mkdir -p tmp
+	mkdir -p usr/bin
+	mkdir -p usr/sbin
+	mkdir -p var/lib/urandom
 	# remove these two files - they're mostly for the git repo
 	-rm README LICENSE 2>/dev/null
 	# explicitly set permissions
