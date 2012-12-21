@@ -1,5 +1,6 @@
 #!/bin/sh
-# Bedrock Linux 1.0alpha3 "Bosco" Shutdown Script
+### Bedrock Linux 1.0alpha3 Bosco
+### rcK shutdown script
 
 PATH="/bin:/sbin:/usr/bin:/usr/sbin"
 
@@ -10,7 +11,7 @@ echo "__          __             __      "
 echo "\ \_________\ \____________\ \___  "
 echo " \  _ \  _\ _  \  _\ __ \ __\   /  "
 echo "  \___/\__/\__/ \_\ \___/\__/\_\_\ "
-echo "      Bedrock Linux 1.0alpha3 Bosco"
+echo "       Bedrock Linux 1.0alpha3 Momo"
 echo -ne "\033[0m"
 
 announce(){

@@ -1,207 +1,225 @@
 #!/bin/sh
-# bri (BedRock Information) for Bedrock Linux 1.0alpha3 Bosco
-# This script will provide various information about the clients, depending on the argument given
+### Bedrock Linux 1.0alpha3 Bosco
+### bri (BedRock Information)
+# This script will provide various information about the clients, depending on
+# the argument given
 
 # print help
-if [ "$1" != "-x" ] && [ "$1" != "-c" ] && [ "$1" != "-i" ] && [ "$1" != "-l" ] && [ "$1" != "-n" ] && [ "$1" != "-p" ] && [ "$1" != "-s" ] || [ ! -z "$2" ]
-then
+h(){
 	echo "Usage: bri ARGUMENT"
 	echo ""
+	echo "bri will print information about Bedrock Linux clients based on the"
+	echo "given flags.  bri will only accept one flag per execution."
+	echo ""
 	echo "ARGUMENTS:"
-	echo "   -c   cache some information to speed up future requests (requires root)"
-	echo "   -i   print path of client currently in, relative to Init"
+	echo "   -h   print this Help"
 	echo "   -l   print List of clients"
 	echo "   -n   print Name of client currently in"
-	echo "   -p   print path of client currently in, relative to Parent"
-	echo "   -s   print client Setup status"
-	exit 0
-fi
+	echo "   -p   print path of client currently in OR following client name(s)"
+	echo "   -s   print shared items of client currently in OR following client name(s)"
+	echo "   -c   Cache -n and -p values to speed up future requests (requires root)"
+}
 
-# ensure config file is available
-if [ ! -r /opt/bedrock/etc/brclients.conf ]
-then
-	abort "Cannot read /opt/bedrock/etc/brclients.conf"
-	exit 1
-fi
-
-# print List of clients
-if [ "$1" = "-l" ]
-then
+# print a list of clients
+l(){
 	awk '
-		/^\[.*\]$/{
-			print substr($0,2,length($0)-2)
+		/^\[client ".*"\]$/{
+			print substr($0,10,length($0)-11)
 		}
-	' /opt/bedrock/etc/brclients.conf
-	exit 0
-fi
+	' /bedrock/etc/brclients.conf
+}
 
-if [ "$1" = "-x" ]
-then
-	awk '
-		/^\[.*\]$/ {
-			CLIENT=""
-			CLIENT_PATH=""
-		}
-		/^\['$(bri -n)'\]$/ {
-			CLIENT=substr($0,2,length($0)-2)
-			CLIENT_PATH=""
-		}
-		/^path[ t]/ && CLIENT!="" {
-			CLIENT_PATH=$2
-		}
-		/^mount[ t]/ && CLIENT_PATH!="" {
-			MOUNT_POINT=CLIENT_PATH$2
-			TOTAL_MOUNTS=TOTAL_MOUNTS+1
-			if(system("cut -d\" \" -f5 /proc/$$/mountinfo | grep -q \^"MOUNT_POINT"\$")!=0){
-				#print MOUNT_POINT" not mounted"
-				1
-			}else{
-				COMPLETED_MOUNTS=COMPLETED_MOUNTS+1
-			}
-		}
-		END{
-			print COMPLETED_MOUNTS*100/TOTAL_MOUNTS"% ["COMPLETED_MOUNTS"/"TOTAL_MOUNTS"]"
-		}
-		' /opt/bedrock/etc/brclients.conf
-	exit 0
-fi
-
-# print client mount Status
-if [ "$1" = "-s" ]
-then
-	awk '
-		/^\[.*\]$/ {
-			CLIENT=substr($0,2,length($0)-2)
-			CLIENT_PATH=""
-		}
-		/^path[ t]/ && CLIENT!="" {
-			CLIENT_PATH=$2
-		}
-		/^mount[ t]/ && CLIENT_PATH!="" {
-			MOUNT_POINT=CLIENT_PATH$2
-			TOTAL_MOUNTS=TOTAL_MOUNTS+1
-			if(system("cut -d\" \" -f5 /proc/$$/mountinfo | grep -q \^"MOUNT_POINT"\$")!=0){
-				print MOUNT_POINT" not mounted"
-			}else{
-				COMPLETED_MOUNTS=COMPLETED_MOUNTS+1
-			}
-		}
-		END{
-			print COMPLETED_MOUNTS*100/TOTAL_MOUNTS"% ["COMPLETED_MOUNTS"/"TOTAL_MOUNTS"]"
-		}
-		' /opt/bedrock/etc/brclients.conf
-	exit 0
-fi
-
-# if requested -n or -p and br_client_name is available, use that
-if [ -r "/etc/br_client_name" ]
-then
-	if [ "$1" = "-n" ]
+# print name of client currently in
+n(){
+	# if cached value is available, use that
+	if [ -r "/etc/br_client_name" ]
 	then
 		head -n1 /etc/br_client_name
-		exit
-	elif [ "$1" = "-p" ]
-	then
-		tail -n1 /etc/br_client_name
-		exit
+	else
+		awk '
+			/^\[client ".*"\]$/{
+				CLIENT=substr($0,10,length($0)-11)
+			}
+			/^[ \t]*path[ \t]*=/ && $3 == "'$(p)'" && CLIENT != ""{
+				print CLIENT
+				exit
+			}
+		' /bedrock/etc/brclients.conf
 	fi
-	# if cannot determine -n or -p from /etc/br_client_name, have to determine
-	# the hard way
-fi
+}
 
-# if -c is requested, ensure root
-if [ "$1" = "-c" ] && [ $(id -u) -ne 0 ]
-then
-	echo "You must be root to use -c, aborting"
-	exit 1
-fi
+# print path of client requested client
+p(){
+	# check if finding for current client or named clients
+	if [ -z $1 ]
+	then
+		# print path of current client
+		# if cached value is available, use that
+		if [ -r "/etc/br_client_name" ]
+		then
+			tail -n1 /etc/br_client_name
+		else
+			# Compare a mount from both init's point of view and this script's point of
+			# view to determine in which client the script is running.
+			# The first mount as seen from the client should also be seen from init.  Find
+			# the mount number to reference later.
+			MOUNT_NUMBER=$(head -n1 /proc/$$/mountinfo | cut -d" " -f1)
+			# Mount's location from init's POV
+			INIT_VIEW="$(grep "^$MOUNT_NUMBER " /proc/1/mountinfo | cut -d' ' -f5)"
+			# Mount's location from current POV
+			CLIENT_VIEW="$(grep "^$MOUNT_NUMBER " /proc/$$/mountinfo | cut -d' ' -f5)"
+			# Current POV's path is appended to init's.  If current POV is
+			# not "/", then remove current POV to find where client's root
+			# is mounted.
+			if [ "$CLIENT_VIEW" = "/" ]
+			then
+				# if current POV is mounted at "/", then init's POV is absolute mount.
+				MOUNT_PATH="$INIT_VIEW"
+			else
+				# Find lengths of both paths and then find difference to find where client's root is mounted.
+				INIT_VIEW_LEN=$(echo "$INIT_VIEW" | wc -c)
+				CLIENT_VIEW_LEN=$(echo "$CLIENT_VIEW" | wc -c)
+				MOUNT_PATH=$(echo "$INIT_VIEW" | cut -c1-$(expr $INIT_VIEW_LEN - $CLIENT_VIEW_LEN))
+			fi
+			# The MOUNT_PATH we found is the mount point from init's point of view.
+			echo $MOUNT_PATH
+		fi
+	else
+		# print path of listed clients
+		for CLIENT in $@
+		do
+			busybox awk '
+			/^\[client ".*"\]$/{
+				CLIENT=substr($0,10,length($0)-11)
+			}
+			/^[ \t]*path[ \t]*=/ && CLIENT == "'$CLIENT'"{
+				$1=""
+				$2=""
+				print $0
+			}
+			' /bedrock/etc/brclients.conf | sed 's/^\s*//'
+		done
+	fi
+}
 
-# gather information or -n, -p, -c and/or -i
+# print shared items in a framework, used by s()
+get_frame_shares(){
+	awk '
+		/^\s*\[framework "'$1'"\]\s*$/{
+			INSECTION=1
+		}
+		/^\s*\[(client|framework) ".*"\]\s*$/ && $2 != "\"'$1'\"]"{
+			INSECTION=""
+		}
+		/^[ \t]*share[ \t]*=/ && INSECTION == 1{
+			$1=""
+			$2=""
+			gsub(/,/," ")
+			for(i=1;i<=NF;i++)
+				print $i
+		}
+	' /bedrock/etc/brclients.conf
+}
 
-# Compare a mount from both init's point of view and this script's point of
-# view to determine in which client the script is running.
-# The first mount as seen from the client should also be seen from init.  Find
-# the mount number to reference later.
-MOUNT_NUMBER=$(head -n1 /proc/$$/mountinfo | cut -d" " -f1)
-# Mount's location from init's POV
-INIT_VIEW="$(grep "^$MOUNT_NUMBER " /proc/1/mountinfo | cut -d' ' -f5)"
-# Mount's location from current POV
-CLIENT_VIEW="$(grep "^$MOUNT_NUMBER " /proc/$$/mountinfo | cut -d' ' -f5)"
-# Current POV's path is appended to init's.  If current POV is
-# not "/", then remove current POV to find where client's root
-# is mounted.
-if [ "$CLIENT_VIEW" = "/" ]
-then
-	# if current POV is mounted at "/", then init's POV is absolute mount.
-	MOUNT_PATH="$INIT_VIEW"
-else
-	# Find lengths of both paths and then find difference to find where client's root is mounted.
-	INIT_VIEW_LEN=$(echo "$INIT_VIEW" | wc -c)
-	CLIENT_VIEW_LEN=$(echo "$CLIENT_VIEW" | wc -c)
-	MOUNT_PATH=$(echo "$INIT_VIEW" | cut -c1-$(expr $INIT_VIEW_LEN - $CLIENT_VIEW_LEN))
-fi
-# The MOUNT_PATH we found is the mount point from init's point of view.  If
-# this is what was requested, return it and quit.
-if [ "$1" = "-i" ]
-then
-	echo $MOUNT_PATH
-	exit 0
-fi
-# If that was not what was requested, we have to find which client could be
-# mounted in the location found above.
-# If init's POV and client's POV match, client is not chrooted.
-if [ "$INIT_VIEW" = "$CLIENT_VIEW" ]
-then
-	if [ "$1" = "-p" ]
+# print shared items in a client (ignores frames), used by s()
+get_client_shares(){
+	awk '
+		/^\s*\[client "'$1'"\]\s*$/{
+			INSECTION=1
+		}
+		/^\s*\[(client|framework) ".*"\]\s*$/ && $2 != "\"'$1'\"]"{
+			INSECTION=""
+		}
+		/^[ \t]*share[ \t]*=/ && INSECTION == 1{
+			$1=""
+			$2=""
+			gsub(/,/," ")
+			for(i=1;i<=NF;i++)
+				print $i
+		}
+	' /bedrock/etc/brclients.conf
+}
+
+# print shared frame in a client (ignores frames), used by s()
+get_client_frames(){
+	awk '
+		/^\s*\[client "'$1'"\]\s*$/{
+			INSECTION=1
+		}
+		/^\s*\[(client|framework) ".*"\]\s*$/ && $2 != "\"'$1'\"]"{
+			INSECTION=""
+		}
+		/^[ \t]*framework[ \t]*=/ && INSECTION == 1{
+			$1=""
+			$2=""
+			print $0
+		}
+	' /bedrock/etc/brclients.conf
+}
+
+# print shared items for client requested client
+s(){
+	if [ -z $1 ]
 	then
-		echo "/"
-	elif [ "$1" = "-n" ]
+		CLIENTS=$(n)
+	else
+		CLIENTS="$@"
+	fi
+	for CLIENT in $CLIENTS
+	do
+		get_client_shares $CLIENT
+		for FRAME in $(get_client_frames $CLIENT)
+		do
+			get_frame_shares $FRAME
+		done
+	done
+}
+
+# Cache -n and -p values to speed up future requests (requires root)
+c(){
+	if [ $(id -u) -ne 0 ]
 	then
-		echo "bedrock"
-	elif [ "$1" = "-c" ]
-	then
-		echo "bedrock" > /etc/br_client_name
-		echo "/" >> /etc/br_client_name
-		chmod a+r /etc/br_client_name
+		echo '-c requires root'
+	else
+		# remove old cache so it does not influence the n and p functions
+		if [ -r "/etc/br_client_name" ]
+		then
+			rm "/etc/br_client_name"
+		fi
+		# can't seem to direct the output of n or p into a file which it
+		# parses, so temporarily store it into a variable.
+		CLIENT_NAME=$(n)
+		CLIENT_PATH=$(p)
+		(
+			echo "$CLIENT_NAME"
+			echo "$CLIENT_PATH"
+		) > /etc/br_client_name
+		chmod 644 /etc/br_client_name
 		echo "Saved into /etc/br_client_name:"
 		cat /etc/br_client_name
 	fi
-	exit 0
-fi
-# Parse through all clients in /opt/bedrock/etc/brclients.conf to find possible
-# match to MOUNT_PATH
-awk '
-	/^\[.*\]$/{
-		CLIENT=substr($0,2,length($0)-2)
-	}
-	/^path[ \t]/ && CLIENT!="" {
-		if("'$MOUNT_PATH'" ~ $2"$"){
-			POSSIBILITIES=POSSIBILITIES+1
-			CURRENT_CLIENT=CLIENT
-			CURRENT_CLIENT_PATH=$2
-		}
-	}
-	END{
-		if(POSSIBILITIES==0){
-			echo "Could not determine client for unknown reason"
-			exit 1
-		}
-		if(POSSIBILITIES>1){
-			echo "Could not determine client, multiple possible matches"
-			exit 1
-		}
-		if("'$1'"=="-p"){
-			print CURRENT_CLIENT_PATH
-		}
-		if("'$1'"=="-n"){
-			print CURRENT_CLIENT
-		}
-		if("'$1'"=="-c"){
-			system("echo "CURRENT_CLIENT" > /etc/br_client_name")
-			system("echo "CURRENT_CLIENT_PATH" >> /etc/br_client_name")
-			system("chmod a+r /etc/br_client_name")
-			print "Saved into /etc/br_client_name:"
-			system("cat /etc/br_client_name")
-		}
-	}
-' /opt/bedrock/etc/brclients.conf
+}
+
+# parse arguments
+case "$1" in
+	-h)
+		h;;
+	--help)
+		h;;
+	"")
+		h;;
+	-l)
+		l;;
+	-n)
+		n;;
+	-p)
+		shift
+		p $@;;
+	-s)
+		shift
+		s $@;;
+	-c)
+		c;;
+	*)
+		h;;
+esac

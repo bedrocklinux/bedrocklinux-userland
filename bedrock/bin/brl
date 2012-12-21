@@ -1,26 +1,28 @@
 #!/bin/sh
-
+### Bedrock Linux 1.0alpha3 Bosco
+### brl (BedRock aLl)
 # This script will run the argument in all available clients
-
-# source settings and functions
-. /opt/bedrock/etc/rc.conf
-. /opt/bedrock/lib/brfunctions
 
 # check for need to print help
 if [ -z "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]
 then
 	echo "Usage: brl COMMAND"
+	echo ""
+	echo "brl will run COMMAND in all available clients."
+	echo ""
 	exit 0
 fi
 
-# ensure config file is available
-if [ ! -r /opt/bedrock/etc/brclients.conf ]
+# ensure brclients.conf is available
+# bri needs this below
+if [ ! -r /bedrock/etc/brclients.conf ]
 then
-	abort "Cannot read /opt/bedrock/etc/brclients.conf"
+	echo "Cannot read /bedrock/etc/brclients.conf" >&2
+	exit 1
 fi
 
 for CLIENT in $(bri -l)
 do
 	echo "brl: running commands in $CLIENT"
-	brc $CLIENT "$@"
+	brc $CLIENT $@
 done

@@ -1,11 +1,12 @@
 #!/bin/sh
-# Bedrock Linux 1.0alpha3 "Bosco" Init Script
+### Bedrock Linux 1.0alpha3 Bosco
+### rcS init script
 
-# get settings from /opt/bedrock/etc/rc.conf
-. /opt/bedrock/etc/rc.conf
+# get settings from /bedrock/etc/rc.conf
+. /bedrock/etc/rc.conf
 
 # explicitly set PATH
-PATH="/opt/bedrock/bin:/bin:/sbin:/usr/bin:/usr/sbin:$BRPATH"
+PATH="/bedrock/bin:/bin:/sbin:/usr/bin:/usr/sbin"
 
 clear
 echo -ne "\033[0;37m"
@@ -13,7 +14,7 @@ echo "__          __             __      "
 echo "\ \_________\ \____________\ \___  "
 echo " \  _ \  _\ _  \  _\ __ \ __\   /  "
 echo "  \___/\__/\__/ \_\ \___/\__/\_\_\ "
-echo "      Bedrock Linux 1.0alpha3 Bosco"
+echo "       Bedrock Linux 1.0alpha3 Momo"
 echo -ne "\033[0m"
 
 announce(){
@@ -27,27 +28,86 @@ result(){
 		echo -e "\033[0;31mFAILED\033[0m"
 	fi
 }
+initrdset(){
+		echo -e "\033[0;32mINITRD SET\033[0m"
+}
 
 announce "Preparing /proc..."
-mount -t proc proc /proc
-result
+if grep -q "^proc proc" /proc/mounts 2>/dev/null
+then
+	initrdset
+else
+	mount -t proc proc /proc
+	result
+fi
 
 announce "Preparing /sys..."
-mount -t sysfs sysfs /sys
-result
-
-if [ "$DEVICE_MANAGER" = "static" ]
+if grep -q "^sysfs /sys" /proc/mounts
 then
-	announce "Static /dev, skipping preperation"
+	initrdset
+else
+	mount -t sysfs sysfs /sys
+	result
+fi
+
+announce "Preparing /dev..."
+if [ "$DEVICE_MANAGER" = "initrd" ]
+then
+	announce " Using initrd's /dev"
+	initrdset
+else
+	# attempt to undo a initrd's device manager work
+	UDEVPIDS=$(ps | grep udev | grep -v grep | cut -d' ' -f2 | xargx)
+	if [ -n "$UDEVPIDS" ]
+	then
+		announce "Removing initrd's udev..."
+		kill $UDEVPIDS
+		sleep 1s
+		UDEVPIDS=$(ps | grep udev | grep -v grep | cut -d' ' -f2 | xargx)
+		if [ -n "$UDEVPIDS" ]
+		then
+			kill -9 $UDEVPIDS
+			sleep 1s
+		fi
+		if [ -n "$(ps | grep udev | grep -v grep)" ]
+		then
+			eval /bin/false; announce
+		else
+			eval /bin/true; announce
+		fi
+	fi 
+	echo "" > /proc/sys/kernel/hotplug
+	echo "" > /sys/kernel/uevent_helper
+	DEVMOUNTS="$(awk '$2 ~ /^\/dev/{print$2}' | xargs)"
+	if [ -n "$DEVMOUNTS" ]
+	then
+		announce "Removing initrd's /dev mounts..."
+		umount $DEVMOUNTS
+		result
+	fi
+fi
+
+if [ "$DEVICE_MANAGER" = "static" ] || [ "$DEVICE_MANAGER" = "initrd" ]
+then
+	announce " Static /dev or using initrd's /dev, no more work needed"
 	result
 else
-	announce "Preparing /dev..."
+	announce " Preparing /dev mounts..."
 	RESULT=/bin/true
 	mount -w -t tmpfs tmpfs -o mode=755 /dev       || RESULT=/bin/false
 	mkdir /dev/pts                                 || RESULT=/bin/false
 	mount -w -t devpts devpts -o mode=620 /dev/pts || RESULT=/bin/false
 	mkdir /dev/shm                                 || RESULT=/bin/false
 	mount -w -t tmpfs tmpfs -o mode=777 /dev/shm   || RESULT=/bin/false
+	eval $RESULT
+	result
+	if [ "$DEVICE_MANAGER" = "mdev" ]
+	then
+		announce " Preparing mdev"
+	elif [ "$DEVICE_MANAGER" = "udev" ]
+		announce " Preparing mdev (temporarily)"
+	fi
+	RESULT=/bin/true
 	echo /sbin/mdev > /proc/sys/kernel/hotplug     || RESULT=/bin/false
 	mdev -s                                        || RESULT=/bin/false
 	eval $RESULT
@@ -58,25 +118,32 @@ announce "Preparing swap..."
 swapon -a
 result
 
-announce "Checking filesystems..."
-RESULT=/bin/true
-ROOT_FS_TYPE=$(cat /proc/mounts | awk '$1 == "/dev/root" && $2 == "/" {print$3}')
-ROOT_DEVICE=/dev/$(readlink /dev/root)
-echo ""
-if [ -f /fastboot ] || grep -i -q -w "fastboot" /proc/cmdline
-then
-	echo "fastboot requested, skipping fsck"
-elif [ -f /forcefsck ] || grep -i -q -w "forcefsck" /proc/cmdline
-then
-	echo "forcefsck requested, forcing fsck"
-	fsck -a -C0 -f -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
-	fsck -a -A -C0 -f -T                                || RESULT=/bin/false
 else
-	fsck -a -C0 -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
-	fsck -a -A -C0 -T                                || RESULT=/bin/false
+	announce "Checking filesystems..."
+	RESULT=/bin/true
+	ROOT_FS_TYPE=$(cat /proc/mounts | awk '$1 == "/dev/root" && $2 == "/" {print$3}')
+	ROOT_DEVICE=/dev/$(readlink /dev/root)
+	echo ""
+	if [ "$FSCK" != 1 ]
+	then
+		echo "FSCK=1 in rc.conf, skipping fsck"
+	elif [ -f /fastboot ] || grep -i -q -w "fastboot" /proc/cmdline
+	then
+		echo "fastboot requested, skipping fsck"
+	elif [ -f /forcefsck ] || grep -i -q -w "forcefsck" /proc/cmdline
+	then
+		echo "forcefsck requested, forcing fsck"
+		mount / -o remount,ro || RESULT=/bin/false          || RESULT=/bin/false
+		fsck -a -C0 -f -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
+		fsck -a -A -C0 -f -T                                || RESULT=/bin/false
+	else
+		mount / -o remount,ro || RESULT=/bin/false       || RESULT=/bin/false
+		fsck -a -C0 -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
+		fsck -a -A -C0 -T                                || RESULT=/bin/false
+	fi
+	eval $RESULT
+	result
 fi
-eval $RESULT
-result
 
 announce "Preparing root filesystem..."
 mount / -o remount,rw
@@ -95,7 +162,7 @@ fi
 if [ "$(ls -A /tmp)" != "" ]
 then
 	find /tmp -mindepth 1 -exec rm -rf {} \; 2>/dev/null
-	[ "$(ls -A /tmp)" == "" ] || $RESULT=/bin/false
+	[ "$(ls -A /tmp)" = "" ] || $RESULT=/bin/false
 fi
 eval $RESULT
 result
@@ -147,6 +214,20 @@ fi
 dd if=/var/lib/urandom/random-seed of=/dev/urandom bs=$POOLSIZE count=1 2>/dev/null
 result
 
+announce "Setting up client shared items..."
+for CLIENT in $(bri -l)
+do
+	RESULT=/bin/truei
+	DIRECTORY=$(bri -p $CLIENT)
+	for SHARE in $(bri -s $CLIENT)
+	do
+		echo "mount --bind $SHARE $DIRECTORY$SHARE" || RESULT=/bin/false
+		echo "mount --make-shared $DIRECTORY$SHARE" || RESULT=/bin/false
+	done
+done
+eval $RESULT
+result
+
 if [ "$DEVICE_MANAGER" = "udev" ]
 then
 	announce "Preparing udev..."
@@ -173,19 +254,6 @@ then
 	fi
 	result
 fi
-
-announce "Setting hostname..."
-if [ -f "/etc/hostname" ]
-then
-	hostname "$(cat /etc/hostname)"
-else
-	/bin/false
-fi
-result
-
-announce "Setting up clients (backgrounded)..."
-brs &
-result
 
 announce "Running client init scripts..."
 sh /etc/init.d/rcS.clients

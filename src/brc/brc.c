@@ -24,10 +24,8 @@
 #include <sys/param.h>      /* PATH_MAX           */
 #include <unistd.h>         /* execvp()           */
 
-/* client name     -> chroot path mappings */
-#define BRCLIENTSCONF "/opt/bedrock/etc/brclients.conf"
-/* executable name -> chroot path mappings */
-#define BRPATHCONF    "/usr/local/brpath.conf"
+/* configuration file mapping clients to their path */
+#define BRCLIENTSCONF "/bedrock/etc/brclients.conf"
 
 /* ensure this process has the required capabilities */
 void ensure_capsyschroot(char* executable_name){
@@ -42,61 +40,42 @@ void ensure_capsyschroot(char* executable_name){
 	/* from current_capabilities, get effective and permitted flags for cap_sys_chroot */
 	cap_get_flag(current_capabilities, CAP_SYS_CHROOT, CAP_PERMITTED, &chroot_permitted);
 	cap_get_flag(current_capabilities, CAP_SYS_CHROOT, CAP_EFFECTIVE, &chroot_effective);
-	/* if either chroot_permitted or chroot_effective is unset, abort explaining error */
+	/* if either chroot_permitted or chroot_effective is unset, abort */
 	if(chroot_permitted != CAP_SET || chroot_effective != CAP_SET){
 		fprintf(stderr, "This file is missing the cap_sys_chroot capability. To remedy this,\n"
 				"Run 'setcap cap_sys_chroot=ep %s' as root. \n",executable_name);
 		exit(1);
 	}
-	/* free memory used current_capabilities as it is no longer needed */
+	/* free memory used by current_capabilities as it is no longer needed */
 	cap_free(current_capabilities);
 }
 
-/* ensure config files are only writable by root */
+/* ensure config file is only writable by root */
 void ensure_config_secure(){
 	/* gather information on configuration files */
 	struct stat brclientsconf_stat;
-	struct stat brpathconf_stat;
 	if(stat(BRCLIENTSCONF,&brclientsconf_stat) != 0){
 		perror("stat: " BRCLIENTSCONF);
 		exit(1);
 	}
-	if(stat(BRPATHCONF,&brpathconf_stat) != 0){
-		perror("stat: " BRPATHCONF);
-		exit(1);
-	}
-	/* ensure config files are owned by root*/
+	/* ensure config file is owned by root*/
 	if(brclientsconf_stat.st_uid != 0){
 		fprintf(stderr, BRCLIENTSCONF" is not owned by root.\n"
 				"This is a potential security issue; refusing to run.\n");
 		exit(1);
 	}
-	if(brpathconf_stat.st_uid != 0){
-		fprintf(stderr, BRPATHCONF" is not owned by root.\n"
-				"This is a potential security issue; refusing to run.\n");
-		exit(1);
-	}
-	/* ensure config files have limited permissions */
+	/* ensure config file has limited permissions */
 	if(brclientsconf_stat.st_mode & (S_IWGRP | S_IWOTH)) {
 		fprintf(stderr, BRCLIENTSCONF" is writable by someone other than root.\n"
 				"This is a potential security issue; refusing to run.\n");
 		exit(1);
 	}
-	if(brpathconf_stat.st_mode & (S_IWGRP | S_IWOTH)) {
-		fprintf(stderr, BRPATHCONF" is writable by someone other than root.\n"
-				"This is a potential security issue; refusing to run.\n");
-		exit(1);
-	}
 }
 
-/* ensure config files readable */
+/* ensure config file is readable */
 void ensure_config_readable(){
-	if(euidaccess(BRCLIENTSCONF, R_OK) != 0){
-		fprintf(stderr, "Cannot read "BRCLIENTSCONF);
-		exit(1);
-	}
-	if(euidaccess(BRPATHCONF, R_OK) != 0){
-		fprintf(stderr, "Cannot read "BRPATHCONF);
+	if(access(BRCLIENTSCONF, R_OK) != 0){
+		fprintf(stderr, "Cannot read "BRCLIENTSCONF"\n");
 		exit(1);
 	}
 }
@@ -104,8 +83,7 @@ void ensure_config_readable(){
 /* ensure there are enough arguments */
 void ensure_enough_arguments(int argc, char* argv[]){
 	if(strncmp(argv[0],"brc",4) == 0 && argc < 2){
-		fprintf(stderr, "If calling this as \"brc\", it should be given at "
-				"least one argument: the name of the client desired\n");
+		fprintf(stderr, "no client specified, aborting\n");
 		exit(1);
 	}
 }
@@ -113,17 +91,10 @@ void ensure_enough_arguments(int argc, char* argv[]){
 /* get command to run in chroot */
 char** get_chroot_command(int argc, char* argv[], char* shell[]){
 	/*
-	 * if called as something other than "brc", whatever the called command is,
-	 * with its arguments, should be exactly what we want to run in the chroot.
-	 * */
-	if(strncmp(argv[0],"brc",4) != 0) {
-		return argv;
-	}
-	/*
-	 * if called as "brc", the second argument will be the name of the client to
-	 * chroot into, and all of the remaining terms will be the command to run
-	 * in the client.  thus, stripping the first two arguments gives us the
-	 * command to run in the client.
+	 * The second argument should be the name of the client to chroot into and
+	 * all of the remaining terms will be the command to run in the client.
+	 * thus, stripping the first two arguments gives us the command to run in
+	 * the chroot.
 	 */
 	if(argc > 2){
 		return argv+2;
@@ -141,84 +112,67 @@ char** get_chroot_command(int argc, char* argv[], char* shell[]){
 }
 
 /* determine path to chroot */
-char* get_chroot_path(char* argv[], char* chroot_path){
-	/* will store path to chroot */
+void get_chroot_path(char* argv[], char* chroot_path){
+	/*
+	 * will store path to chroot. needs to start with "." so the path is
+	 * relative to the real absolute path, since non-relative paths don't work
+	 * very well once we've broken out of a chroot.
+	 */
 	strcpy(chroot_path,".");
-	/* pointer to config file about to parse */
-	FILE* fp;
 	/*
 	 * will hold the currently-being-parsed line
-	 * line length: max path length + len("path ")
+	 * line length: len("path = ") + max path length
 	 */
-	char line[PATH_MAX+5];
+	char line[PATH_MAX+7];
+	/* will store the key name to check if it is "path" */
+	char key[5];
+	/* will store the value for the key*/
+	char value[PATH_MAX];
 	/*
-	 * if called as "brc", reference second term in BRCLIENTSCONF to find
-	 * chroot path.  Otherwise, reference first term in BRPATHCONF to find
-	 * chroot path.
+	 * will store the section heading we are looking for.
+	 * it will look like '[client "argv[1]"]' (ie, .ini-style
+	 * "client" heading).  The first line starting with "path =" (with
+	 * flexible whitespace) under it will be contain the path we want.
+	 * length was arbitrarily chosen
 	 */
-	if(strncmp(argv[0],"brc",4) == 0){
+	char target_section[PATH_MAX];
+	strcat(target_section, "[client \"");
+	strcat(target_section, argv[1]);
+	strcat(target_section,"\"]");
+	/* will store whether we're currently in the target section */
+	int in_section = 0;
+
+
+	FILE* fp;
+	fp = fopen(BRCLIENTSCONF,"r");
+	while(fgets(line, PATH_MAX+7, fp) != NULL){
+		/* in target section*/
+		if(strncmp(line, target_section, strlen(target_section)) == 0)
+			in_section = 1;
+		/* in some other section */
+		else if(strncmp(line, "[", 1) == 0)
+			in_section = 0;
 		/*
-		 * parse config looking for line in form of "[argv[1]]" (ie, .ini-style
-		 * heading).  The first line starting with "path " under it will be
-		 * contain the path we want.
-		 *
-		 * section_heading will hold "[argv[1]]" - ie, the string we are
-		 * initially looking for in the config file.  the length - PATH_MAX -
-		 * was chosen arbitrarily.
+		 * if we're in the proper section and we've found a path setting,
+		 * store the desired value and return
 		 */
-		char section_heading[PATH_MAX];
-		section_heading[0] = '[';
-		strcat(section_heading, argv[1]);
-		strcat(section_heading,"]");
-		/* will store whether we've found the section or not */
-		int found_section = 0;
-		/* parse file */
-		fp = fopen(BRCLIENTSCONF,"r");
-		while(fgets(line, PATH_MAX+5, fp) != NULL){
-			if(strncmp(line, section_heading, strlen(section_heading)) == 0)
-				found_section = 1;
-			else if(strncmp(line, "[", 1) == 0) /* found another heading */
-				found_section = 0;
-			if(found_section == 1 && strncmp(line,"path ",5) == 0){
-				/*
-				 * found chroot path - store in chroot_path and return
-				 *
-				 * storing into something other than chroot_path so we can
-				 * concatonate it to chroot_path's "." to get relative path.
-				 * Reusing line since we won't need it after this.
-				 */
-				sscanf(line,"path %s",line);
-				strcat(chroot_path,line);
+		if(in_section == 1){
+			/*
+			 * look for a line where key is "path" - the value there, once
+			 * appended to ".", is the chroot_path we want
+			 */
+			sscanf(line," %[^= ] = %s",key,value);
+			if(strncmp(key,"path",5) == 0 && strncmp(value,"",1) != 0){
+				strcat(chroot_path,value);
 				fclose(fp);
+				fprintf(stderr,"%s\n", chroot_path);
 				return;
 			}
 		}
-		fprintf(stderr, "Unable to find path for client \"%s\" in "BRCLIENTSCONF"\n", argv[1]);
-		fclose(fp);
-		exit(1);
-	}else{
-		/*
-		 * parse config looking for line starting with argv[0].  the second
-		 * term will be the path we want.
-		 *
-		 * will hold the command on the parsed line to compare against argv[0].
-		 * The size was chosen arbitrarily - not necessarily related to path
-		 * length */
-		char command_name[PATH_MAX];
-		fp = fopen(BRPATHCONF,"r");
-		while(fgets(line, PATH_MAX+strlen(argv[0])+1, fp) != NULL){
-			sscanf(line,"%s %s",command_name, line);
-			if(strncmp(command_name,argv[0],strlen(command_name)) == 0){
-				/* found command */
-				strcat(chroot_path,line);
-				fclose(fp);
-				return;
-			}
-		}
-		fprintf(stderr, "Unable to find path for command \"%s\" in "BRPATHCONF"\n", argv[0]);
-		fclose(fp);
-		exit(1);
 	}
+	fprintf(stderr, "Unable to find path for client \"%s\" in "BRCLIENTSCONF"\n", argv[1]);
+	fclose(fp);
+	exit(1);
 }
 
 /* break out of chroot */
@@ -226,14 +180,18 @@ void break_out_of_chroot(){
 	/* go as high in the tree as possible */
 	chdir("/");
 	 /*
-	  * since brc is supposed to be in /opt, /opt *should* exist
+	  * A check to ensure BRCLIENTSCONF exists (and is readable) has already
+	  * happened at this point.  Since it is within /bedrock, this means
+	  * /bedrock must exist.
 	  *
-	  * changing root dir to /opt while we're in / means we're out of the root
+	  * changing root dir to /bedrock while we're in / means we're out of the root
 	  * dir - ie, out of the chroot if we were previously in one.
 	  */
-	chroot("/opt");
+	chroot("/bedrock");
 	/*
-	 * cd up until we hit the actual, absolute root directory
+	 * cd up until we hit the actual, absolute root directory.  we'll know
+	 * where there when the current and parent directorys both have the same
+	 * inode.
 	 */
 	struct stat stat_pwd;
 	struct stat stat_parent;
@@ -244,10 +202,9 @@ void break_out_of_chroot(){
 	}
 }
 
-
 int main(int argc, char* argv[]){
-	/* basename(argv[0]) is required several times, while argv[0] without basename
-	 * is not needed.  Simply replace argv[0] with basename(argv[0]) here to
+	/* basename(argv[0]) is required several times, while argv[0] without
+	 * basename is not needed.  Replace argv[0] with basename(argv[0]) here to
 	 * simplify later code. */
 	argv[0] = basename(argv[0]);
 
@@ -255,7 +212,7 @@ int main(int argc, char* argv[]){
 	 * ensure the following items are proper:
 	 * - this process has cap_sys_chroot=ep
 	 * - the config files are secure
-	 * - the config files are  readable
+	 * - the config files are readable
 	 * - enough arguments were provided
 	 */
 
@@ -287,8 +244,8 @@ int main(int argc, char* argv[]){
 	/*
 	 * run the command in the proper context:
 	 * - if we're in a chroot, break out
-	 * - chroot the new directory
-	 * - change cwd
+	 * - chroot the new directory, ensuring cwd is within it.
+	 * - change cwd to desired directory if it exists; remain in / otherwise.
 	 * - run command
 	 * - if needed, abort cleanly
 	 */
