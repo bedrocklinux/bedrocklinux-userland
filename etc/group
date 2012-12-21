@@ -1,3 +1,4 @@
+root:x:0:
 tty:x:5:
 disk:x:6:
 dialout:x:20:
