@@ -1,11 +1,18 @@
 #!/bin/sh
-# brsh (BedRock SHell) for Bedrock Linux 1.0alpha3 "Bosco"
-# This script will launch the shell requested in ~/.brsh.conf, unless problems
-# are detected in which case it will fall back to /bin/sh
+### Bedrock Linux 1.0alpha3 Bosco
+### brsh (BedRock SHell)
+# this is a meta-shell which solves to potential issues:
+# - the full path to the desired shell changes from client to client, but
+# /etc/passwd requires the full path to the desired shell.  Hence, one can call
+# brsh - which should stay in the same place in all the clients -  and it can
+# call the desired shell.
+# - if the client which contains the desired shell breaks, fixing the issue can
+# be a bit of a mess.  This shell can attempt to detect this situation and drop
+# back to another, hopefully functioning, shell.
 #
 # TODO: find a better way to determine if login shell or not
-# TOOD: find a shell-agnostic way to launch as login shell instead of sourcing /etc/profile directly
-#  - perhaps force user to add the info to ~/.brsh.conf?
+# TODO: find a shell-agnostic way to launch as login shell instead of sourcing /etc/profile directly
+# - perhaps force user to add the info to ~/.brsh.conf?
 
 # hacky way to determine if called as login shell
 # TZ known to be set in /etc/profile - if it has not been set yet, probably login
@@ -18,14 +25,15 @@ if [ -f ~/.brsh.conf ] && which $(basename $(cat ~/.brsh.conf)) >/dev/null
 then
 	export SHELL=$(cat ~/.brsh.conf)
 else
-	echo "brsh WARNING: brsh can not find shell specified in ~/.brsh.conf, defaulting to /bin/sh"
+	echo "Error: brsh can not find shell specified in ~/.brsh.conf, defaulting to /bin/sh"
 	export SHELL=/bin/sh
 fi
 
-eval "$(basename $SHELL) $@"
-if [ "$?" -eq "255" ]
+
+if [ -z $TZ ]
 then
-	echo "brsh WARNING: Error with $(basename $SHELL) detected, falling back to /bin/sh"
-	export SHELL=/bin/sh
-	eval "sh $@"
+	. /etc/profile
+	exec $(basename $SHELL) "$@"
+else
+	exec $(basename $SHELL) "$@"
 fi
