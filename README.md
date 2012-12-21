@@ -66,7 +66,8 @@ remove, such as:
 - the contents of the src directory
 - the README and LICENSE files (if you have them - the tarball should not come
   with them)
-- the Makefile files.
+- the Makefile
+- the get-bb-cmds.sh script
 
 You can manually remove those of these you'd like, or if you prefer, you can
 use the following to remove all of them (as root):
@@ -84,6 +85,9 @@ Development
 ===========
 
 If you'd like to develop with this, note that:
+
+You can use the `get-bb-cmds.sh` script to get a list of busybox commands used
+in the userland.  This provides the minimum required busybox applets.
 
 The following will clean up files which could have been created in development
 that we probably don't care to track in git, and should probably be run
