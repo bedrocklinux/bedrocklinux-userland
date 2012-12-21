@@ -33,6 +33,7 @@ install:
 	mkdir -p usr/bin
 	mkdir -p usr/sbin
 	mkdir -p var/lib/urandom
+	mkdir -p var/chroot
 	# set permissions for the entire userland
 	find . -type d -exec chmod 755 {} \;
 	find . -type f -exec chmod 644 {} \;
@@ -89,6 +90,7 @@ package:
 	mkdir -p usr/bin
 	mkdir -p usr/sbin
 	mkdir -p var/lib/urandom
+	mkdir -p var/chroot
 	# remove these two files - they're mostly for the git repo
 	-rm README.md LICENSE
 	# explicitly set permissions
