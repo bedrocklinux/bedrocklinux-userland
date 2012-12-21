@@ -47,7 +47,7 @@ remove-unnecessary:
 	-rm bedrock-userland-1.0alpha3.tar.gz
 	-rm -rf .git
 	-rm -r src/brc
-	-rm README LICENSE Makefile
+	-rm README.md LICENSE Makefile
 
 # clean up things which could have been created during development that we
 # don't care to package or track with git.
