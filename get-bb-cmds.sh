@@ -12,7 +12,11 @@ for FILE in $(find . -type f)
 do
 	cat $FILE | sed -e 's/#.*$//g' -e 's/[^a-zA-Z0-9[]/\n/g' >> /tmp/get-bb-words
 done
-sort /tmp/get-bb-words | uniq > /tmp/get-bb-words-2
+(
+	cat /tmp/get-bb-words
+	echo "passwd"
+	echo "chroot"
+) | sort | uniq > /tmp/get-bb-words-2
 
 cat > /tmp/get-bb-busyboxapplets <<EOF
 [, [[, acpid, addgroup, adduser, adjtimex, ar, arp, arping, ash,
