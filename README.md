@@ -2,14 +2,11 @@ Bedrock Linux 1.0alpha3 Bosco userland
 ======================================
 
 This is the bulk of the userland for Bedrock Linux.  Further information can be
-found at
-
-    http://bedrocklinux.org
+found at [http://bedrocklinux.org](http://bedrocklinux.org).
 
 Specifically, this is the README and files for the third alpha, Bosco.  More
 information about this release of Bedrock Linux can be found here:
-
-    http://bedrocklinux.org/1.0alpha3/
+[http://bedrocklinux.org/1.0alpha3/](http://bedrocklinux.org/1.0alpha3/).
 
 You should probably read everything there before continuing to do anything with
 these files, if you have not already.  The instructions in this README are not
