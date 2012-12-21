@@ -18,7 +18,7 @@ Installation
 Unpackage
 ---------
 
-First, unpackage the files int the location you would like Bedrock Linux to be
+First, unpackage the files in the location you would like Bedrock Linux to be
 installed.  If you received this as a tarball, you can run:
 
     cd /path/to/bedrock's/root/directory
