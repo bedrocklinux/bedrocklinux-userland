@@ -39,6 +39,7 @@ install:
 	find . -type f -exec chmod 644 {} \;
 	chmod go-r etc/shadow
 	chmod a+rwxt tmp
+	find etc/init.d/* -type f -exec chmod 744 {} \;
 	find bedrock/bin/ -type f -exec chmod 755 {} \;
 	find bedrock/sbin/ -type f -exec chmod 744 {} \;
 	find . -exec chown root:root {} \;
@@ -98,6 +99,7 @@ package:
 	find . -type f -exec chmod 644 {} \;
 	chmod go-r etc/shadow
 	chmod a+rwxt tmp
+	find etc/init.d/* -type f -exec chmod 744 {} \;
 	find bedrock/bin/ -type f -exec chmod 755 {} \;
 	find bedrock/sbin/ -type f -exec chmod 744 {} \;
 	# ensure we can run "chroot root:root" or error out
