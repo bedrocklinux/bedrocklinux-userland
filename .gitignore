@@ -1,0 +1,6 @@
+src/brc/brc
+bin/*
+sbin/*
+bedrock/brpath/bin/*
+bedrock/brpath/sbin/*
+bedrock/brpath/clients/*
