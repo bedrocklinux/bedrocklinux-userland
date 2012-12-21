@@ -50,6 +50,7 @@ remove-unnecessary:
 	-rm -rf .git
 	-rm -r src/brc
 	-rm README.md LICENSE Makefile
+	-rm get-bb-cmds.sh
 
 # clean up things which could have been created during development that we
 # don't care to package or track with git.
@@ -92,8 +93,9 @@ package:
 	mkdir -p usr/sbin
 	mkdir -p var/lib/urandom
 	mkdir -p var/chroot
-	# remove these two files - they're mostly for the git repo
+	# remove these two files - they're for the git repo and development
 	-rm README.md LICENSE
+	-rm get-bb-cmds.sh
 	# explicitly set permissions
 	find . -type d -exec chmod 755 {} \;
 	find . -type f -exec chmod 644 {} \;
