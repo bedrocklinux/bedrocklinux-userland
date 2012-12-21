@@ -20,8 +20,6 @@ install:
 	mkdir -p bin
 	mkdir -p boot/extlinux
 	mkdir -p dev
-	mkdir -p etc/lib/fi
-	mkdir -p etc/var/chroot
 	mkdir -p home
 	mkdir -p lib/firmware
 	mkdir -p lib/modules
@@ -33,7 +31,7 @@ install:
 	mkdir -p usr/bin
 	mkdir -p usr/sbin
 	mkdir -p var/lib/urandom
-	mkdir -p var/chroot
+	mkdir -p var/chroot/bedrock
 	# set permissions for the entire userland
 	find . -type d -exec chmod 755 {} \;
 	find . -type f -exec chmod 644 {} \;
@@ -79,8 +77,6 @@ package:
 	mkdir -p bin
 	mkdir -p boot/extlinux
 	mkdir -p dev
-	mkdir -p etc/lib/fi
-	mkdir -p etc/var/chroot
 	mkdir -p home
 	mkdir -p lib/firmware
 	mkdir -p lib/modules
@@ -92,7 +88,7 @@ package:
 	mkdir -p usr/bin
 	mkdir -p usr/sbin
 	mkdir -p var/lib/urandom
-	mkdir -p var/chroot
+	mkdir -p var/chroot/bedrock
 	# remove these two files - they're for the git repo and development
 	-rm README.md LICENSE
 	-rm get-bb-cmds.sh
