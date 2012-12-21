@@ -33,7 +33,7 @@ initrdset(){
 }
 
 announce "Preparing /proc..."
-if grep -q "^proc proc" /proc/mounts 2>/dev/null
+if grep -q "^\w\+ /proc proc" /proc/mounts 2>/dev/null
 then
 	initrdset
 else
@@ -42,7 +42,7 @@ else
 fi
 
 announce "Preparing /sys..."
-if grep -q "^sysfs /sys" /proc/mounts
+if grep -q "^\w\+ /sys sysfs" /proc/mounts
 then
 	initrdset
 else
@@ -50,20 +50,19 @@ else
 	result
 fi
 
-announce "Preparing /dev..."
 if [ "$DEVICE_MANAGER" = "initrd" ]
 then
-	announce " Using initrd's /dev"
+	announce "Using initrd's /dev"
 	initrdset
 else
 	# attempt to undo a initrd's device manager work
-	UDEVPIDS=$(ps | grep udev | grep -v grep | cut -d' ' -f2 | xargx)
+	UDEVPIDS=$(ps | grep udev | grep -v grep | cut -d' ' -f2 | xargs)
 	if [ -n "$UDEVPIDS" ]
 	then
 		announce "Removing initrd's udev..."
 		kill $UDEVPIDS
 		sleep 1s
-		UDEVPIDS=$(ps | grep udev | grep -v grep | cut -d' ' -f2 | xargx)
+		UDEVPIDS=$(ps | grep udev | grep -v grep | cut -d' ' -f2 | xargs)
 		if [ -n "$UDEVPIDS" ]
 		then
 			kill -9 $UDEVPIDS
@@ -71,46 +70,48 @@ else
 		fi
 		if [ -n "$(ps | grep udev | grep -v grep)" ]
 		then
-			eval /bin/false; announce
+			eval /bin/false; result
 		else
-			eval /bin/true; announce
+			eval /bin/true; result
 		fi
 	fi 
 	echo "" > /proc/sys/kernel/hotplug
 	echo "" > /sys/kernel/uevent_helper
-	DEVMOUNTS="$(awk '$2 ~ /^\/dev/{print$2}' | xargs)"
-	if [ -n "$DEVMOUNTS" ]
-	then
-		announce "Removing initrd's /dev mounts..."
-		umount $DEVMOUNTS
-		result
-	fi
 fi
 
-if [ "$DEVICE_MANAGER" = "static" ] || [ "$DEVICE_MANAGER" = "initrd" ]
+if [ "$DEVICE_MANAGER" != "static" ] && [ "$DEVICE_MANAGER" != "initrd" ]
 then
 	announce " Static /dev or using initrd's /dev, no more work needed"
 	result
 else
-	announce " Preparing /dev mounts..."
-	RESULT=/bin/true
-	mount -w -t tmpfs tmpfs -o mode=755 /dev       || RESULT=/bin/false
-	mkdir /dev/pts                                 || RESULT=/bin/false
-	mount -w -t devpts devpts -o mode=620 /dev/pts || RESULT=/bin/false
-	mkdir /dev/shm                                 || RESULT=/bin/false
-	mount -w -t tmpfs tmpfs -o mode=777 /dev/shm   || RESULT=/bin/false
-	eval $RESULT
-	result
-	if [ "$DEVICE_MANAGER" = "mdev" ]
+	announce "Preparing /dev"
+	if grep -q "^\w\+ /dev tmpfs" /proc/mounts
 	then
-		announce " Preparing mdev"
-	elif [ "$DEVICE_MANAGER" = "udev" ]
-		announce " Preparing mdev (temporarily)"
+		initrdset
+	else
+		mount -w -t tmpfs tmpfs -o mode=755 /dev
+		result
 	fi
-	RESULT=/bin/true
-	echo /sbin/mdev > /proc/sys/kernel/hotplug     || RESULT=/bin/false
-	mdev -s                                        || RESULT=/bin/false
-	eval $RESULT
+	announce "Preparing /dev/pts"
+	if grep -q "^\w\+ /dev/pts devpts" /proc/mounts
+	then
+		initrdset
+	else
+		mkdir -p /dev/pts
+		mount -w -t devpts devpts -o mode=620 /dev/pts
+		result
+	fi
+	announce "Preparing /dev/shm"
+	if grep -q "^\w\+ /dev/shm tmpfs" /proc/mounts
+	then
+		initrdset
+	else
+		mkdir -p /dev/shm
+		mount -w -t tmpfs tmpfs -o mode=777 /dev/shm
+		result
+	fi
+	announce "Populating /dev"
+	mdev -s
 	result
 fi
 
@@ -118,32 +119,30 @@ announce "Preparing swap..."
 swapon -a
 result
 
+announce "Checking filesystems..."
+RESULT=/bin/true
+ROOT_FS_TYPE=$(cat /proc/mounts | awk '$1 == "/dev/root" && $2 == "/" {print$3}')
+ROOT_DEVICE=/dev/$(readlink /dev/root)
+echo ""
+if [ "$FSCK" != 1 ]
+then
+	echo "FSCK=1 in rc.conf, skipping fsck"
+elif [ -f /fastboot ] || grep -i -q -w "fastboot" /proc/cmdline
+then
+	echo "fastboot requested, skipping fsck"
+elif [ -f /forcefsck ] || grep -i -q -w "forcefsck" /proc/cmdline
+then
+	echo "forcefsck requested, forcing fsck"
+	mount / -o remount,ro || RESULT=/bin/false          || RESULT=/bin/false
+	fsck -a -C0 -f -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
+	fsck -a -A -C0 -f -T                                || RESULT=/bin/false
 else
-	announce "Checking filesystems..."
-	RESULT=/bin/true
-	ROOT_FS_TYPE=$(cat /proc/mounts | awk '$1 == "/dev/root" && $2 == "/" {print$3}')
-	ROOT_DEVICE=/dev/$(readlink /dev/root)
-	echo ""
-	if [ "$FSCK" != 1 ]
-	then
-		echo "FSCK=1 in rc.conf, skipping fsck"
-	elif [ -f /fastboot ] || grep -i -q -w "fastboot" /proc/cmdline
-	then
-		echo "fastboot requested, skipping fsck"
-	elif [ -f /forcefsck ] || grep -i -q -w "forcefsck" /proc/cmdline
-	then
-		echo "forcefsck requested, forcing fsck"
-		mount / -o remount,ro || RESULT=/bin/false          || RESULT=/bin/false
-		fsck -a -C0 -f -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
-		fsck -a -A -C0 -f -T                                || RESULT=/bin/false
-	else
-		mount / -o remount,ro || RESULT=/bin/false       || RESULT=/bin/false
-		fsck -a -C0 -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
-		fsck -a -A -C0 -T                                || RESULT=/bin/false
-	fi
-	eval $RESULT
-	result
+	mount / -o remount,ro || RESULT=/bin/false       || RESULT=/bin/false
+	fsck -a -C0 -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
+	fsck -a -A -C0 -T                                || RESULT=/bin/false
 fi
+eval $RESULT
+result
 
 announce "Preparing root filesystem..."
 mount / -o remount,rw
@@ -173,7 +172,6 @@ if [ -z "$TZ" ]
 then
 	echo ""
 	echo "TZ not set in /etc/rc.conf, defaulting to UTC"
-	echo ""
 	RESULT=/bin/false
 else
 	export TZ
@@ -187,7 +185,6 @@ then
 else
 	echo ""
 	echo "HWCLOCK not set in /etc/rc.conf, defaulting to UTC"
-	echo ""
 	RESULT=/bin/false
 	hwclock -us
 fi
@@ -215,45 +212,48 @@ dd if=/var/lib/urandom/random-seed of=/dev/urandom bs=$POOLSIZE count=1 2>/dev/n
 result
 
 announce "Setting up client shared items..."
-for CLIENT in $(bri -l)
-do
-	RESULT=/bin/truei
-	DIRECTORY=$(bri -p $CLIENT)
-	for SHARE in $(bri -s $CLIENT)
+RESULT=/bin/true
+if [ -n "$(bri -l)" ]
+then
+	for CLIENT in $(bri -l)
 	do
-		echo "mount --bind $SHARE $DIRECTORY$SHARE" || RESULT=/bin/false
-		echo "mount --make-shared $DIRECTORY$SHARE" || RESULT=/bin/false
+		DIRECTORY=$(bri -p $CLIENT)
+		for SHARE in $(bri -s $CLIENT)
+		do
+			echo "mount --bind $SHARE $DIRECTORY$SHARE" || RESULT=/bin/false
+			echo "mount --make-shared $DIRECTORY$SHARE" || RESULT=/bin/false
+		done
 	done
-done
+fi
 eval $RESULT
 result
 
+announce "Preparing device manager..."
 if [ "$DEVICE_MANAGER" = "udev" ]
 then
-	announce "Preparing udev..."
 	if brc -l | grep -q "^$UDEV_CLIENT$"
 	then
-		echo "" > /proc/sys/kernel/hotplug
-		echo "" > /sys/kernel/uevent_helper
-		brc $UDEV_CLIENT udevd --daemon
-		brc $UDEV_CLIENT udevadm trigger --action=add --type=subsystems
-		brc $UDEV_CLIENT udevadm trigger --action=add --type=devices
-		brc $UDEV_CLIENT udevadm settle
+		brc $UDEV_CLIENT udevd --daemon                                 || RESULT=/bin/false
+		brc $UDEV_CLIENT udevadm trigger --action=add --type=subsystems || RESULT=/bin/false
+		brc $UDEV_CLIENT udevadm trigger --action=add --type=devices    || RESULT=/bin/false
+		brc $UDEV_CLIENT udevadm settle                                 || RESULT=/bin/false
 	else
 		if which udevd >/dev/null && which udevadm >/dev/null
 		then
-			echo "" > /proc/sys/kernel/hotplug
-			echo "" > /sys/kernel/uevent_helper
-			udevd --daemon
-			udevadm trigger --action=add --type=subsystems
-			udevadm trigger --action=add --type=devices
-			udevadm settle
+			udevd --daemon                                 || RESULT=/bin/false
+			udevadm trigger --action=add --type=subsystems || RESULT=/bin/false
+			udevadm trigger --action=add --type=devices    || RESULT=/bin/false
+			udevadm settle                                 || RESULT=/bin/false
 		else
 			RESULT=/bin/false
 		fi
 	fi
-	result
+elif [ "$DEVICE_MANAGER" = "mdev" ]
+then
+	echo /sbin/mdev > /proc/sys/kernel/hotplug || RESULT=/bin/false
 fi
+eval $RESULT
+result
 
 announce "Running client init scripts..."
 sh /etc/init.d/rcS.clients
@@ -262,3 +262,4 @@ result
 announce "Running /etc/rc.local..."
 sh /etc/rc.local
 result
+
