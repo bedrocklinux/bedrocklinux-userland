@@ -33,7 +33,7 @@ initrdset(){
 }
 
 announce "Preparing /proc..."
-if grep -q "^\w\+ /proc proc" /proc/mounts 2>/dev/null
+if [ -r /proc/mounts ] && grep -q "^\w\+ /proc proc" /proc/mounts
 then
 	initrdset
 else
@@ -81,11 +81,8 @@ fi
 
 if [ "$DEVICE_MANAGER" != "static" ] && [ "$DEVICE_MANAGER" != "initrd" ]
 then
-	announce " Static /dev or using initrd's /dev, no more work needed"
-	result
-else
 	announce "Preparing /dev"
-	if grep -q "^\w\+ /dev tmpfs" /proc/mounts
+	if grep -q "^\w\+ /dev \(dev\)\?tmpfs" /proc/mounts
 	then
 		initrdset
 	else
@@ -111,7 +108,7 @@ else
 		result
 	fi
 	announce "Populating /dev"
-	mdev -s
+	mdev -s 2>/dev/null
 	result
 fi
 
@@ -119,24 +116,23 @@ announce "Preparing swap..."
 swapon -a
 result
 
-announce "Checking filesystems..."
 RESULT=/bin/true
 ROOT_FS_TYPE=$(cat /proc/mounts | awk '$1 == "/dev/root" && $2 == "/" {print$3}')
 ROOT_DEVICE=/dev/$(readlink /dev/root)
-echo ""
 if [ "$FSCK" != 1 ]
 then
-	echo "FSCK=1 in rc.conf, skipping fsck"
+	announce "Skipping fsck (FSCK=1 in rc.conf)..."
 elif [ -f /fastboot ] || grep -i -q -w "fastboot" /proc/cmdline
 then
-	echo "fastboot requested, skipping fsck"
+	announce "Skipping fsck (fastboot requested)..."
 elif [ -f /forcefsck ] || grep -i -q -w "forcefsck" /proc/cmdline
 then
-	echo "forcefsck requested, forcing fsck"
+	announce "Checkig filesystem (forcefsck requested)..."
 	mount / -o remount,ro || RESULT=/bin/false          || RESULT=/bin/false
 	fsck -a -C0 -f -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
 	fsck -a -A -C0 -f -T                                || RESULT=/bin/false
 else
+	announce "Checking filesystem..."
 	mount / -o remount,ro || RESULT=/bin/false       || RESULT=/bin/false
 	fsck -a -C0 -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
 	fsck -a -A -C0 -T                                || RESULT=/bin/false
@@ -211,6 +207,16 @@ fi
 dd if=/var/lib/urandom/random-seed of=/dev/urandom bs=$POOLSIZE count=1 2>/dev/null
 result
 
+announce "Setting hostname..."
+if [ -r /etc/hostname ]
+then
+	hostname "$(cat /etc/hostname)"
+else
+	hostname "bedrock-box"
+	/bin/false
+fi
+result
+
 announce "Setting up client shared items..."
 RESULT=/bin/true
 if [ -n "$(bri -l)" ]
@@ -220,8 +226,30 @@ then
 		DIRECTORY=$(bri -p $CLIENT)
 		for SHARE in $(bri -s $CLIENT)
 		do
-			echo "mount --bind $SHARE $DIRECTORY$SHARE" || RESULT=/bin/false
-			echo "mount --make-shared $DIRECTORY$SHARE" || RESULT=/bin/false
+			TRYMOUNT=/bin/true
+			if [ -d $SHARE ] && [ ! -d $DIRECTORY$SHARE ]
+			then
+				mkdir -p $DIRECTORY$SHARE
+			elif [ -f $SHARE ] && [ ! -f $DIRECTORY$SHARE ]
+			then
+				touch $DIRECTORY$SHARE
+			elif [ ! -d $SHARE ] && [ -d $DIRECTORY$SHARE ]
+			then
+				mkdir -p $SHARE
+			elif [ ! -f $SHARE ] && [ -f $DIRECTORY$SHARE ]
+			then
+				touch $SHARE
+			elif [ ! -e $SHARE ] || [ ! -e $DIRECTORY$SHARE ]
+			then
+				TRYMOUNT=/bin/false
+				RESULT=/bin/false
+				echo "ERROR: Cannot share $SHARE in $DIRECTORY"
+				echo "Do both $SHARE and $DIRECTORY$SHARE exist?"
+			fi
+			if $TRYMOUNT
+			then
+				mount --bind $SHARE $DIRECTORY$SHARE || RESULT=/bin/false
+			fi
 		done
 	done
 fi
@@ -262,4 +290,3 @@ result
 announce "Running /etc/rc.local..."
 sh /etc/rc.local
 result
-
