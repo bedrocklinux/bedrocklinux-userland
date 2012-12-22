@@ -1,6 +1,10 @@
 src/brc/brc
+bedrock/bin/brc
 bin/*
 sbin/*
 bedrock/brpath/bin/*
 bedrock/brpath/sbin/*
 bedrock/brpath/clients/*
+etc/passwd-
+etc/shadow-
+etc/group-
