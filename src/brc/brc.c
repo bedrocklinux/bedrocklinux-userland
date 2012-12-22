@@ -36,7 +36,7 @@ void ensure_capsyschroot(char* executable_name){
 	/* get (all) capabilities for this process */
 	current_capabilities = cap_get_proc();
 	if(current_capabilities == NULL)
-		perror("get_get_proc");
+		perror("cap_get_proc");
 	/* from current_capabilities, get effective and permitted flags for cap_sys_chroot */
 	cap_get_flag(current_capabilities, CAP_SYS_CHROOT, CAP_PERMITTED, &chroot_permitted);
 	cap_get_flag(current_capabilities, CAP_SYS_CHROOT, CAP_EFFECTIVE, &chroot_effective);
