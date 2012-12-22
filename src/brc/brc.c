@@ -145,6 +145,10 @@ void get_chroot_path(char* argv[], char* chroot_path){
 
 	FILE* fp;
 	fp = fopen(BRCLIENTSCONF,"r");
+	if(fp == NULL){
+		perror("fopen "BRCLIENTSCONF);
+		exit(1);
+	}
 	while(fgets(line, PATH_MAX+7, fp) != NULL){
 		/* in target section*/
 		if(strncmp(line, target_section, strlen(target_section)) == 0)
