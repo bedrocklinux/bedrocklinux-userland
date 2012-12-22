@@ -191,7 +191,10 @@ void break_out_of_chroot(){
 	  * changing root dir to /bedrock while we're in / means we're out of the root
 	  * dir - ie, out of the chroot if we were previously in one.
 	  */
-	chroot("/bedrock");
+	if(chroot("/bedrock") == -1){
+		perror("chroot");
+		exit(1);
+	}
 	/*
 	 * cd up until we hit the actual, absolute root directory.  we'll know
 	 * where there when the current and parent directorys both have the same
