@@ -36,7 +36,7 @@ void ensure_capsyschroot(char* executable_name){
 	/* get (all) capabilities for this process */
 	current_capabilities = cap_get_proc();
 	if(current_capabilities == NULL)
-		perror("get_get_proc");
+		perror("cap_get_proc");
 	/* from current_capabilities, get effective and permitted flags for cap_sys_chroot */
 	cap_get_flag(current_capabilities, CAP_SYS_CHROOT, CAP_PERMITTED, &chroot_permitted);
 	cap_get_flag(current_capabilities, CAP_SYS_CHROOT, CAP_EFFECTIVE, &chroot_effective);
@@ -145,6 +145,10 @@ void get_chroot_path(char* argv[], char* chroot_path){
 
 	FILE* fp;
 	fp = fopen(BRCLIENTSCONF,"r");
+	if(fp == NULL){
+		perror("fopen "BRCLIENTSCONF);
+		exit(1);
+	}
 	while(fgets(line, PATH_MAX+7, fp) != NULL){
 		/* in target section*/
 		if(strncmp(line, target_section, strlen(target_section)) == 0)
@@ -187,7 +191,10 @@ void break_out_of_chroot(){
 	  * changing root dir to /bedrock while we're in / means we're out of the root
 	  * dir - ie, out of the chroot if we were previously in one.
 	  */
-	chroot("/bedrock");
+	if(chroot("/bedrock") == -1){
+		perror("chroot");
+		exit(1);
+	}
 	/*
 	 * cd up until we hit the actual, absolute root directory.  we'll know
 	 * where there when the current and parent directorys both have the same
@@ -258,6 +265,9 @@ int main(int argc, char* argv[]){
 	/* change cwd in the chroot to what it was previously, if possible */
 	if(chdir(chroot_cwd) != 0)
 		fprintf(stderr,"WARNING: \"%s\" not present in target client, falling back to root directory\n", chroot_cwd);
+	
+	/* We need to free previously allocated memory */
+	free(chroot_cwd);
 	/* run command */
 	execvp(chroot_command[0], chroot_command);
 	/* if there is an error, abort cleanly */
