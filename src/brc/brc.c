@@ -265,6 +265,9 @@ int main(int argc, char* argv[]){
 	/* change cwd in the chroot to what it was previously, if possible */
 	if(chdir(chroot_cwd) != 0)
 		fprintf(stderr,"WARNING: \"%s\" not present in target client, falling back to root directory\n", chroot_cwd);
+	
+	/* We need to free previously allocated memory */
+	free(chroot_cwd);
 	/* run command */
 	execvp(chroot_command[0], chroot_command);
 	/* if there is an error, abort cleanly */
