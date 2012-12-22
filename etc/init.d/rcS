@@ -262,7 +262,7 @@ result
 announce "Preparing device manager..."
 if [ "$DEVICE_MANAGER" = "udev" ]
 then
-	if brc -l | grep -q "^$UDEV_CLIENT$"
+	if bri -l | grep -q "^$UDEV_CLIENT$"
 	then
 		brc $UDEV_CLIENT udevd --daemon                                 || RESULT=/bin/false
 		brc $UDEV_CLIENT udevadm trigger --action=add --type=subsystems || RESULT=/bin/false
