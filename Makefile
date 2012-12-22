@@ -40,7 +40,7 @@ install:
 	find etc/init.d/* -type f -exec chmod 744 {} \;
 	find bedrock/bin/ -type f -exec chmod 755 {} \;
 	find bedrock/sbin/ -type f -exec chmod 744 {} \;
-	find . -exec chown root:root {} \;
+	find . -name ".*" -o -exec chown root:root {} \;
 
 # remove unnecessary files which could be left behind from installation
 remove-unnecessary:
@@ -103,6 +103,6 @@ package:
 	# ensure we can run "chroot root:root" or error out
 	chown root:root proc
 	# chown everything to root
-	find . -exec chown root:root {} \;
+	find . -name ".*" -o -exec chown root:root {} \;
 	# create the tarball
 	tar -cvzf bedrock-userland-1.0alpha3.tar.gz *
