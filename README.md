@@ -79,7 +79,7 @@ Other components
 
 You will still need to install the other components (the bootloader, the
 kernel, and busybox), go through the configuration files, add users, and add
-clients.  URL at the top for instructions on how to go about doing this.
+clients.  See URL at the top for instructions on how to go about doing this.
 
 Development
 ===========
@@ -90,8 +90,7 @@ You can use the `get-bb-cmds.sh` script to get a list of busybox commands used
 in the userland.  This provides the minimum required busybox applets.
 
 The following will clean up files which could have been created in development
-that we probably don't care to track in git, and should probably be run
-directly before commiting:
+that we don't want to track in git (things which are set in .gitignore):
 
     make clean
 
