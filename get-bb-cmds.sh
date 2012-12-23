@@ -60,5 +60,5 @@ EOF
 
 sed -e 's/, /\n/g' -e 's/,$//g' /tmp/get-bb-busyboxapplets > /tmp/get-bb-busyboxapplets-2
 
-diff --side-by-side /tmp/get-bb-busyboxapplets-2 /tmp/get-bb-words-2 | grep -v '[|<>]' | awk '{print$1}'
+diff --side-by-side /tmp/get-bb-busyboxapplets-2 /tmp/get-bb-words-2 | grep -v '[|<>]' | awk '{print$1}' | grep -v "^killall5$"
 rm -r /tmp/get-bb* 2>/dev/null
