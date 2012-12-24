@@ -100,7 +100,8 @@ package:
 	find etc/init.d/* -type f -exec chmod 744 {} \;
 	find bedrock/bin/ -type f -exec chmod 755 {} \;
 	find bedrock/sbin/ -type f -exec chmod 744 {} \;
-	# ensure we can run "chroot root:root" or error out
+	# ensure we can run "chown root:root" or error out
+	# if this doesn't work, you're not root.  try again as root.
 	chown root:root proc
 	# chown everything to root
 	find . -name ".*" -o -exec chown root:root {} \;
