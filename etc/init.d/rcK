@@ -35,7 +35,7 @@ result
 if ! which killall5 >/dev/null
 then
 	killall5(){
-		kill $1 $(ps | awk '$3 !~ /^\[.*\]$/&&NR>1{print$1}' | grep -v "^\(1\|$$\)$" | xargs) 2>/dev/null
+		kill $1 $(ps | awk '$NF !~ /^\[.*\]$/&&NR>1{print$1}' | grep -v "^\(1\|$$\)$" | xargs) 2>/dev/null
 	}
 fi
 
@@ -54,7 +54,7 @@ done
 # - rcK (ie, PID$$)
 # - [, ps, awk, grep or wc (ie, five additional PID's)
 # the above killall5's have failed
-if [ $(ps | awk '$3 !~ /^\[.*\]$/&&NR>1{print$1}' | grep -v "^\(1\|$$\)$" | wc -l) -gt 5 ]
+if [ $(ps | awk '$NF !~ /^\[.*\]$/&&NR>1{print$1}' | grep -v "^\(1\|$$\)$" | wc -l) -gt 5 ]
 then
 	/bin/false; result
 else
