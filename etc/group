@@ -9,3 +9,4 @@ floppy:x:25:
 tape:x:26:
 audio:x:29:
 video:x:44:
+staff:x:50:
