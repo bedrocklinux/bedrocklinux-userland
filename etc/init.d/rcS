@@ -6,7 +6,7 @@
 . /bedrock/etc/rc.conf
 
 # explicitly set PATH
-PATH="/bedrock/bin:/bin:/sbin:/usr/bin:/usr/sbin"
+PATH="/bedrock/bin:/bedrock/sbin:/bin:/sbin:/usr/bin:/usr/sbin"
 
 clear
 echo -ne "\033[0;37m"
