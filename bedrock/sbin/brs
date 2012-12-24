@@ -15,7 +15,17 @@ then
 	exit 0
 fi
 
-RESULT=/bin/true
+# ensure running in core bedrock - anywhere else will set up mounts in the
+# wrong place.
+
+if [ "$(bri -n)" != "bedrock" ]
+then
+	echo "Must run in core Bedrock, not a client. Try running:"
+	echo "brc bedrock brs $@"
+	exit 1
+fi
+
+RESULT=0
 for CLIENT in "$@"
 do
 	DIRECTORY=$(bri -p $CLIENT)
@@ -41,13 +51,13 @@ do
 			elif [ ! -e $SHARE ] || [ ! -e $DIRECTORY$SHARE ]
 			then
 				TRYMOUNT=/bin/false
-				RESULT=/bin/false
+				RESULT=0
 				echo "ERROR: Cannot share $SHARE in $DIRECTORY"
 				echo "Do both $SHARE and $DIRECTORY$SHARE exist?"
 			fi
 			if $TRYMOUNT
 			then
-				mount --bind $SHARE $DIRECTORY$SHARE || RESULT=/bin/false
+				mount --bind $SHARE $DIRECTORY$SHARE || RESULT=0
 			fi
 		done
 	fi
