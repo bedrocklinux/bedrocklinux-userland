@@ -15,9 +15,12 @@
 #
 # - If you place all of the clients in the same directory (such as
 # /var/chroot), it may be useful to bind mount the root directory to that
-# location to have the core Bedrock Linux act like every toher client. You can
-# uncomment the following line to do this:
-#/  /var/chroot/bedrock  bind  defaults,bind  0  0
+# location to have the core Bedrock Linux act like every other client.  Since
+# most users will probably want this, it is default.  If you do not want this,
+# comment or remover the line below.
+
+/  /var/chroot/bedrock  bind  defaults,bind  0  0
+
 #
 # - After the mounts from this are created, /bedrock/etc/brclients.conf is
 # parsed and mount points are created from the "share" items there.  If you
