@@ -62,6 +62,8 @@ clean:
 
 # package the project as a tarball for distribution
 package:
+	# ensure brc binary is available
+	gcc -Wall src/brc/brc.c -o src/brc/brc -static -lcap
 	# ensure we're not packaging files created during development
 	-rm src/brc/brc
 	-rm -rf bin/*
