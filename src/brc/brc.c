@@ -82,7 +82,7 @@ void ensure_config_readable(){
 
 /* ensure there are enough arguments */
 void ensure_enough_arguments(int argc, char* argv[]){
-	if(strncmp(argv[0],"brc",4) == 0 && argc < 2){
+	if(argc < 2){
 		fprintf(stderr, "no client specified, aborting\n");
 		exit(1);
 	}
@@ -210,11 +210,6 @@ void break_out_of_chroot(){
 }
 
 int main(int argc, char* argv[]){
-	/* basename(argv[0]) is required several times, while argv[0] without
-	 * basename is not needed.  Replace argv[0] with basename(argv[0]) here to
-	 * simplify later code. */
-	argv[0] = basename(argv[0]);
-
 	/*
 	 * ensure the following items are proper:
 	 * - this process has cap_sys_chroot=ep
