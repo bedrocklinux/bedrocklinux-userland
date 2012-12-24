@@ -68,13 +68,17 @@ p(){
 			INIT_VIEW="$(grep "^$MOUNT_NUMBER " /proc/1/mountinfo | cut -d' ' -f5)"
 			# Mount's location from current POV
 			CLIENT_VIEW="$(grep "^$MOUNT_NUMBER " /proc/$$/mountinfo | cut -d' ' -f5)"
-			# Current POV's path is appended to init's.  If current POV is
-			# not "/", then remove current POV to find where client's root
-			# is mounted.
+			# Current POV's path is appended to init's.
+			# If current POV is "/", actual mount path is whatever init's view is.
+			# If current POV is the same as init's, the root is at the absolute root.
+			# otherwise, remove current POV to find where client's root is mounted.
 			if [ "$CLIENT_VIEW" = "/" ]
 			then
 				# if current POV is mounted at "/", then init's POV is absolute mount.
 				MOUNT_PATH="$INIT_VIEW"
+			elif [ "$CLIENT_VIEW" = "$INIT_VIEW" ]
+			then
+				MOUNT_PATH="/"
 			else
 				# Find lengths of both paths and then find difference to find where client's root is mounted.
 				INIT_VIEW_LEN=$(echo "$INIT_VIEW" | wc -c)
