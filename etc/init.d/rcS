@@ -224,37 +224,7 @@ announce "Setting up client shared items..."
 RESULT=/bin/true
 if [ -n "$(bri -l)" ]
 then
-	for CLIENT in $(bri -l)
-	do
-		DIRECTORY=$(bri -p $CLIENT)
-		for SHARE in $(bri -s $CLIENT)
-		do
-			TRYMOUNT=/bin/true
-			if [ -d $SHARE ] && [ ! -d $DIRECTORY$SHARE ]
-			then
-				mkdir -p $DIRECTORY$SHARE
-			elif [ -f $SHARE ] && [ ! -f $DIRECTORY$SHARE ]
-			then
-				touch $DIRECTORY$SHARE
-			elif [ ! -d $SHARE ] && [ -d $DIRECTORY$SHARE ]
-			then
-				mkdir -p $SHARE
-			elif [ ! -f $SHARE ] && [ -f $DIRECTORY$SHARE ]
-			then
-				touch $SHARE
-			elif [ ! -e $SHARE ] || [ ! -e $DIRECTORY$SHARE ]
-			then
-				TRYMOUNT=/bin/false
-				RESULT=/bin/false
-				echo "ERROR: Cannot share $SHARE in $DIRECTORY"
-				echo "Do both $SHARE and $DIRECTORY$SHARE exist?"
-			fi
-			if $TRYMOUNT
-			then
-				mount --bind $SHARE $DIRECTORY$SHARE || RESULT=/bin/false
-			fi
-		done
-	done
+	brs $(bri -l | xargs)
 fi
 eval $RESULT
 result

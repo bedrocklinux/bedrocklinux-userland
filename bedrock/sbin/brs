@@ -1,0 +1,55 @@
+#!/bin/sh
+### Bedrock Linux 1.0alpha3 Bosco
+### brs (BedRock Setup)
+
+# sets up share points for client in argument
+
+# check for need to print help
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]
+then
+	echo "Usage: brs [CLIENTS]"
+	echo ""
+	echo "brs will set up the share bind mounts for the clients mentioned as"
+	echo "arguments.  Do not run this in a client which has already been set"
+	echo "up."
+	exit 0
+fi
+
+RESULT=/bin/true
+for CLIENT in "$@"
+do
+	DIRECTORY=$(bri -p $CLIENT)
+	if [ -z "$DIRECTORY" ]
+	then
+		echo "ERROR: Cannot find $CLIENT"
+	else
+		for SHARE in $(bri -s $CLIENT)
+		do
+			TRYMOUNT=/bin/true
+			if [ -d $SHARE ] && [ ! -d $DIRECTORY$SHARE ]
+			then
+				mkdir -p $DIRECTORY$SHARE
+			elif [ -f $SHARE ] && [ ! -f $DIRECTORY$SHARE ]
+			then
+				touch $DIRECTORY$SHARE
+			elif [ ! -d $SHARE ] && [ -d $DIRECTORY$SHARE ]
+			then
+				mkdir -p $SHARE
+			elif [ ! -f $SHARE ] && [ -f $DIRECTORY$SHARE ]
+			then
+				touch $SHARE
+			elif [ ! -e $SHARE ] || [ ! -e $DIRECTORY$SHARE ]
+			then
+				TRYMOUNT=/bin/false
+				RESULT=/bin/false
+				echo "ERROR: Cannot share $SHARE in $DIRECTORY"
+				echo "Do both $SHARE and $DIRECTORY$SHARE exist?"
+			fi
+			if $TRYMOUNT
+			then
+				mount --bind $SHARE $DIRECTORY$SHARE || RESULT=/bin/false
+			fi
+		done
+	fi
+done
+exit $RESULT
