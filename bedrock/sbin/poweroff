@@ -4,4 +4,4 @@
 # ensures the core bedrock's poweroff is used, as a client's will probably not
 # work.  This should be before the directory which contains a normal client's
 # poweroff in the $PATH.
-brc bedrock busybox poweroff $@
+brc bedrock /bin/busybox poweroff $@
