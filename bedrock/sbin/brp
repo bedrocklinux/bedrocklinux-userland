@@ -1,0 +1,106 @@
+#!/bin/sh
+### Bedrock Linux 1.0alpha3 Bosco
+### brp (BedRock Path)
+
+# creates files which, when executed, will run a command in another client
+# (through brc).
+
+# source settings (specifically need NPATH and SPATH)
+. /bedrock/etc/rc.conf
+
+# check for need to print help
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]
+then
+	echo "Usage: brp [ARGUMENTS]"
+	echo ""
+	echo "brp will make the commands from all of the clients available in"
+	echo "/bedrock/brpath/ (for normal users) and /bedrock/sbrpath/ (for super"
+	echo "user).  If these directories are in one's PATH (as should be done in"
+	echo "/etc/profile for Bedrock Linux already), one can simply run a command"
+	echo "from another client as though it was available locally."
+	echo ""
+	echo "Arguments:"
+	echo "   -a   only Add new commands; do not remove outdated ones. This will"
+	echo "        likely be faster."
+	echo "   -p   Parallelize.  This will improve performance, but will not"
+	echo "        necessarily follow the client priorty order as specified in"
+	echo "        brclients.conf."
+	exit 0
+fi
+
+remove_existing(){
+	if [ -n "$(ls $DIRECTORY)" ]
+	then
+		rm $DIRECTORY/*
+	fi
+}
+
+create_bouncers(){
+	for CLIENT in $(bri -l)
+	do
+		if [ ! -e /bedrock/brpath/clients/$CLIENT ]
+		then
+			(
+				echo '#!/bin/sh'
+				echo 'brc '"$CLIENT"' $(basename $0) "$@"'
+			) > /bedrock/brpath/clients/$CLIENT
+			chmod 755 /bedrock/brpath/clients/$CLIENT
+		fi
+	done
+}
+
+create_cmds_for_dir(){
+	for EXECUTABLE in $(brc $1 ls $2 2>/dev/null)
+	do
+		if ! [ -e /bedrock/brpath/$3/$EXECUTABLE ]
+		then
+			ln -s /bedrock/brpath/clients/$1 /bedrock/brpath/$3/$EXECUTABLE 2>/dev/null
+		fi
+	done
+}
+
+create_cmds_for_client(){
+	# create commands
+	for DIRECTORY in $(echo $NPATH | sed 's/:/ /g')
+	do
+		create_cmds_for_dir $1 $DIRECTORY "bin" &
+	done
+	for DIRECTORY in $(echo $SPATH | sed 's/:/ /g')
+	do
+		create_cmds_for_dir $1 $DIRECTORY "sbin" &
+	done
+	wait
+}
+
+echo "Populating /bedrock/brpath/... "
+# remove old items
+if [ "$1" != "-a" ] && [ "$2" != "-a" ]
+then
+	for DIRECTORY in /bedrock/brpath/bin /bedrock/brpath/sbin /bedrock/brpath/clients
+	do
+		remove_existing &
+	done
+	# have to wait to ensure this finishes, or it will rm files created below
+	wait
+fi
+
+# create bouncers
+create_bouncers &
+
+if [ "$1" != "-p" ] && [ "$2" != "-p" ]
+then
+	# do not parallelize here to ensure order is followed
+	for CLIENT in $(bri -l)
+	do
+		create_cmds_for_client $CLIENT
+	done
+
+else
+	# do not parallelize here for performance even if order is not followed
+	for CLIENT in $(bri -l)
+	do
+		create_cmds_for_client $CLIENT &
+	done
+fi
+wait
+echo "Completed populating /bedrock/brpath"

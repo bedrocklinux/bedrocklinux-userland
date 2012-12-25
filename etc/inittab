@@ -1,4 +1,7 @@
-# executable to run on boot just after the kernel finishes loading
+### Bedrock Linux 1.0alpha3 Bosco
+### /etc/inittab
+
+# run on boot just after the kernel finishes loading
 ::sysinit:/etc/init.d/rcS
 
 # tty's
@@ -9,7 +12,7 @@ tty4::respawn:/sbin/getty 38400 tty4
 tty5::respawn:/sbin/getty 38400 tty5
 tty6::respawn:/sbin/getty 38400 tty6
 
-# executable to run on reboot
+# run on reboot
 ::ctrlaltdel:/bin/kill 1
-# executable to run just before shutdown
+# run just before shutdown
 ::shutdown:/etc/init.d/rcK

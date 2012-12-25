@@ -1,0 +1,5 @@
+#!/bin/sh
+### Bedrock Linux 1.0alpha3 Bosco
+### brw (BedRock Where)
+# just an alias to bri -n
+exec bri -n

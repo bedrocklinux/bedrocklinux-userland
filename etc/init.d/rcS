@@ -1,19 +1,12 @@
 #!/bin/sh
-# Bedrock Linux 1.0alpha2 Momo Init Script
+### Bedrock Linux 1.0alpha3 Bosco
+### rcS init script
 
-# get settings from /opt/bedrock/etc/rc.conf
-. /opt/bedrock/etc/rc.conf
-
-# If AUTO_BRS is set, it might be cause brs to be launched multiple times in
-# quick succession during init.  This can cause (harmless) error messages as
-# items are mounted in one brs between the time when another brs checks if they
-# need to be mounted and actually mounts them.  To avoid this, set
-# DISABLE_AUTO_BRS, which overrides AUTO_BRS and ensures brs is not run during
-# the boot scripts.
-export DISABLE_AUTO_BRS="1"
+# get settings from /bedrock/etc/rc.conf
+. /bedrock/etc/rc.conf
 
 # explicitly set PATH
-PATH="/opt/bedrock/bin:/bin:/sbin:/usr/bin:/usr/sbin:$BRPATH"
+PATH="/bedrock/bin:/bedrock/sbin:/bin:/sbin:/usr/bin:/usr/sbin"
 
 clear
 echo -ne "\033[0;37m"
@@ -21,7 +14,7 @@ echo "__          __             __      "
 echo "\ \_________\ \____________\ \___  "
 echo " \  _ \  _\ _  \  _\ __ \ __\   /  "
 echo "  \___/\__/\__/ \_\ \___/\__/\_\_\ "
-echo "       Bedrock Linux 1.0alpha2 Momo"
+echo "      Bedrock Linux 1.0alpha3 Bosco"
 echo -ne "\033[0m"
 
 announce(){
@@ -35,30 +28,87 @@ result(){
 		echo -e "\033[0;31mFAILED\033[0m"
 	fi
 }
+initrdset(){
+		echo -e "\033[0;32mINITRD SET\033[0m"
+}
 
 announce "Preparing /proc..."
-mount -t proc proc /proc
-result
+if [ -r /proc/mounts ] && grep -q "^\w\+ /proc proc" /proc/mounts
+then
+	initrdset
+else
+	mount -t proc proc /proc
+	result
+fi
 
 announce "Preparing /sys..."
-mount -t sysfs sysfs /sys
-result
-
-if [ "$DEVICE_MANAGER" = "static" ]
+if grep -q "^\w\+ /sys sysfs" /proc/mounts
 then
-	announce "Static /dev, skipping preperation"
-	result
+	initrdset
 else
-	announce "Preparing /dev..."
-	RESULT=/bin/true
-	mount -w -t tmpfs tmpfs -o mode=755 /dev       || RESULT=/bin/false
-	mkdir /dev/pts                                 || RESULT=/bin/false
-	mount -w -t devpts devpts -o mode=620 /dev/pts || RESULT=/bin/false
-	mkdir /dev/shm                                 || RESULT=/bin/false
-	mount -w -t tmpfs tmpfs -o mode=777 /dev/shm   || RESULT=/bin/false
-	echo /sbin/mdev > /proc/sys/kernel/hotplug     || RESULT=/bin/false
-	mdev -s                                        || RESULT=/bin/false
-	eval $RESULT
+	mount -t sysfs sysfs /sys
+	result
+fi
+
+if [ "$DEVICE_MANAGER" = "initrd" ]
+then
+	announce "Using initrd's /dev"
+	initrdset
+else
+	# attempt to undo a initrd's device manager work
+	UDEVPIDS=$(ps | grep udev | grep -v grep | cut -d' ' -f2 | xargs)
+	if [ -n "$UDEVPIDS" ]
+	then
+		announce "Removing initrd's udev..."
+		kill $UDEVPIDS
+		sleep 1s
+		UDEVPIDS=$(ps | grep udev | grep -v grep | cut -d' ' -f2 | xargs)
+		if [ -n "$UDEVPIDS" ]
+		then
+			kill -9 $UDEVPIDS
+			sleep 1s
+		fi
+		if [ -n "$(ps | grep udev | grep -v grep)" ]
+		then
+			eval /bin/false; result
+		else
+			eval /bin/true; result
+		fi
+	fi 
+	echo "" > /proc/sys/kernel/hotplug
+	echo "" > /sys/kernel/uevent_helper
+fi
+
+if [ "$DEVICE_MANAGER" != "static" ] && [ "$DEVICE_MANAGER" != "initrd" ]
+then
+	announce "Preparing /dev"
+	if grep -q "^\w\+ /dev \(dev\)\?tmpfs" /proc/mounts
+	then
+		initrdset
+	else
+		mount -w -t tmpfs tmpfs -o mode=755 /dev
+		result
+	fi
+	announce "Preparing /dev/pts"
+	if grep -q "^\w\+ /dev/pts devpts" /proc/mounts
+	then
+		initrdset
+	else
+		mkdir -p /dev/pts
+		mount -w -t devpts devpts -o mode=620 /dev/pts
+		result
+	fi
+	announce "Preparing /dev/shm"
+	if grep -q "^\w\+ /dev/shm tmpfs" /proc/mounts
+	then
+		initrdset
+	else
+		mkdir -p /dev/shm
+		mount -w -t tmpfs tmpfs -o mode=777 /dev/shm
+		result
+	fi
+	announce "Populating /dev"
+	mdev -s 2>/dev/null
 	result
 fi
 
@@ -66,20 +116,28 @@ announce "Preparing swap..."
 swapon -a
 result
 
-announce "Checking filesystems..."
 RESULT=/bin/true
 ROOT_FS_TYPE=$(cat /proc/mounts | awk '$1 == "/dev/root" && $2 == "/" {print$3}')
 ROOT_DEVICE=/dev/$(readlink /dev/root)
-echo ""
-if [ -f /fastboot ] || grep -i -q -w "fastboot" /proc/cmdline
+if [ "$FSCK" != 1 ]
 then
-	echo "fastboot requested, skipping fsck"
+	announce "Skipping fsck (FSCK=1 in rc.conf)..."
+elif which fsck >/dev/null
+then
+	announce "Skipping fsck (cannot find fsck)..."
+	RESULT=/bin/false
+elif [ -f /fastboot ] || grep -i -q -w "fastboot" /proc/cmdline
+then
+	announce "Skipping fsck (fastboot requested)..."
 elif [ -f /forcefsck ] || grep -i -q -w "forcefsck" /proc/cmdline
 then
-	echo "forcefsck requested, forcing fsck"
+	announce "Checkig filesystem (forcefsck requested)..."
+	mount / -o remount,ro || RESULT=/bin/false          || RESULT=/bin/false
 	fsck -a -C0 -f -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
 	fsck -a -A -C0 -f -T                                || RESULT=/bin/false
 else
+	announce "Checking filesystem..."
+	mount / -o remount,ro || RESULT=/bin/false       || RESULT=/bin/false
 	fsck -a -C0 -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
 	fsck -a -A -C0 -T                                || RESULT=/bin/false
 fi
@@ -103,7 +161,7 @@ fi
 if [ "$(ls -A /tmp)" != "" ]
 then
 	find /tmp -mindepth 1 -exec rm -rf {} \; 2>/dev/null
-	[ "$(ls -A /tmp)" == "" ] || $RESULT=/bin/false
+	[ "$(ls -A /tmp)" = "" ] || $RESULT=/bin/false
 fi
 eval $RESULT
 result
@@ -114,7 +172,6 @@ if [ -z "$TZ" ]
 then
 	echo ""
 	echo "TZ not set in /etc/rc.conf, defaulting to UTC"
-	echo ""
 	RESULT=/bin/false
 else
 	export TZ
@@ -128,7 +185,6 @@ then
 else
 	echo ""
 	echo "HWCLOCK not set in /etc/rc.conf, defaulting to UTC"
-	echo ""
 	RESULT=/bin/false
 	hwclock -us
 fi
@@ -155,40 +211,50 @@ fi
 dd if=/var/lib/urandom/random-seed of=/dev/urandom bs=$POOLSIZE count=1 2>/dev/null
 result
 
-if [ "$DEVICE_MANAGER" = "udev" ]
-then
-	announce "Preparing udev..."
-	if brc -l | grep -q "^$UDEV_CLIENT$"
-	then
-		echo "" > /proc/sys/kernel/hotplug
-		echo "" > /sys/kernel/uevent_helper
-		brc $UDEV_CLIENT udevd --daemon
-		brc $UDEV_CLIENT udevadm trigger --action=add --type=subsystems
-		brc $UDEV_CLIENT udevadm trigger --action=add --type=devices
-		brc $UDEV_CLIENT udevadm settle
-	else
-		if which udevd >/dev/null && which udevadm >/dev/null
-		then
-			echo "" > /proc/sys/kernel/hotplug
-			echo "" > /sys/kernel/uevent_helper
-			udevd --daemon
-			udevadm trigger --action=add --type=subsystems
-			udevadm trigger --action=add --type=devices
-			udevadm settle
-		else
-			RESULT=/bin/false
-		fi
-	fi
-	result
-fi
-
 announce "Setting hostname..."
 if [ -r /etc/hostname ]
 then
 	hostname "$(cat /etc/hostname)"
 else
+	hostname "bedrock-box"
 	/bin/false
 fi
+result
+
+announce "Setting up client shared items..."
+RESULT=/bin/true
+if [ -n "$(bri -l)" ]
+then
+	brs $(bri -l | xargs)
+fi
+eval $RESULT
+result
+
+announce "Preparing device manager..."
+if [ "$DEVICE_MANAGER" = "udev" ]
+then
+	if bri -l | grep -q "^$UDEV_CLIENT$"
+	then
+		brc $UDEV_CLIENT udevd --daemon                                 || RESULT=/bin/false
+		brc $UDEV_CLIENT udevadm trigger --action=add --type=subsystems || RESULT=/bin/false
+		brc $UDEV_CLIENT udevadm trigger --action=add --type=devices    || RESULT=/bin/false
+		brc $UDEV_CLIENT udevadm settle                                 || RESULT=/bin/false
+	else
+		if which udevd >/dev/null && which udevadm >/dev/null
+		then
+			udevd --daemon                                 || RESULT=/bin/false
+			udevadm trigger --action=add --type=subsystems || RESULT=/bin/false
+			udevadm trigger --action=add --type=devices    || RESULT=/bin/false
+			udevadm settle                                 || RESULT=/bin/false
+		else
+			RESULT=/bin/false
+		fi
+	fi
+elif [ "$DEVICE_MANAGER" = "mdev" ]
+then
+	echo /sbin/mdev > /proc/sys/kernel/hotplug || RESULT=/bin/false
+fi
+eval $RESULT
 result
 
 announce "Running client init scripts..."
@@ -198,10 +264,3 @@ result
 announce "Running /etc/rc.local..."
 sh /etc/rc.local
 result
-
-if [ "$AUTO_BRS" = "1" ]
-then
-	announce "Running brs (background)..."
-	brs &
-	result
-fi

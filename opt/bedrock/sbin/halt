@@ -1,2 +1,0 @@
-#!/bin/sh
-/opt/bedrock/bin/brc bedrock /var/chroot/bedrock/sbin/halt $@
