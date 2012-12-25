@@ -18,6 +18,10 @@ h(){
 	echo "   -p   print path of client currently in OR following client name(s)"
 	echo "   -s   print shared items of client currently in OR following client name(s)"
 	echo "   -c   Cache -n and -p values to speed up future requests (requires root)"
+	echo "   -w   print the client which provides the command(s) in the"
+	echo "        argument(s) if not available locally"
+	echo "   -W   print the client which provides the command(s) in the"
+	echo "        argument(s)"
 }
 
 # print a list of clients
@@ -204,6 +208,38 @@ c(){
 	fi
 }
 
+# print the client which provides the command(s) in the argument(s) if not available locally
+w(){
+	for CMD in "$@"
+	do
+		if [ -x /bedrock/brpath/bin/$CMD ]
+		then
+			basename $(readlink /bedrock/brpath/bin/$CMD)
+		elif [ -x /bedrock/brpath/sbin/$CMD ]
+		then
+			basename $(readlink /bedrock/brpath/sbin/$CMD)
+		else
+			echo "Cannot find $CMD"
+		fi
+	done
+}
+
+# print the client which provides the command(s) in the argument(s)
+W(){
+	for CMD in "$@"
+	do
+		if ! which "$CMD" >/dev/null
+		then
+			echo "Cannot find $CMD"
+		elif ! which "$CMD" | grep -q "^/bedrock/brpath"
+		then
+			w "$CMD"
+		else
+			echo $(bri -n)
+		fi
+	done
+}
+
 # parse arguments
 case "$1" in
 	-h)
@@ -222,6 +258,12 @@ case "$1" in
 	-s)
 		shift
 		s $@;;
+	-w)
+		shift
+		w $@;;
+	-W)
+		shift
+		W $@;;
 	-c)
 		c;;
 	*)
