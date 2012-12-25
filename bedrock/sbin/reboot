@@ -4,4 +4,4 @@
 # ensures the core bedrock's reboot is used, as a client's will probably not
 # work.  This should be before the directory which contains a normal client's
 # reboot in the $PATH.
-brc bedrock busybox reboot $@
+brc bedrock /bin/busybox reboot $@

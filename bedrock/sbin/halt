@@ -4,4 +4,4 @@
 # ensures the core bedrock's halt is used, as a client's will probably not
 # work.  This should be before the directory which contains a normal client's
 # halt in the $PATH.
-brc bedrock busybox halt $@
+brc bedrock /bin/busybox halt $@
