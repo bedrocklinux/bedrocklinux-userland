@@ -14,7 +14,7 @@ echo "__          __             __      "
 echo "\ \_________\ \____________\ \___  "
 echo " \  _ \  _\ _  \  _\ __ \ __\   /  "
 echo "  \___/\__/\__/ \_\ \___/\__/\_\_\ "
-echo "       Bedrock Linux 1.0alpha3 Momo"
+echo "      Bedrock Linux 1.0alpha3 Bosco"
 echo -ne "\033[0m"
 
 announce(){
