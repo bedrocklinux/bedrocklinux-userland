@@ -1,12 +1,17 @@
 #!/bin/sh
-. /opt/bedrock/etc/rc.conf
+### Bedrock Linux 1.0alpha3 Bosco
+### /etc/profile
+
+# source settings from rc.conf
+. /bedrock/etc/rc.conf
+
+# these settings can be directly exported
 export TZ
 export LANG
-PATH="/bin:/usr/bin:/usr/local/bin"
-PATH="/opt/bedrock/bin:$PATH"
+
+# build the PATH
+export PATH="/bedrock/bin:$NPATH:/bedrock/brpath/bin"
 if [ "$(id -u)" = "0" ]
 then
-	PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin"
-	PATH="/opt/bedrock/sbin:$PATH"
+	export PATH="/bedrock/bin:/bedrock/sbin:$NPATH:$SPATH:/bedrock/brpath/bin:/bedorck/brpath/sbin"
 fi
-export PATH="$PATH:$BRPATH"

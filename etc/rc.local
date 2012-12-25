@@ -1,5 +1,9 @@
 #!/bin/sh
+### Bedrock Linux 1.0alpha3 Bosco
+### /etc/rc.local
 # Place code here which you would like to be run at boot.
 #
-# Either setting the PATH or use a full path might be advisable.
-#PATH=/opt/bedrock/bin:/bin:/usr/bin:/usr/local/brpath:/opt/bedrock/sbin:/sbin:/usr/sbin:/usr/local/brpath
+# A path is explicitly set below for convenience - feel free to change it.
+PATH="/bedrock/bin:/bedrock/sbin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/bedrock/brpath/bin:/bedorck/brpath/sbin"
+
+exit 0
