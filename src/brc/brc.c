@@ -169,7 +169,6 @@ void get_chroot_path(char* argv[], char* chroot_path){
 			if(strncmp(key,"path",5) == 0 && strncmp(value,"",1) != 0){
 				strcat(chroot_path,value);
 				fclose(fp);
-				fprintf(stderr,"%s\n", chroot_path);
 				return;
 			}
 		}
