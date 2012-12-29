@@ -4,6 +4,6 @@
 # Place code here which you would like to be run at boot.
 #
 # A path is explicitly set below for convenience - feel free to change it.
-PATH="/bedrock/bin:/bedrock/sbin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/bedrock/brpath/bin:/bedorck/brpath/sbin"
+PATH="/bedrock/bin:/bedrock/sbin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/bedrock/brpath/bin:/bedrock/brpath/sbin"
 
 exit 0
