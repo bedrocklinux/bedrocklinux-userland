@@ -122,7 +122,7 @@ ROOT_DEVICE=/dev/$(readlink /dev/root)
 if [ "$FSCK" != 1 ]
 then
 	announce "Skipping fsck (FSCK=1 in rc.conf)..."
-elif which fsck >/dev/null
+elif ! which fsck >/dev/null
 then
 	announce "Skipping fsck (cannot find fsck)..."
 	RESULT=/bin/false
