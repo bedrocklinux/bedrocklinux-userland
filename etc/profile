@@ -13,5 +13,5 @@ export LANG
 export PATH="/bedrock/bin:$NPATH:/bedrock/brpath/bin"
 if [ "$(id -u)" = "0" ]
 then
-	export PATH="/bedrock/bin:/bedrock/sbin:$NPATH:$SPATH:/bedrock/brpath/bin:/bedorck/brpath/sbin"
+	export PATH="/bedrock/bin:/bedrock/sbin:$NPATH:$SPATH:/bedrock/brpath/bin:/bedrock/brpath/sbin"
 fi

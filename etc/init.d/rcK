@@ -48,7 +48,6 @@ for i in 1 2 3 4 5 6 7 8 9 10
 do
 	killall5 -9
 done
-result
 # the below check claims "FAILED" when they should have succeeded - this needs
 # more work.  it is probably the *check* that is bad, not the killall5's, but
 # both should be examined in more detail.
@@ -64,6 +63,7 @@ result
 #else
 #	/bin/true; result
 #fi
+/bin/true; result
 
 announce "Saving PRNG..."
 if [ -f /proc/sys/kernel/random/poolsize ]
