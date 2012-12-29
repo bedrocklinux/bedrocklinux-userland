@@ -121,7 +121,7 @@ ROOT_FS_TYPE=$(cat /proc/mounts | awk '$1 == "/dev/root" && $2 == "/" {print$3}'
 ROOT_DEVICE=/dev/$(readlink /dev/root)
 if [ "$FSCK" != 1 ]
 then
-	announce "Skipping fsck (FSCK=1 in rc.conf)..."
+	announce "Skipping fsck (FSCK != 1 in rc.conf)..."
 elif ! which fsck >/dev/null
 then
 	announce "Skipping fsck (cannot find fsck)..."
