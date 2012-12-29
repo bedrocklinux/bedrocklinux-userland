@@ -136,9 +136,7 @@ void get_chroot_path(char* argv[], char* chroot_path){
 	 * length was arbitrarily chosen
 	 */
 	char target_section[PATH_MAX];
-	strcat(target_section, "[client \"");
-	strcat(target_section, argv[1]);
-	strcat(target_section,"\"]");
+	snprintf(target_section, PATH_MAX, "[client \"%s\"]", argv[1]);
 	/* will store whether we're currently in the target section */
 	int in_section = 0;
 
@@ -167,7 +165,7 @@ void get_chroot_path(char* argv[], char* chroot_path){
 			 */
 			sscanf(line," %[^= ] = %s",key,value);
 			if(strncmp(key,"path",5) == 0 && strncmp(value,"",1) != 0){
-				strcat(chroot_path,value);
+				snprintf(chroot_path, PATH_MAX, "%s%s", chroot_path, value);
 				fclose(fp);
 				return;
 			}
