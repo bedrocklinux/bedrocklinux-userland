@@ -83,7 +83,7 @@ do
 		fi
 		echo "bru: updating $CLIENT"
 		echo "running: $UPDATECMD"
-		/bin/sh -c "$UPDATECMD"
+		brc $CLIENT /bin/sh -c "$UPDATECMD"
 	fi
 	if echo $LINE | grep -q '^\s*framework\s*=' && [ -n "$CLIENT" ]
 	then
