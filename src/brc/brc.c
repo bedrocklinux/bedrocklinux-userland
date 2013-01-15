@@ -234,7 +234,7 @@ int main(int argc, char* argv[]){
 	 */
 
 	/* get command to run in chroot */
-	char* shell[PATH_MAX];
+	char* shell[1];
 	char** chroot_command = get_chroot_command(argc, argv, shell);
 	/* get path to chroot */
 	char chroot_path[PATH_MAX];
