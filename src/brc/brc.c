@@ -219,9 +219,9 @@ int main(int argc, char* argv[]){
 
 	/* ensure this process has the required capabilities */
 	ensure_capsyschroot(argv[0]);
-	/* ensure config files are only writable by root */
+	/* ensure config file is only writable by root */
 	ensure_config_secure();
-	/* ensure config files are only writable by root */
+	/* ensure config file is readable */
 	ensure_config_readable();
 	/* ensure there are enough arguments */
 	ensure_enough_arguments(argc, argv);
