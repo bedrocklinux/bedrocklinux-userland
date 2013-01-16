@@ -123,26 +123,32 @@ void get_chroot_path(char* argv[], char* chroot_path){
 	/*
 	 * will hold the currently-being-parsed line
 	 * line length: len("path = ") + max path length
+	 * in theory lines could be longer than this - such as with
+	 * indentation or other whitespace changes - but this should be sufficient
+	 * for now.  Longer lines are simply not supported - additional characters
+	 * are ignored.
 	 */
 	char line[PATH_MAX+7];
 	/* will store the key name to check if it is "path" */
 	char key[5];
-	/* will store the value for the key*/
+	/* will store the value for the key */
 	char value[PATH_MAX];
 	/*
 	 * will store the section heading we are looking for.
 	 * it will look like '[client "argv[1]"]' (ie, .ini-style
 	 * "client" heading).  The first line starting with "path =" (with
 	 * flexible whitespace) under it will be contain the path we want.
-	 * length was arbitrarily chosen
+	 * target_section size is:
+	 * len("[client \"")+len(argv[1])+len("\"]")+len("\0")
+	 * 9 + len(argv[1]) + 2 + 1 == 12 + len(argv[1])
 	 */
-	char target_section[PATH_MAX];
+	char target_section[12+strlen(argv[1])];
+	target_section[0] = '\0';
 	strcat(target_section, "[client \"");
 	strcat(target_section, argv[1]);
 	strcat(target_section,"\"]");
 	/* will store whether we're currently in the target section */
 	int in_section = 0;
-
 
 	FILE* fp;
 	fp = fopen(BRCLIENTSCONF,"r");
