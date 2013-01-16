@@ -76,7 +76,7 @@ do
 	fi
 	if echo $LINE | grep -q '^\s*updatecmd\s*=' && [ -n "$CLIENT" ]
 	then
-		UPDATECMD="$(echo $LINE | awk '{$1="";$2="";print$0}')"
+		UPDATECMD="$(echo $LINE | awk -F"=" '{$1="";print$0}' | sed 's/^ *//')"
 		if $RESPOND_YES
 		then
 			UPDATECMD="yes | $UPDATECMD"
@@ -87,25 +87,30 @@ do
 	fi
 	if echo $LINE | grep -q '^\s*framework\s*=' && [ -n "$CLIENT" ]
 	then
+		TARGET_FRAMEWORK="$(echo $LINE | awk -F"=" '{$1="";print$0}' | sed 's/^ *//')"
 		UPDATECMD=$(awk '
-			/^\[framework ".*"\]$/{
-				FRAMEWORK=substr($0,13,length($0)-14)
+			/^\[/{
+				IN_FRAMEWORK=0
 			}
-			/^\[client ".*"\]$/{
-				FRAMEWORK=""
+			/^\[framework "'$TARGET_FRAMEWORK'"\]$/{
+				IN_FRAMEWORK=1
 			}
-			/^[ \t]*updatecmd[ \t]*=/ && FRAMEWORK != ""{
+			/^[ \t]*updatecmd[ \t]*=/ && IN_FRAMEWORK{
 				$1=""; $2=""
 				print $0
 				exit
 			}
-			' /bedrock/etc/brclients.conf)
-		if $RESPOND_YES
+		' /bedrock/etc/brclients.conf | sed 's/^ *//'
+		)
+		if [ -n "$UPDATECMD" ]
 		then
-			UPDATECMD="yes | $UPDATECMD"
+			if $RESPOND_YES
+			then
+				UPDATECMD="yes | $UPDATECMD"
+			fi
+			echo "bru: updating $CLIENT"
+			echo "running: $UPDATECMD"
 		fi
-		echo "bru: updating $CLIENT"
-		echo "running: $UPDATECMD"
 		/bin/sh -c "$UPDATECMD"
 	fi
 done
