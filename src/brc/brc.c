@@ -105,6 +105,7 @@ char** get_chroot_command(int argc, char* argv[], char* shell[]){
 		 * back to /bin/sh.
 		 */
 		shell[0] = getenv("SHELL");
+		shell[1] = '\0';
 		if(shell[0] == NULL)
 			shell[0] = "/bin/sh";
 		return shell;
@@ -234,7 +235,7 @@ int main(int argc, char* argv[]){
 	 */
 
 	/* get command to run in chroot */
-	char* shell[1];
+	char* shell[2];
 	char** chroot_command = get_chroot_command(argc, argv, shell);
 	/* get path to chroot */
 	char chroot_path[PATH_MAX];
