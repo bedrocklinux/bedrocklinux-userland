@@ -1,5 +1,11 @@
 #!/bin/sh
 ### Bedrock Linux 1.0alpha3 Bosco
 ### brw (BedRock Where)
-# just an alias to bri -n
-exec bri -n
+if [ -z "$1" ]
+then
+    # if there's no arguments, run bri -n
+    exec bri -n
+else
+    # if given arguments, pass them to bri -w
+    exec bri -w "$@"
+fi
