@@ -764,6 +764,7 @@ static int bru_fsyncdir(const char *path, int datasync, struct fuse_file_info *f
 static int bru_access(const char *path, int mask)
 {
 	SET_CALLER_UID();
+	REDIR_PATH(path, new_path);
 
 	/*
 	 * Disabling AT_SYMLINK_NOFOLLOW since musl does not (yet?) support it.
