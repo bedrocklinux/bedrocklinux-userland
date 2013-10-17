@@ -185,7 +185,6 @@ static int bru_getattr(const char *path, struct stat *stbuf)
 	int ret = lstat(new_path, stbuf);
 
 	SET_RET_ERRNO();
-	printf("read %d\n", ret);
 	return ret;
 }
 
@@ -225,7 +224,6 @@ static int bru_readlink(const char *path, char *buf, size_t bufsize)
 	else if(bytes_read <= bufsize)
 		buf[bytes_read] = '\0';
 
-	printf("readlink %d\n", ret);
 	return ret;
 }
 
@@ -237,7 +235,6 @@ static int bru_mknod(const char *path, mode_t mode, dev_t dev)
 	int ret = mknod(new_path, mode, dev);
 
 	SET_RET_ERRNO();
-	printf("mknod %d\n", ret);
 	return ret;
 }
 
@@ -249,7 +246,6 @@ static int bru_mkdir(const char *path, mode_t mode)
 	int ret = mkdir(new_path, mode);
 
 	SET_RET_ERRNO();
-	printf("mkdir %d\n", ret);
 	return ret;
 }
 
@@ -261,7 +257,6 @@ static int bru_unlink(const char *path)
 	int ret = unlink(new_path);
 
 	SET_RET_ERRNO();
-	printf("unlink %d\n", ret);
 	return ret;
 }
 
@@ -273,7 +268,6 @@ static int bru_rmdir(const char *path)
 	int ret = rmdir(new_path);
 
 	SET_RET_ERRNO();
-	printf("rmdir %d\n", ret);
 	return ret;
 }
 
@@ -285,7 +279,6 @@ static int bru_symlink(const char *symlink_string, const char *path)
 	int ret = symlink(symlink_string, new_path);
 
 	SET_RET_ERRNO();
-	printf("symlink %d\n", ret);
 	return ret;
 }
 
@@ -397,7 +390,6 @@ static int bru_rename(const char *old_path, const char *new_path)
 	 * Check for error during unlink
 	 */
 	SET_RET_ERRNO();
-	printf("rename %d\n", ret);
 	return ret;
 }
 
@@ -409,7 +401,6 @@ static int bru_link(const char *old_path, const char *new_path){
 	int ret = link(redir_old_path, redir_new_path);
 
 	SET_RET_ERRNO();
-	printf("link %d\n", ret);
 	return ret;
 }
 
@@ -420,7 +411,6 @@ static int bru_chmod(const char *path, mode_t mode){
 	int ret = chmod(new_path, mode);
 
 	SET_RET_ERRNO();
-	printf("chmod %d\n", ret);
 	return ret;
 }
 
@@ -431,7 +421,6 @@ static int bru_chown(const char *path, uid_t owner, gid_t group){
 	int ret = lchown(new_path, owner, group);
 
 	SET_RET_ERRNO();
-	printf("chown %d\n", ret);
 	return ret;
 }
 
@@ -442,7 +431,6 @@ static int bru_truncate(const char *path, off_t length){
 	int ret = truncate(new_path, length);
 
 	SET_RET_ERRNO();
-	printf("truncate %d\n", ret);
 	return ret;
 }
 
@@ -455,10 +443,7 @@ static int bru_open(const char *path, struct fuse_file_info *fi)
 	SET_CALLER_UID();
 	REDIR_PATH(path, new_path);
 
-	printf("opening: (orig)|%s|\n", path);
-	printf("opening: (redir)|%s|\n", new_path);
 	int ret = open(new_path, fi->flags);
-	printf("got %d\n", ret);
 
 	if (ret < 0) {
 		ret = -errno;
@@ -467,7 +452,6 @@ static int bru_open(const char *path, struct fuse_file_info *fi)
 		ret = 0;
 	}
 
-	printf("open %d\n", ret);
 	return ret;
 }
 
@@ -478,7 +462,6 @@ static int bru_read(const char *path, char *buf, size_t size, off_t offset, stru
 	int ret = pread(fi->fh, buf, size, offset);
 
 	SET_RET_ERRNO();
-	printf("read %d\n", ret);
 	return ret;
 }
 
@@ -489,7 +472,6 @@ static int bru_write(const char *path, const char *buf, size_t size, off_t offse
 	int ret = pwrite(fi->fh, buf, size, offset);
 
 	SET_RET_ERRNO();
-	printf("write %d\n", ret);
 	return ret;
 }
 
@@ -504,7 +486,6 @@ static int bru_statfs(const char *path, struct statvfs *buf)
 	int ret = statvfs(new_path, buf);
 
 	SET_RET_ERRNO();
-	printf("statfs %d\n", ret);
 	return ret;
 }
 
@@ -518,7 +499,6 @@ static int bru_release(const char *path, struct fuse_file_info *fi)
 	int ret = close(fi->fh);
 
 	SET_RET_ERRNO();
-	printf("release %d\n", ret);
 	return ret;
 }
 
@@ -537,7 +517,6 @@ static int bru_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 		ret = fsync(fi->fh);
 
 	SET_RET_ERRNO();
-	printf("fsync %d\n", ret);
 	return ret;
 }
 
@@ -549,7 +528,6 @@ static int bru_setxattr(const char *path, const char *name, const char *value, s
 	int ret = lsetxattr(new_path, name, value, size, flags);
 
 	SET_RET_ERRNO();
-	printf("setxattr %d\n", ret);
 	return ret;
 }
 
@@ -561,7 +539,6 @@ static int bru_getxattr(const char *path, const char *name, char *value, size_t 
 	int ret = lgetxattr(new_path, name, value, size);
 
 	SET_RET_ERRNO();
-	printf("getxattr %d\n", ret);
 	return ret;
 }
 
@@ -573,7 +550,6 @@ static int bru_listxattr(const char *path, char *list, size_t size)
 	int ret = llistxattr(new_path, list, size);
 
 	SET_RET_ERRNO();
-	printf("listxattr %d\n", ret);
 	return ret;
 }
 
@@ -585,7 +561,6 @@ static int bru_removexattr(const char *path, const char *name)
 	int ret = lremovexattr(new_path, name);
 
 	SET_RET_ERRNO();
-	printf("removexattr %d\n", ret);
 	return ret;
 }
 
@@ -611,7 +586,6 @@ static int bru_opendir(const char *path, struct fuse_file_info *fi)
 	else
 		ret = -errno;
 
-	printf("opendir %d\n", ret);
 	return ret;
 }
 
@@ -754,7 +728,6 @@ static int bru_releasedir(const char *path, struct fuse_file_info *fi)
 	int ret = closedir((DIR *) fi->fh);
 
 	SET_RET_ERRNO();
-	printf("releasedir %d\n", ret);
 	return ret;
 }
 
@@ -773,7 +746,6 @@ static int bru_fsyncdir(const char *path, int datasync, struct fuse_file_info *f
 		ret = fsync(fi->fh);
 
 	SET_RET_ERRNO();
-	printf("fsyncdir %d\n", ret);
 	return ret;
 }
 
@@ -792,10 +764,6 @@ static int bru_fsyncdir(const char *path, int datasync, struct fuse_file_info *f
 static int bru_access(const char *path, int mask)
 {
 	SET_CALLER_UID();
-	REDIR_PATH(path, new_path);
-
-	printf("accessing: (orig)|%s|\n", path);
-	printf("accessing: (redir)|%s|\n", new_path);
 
 	/*
 	 * Disabling AT_SYMLINK_NOFOLLOW since musl does not (yet?) support it.
@@ -803,10 +771,7 @@ static int bru_access(const char *path, int mask)
 	 */
     int ret = faccessat(0, new_path, mask, AT_EACCESS);
 
-	printf("got %d\n", ret);
-
 	SET_RET_ERRNO();
-	printf("access %d\n", ret);
 	return ret;
 }
 
@@ -822,7 +787,6 @@ static int bru_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	if ((fi->fh = creat(new_path, mode)) < 0)
 		ret = -errno;
 
-	printf("create %d\n", ret);
 	return ret;
 }
 
@@ -833,7 +797,6 @@ static int bru_ftruncate(const char *path, off_t length, struct fuse_file_info *
 	int ret = ftruncate(fi->fh, length);
 
 	SET_RET_ERRNO();
-	printf("ftruncate %d\n", ret);
 	return ret;
 }
 
@@ -844,7 +807,6 @@ static int bru_fgetattr(const char *path, struct stat *stbuf, struct fuse_file_i
 	int ret = fstat(fi->fh, stbuf);
 
 	SET_RET_ERRNO();
-	printf("fgetattr %d\n", ret);
 	return ret;
 }
 
@@ -861,7 +823,6 @@ static int bru_utimens(const char *path, const struct timespec *times)
 	int ret = utimensat(0, new_path, times, AT_SYMLINK_NOFOLLOW);
 
 	SET_RET_ERRNO();
-	printf("utimens %d\n", ret);
 	return ret;
 }
 
