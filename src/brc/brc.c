@@ -5,7 +5,7 @@
  *      modify it under the terms of the GNU General Public License
  *      version 2 as published by the Free Software Foundation.
  *
- * Copyright (c) 2012 Daniel Thau <paradigm@bedrocklinux.org>
+ * Copyright (c) 2012-2013 Daniel Thau <paradigm@bedrocklinux.org>
  *
  * This program is a derivative work of capchroot 0.1, and thus:
  * Copyright (c) 2009 Thomas Bächler <thomas@archlinux.org>
@@ -19,192 +19,106 @@
 #include <stdio.h>          /* printf()           */
 #include <stdlib.h>         /* exit()             */
 #include <sys/stat.h>       /* stat()             */
-#include <libgen.h>         /* basename()         */
+#include <unistd.h>         /* chroot()           */
 #include <string.h>         /* strncmp(),strcat() */
 #include <sys/param.h>      /* PATH_MAX           */
 #include <unistd.h>         /* execvp()           */
+#include <sys/types.h>      /* opendir()          */
+#include <dirent.h>         /* opendir()          */
+#include <errno.h>          /* errno              */
 
-/* configuration file mapping clients to their path */
-#define BRCLIENTSCONF "/bedrock/etc/brclients.conf"
+#define CONFIGDIR "/bedrock/etc/clients.d/"
+#define CLIENTDIR "/bedrock/clients/"
+#define CONFIGDIRLEN strlen(CONFIGDIR)
+#define CLIENTDIRLEN strlen(CONFIGDIR)
 
 /* ensure this process has the required capabilities */
-void ensure_capsyschroot(char* executable_name){
+void ensure_capsyschroot(char* executable_name)
+{
 	/* will store (all) current capabilities */
 	cap_t current_capabilities;
 	/* will store cap_sys_chroot capabilities */
 	cap_flag_value_t chroot_permitted, chroot_effective;
+
 	/* get (all) capabilities for this process */
 	current_capabilities = cap_get_proc();
-	if(current_capabilities == NULL)
+	if (current_capabilities == NULL)
 		perror("cap_get_proc");
+
 	/* from current_capabilities, get effective and permitted flags for cap_sys_chroot */
 	cap_get_flag(current_capabilities, CAP_SYS_CHROOT, CAP_PERMITTED, &chroot_permitted);
 	cap_get_flag(current_capabilities, CAP_SYS_CHROOT, CAP_EFFECTIVE, &chroot_effective);
+
 	/* if either chroot_permitted or chroot_effective is unset, abort */
-	if(chroot_permitted != CAP_SET || chroot_effective != CAP_SET){
+	if (chroot_permitted != CAP_SET || chroot_effective != CAP_SET) {
 		fprintf(stderr, "This file is missing the cap_sys_chroot capability. To remedy this,\n"
 				"Run 'setcap cap_sys_chroot=ep %s' as root. \n",executable_name);
 		exit(1);
 	}
+
 	/* free memory used by current_capabilities as it is no longer needed */
 	cap_free(current_capabilities);
+
+	/* required capabilities are in place */
+	return;
 }
 
 /* ensure config file is only writable by root */
-void ensure_config_secure(){
-	/* gather information on configuration files */
-	struct stat brclientsconf_stat;
-	if(stat(BRCLIENTSCONF,&brclientsconf_stat) != 0){
-		perror("stat: " BRCLIENTSCONF);
-		exit(1);
-	}
-	/* ensure config file is owned by root*/
-	if(brclientsconf_stat.st_uid != 0){
-		fprintf(stderr, BRCLIENTSCONF" is not owned by root.\n"
-				"This is a potential security issue; refusing to run.\n");
-		exit(1);
-	}
-	/* ensure config file has limited permissions */
-	if(brclientsconf_stat.st_mode & (S_IWGRP | S_IWOTH)) {
-		fprintf(stderr, BRCLIENTSCONF" is writable by someone other than root.\n"
-				"This is a potential security issue; refusing to run.\n");
-		exit(1);
-	}
-}
+void ensure_config_secure(char *config_path)
+{
+	/* will hold config file stats - owner, UNIX permissions, etc */
+	struct stat config_stat;
 
-/* ensure config file is readable */
-void ensure_config_readable(){
-	if(access(BRCLIENTSCONF, R_OK) != 0){
-		fprintf(stderr, "Cannot read "BRCLIENTSCONF"\n");
+	/* get stats on file.  If we can't, file doesn't exist */
+	if (stat(config_path, &config_stat) != 0) {
+		fprintf(stderr, "The file \"%s\" does not exist, aborting.\n",
+				config_path);
 		exit(1);
 	}
-}
 
-/* ensure there are enough arguments */
-void ensure_enough_arguments(int argc, char* argv[]){
-	if(argc < 2){
-		fprintf(stderr, "no client specified, aborting\n");
+	/* ensure file is owned by root */
+	if (config_stat.st_uid != 0) {
+		fprintf(stderr, "\"%s\" is not owned by root.\n"
+				"This is a potential security issue; refusing to run.\n",
+				config_path);
 		exit(1);
 	}
-}
 
-/* get command to run in chroot */
-char** get_chroot_command(int argc, char* argv[], char* shell[]){
-	/*
-	 * The second argument should be the name of the client to chroot into and
-	 * all of the remaining terms will be the command to run in the client.
-	 * thus, stripping the first two arguments gives us the command to run in
-	 * the chroot.
-	 */
-	if(argc > 2){
-		return argv+2;
-	}else{
-		/*
-		 * however, if no third term is given, we have nothing to run.
-		 * instead, run the $SHELL, if we can find $SHELL.  otherwise, fall
-		 * back to /bin/sh.
-		 */
-		shell[0] = getenv("SHELL");
-		shell[1] = '\0';
-		if(shell[0] == NULL)
-			shell[0] = "/bin/sh";
-		return shell;
-	}
-}
-
-/* determine path to chroot */
-void get_chroot_path(char* argv[], char* chroot_path){
-	/*
-	 * will store path to chroot. needs to start with "." so the path is
-	 * relative to the real absolute path, since non-relative paths don't work
-	 * very well once we've broken out of a chroot.
-	 */
-	strcpy(chroot_path,".");
-	/*
-	 * will hold the currently-being-parsed line
-	 * line length: len("path = ") + max path length
-	 * in theory lines could be longer than this - such as with
-	 * indentation or other whitespace changes - but this should be sufficient
-	 * for now.  Longer lines are simply not supported - additional characters
-	 * are ignored.
-	 */
-	char line[PATH_MAX+7];
-	/* will store the key name to check if it is "path" */
-	char key[5];
-	/* will store the value for the key */
-	char value[PATH_MAX];
-	/*
-	 * will store the section heading we are looking for.
-	 * it will look like '[client "argv[1]"]' (ie, .ini-style
-	 * "client" heading).  The first line starting with "path =" (with
-	 * flexible whitespace) under it will be contain the path we want.
-	 * target_section size is:
-	 * len("[client \"")+len(argv[1])+len("\"]")+len("\0")
-	 * 9 + len(argv[1]) + 2 + 1 == 12 + len(argv[1])
-	 */
-	char target_section[12+strlen(argv[1])];
-	target_section[0] = '\0';
-	strcat(target_section, "[client \"");
-	strcat(target_section, argv[1]);
-	strcat(target_section,"\"]");
-	/* will store whether we're currently in the target section */
-	int in_section = 0;
-
-	FILE* fp;
-	fp = fopen(BRCLIENTSCONF,"r");
-	if(fp == NULL){
-		perror("fopen "BRCLIENTSCONF);
+	/* ensure config file is not writable by anyone other than root */
+	if (config_stat.st_mode & (S_IWGRP | S_IWOTH)) {
+		fprintf(stderr, "\"%s\" is writable by someone other than root.\n"
+				"This is a potential security issue; refusing to run.\n",
+				config_path);
 		exit(1);
 	}
-	while(fgets(line, PATH_MAX+7, fp) != NULL){
-		/* in target section*/
-		if(strncmp(line, target_section, strlen(target_section)) == 0)
-			in_section = 1;
-		/* in some other section */
-		else if(strncmp(line, "[", 1) == 0)
-			in_section = 0;
-		/*
-		 * if we're in the proper section and we've found a path setting,
-		 * store the desired value and return
-		 */
-		if(in_section == 1){
-			/*
-			 * look for a line where key is "path" - the value there, once
-			 * appended to ".", is the chroot_path we want
-			 */
-			sscanf(line," %[^= ] = %s",key,value);
-			if(strncmp(key,"path",5) == 0 && strncmp(value,"",1) != 0){
-				strcat(chroot_path,value);
-				fclose(fp);
-				return;
-			}
-		}
-	}
-	fprintf(stderr, "Unable to find path for client \"%s\" in "BRCLIENTSCONF"\n", argv[1]);
-	fclose(fp);
-	exit(1);
+
+	/* config looks good - okay to chroot to corresponding client */
+	return;
 }
 
 /* break out of chroot */
-void break_out_of_chroot(){
+void break_out_of_chroot()
+{
 	/* go as high in the tree as possible */
 	chdir("/");
 	 /*
-	  * A check to ensure BRCLIENTSCONF exists (and is readable) has already
-	  * happened at this point.  Since it is within /bedrock, this means
-	  * /bedrock must exist.
+	  * If CONFIGDIR did not exists, the config for the requested client would
+	  * not exist and the process would have aborted already.  Thus, CONFIGDIR
+	  * exists.
 	  *
-	  * changing root dir to /bedrock while we're in / means we're out of the root
-	  * dir - ie, out of the chroot if we were previously in one.
+	  * Changing root to CONFIGDIR while we're in / means we're below the root
+	  * and thus outside of the chroot.
+	  *
+	  * What's below the roots (of the clients) but above the bedrock?  Dirt.
 	  */
-	if(chroot("/bedrock") == -1){
+	if(chroot(CONFIGDIR) == -1){
 		perror("chroot");
 		exit(1);
 	}
 	/*
-	 * cd up until we hit the actual, absolute root directory.  we'll know
-	 * where there when the current and parent directorys both have the same
-	 * inode.
+	 * We're in the dirt.  cd up the tree until we hit the actual, absolute
+	 * root directory.  We'll know we're there when the current and parent
+	 * directories both have the same inode.
 	 */
 	struct stat stat_pwd;
 	struct stat stat_parent;
@@ -213,65 +127,145 @@ void break_out_of_chroot(){
 		stat(".", &stat_pwd);
 		stat("..", &stat_parent);
 	} while(stat_pwd.st_ino != stat_parent.st_ino);
+
+	/* We're at the absolute root directory, so set the root to where we are. */
+	chroot(".");
 }
 
-int main(int argc, char* argv[]){
+int main(int argc, char* argv[])
+{
 	/*
-	 * ensure the following items are proper:
-	 * - this process has cap_sys_chroot=ep
-	 * - the config files are secure
-	 * - the config files are readable
-	 * - enough arguments were provided
+	 * Sanity check
+	 * - ensure there are sufficient arguments
+	 */
+	if (argc < 2) {
+		fprintf(stderr, "No client specified, aborting\n");
+		exit(1);
+	}
+
+	/*
+	 * Gather information we'll need later
+	 * - path to the client
+	 * - path to the config
+	 * - current working directory (relative to the current chroot, if we're in
+	 *   one)
 	 */
 
-	/* ensure this process has the required capabilities */
+	/*
+	 * "bedrock" client goes directly to the (real) root; everyone else goes in CLIENTDIR.
+	 *
+	 * /bedrock/clients/squeeze\0
+	 * |               ||     |\+ 1 for terminating NULL
+	 * |               |\-----+ strlen(argv[1])
+	 * \---------------+ CLIENTDIRLEN
+	 *
+	 * /\0
+	 * \-+ always shorter than above since "bedrock" is more than two characters.
+	 */
+	char client_path[CLIENTDIRLEN + strlen(argv[1]) + 1];
+	if (strcmp(argv[1],"bedrock") == 0) {
+		strcpy(client_path, "/");
+	} else {
+		strcpy(client_path, CLIENTDIR);
+		strcat(client_path, argv[1]);
+	}
+
+	/*
+	 * /bedrock/etc/clients.d/squeeze.conf\0
+	 * |                     ||    | |   |\+ 1 for terminating NULL
+	 * |                     ||    | \---+ 5 for ".conf"
+	 * |                     |\----+ argv[1]
+	 * \---------------------+ CONFIGDIRLEN
+	 */
+	char config_path[CONFIGDIRLEN + strlen(argv[1]) + 5 + 1];
+	strcpy(config_path, CONFIGDIR);
+	strcat(config_path, argv[1]);
+	strcat(config_path, ".conf");
+
+	char cwd_path[PATH_MAX + 1];
+	if (getcwd(cwd_path, PATH_MAX + 1) == NULL) {
+		/* failed to get cwd, falling back to root */
+		cwd_path[0] = '/';
+		cwd_path[1] = '\0';
+		fprintf(stderr,"WARNING: could not determine current working directory, "
+				"falling back to /");
+	}
+
+	/*
+	 * Sanity checks
+	 * - ensure this process has the required capabilities
+	 * - ensure config exists and is secure
+	 */
 	ensure_capsyschroot(argv[0]);
-	/* ensure config file is only writable by root */
-	ensure_config_secure();
-	/* ensure config file is readable */
-	ensure_config_readable();
-	/* ensure there are enough arguments */
-	ensure_enough_arguments(argc, argv);
+	ensure_config_secure(config_path);
 
 	/*
-	 * gather the following pieces of information:
-	 * - the command (and its arguments) to run in the chroot
-	 * - the path to the chroot
-	 * - the directory to be cwd in the chroot
+	 * If we're in a chroot, break out
 	 */
-
-	/* get command to run in chroot */
-	char* shell[2];
-	char** chroot_command = get_chroot_command(argc, argv, shell);
-	/* get path to chroot */
-	char chroot_path[PATH_MAX];
-	get_chroot_path(argv,chroot_path);
-	/* get cwd - will attempt to make this cwd in chroot */
-	char* chroot_cwd = getcwd(NULL, PATH_MAX);
-
-	/*
-	 * run the command in the proper context:
-	 * - if we're in a chroot, break out
-	 * - chroot the new directory, ensuring cwd is within it.
-	 * - change cwd to desired directory if it exists; remain in / otherwise.
-	 * - run command
-	 * - if needed, abort cleanly
-	 */
-
-	/* break out of chroot */
 	break_out_of_chroot();
-	/* chroot to new directory */
-	chdir(chroot_path);
+
+	/*
+	 * Try to cd to the client's root (relative to the now absolute root we're
+	 * at).  If this fails, it could be because the client doesn't actually exist.
+	 */
+	if (chdir(client_path) != 0) {
+		fprintf(stderr, "Could not find client, aborting.");
+		exit(1);
+	}
+
+	/*
+	 * We're at the desired client's root.  Set this as the root.
+	 */
 	chroot(".");
-	/* change cwd in the chroot to what it was previously, if possible */
-	if(chdir(chroot_cwd) != 0)
-		fprintf(stderr,"WARNING: \"%s\" not present in target client, falling back to root directory\n", chroot_cwd);
-	
-	/* We need to free previously allocated memory */
-	free(chroot_cwd);
-	/* run command */
-	execvp(chroot_command[0], chroot_command);
-	/* if there is an error, abort cleanly */
+
+	/*
+	 * Set the current working directory in this new client to the same as it
+	 * was originally, if possible; fall back to the root otherwise.
+	 */
+	if(chdir(cwd_path) != 0) {
+		chdir("/");
+		fprintf(stderr,"WARNING: \"%s\" not present in target client, "
+				"falling back to root directory\n", cwd_path);
+	}
+
+	/*
+	 * Get the command to run in the client.  If a command was provided, use
+	 * that.  If not, but $SHELL exists in the client, use that.  Failing
+	 * either of those, fall back to /bin/sh.
+	 */
+	char** cmd;
+	if (argc > 2) {
+		/*
+		 * The desired command was given as an argument to this program; use
+		 * that.
+		 * brc squeeze ls -l
+		 * ^ argv      |
+		 *             ^ argv + 2
+		 */
+		cmd = argv + 2;
+	} else {
+		/*
+		 * Use $SHELL if it exists in the current chroot.  Otherwise, use /bin/sh.
+		 */
+		cmd = (char* []){'\0','\0'};
+		/*               |  | \--+ lack of second argument
+		 *               \--+ will point to shell in next if statement */
+		char* shell;
+		struct stat shell_stat;
+		if ((shell = getenv("SHELL")) != NULL && stat(shell, &shell_stat) == 0)
+			cmd[0] = shell;
+		else
+			cmd[0] = "/bin/sh";
+	}
+
+	/*
+	 * Everything is set, run the command.
+	 */
+	execvp(cmd[0], cmd);
+
+	/*
+	 * execvp() would have taken over if it worked.  If we're here, there was an error.
+	 */
 	perror("execvp");
-	return 2;
+	return -1;
 }
