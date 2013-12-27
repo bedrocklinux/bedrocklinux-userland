@@ -1,65 +1,231 @@
 #!/bin/sh
-### Bedrock Linux 1.0alpha3 Bosco
+### Bedrock Linux 1.0alpha4 Flopsie
 ### brs (BedRock Setup)
 
-# sets up share points for client in argument
+# sets up or tears down a client
 
-# check for need to print help
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]
+# loop over clients listed in arguments and enable them
+up() {
+	while [ -n "$1" ]
+	do
+		# refuse to setup partially setup clients to avoid mounting over mount points
+		if bri -s $1 | grep -q "fully mounted"
+		then
+			echo "Error: $1 is already setup.  Maybe teardown and set up again?"
+			shift; continue
+		elif bri -s $1 | grep -q "partially mounted"
+		then
+			echo "Error: $1 is partially setup.  Teardown fully before setting up."
+			shift; continue
+		fi
+		echo "Setting up $1..."
+
+		echo -n "Mounting bind items... "
+		for mount_point in $(bri -b $1)
+		do
+			mount --bind "$mount_point" "/var/chroot/$1$mount_point"
+		done
+		echo "done"
+
+		echo -n "Mounting union items... "
+		bri -u $1 | awk -v"client=$1" -F'([ ,:]|\\t)+' '
+			{
+				# mount bru at the mount point for the client
+				# e.g.: /bedrock/sbin/bru /var/chroot/squeeze/etc
+				cmd = "/bedrock/sbin/brU /var/chroot/"client$1
+				# first arg should be the client self-view (without mounts)
+				# e.g.: /bedrock/clients/squeeze/bedrock/clients/squeeze/etc
+				#                        ^ chroot is here, so squeeze sees itself
+				cmd = cmd" /var/chroot/"client"/var/chroot/"client$1
+				# second arg should be the equivalent location in the core
+				cmd = cmd" "$1
+				# remaining args are files to be redirected to the core
+				for (i=2; i<=NF; i++) {
+					cmd = cmd " /"$i
+				}
+				# background it so this process will return
+				cmd = cmd "&"
+				# run it
+				system(cmd)
+			}
+		'
+		echo "done"
+
+		echo -n "Checking results..."
+		if ! bri -s $1 | grep -q "fully mounted"
+		then
+			echo "ERROR: Failed to fully mount $sid"
+			echo "See bri -s $1"
+			exit 1
+		fi
+		echo "done"
+
+		echo -n "Setting as enabled..."
+		if [ -r "/bedrock/etc/clients.d/$1.conf" ]
+		then
+			if [ -r "/bedrock/etc/clients.d/$1.conf.disabled" ]
+			then
+				echo "Error!"
+				echo "Config exists for both states:"
+				echo "    /bedrock/etc/clients.d/$1.conf"
+				echo "and"
+				echo "    /bedrock/etc/clients.d/$1.conf.conf"
+				echo "This must be resolved manually."
+			else
+				echo "already set enabled."
+				echo "$1 completely setup"
+			fi
+		else
+			if [ -r "/bedrock/etc/clients.d/$1.conf.disabled" ]
+			then
+				mv /bedrock/etc/clients.d/$1.conf.disabled /bedrock/etc/clients.d/$1.conf
+				echo "done"
+				echo "$1 completely setup"
+			else
+				# Should be pretty unlikely this happens, but just in case.
+				echo "Error!"
+				echo "No config exists."
+				echo "This must be resolved manually."
+			fi
+		fi
+
+		shift
+	done
+}
+
+down() {
+	while [ -n "$1" ]
+	do
+		# kill all of the client's processes
+		echo -n "Killing processes... "
+		pids=$(bri -P $1 | cut -d' ' -f1 | xargs)
+		pid_count=$(echo -n $pids | wc -c)
+		pid_count_previous=$(expr $pid_count + 1)
+		while [ $pid_count -gt 0 ] && [ $pid_count -lt $pid_count_previous ]
+		do
+			kill $pids 2>/dev/null
+			sleep 1
+			kill -9 $pids 2>/dev/null
+			pids=$(bri -P $1 | cut -d' ' -f1 | xargs)
+			pid_count_previous=$pid_count
+			pid_count=$(echo -n $pids | wc -c)
+		done
+		if [ $pid_count -gt 0 ]
+		then
+			echo "ERROR: Could not kill all processes!"
+			echo "See bri -P $1"
+			exit 1
+		fi
+		echo "done"
+
+		# unmount all of the client's mount points
+		echo -n "Unmounting mount points... "
+		mounts=$(bri -m $1 | awk '{print "/var/chroot/'"$1"'"$1}') 2>/dev/null
+		mount_count=$(echo -n $mounts | wc -c)
+		mount_count_previous=$(expr $mount_count + 1)
+		while [ $mount_count -gt 0 ] && [ $mount_count -lt $mount_count_previous ]
+		do
+			for mount in $(echo $mounts | sort -r)
+			do
+				brc bedrock umount $mount 2>/dev/null
+			done
+			mount_count_previous=$mount_count
+			mounts=$(bri -m $1 | awk '{print "/var/chroot/'"$1"'"$1}') 2>/dev/null
+			mount_count=$(echo -n $mounts | wc -c)
+		done
+		if [ $pid_count -gt 0 ]
+		then
+			echo "ERROR: Could not unmount all mount points!"
+			echo "See bri -m $1"
+			exit 1
+		fi
+		echo "done"
+
+		# double check work
+		echo -n "Double checking process count... "
+		if [ "$(echo -n $pids | wc -c)" != 0 ]
+		then
+			echo "error"
+			echo "Processes remain"
+			echo "See bri -P $1"
+			exit 1
+		fi
+		echo "done"
+		echo -n "Double checking mount count... "
+		if ! bri -s $1 | grep -q "no mounts"
+		then
+			echo "error"
+			echo "Mounts remain"
+			echo "See bri -s $1"
+			exit 1
+		fi
+		echo "done"
+
+		echo -n "Setting as disabled..."
+		if [ -r "/bedrock/etc/clients.d/$1.conf" ]
+		then
+			if [ -r "/bedrock/etc/clients.d/$1.conf.disabled" ]
+			then
+				echo "Error!"
+				echo "Config exists for both states:"
+				echo "    /bedrock/etc/clients.d/$1.conf"
+				echo "and"
+				echo "    /bedrock/etc/clients.d/$1.conf.conf"
+				echo "This must be resolved manually."
+			else
+				mv /bedrock/etc/clients.d/$1.conf /bedrock/etc/clients.d/$1.conf.disabled
+				echo "done"
+				echo "$1 completely torn down"
+			fi
+		else
+			if [ -r "/bedrock/etc/clients.d/$1.conf.disabled" ]
+			then
+				echo "already set disabled."
+				echo "$1 completely torn down"
+			else
+				# Should be pretty unlikely this happens, but just in case.
+				echo "Error!"
+				echo "No config exists."
+				echo "This must be resolved manually."
+			fi
+		fi
+
+	shift
+	done
+}
+
+if [ "$1" != "up" ] && [ "$1" != "down" ]
 then
-	echo "Usage: brs [CLIENTS]"
-	echo ""
-	echo "brs will set up the share bind mounts for the clients mentioned as"
-	echo "arguments.  Do not run this in a client which has already been set"
-	echo "up."
-	exit 0
-fi
+cat <<EOF
+Usage: brs [up/down] [CLIENTS]
 
-# ensure running in core bedrock - anywhere else will set up mounts in the
-# wrong place.
-
-if [ "$(bri -n)" != "bedrock" ]
-then
-	echo "Must run in core Bedrock, not a client. Try running:"
-	echo "brc bedrock brs $@"
+brs will setup or teardown the specified client(s).  The first argument should
+be "up" to setup a client or "down" to teardown the client.  The remaining
+arguments should be a list of clients to operate on.
+EOF
 	exit 1
 fi
 
-RESULT=0
-for CLIENT in "$@"
-do
-	DIRECTORY=$(bri -p $CLIENT)
-	if [ -z "$DIRECTORY" ]
-	then
-		echo "ERROR: Cannot find $CLIENT"
-	else
-		for SHARE in $(bri -s $CLIENT)
-		do
-			TRYMOUNT=/bin/true
-			if [ -d $SHARE ] && [ ! -d $DIRECTORY$SHARE ]
-			then
-				mkdir -p $DIRECTORY$SHARE
-			elif [ -f $SHARE ] && [ ! -f $DIRECTORY$SHARE ]
-			then
-				touch $DIRECTORY$SHARE
-			elif [ ! -d $SHARE ] && [ -d $DIRECTORY$SHARE ]
-			then
-				mkdir -p $SHARE
-			elif [ ! -f $SHARE ] && [ -f $DIRECTORY$SHARE ]
-			then
-				touch $SHARE
-			elif [ ! -e $SHARE ] || [ ! -e $DIRECTORY$SHARE ]
-			then
-				TRYMOUNT=/bin/false
-				RESULT=0
-				echo "ERROR: Cannot share $SHARE in $DIRECTORY"
-				echo "Do both $SHARE and $DIRECTORY$SHARE exist?"
-			fi
-			if $TRYMOUNT
-			then
-				mount --bind $SHARE $DIRECTORY$SHARE || RESULT=0
-			fi
-		done
-	fi
-done
-exit $RESULT
+if [ "$2" = "bedrock" ]
+then
+	echo "Cannot setup/teardown core Bedrock"
+	exit 2
+fi
+
+# command has to be run in the core
+if [ "$(bri -n)" != "bedrock" ]
+then
+	echo "Warning: This must be run in the bedrock core; running \`brc bedrock\`"
+	exec /bedrock/bin/brc bedrock $0 $@
+fi
+
+if [ "$1" = "up" ]
+then
+	shift
+	# loop over clients to bring up
+	up
+else
+	shift
+	# loop over clients to tear down
+	down
+fi
