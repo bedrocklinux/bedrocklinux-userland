@@ -1,0 +1,17 @@
+# This is a recommended collection of settings for clients to utilize.
+# To understand why these choices were made, read the comments in
+#     /bedrock/etc/clients.d/bedrock.conf
+# You are free to make other frameworks to use in stead of this one, or in
+# addition to this one.  Moreover, you're welcome to alter or delete this
+# framework without worry about breaking anything if no clients are configured
+# to utilize it.
+#
+# If you agree with the choices here, you can directly utilize this framework
+# by setting
+#     framework = default
+# in the .conf files for the clients yo would like to utilize this.
+#
+
+bind = /proc, /sys, /dev, /dev/pts, /dev/shm, /bedrock
+bind = /bedrock/clients/bedrock, /home, /root, /lib/modules, /tmp, /var/tmp
+union = /etc: profile, hostname, hosts, passwd, group, shadow, sudoers, resolv.conf
