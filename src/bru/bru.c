@@ -143,7 +143,7 @@ int*   redir_file_lens;  /* length of each of the redir_file entries     */
 	 */                                                                      \
 	struct fuse_context *context = fuse_get_context();                       \
 	seteuid(context->uid);                                                   \
-	setegid(context->uid);
+	setegid(context->gid);
 
 
 /*
