@@ -1,4 +1,4 @@
-### Bedrock Linux 1.0alpha3 Bosco
+### Bedrock Linux 1.0alpha4 Flopsie
 ### /etc/fstab
 #
 # For the most part, this is a /etc/fstab file such as you would find in any
@@ -13,24 +13,17 @@
 # directory are all set up during the init process and do not necessarily need
 # to be placed here.
 #
-# - If you place all of the clients in the same directory (such as
-# /var/chroot), it may be useful to bind mount the root directory to that
-# location to have the core Bedrock Linux act like every other client.  Since
-# most users will probably want this, it is default.  If you do not want this,
-# comment or remover the line below.
+# - The Bedrock Linux core system itself should be made accessible as a client.
+# Thus, it is bind-mounted into the location where the clients should go below.
 
-/  /var/chroot/bedrock  bind  defaults,bind  0  0
+/  /bedrock/clients/bedrock  bind  defaults,bind  0  0
 
+# - If you have other clients on different partitions, they should be mounted
+# into /bedrock/clients and should have bind items in their
+# client.conf/framework after the /bedrock item, similar to how the core is
+# mounted into /bedrock/clients/bedrock in the recommended defaults.
 #
-# - After the mounts from this are created, /bedrock/etc/brclients.conf is
-# parsed and mount points are created from the "share" items there.  If you
-# would like to mount anything *after* that takes place, you will have to use
-# something other than /etc/fstab, such as /etc/rc.local
-#
-# - There are limitations of the system put in place to share files and
-# directories as set in /bedrock/etc/brclients.conf; for example, every item
-# shared has to be in the same place in all of the clients which share it.
-# While symlinks can partially alleviate this particular issue, if you'd prefer
-# to have more fined-tuned control of how sharing works, feel free to disregard
-# the share settings in /bedrock/etc/brclients.conf and simply create bind
-# mounts in /etc/fstab that are to your liking.
+# - After the mounts from this are created, the bind and union items from the
+# client.conf and frameworks are mounted.  If you would like to mount anything
+# *after* that takes place, you will have to use something other than
+# /etc/fstab, such as /etc/rc.local
