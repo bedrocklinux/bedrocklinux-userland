@@ -1,5 +1,5 @@
 #!/bin/sh
-### Bedrock Linux 1.0alpha3 Bosco
+### Bedrock Linux 1.0alpha4 Flopsie
 ### brsh (BedRock SHell)
 # this is a meta-shell which solves to potential issues:
 # - the full path to the desired shell changes from client to client, but
@@ -29,11 +29,4 @@ else
 	export SHELL=/bin/sh
 fi
 
-
-if [ -z $TZ ]
-then
-	. /etc/profile
-	exec $(basename $SHELL) "$@"
-else
-	exec $(basename $SHELL) "$@"
-fi
+exec $(basename $SHELL) "$@"
