@@ -1,5 +1,5 @@
 #!/bin/sh
-### Bedrock Linux 1.0alpha3 Bosco
+### Bedrock Linux 1.0alpha4 Flopsie
 ### reboot wrapper
 # ensures the core bedrock's reboot is used, as a client's will probably not
 # work.  This should be before the directory which contains a normal client's
