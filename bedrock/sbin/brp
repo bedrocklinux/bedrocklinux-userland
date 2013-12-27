@@ -1,5 +1,5 @@
 #!/bin/sh
-### Bedrock Linux 1.0alpha3 Bosco
+### Bedrock Linux 1.0alpha4 Flopsie
 ### brp (BedRock Path)
 
 # creates files which, when executed, will run a command in another client
@@ -11,20 +11,22 @@
 # check for need to print help
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]
 then
-	echo "Usage: brp [ARGUMENTS]"
-	echo ""
-	echo "brp will make the commands from all of the clients available in"
-	echo "/bedrock/brpath/ (for normal users) and /bedrock/sbrpath/ (for super"
-	echo "user).  If these directories are in one's PATH (as should be done in"
-	echo "/etc/profile for Bedrock Linux already), one can simply run a command"
-	echo "from another client as though it was available locally."
-	echo ""
-	echo "Arguments:"
-	echo "   -a   only Add new commands; do not remove outdated ones. This will"
-	echo "        likely be faster."
-	echo "   -p   Parallelize.  This will improve performance, but will not"
-	echo "        necessarily follow the client priorty order as specified in"
-	echo "        brclients.conf."
+cat <<EOF
+Usage: brp [ARGUMENTS]
+
+brp will make the commands from all of the clients available in
+     /bedrock/brpath/{bin,sbin}
+If these directories are in one's PATH (as should be done in /etc/profile for
+Bedrock Linux already), one can simply run a command from another client as
+though it was available locally.
+
+Arguments:
+   -a   only Add new commands; do not remove outdated ones. This will
+		likely be faster.
+   -p   Parallelize.  This will improve performance, but will not
+		necessarily follow the client priorty order as specified in
+		brp.conf.
+EOF
 	exit 0
 fi
 
@@ -42,7 +44,7 @@ create_bouncers(){
 		then
 			(
 				echo '#!/bin/sh'
-				echo 'brc '"$CLIENT"' $(basename $0) "$@"'
+				echo 'exec brc '"$CLIENT"' $(basename $0) "$@"'
 			) > /bedrock/brpath/clients/$CLIENT
 			chmod 755 /bedrock/brpath/clients/$CLIENT
 		fi
@@ -89,14 +91,27 @@ create_bouncers &
 
 if [ "$1" != "-p" ] && [ "$2" != "-p" ]
 then
-	# do not parallelize here to ensure order is followed
+	# loop over (enabled) clients in brp.conf in order
+	parsed_clients=""
+	for CLIENT in $(cat /bedrock/etc/brp.conf | sed '/^[ \t]*#/d')
+	do
+		if [ -r /bedrock/etc/clients.d/${CLIENT}.conf ]
+		then
+			parsed_clients="$parsed_clients $CLIENT "
+			create_cmds_for_client $CLIENT
+		fi
+	done
+	# loop over all clients and do any that were missing from brp.conf
 	for CLIENT in $(bri -l)
 	do
-		create_cmds_for_client $CLIENT
+		if ! echo $parsed_clients | grep -q "$CLIENT"
+		then
+			create_cmds_for_client $CLIENT &
+		fi
 	done
 
 else
-	# do not parallelize here for performance even if order is not followed
+	# parallelize here for performance even if order is not followed
 	for CLIENT in $(bri -l)
 	do
 		create_cmds_for_client $CLIENT &
