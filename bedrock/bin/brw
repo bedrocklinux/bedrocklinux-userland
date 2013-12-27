@@ -1,6 +1,7 @@
 #!/bin/sh
-### Bedrock Linux 1.0alpha3 Bosco
+### Bedrock Linux 1.0alpha4 Flopsie
 ### brw (BedRock Where)
+
 if [ -z "$1" ]
 then
     # if there's no arguments, run bri -n
