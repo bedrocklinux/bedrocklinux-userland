@@ -23,7 +23,7 @@ up() {
 		echo -n "Mounting bind items... "
 		for mount_point in $(bri -b $1)
 		do
-			mount --bind "$mount_point" "/var/chroot/$1$mount_point"
+			mount --bind "$mount_point" "/bedrock/clients/$1$mount_point"
 		done
 		echo "done"
 
@@ -31,12 +31,14 @@ up() {
 		bri -u $1 | awk -v"client=$1" -F'([ ,:]|\\t)+' '
 			{
 				# mount bru at the mount point for the client
-				# e.g.: /bedrock/sbin/bru /var/chroot/squeeze/etc
-				cmd = "/bedrock/sbin/brU /var/chroot/"client$1
+				# e.g.: /bedrock/sbin/bru /bedrock/clients/squeeze/etc
+				cmd = "/bedrock/sbin/brU /bedrock/clients/"client$1
 				# first arg should be the client self-view (without mounts)
 				# e.g.: /bedrock/clients/squeeze/bedrock/clients/squeeze/etc
-				#                        ^ chroot is here, so squeeze sees itself
-				cmd = cmd" /var/chroot/"client"/var/chroot/"client$1
+				#       |               |                               \ self-view of /etc without mounts
+				#       |               \ squeeze chroot is here
+				#       \ absolute root
+				cmd = cmd" /bedrock/clients/"client"/bedrock/clients/"client$1
 				# second arg should be the equivalent location in the core
 				cmd = cmd" "$1
 				# remaining args are files to be redirected to the core
@@ -120,7 +122,7 @@ down() {
 
 		# unmount all of the client's mount points
 		echo -n "Unmounting mount points... "
-		mounts=$(bri -m $1 | awk '{print "/var/chroot/'"$1"'"$1}') 2>/dev/null
+		mounts=$(bri -m $1 | awk '{print "/bedrock/clients/'"$1"'"$1}') 2>/dev/null
 		mount_count=$(echo -n $mounts | wc -c)
 		mount_count_previous=$(expr $mount_count + 1)
 		while [ $mount_count -gt 0 ] && [ $mount_count -lt $mount_count_previous ]
@@ -130,7 +132,7 @@ down() {
 				brc bedrock umount $mount 2>/dev/null
 			done
 			mount_count_previous=$mount_count
-			mounts=$(bri -m $1 | awk '{print "/var/chroot/'"$1"'"$1}') 2>/dev/null
+			mounts=$(bri -m $1 | awk '{print "/bedrock/clients/'"$1"'"$1}') 2>/dev/null
 			mount_count=$(echo -n $mounts | wc -c)
 		done
 		if [ $pid_count -gt 0 ]
