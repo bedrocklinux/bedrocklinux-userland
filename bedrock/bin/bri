@@ -1,271 +1,401 @@
-#!/bin/sh
-### Bedrock Linux 1.0alpha3 Bosco
+#!/bedrock/bin/busybox sh
+### Bedrock Linux 1.0alpha4 Flopsie
 ### bri (BedRock Information)
-# This script will provide various information about the clients, depending on
-# the argument given
+# This script will provide information about Bedrock Linux subsystems
+
+#  -----------------------------------------------------------------------------
+#  - support functions                                                         -
+#  -----------------------------------------------------------------------------
+
+# given a pid as an argument, prints the client which provides the pid
+#
+# Note: there is a possibly faster way by readlink'ing /proc/$pid/root, except:
+# - it does not differentiate between local-client and core bedrock
+#   - this could be resolved by brc'ing to bedrock, but that will cost a
+#   sizable chunk of the performance benefit of this technique
+# - it requires root to use for another user's process
+pid_client() {
+	# pick a mount point visible by the process
+	mount_number="$(head -n1 /proc/$1/mountinfo | cut -d" " -f1)"
+	# where the init sees it as mounted (init is guarenteed core)
+	init_view="$(grep "^$mount_number " /proc/1/mountinfo | cut -d' ' -f5)"
+	# where the process sees it as mounted
+	client_view="$(grep "^$mount_number " /proc/$1/mountinfo | cut -d' ' -f5)"
+
+	# if the process sees it mounted the same place as init does, then the
+	# process is in the core
+	if [ "$init_view" = "$client_view" ]
+	then
+		echo "bedrock"
+	else
+		# must be in a client other than bedrock
+		# the core will see it mounted at
+		# <empty>/bedrock/client/<clientname>/something
+		# |       |       |      |            \- from here on out don't care
+		# |       |       |      \- client name
+		# |       |       \- third field
+		# |       \- second field
+		# \- first (empty) field
+		# thus, the fourth field will be the client
+		echo "$init_view" | cut -d'/' -f4
+	fi
+}
+
+# Parses client config/frameworks and returns requested information.
+# - First argument: the client
+# - Second argument: the key (bind, union, etc)
+# - Third argument:
+#   - If "1", return first item per key and ignore the rest
+#   - If "2", return value exactly as provided (simply strip key and "=" from line)
+#   - otherwise, return all of the values, one per output line
+# - Fourth argument:
+#   - if "real", attempt to return the canonicalized real path from the
+#   absolute root.  If that fails (probbaly because config not pointing to
+#   existing filesystem item, such as if the client is not setup), return path
+#   from absolute root without  Note this "real" setting cannot be used with
+#   "2" in the third argument.
+#   - Otherwise, return value directly without alteration.
+
+# the awkward -F is because some versions of buysbox's awk doesn't seem to like
+# \t for a tab in a character class.
+get_values() {
+	# determine which config file to use, depending on whether the client is
+	# enabled or not
+	if [ -r "/bedrock/etc/clients.d/${1}.conf" ]
+	then
+		config="/bedrock/etc/clients.d/${1}.conf"
+	elif [ -r "/bedrock/etc/clients.d/${1}.conf.disabled" ]
+	then
+		config="/bedrock/etc/clients.d/${1}.conf.disabled"
+	else
+		return
+	fi
+	awk -v"client=$1" -v"format=$3" -v"realpath=$4" -F'([ ,:]|\\t)+' '
+		# find instances of the key in the current file and print values as
+		# requested.
+		/^[ \t]*'"$2"'[ \t]*=[ \t]*[^ \t]/ {
+			# should not be necessary, but trailing separators confuses some
+			# versions of busybox awk
+			sub(/([ ,:]|\\t)$/,"")
+			sub(/^[ \t]*'"$2"'[ \t]*=[ \t]*/,"")
+			# we know have all of the values for the key in separate fields
+			if (format == 1) {
+				# print first item for this key
+				if (realpath == "real") {
+					if (system("realpath /bedrock/clients/"client $1" 2>/dev/null") != 0)
+						print "/bedrock/clients/"client $1
+				} else {
+					print $1
+				}
+			} else if (format == 2) {
+				# print all of the items for the key on one line
+				print $0
+			} else {
+				# print all of the items for the key, one per line
+				for (i=1; i<=NF; i++)
+					if ($i != "") {
+						if (realpath == "real") {
+							if (system("realpath /bedrock/clients/"client $i" 2>/dev/null") != 0)
+								print "/bedrock/clients/"client $i
+						} else {
+							print $i
+						}
+					}
+			}
+		}
+		# find new frameworks in the current file and add them to ARGV to
+		# process
+		/^[ \t]*framework[ \t]*=[ \t]*[^ \t]/ {
+			sub(/^[ \t]*framework[ \t]*=[ \t]*/,"")
+			for (i=1; i<=NF; i++) {
+				if ($i != "" && (!($i in frameworks))) {
+					# track frameworks we have processed so we do not reprocess
+					# them
+					frameworks[$i]
+					ARGV[ARGC] = "/bedrock/etc/frameworks.d/"$i
+					ARGC++
+				}
+			}
+		}
+	' $config
+}
+
+#  -----------------------------------------------------------------------------
+#  - functions for each flag                                                   -
+#  -----------------------------------------------------------------------------
+#
+# The functions have the same name as the corresponding flag.
+
+# print a list of bind mounts for the client as specified in the client's
+# config/frameworks.
+b() {
+	while [ -n "$1" ]
+	do
+		get_values "$1" "bind" "0" ""
+		shift
+	done
+}
+
+# Caches -n value to speed up future -n requests
+c() {
+	if [ "$(id -u)" != "0" ]
+	then
+		echo "-u requires root"
+		exit 1
+	fi
+	while [ -n "$1" ]
+	do
+		echo "$1 > /bedrock/clients/$1/etc/br_client_name"
+		echo "$1" > /bedrock/clients/$1/etc/br_client_name
+		chmod 644 /bedrock/clients/$1/etc/br_client_name
+		shift
+	done
+}
 
 # print help
-h(){
-	echo "Usage: bri ARGUMENT"
-	echo ""
-	echo "bri will print information about Bedrock Linux clients based on the"
-	echo "given flags.  bri will only accept one flag per execution."
-	echo ""
-	echo "ARGUMENTS:"
-	echo "   -h   print this Help"
-	echo "   -l   print List of clients"
-	echo "   -n   print Name of client currently in"
-	echo "   -p   print path of client currently in OR following client name(s)"
-	echo "   -s   print shared items of client currently in OR following client name(s)"
-	echo "   -c   Cache -n and -p values to speed up future requests (requires root)"
-	echo "   -w   print the client which provides the command(s) in the"
-	echo "        argument(s) if not available locally"
-	echo "   -W   print the client which provides the command(s) in the"
-	echo "        argument(s)"
+h() {
+cat <<EOF
+Usage: bri ARGUMENT
+
+bri will provide information about Bedrock Linux subsystems.
+
+ARGUMENTS:
+   -b   print configured bind mounts
+   -c   cache -n value of current OR following client name(s) (requires root)
+        provides a small performance improvement to following -n requests
+   -h   print this Help
+   -l   print List of clients
+   -m   prints mount points in current client OR following client name(s)
+   -n   print Name of client currently in
+   -p   print the client that provides the following Process id or
+        (non-numeric) Process name
+   -P   print a list of processes provided by the current client OR following
+        client name(s)
+   -s   print the setup Status of the current OR following client name(s)
+   -u   print configured union mounts
+   -w   print the client which provides the command(s) in the argument(s)
+EOF
 }
 
 # print a list of clients
-l(){
-	awk '
-		/^\[client ".*"\]$/{
-			print substr($0,10,length($0)-11)
-		}
-	' /bedrock/etc/brclients.conf
+l() {
+	cd /bedrock/etc/clients.d
+	ls *.conf | sed 's/.....$//'
 }
 
-# print name of client currently in
-n(){
-	# if cached value is available, use that
-	if [ -r "/etc/br_client_name" ]
-	then
-		head -n1 /etc/br_client_name
-	else
-		awk '
-			/^\[client ".*"\]$/{
-				CLIENT=substr($0,10,length($0)-11)
-			}
-			/^[ \t]*path[ \t]*=/ && $3 == "'$(p)'" && CLIENT != ""{
-				print CLIENT
-				exit
-			}
-		' /bedrock/etc/brclients.conf
-	fi
-}
-
-# print path of client requested client
-p(){
-	# check if finding for current client or named clients
-	if [ -z $1 ]
-	then
-		# print path of current client
-		# if cached value is available, use that
-		if [ -r "/etc/br_client_name" ]
+# print mount points and corresponding catagory in specified client(s)
+m() {
+	while [ -n "$1" ]
+	do
+		bind_mounts=$(get_values  "$1" "bind" "0" "real")
+		union_mounts=$(get_values "$1" "union" "1" "real")
+		if [ "$1" != "bedrock" ]
 		then
-			tail -n1 /etc/br_client_name
+			mount_points=$(awk '$5 ~ /^\/bedrock\/clients\/'"$1"'(\/|$)/{print$5}' /proc/1/mountinfo)
 		else
-			# Compare a mount from both init's point of view and this script's point of
-			# view to determine in which client the script is running.
-			# The first mount as seen from the client should also be seen from init.  Find
-			# the mount number to reference later.
-			MOUNT_NUMBER=$(head -n1 /proc/$$/mountinfo | cut -d" " -f1)
-			# Mount's location from init's POV
-			INIT_VIEW="$(grep "^$MOUNT_NUMBER " /proc/1/mountinfo | cut -d' ' -f5)"
-			# Mount's location from current POV
-			CLIENT_VIEW="$(grep "^$MOUNT_NUMBER " /proc/$$/mountinfo | cut -d' ' -f5)"
-			# Current POV's path is appended to init's.
-			# If current POV is "/", actual mount path is whatever init's view is.
-			# If current POV is the same as init's, the root is at the absolute root.
-			# otherwise, remove current POV to find where client's root is mounted.
-			if [ "$CLIENT_VIEW" = "/" ]
+			mount_points=$(awk '$5 !~ /^\/bedrock\/clients(\/|$)/{print$5}' /proc/1/mountinfo)
+		fi
+		for mount_point in $mount_points
+		do
+			type="other"
+			if echo $bind_mounts | grep -q "\(^\| \)$mount_point\($\| \)"
 			then
-				# if current POV is mounted at "/", then init's POV is absolute mount.
-				MOUNT_PATH="$INIT_VIEW"
-			elif [ "$CLIENT_VIEW" = "$INIT_VIEW" ]
+				type="bind"
+			elif echo $union_mounts | grep -q "\(^\| \)$mount_point\($\| \)"
 			then
-				MOUNT_PATH="/"
-			else
-				# Find lengths of both paths and then find difference to find where client's root is mounted.
-				INIT_VIEW_LEN=$(echo "$INIT_VIEW" | wc -c)
-				CLIENT_VIEW_LEN=$(echo "$CLIENT_VIEW" | wc -c)
-				MOUNT_PATH=$(echo "$INIT_VIEW" | cut -c1-$(expr $INIT_VIEW_LEN - $CLIENT_VIEW_LEN))
+				type="union"
 			fi
-			# The MOUNT_PATH we found is the mount point from init's point of view.
-			echo $MOUNT_PATH
-		fi
-	else
-		# print path of listed clients
-		for CLIENT in $@
-		do
-			busybox awk '
-			/^\[client ".*"\]$/{
-				CLIENT=substr($0,10,length($0)-11)
-			}
-			/^[ \t]*path[ \t]*=/ && CLIENT == "'$CLIENT'"{
-				$1=""
-				$2=""
-				print $0
-			}
-			' /bedrock/etc/brclients.conf | sed 's/^\s*//'
+			if [ "$1" != "bedrock" ]
+			then
+				echo "/$(echo $mount_point | cut -d'/' -f5-) ($type)"
+			else
+				echo "$(echo $mount_point) ($type)"
+			fi
 		done
-	fi
-}
-
-# print shared items in a framework, used by s()
-get_frame_shares(){
-	awk '
-		/^\s*\[framework "'$1'"\]\s*$/{
-			INSECTION=1
-		}
-		/^\s*\[(client|framework) ".*"\]\s*$/ && $2 != "\"'$1'\"]"{
-			INSECTION=""
-		}
-		/^[ \t]*share[ \t]*=/ && INSECTION == 1{
-			$1=""
-			$2=""
-			gsub(/,/," ")
-			for(i=1;i<=NF;i++)
-				print $i
-		}
-	' /bedrock/etc/brclients.conf
-}
-
-# print shared items in a client (ignores frames), used by s()
-get_client_shares(){
-	awk '
-		/^\s*\[client "'$1'"\]\s*$/{
-			INSECTION=1
-		}
-		/^\s*\[(client|framework) ".*"\]\s*$/ && $2 != "\"'$1'\"]"{
-			INSECTION=""
-		}
-		/^[ \t]*share[ \t]*=/ && INSECTION == 1{
-			$1=""
-			$2=""
-			gsub(/,/," ")
-			for(i=1;i<=NF;i++)
-				print $i
-		}
-	' /bedrock/etc/brclients.conf
-}
-
-# print shared frame in a client (ignores frames), used by s()
-get_client_frames(){
-	awk '
-		/^\s*\[client "'$1'"\]\s*$/{
-			INSECTION=1
-		}
-		/^\s*\[(client|framework) ".*"\]\s*$/ && $2 != "\"'$1'\"]"{
-			INSECTION=""
-		}
-		/^[ \t]*framework[ \t]*=/ && INSECTION == 1{
-			$1=""
-			$2=""
-			print $0
-		}
-	' /bedrock/etc/brclients.conf
-}
-
-# print shared items for client requested client
-s(){
-	if [ -z $1 ]
-	then
-		CLIENTS=$(n)
-	else
-		CLIENTS="$@"
-	fi
-	for CLIENT in $CLIENTS
-	do
-		get_client_shares $CLIENT
-		for FRAME in $(get_client_frames $CLIENT)
-		do
-			get_frame_shares $FRAME
-		done
+		shift
 	done
 }
 
-# Cache -n and -p values to speed up future requests (requires root)
-c(){
-	if [ $(id -u) -ne 0 ]
+# find the client that we're currently in
+n() {
+	# if cached value, use that for tiny (0.025s -> 0.007s) performance boost
+	if [ -r /etc/br_client_name ]
 	then
-		echo '-c requires root'
-	else
-		# remove old cache so it does not influence the n and p functions
-		if [ -r "/etc/br_client_name" ]
-		then
-			rm "/etc/br_client_name"
-		fi
-		# can't seem to direct the output of n or p into a file which it
-		# parses, so temporarily store it into a variable.
-		CLIENT_NAME=$(n)
-		CLIENT_PATH=$(p)
-		(
-			echo "$CLIENT_NAME"
-			echo "$CLIENT_PATH"
-		) > /etc/br_client_name
-		chmod 644 /etc/br_client_name
-		echo "Saved into /etc/br_client_name:"
 		cat /etc/br_client_name
+	else
+		pid_client $$
 	fi
 }
 
-# print the client which provides the command(s) in the argument(s) if not available locally
-w(){
-	for CMD in "$@"
+# find the client that provides the specified process by pid or (non-numeric)
+# name
+p() {
+	while [ -n "$1" ]
 	do
-		if [ -x /bedrock/brpath/bin/$CMD ]
+		if echo "$1" | grep -q "^[0-9]\+$"
 		then
-			basename $(readlink /bedrock/brpath/bin/$CMD)
-		elif [ -x /bedrock/brpath/sbin/$CMD ]
-		then
-			basename $(readlink /bedrock/brpath/sbin/$CMD)
+			pids="$1"
 		else
-			echo "Cannot find $CMD"
+			pids="$(pidof $1)"
 		fi
+		mentioned=" "
+		for pid in $(echo $pids)
+		do
+			echo "$pid $(cat /proc/$pid/comm) ($(pid_client $pid))"
+		done
+		shift
 	done
 }
 
-# print the client which provides the command(s) in the argument(s)
-W(){
-	for CMD in "$@"
+# print the pids all of the processes that are currently being provided by a
+# client
+P() {
+	while [ -n "$1" ]
 	do
-		if ! which "$CMD" >/dev/null
-		then
-			echo "Cannot find $CMD"
-		elif ! which "$CMD" | grep -q "^/bedrock/brpath"
-		then
-			w "$CMD"
-		else
-			n
-		fi
+		for pid in $(ls /proc | grep "^[0-9]\+$")
+		do
+				# only want process that are not a zombie or kernel process and
+				# are in the client for which we're looking.
+				if [ -n "$(cat /proc/$pid/cmdline)" ] && \
+					[ "$(pid_client $pid)" = "$1" ]
+				then
+					echo "$pid $(cat /proc/$pid/comm) ($(pid_client $pid))"
+				fi
+		done 2>/dev/null # pids can disappear on us mid-run
+		shift
 	done
 }
 
-# parse arguments
-case "$1" in
-	-h)
-		h;;
-	--help)
-		h;;
-	"")
-		h;;
+s() {
+	while [ -n "$1" ]
+	do
+		if [ "$1" = "bedrock" ]
+		then
+			echo "bedrock: no setup needed"
+		else
+			if [ -r "/bedrock/etc/clients.d/$1.conf" ]
+			then
+				enable_status="enabled"
+			elif [ -r "/bedrock/etc/clients.d/$1.conf.disabled" ]
+			then
+				enable_status="disabled"
+			else
+				echo "ERROR: No config corresponding to \"$1\""
+			fi
+			(
+				get_values "$1" "bind"  "0" "real"
+				get_values "$1" "union" "1" "real"
+			) | awk -v"client=$1" -v"enable_status=$enable_status" '
+				BEGIN {
+					while (getline < "/proc/1/mountinfo") {
+						mounts[$5]
+					}
+				}
+				{
+					if ($0 in mounts)
+						hit+=1
+				}
+				END {
+					if (hit == NR)
+						mount_status="fully mounted"
+					else if (hit > 0)
+						mount_status="partially mounted"
+					else {
+						mount_status="no mounts"
+						hit=0
+					}
+					print client": "enable_status", "mount_status" ("hit"/"NR")"
+				}
+			'
+		fi
+		shift
+	done
+}
+
+# print a list of bind mounts for the client as specified in the client's
+# config/frameworks.
+u() {
+	while [ -n "$1" ]
+	do
+		get_values "$1" "union" "2" ""
+		shift
+	done
+}
+
+# print client which provides command
+w() {
+	while [ -n "$1" ]
+	do
+		loc=$(which $1)
+		if echo "$loc" | grep -q "^/bedrock/s\?bin/"
+		then
+			# if the executable is in /bedrock/{bin,sbin} then it is being
+			# accessed directly without brc, but isn't technically part of the
+			# local client, either.
+			echo "bedrock (direct)"
+		elif echo "$loc" | grep -q "^/bedrock/brpath/"
+		then
+			# if the executable is in /bedrock/brpath, then it is being
+			# provided by another client through the brc/brp.  Each of the
+			# items in the brp path are symlinks to shell script wrappers for
+			# brc with names corresponding to which client is being brc'd into.
+			# Hence, by readlink the symlink we can determine which client
+			# provides the executable.
+			basename "$(readlink $loc) (brc)"
+		else
+			# if neither of the above situations is true, then the command is
+			# being provided locally.
+			echo "$(n) (local)"
+		fi
+		shift
+	done
+}
+
+#  -----------------------------------------------------------------------------
+#  - execution starts here                                                     -
+#  -----------------------------------------------------------------------------
+
+# Parse arguments and call corresponding function.
+
+flag=$1 # store flag that we'll loop over later
+shift
+extraargs="$@"
+if [ -z "$extraargs" ]
+then
+	# -p and -w require additional args to work
+	if [ "$flag" = "p" ] | [ "$flag" = "w" ]
+	then
+		echo "Additional arguments required, see bri -h"
+	fi
+	# Most flags which can take following args default to the current client if
+	# no more args are provided.  If there are no more args, "fake" a following
+	# arg as the default/current client.
+	extraargs=$(n)
+fi
+case "$flag" in
+	-b)
+		b $extraargs;;
+	-c)
+		c $extraargs;;
+	# -h is covered in *)
 	-l)
 		l;;
+	-m)
+		m $extraargs;;
 	-n)
 		n;;
 	-p)
-		shift
-		p $@;;
+		p $extraargs;;
+	-P)
+		P $extraargs;;
 	-s)
-		shift
-		s $@;;
+		s $extraargs;;
+	-u)
+		u $extraargs;;
 	-w)
-		shift
-		w $@;;
-	-W)
-		shift
-		W $@;;
-	-c)
-		c;;
+		w $extraargs;;
+	-x)
+		get_values "$extraargs" "bind" "0" "real";;
 	*)
 		h;;
 esac
