@@ -290,7 +290,7 @@ make_fuse() {
 	runcmd "./makeconf.sh"
 	check
 	configure --prefix=$dev --disable-shared --enable-static --disable-util --disable-example
-	compile 'CC='"$dev/bin/musl-gcc"
+	compile "CC=$gcc"
 	install # installing in /tmp, won't keep in actual install
 
 	MAKE_FUSE="1"
@@ -368,7 +368,7 @@ make_busybox() {
 	runcmd 'cd $(ls)'
 	runcmd 'make clean'
 	check
-	compile "CC=$dev/bin/musl-gcc"
+	compile "CC=$gcc"
 
 	MAKE_BUSYBOX="1"
 }
@@ -408,7 +408,7 @@ make_brc() {
 	announce_high "Making brc"
 	task="brc"
 	copy_untar
-	compile CC=$dev/bin/musl-gcc
+	compile "CC=$gcc"
 
 	MAKE_BRC="1"
 }
@@ -423,7 +423,7 @@ make_bru() {
 	announce_high "Making bru"
 	task="bru"
 	copy_untar
-	compile CC=$dev/bin/musl-gcc
+	compile "CC=$gcc"
 
 	MAKE_BRU="1"
 }
@@ -721,6 +721,7 @@ then
 fi
 src="$tmp/src"
 dev="$tmp/dev"
+gcc="$tmp/dev/bin/musl-gcc"
 log="$tmp/log"
 pwd="$(pwd)"
 orig_args="$@"
