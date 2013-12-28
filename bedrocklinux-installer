@@ -821,7 +821,7 @@ then
 
 	announce_high "Performing sanity checks"
 	announce_low "$pwd is a mount point..."
-	if ! cut -d' ' -f2 | grep -q "^$(realpath $pwd)\$"
+	if ! cut -d' ' -f2 /proc/mounts | grep -q "^$pwd\$"
 	then
 cat <<EOF
 WARNING: Installing to
