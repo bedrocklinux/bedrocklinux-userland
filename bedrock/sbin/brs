@@ -4,6 +4,32 @@
 
 # sets up or tears down a client
 
+# ensure the mount source and destination both exist
+# first arg is client, second arg is mount point
+ensure_exists() {
+	src=$2
+	dst=/bedrock/clients/$1$2
+	if [ -e $src ] && [ -e $dst ]
+	then
+		return 0
+	elif [ -d $src ] && ! [ -e $dst ]
+	then
+		return mkdir -p $dst
+	elif [ -f $src ] && ! [ -e $dst ]
+	then
+		return touch $dst
+	elif ! [ -e $src ] && [ -d $dst ]
+	then
+		return mkdir -p $src
+	elif ! [ -e $src ] && [ -f $dst ]
+	then
+		return touch $src
+	else
+		# couldn't resolve situation
+		return 1
+	fi
+}
+
 # loop over clients listed in arguments and enable them
 up() {
 	while [ -n "$1" ]
@@ -23,7 +49,16 @@ up() {
 		echo -n "Mounting bind items... "
 		for mount_point in $(bri -b $1)
 		do
-			mount --bind "$mount_point" "/bedrock/clients/$1$mount_point"
+			if ensure_exists $1 $mount_point
+			then
+				mount --bind "$mount_point" "/bedrock/clients/$1$mount_point"
+			else
+				echo "ERROR: Could not mount $mount_point.  Check that"
+				echo "$mount_point and /bedrock/clients/$1$mount_point"
+				echo "both exist and are the same file type"
+				echo "(normal file, directory, etc)."
+				exit 1
+			fi
 		done
 		echo "done"
 
@@ -225,9 +260,9 @@ if [ "$1" = "up" ]
 then
 	shift
 	# loop over clients to bring up
-	up
+	up "$@"
 else
 	shift
 	# loop over clients to tear down
-	down
+	down "$@"
 fi
