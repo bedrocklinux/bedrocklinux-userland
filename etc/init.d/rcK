@@ -6,38 +6,37 @@ PATH="/bin:/sbin:/usr/bin:/usr/sbin"
 
 clear
 chvt 1
-echo -ne "\033[0;37m"
-echo "__          __             __      "
-echo "\ \_________\ \____________\ \___  "
-echo " \  _ \  _\ _  \  _\ __ \ __\   /  "
-echo "  \___/\__/\__/ \_\ \___/\__/\_\_\ "
-echo "      Bedrock Linux 1.0alpha3 Bosco"
-echo -ne "\033[0m"
+
+NORMAL='\033[1;0m'
+WHITE='\033[1;37m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+clear
+printf "$WHITE"
+cat <<EOF
+__          __             __      
+\ \_________\ \____________\ \___  
+ \  _ \  _\ _  \  _\ __ \ __\   /  
+  \___/\__/\__/ \_\ \___/\__/\_\_\ 
+    Bedrock Linux 1.0alpha4 Flopsie
+EOF
+printf "$NORMAL"
 
 announce(){
-	printf "%-60s" "$1"
+	printf "[ -- ] $1"
 }
 result(){
 	if [ $? -eq 0 ]
 	then
-		echo -e "\033[0;32mOKAY\033[0m"
+		printf "\r[${GREEN}OKAY$NORMAL]\n"
 	else
-		echo -e "\033[0;31mFAILED\033[0m"
+		printf "\r[${RED}FAIL$NORMAL]\n"
 	fi
 }
 
 announce "Running client shutdown scripts... "
 sh /etc/init.d/rcK.clients
 result
-
-# many static busyboxes do not come with killall5
-# supply something in its stead in those cases
-if ! which killall5 >/dev/null
-then
-	killall5(){
-		kill $1 $(ps | awk '$NF !~ /^\[.*\]$/&&NR>1{print$1}' | grep -v "^\(1\|$$\)$" | xargs) 2>/dev/null
-	}
-fi
 
 announce "Killing all running processes... "
 for i in 1 2 3 4 5 6 7 8 9 10
@@ -89,8 +88,8 @@ announce "Unmounting all filesystems..."
 RESULT=/bin/true
 # Try to unmount everything except:
 # - proc (as proc is needed to get mount information).
-# - /dev (problematic but since it is a tmpfs and wouldn't have anything synced)
-# - / (as it should be last, afte proc)
+# - /dev (problematic but since it is a tmpfs it wouldn't have anything synced)
+# - / (as it should be last, after proc)
 # If some things failed to unmount, it could be because they had
 # other things bind-mounted into them.  Keep looping until we've found we're no
 # longer making progress with unmounting.
