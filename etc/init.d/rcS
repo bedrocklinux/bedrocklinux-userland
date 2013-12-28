@@ -1,5 +1,5 @@
 #!/bin/sh
-### Bedrock Linux 1.0alpha3 Bosco
+### Bedrock Linux 1.0alpha4 Flopsie
 ### rcS init script
 
 # get settings from /bedrock/etc/rc.conf
@@ -8,151 +8,150 @@
 # explicitly set PATH
 PATH="/bedrock/bin:/bedrock/sbin:/bin:/sbin:/usr/bin:/usr/sbin"
 
+NORMAL='\033[1;0m'
+WHITE='\033[1;37m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
 clear
-echo -ne "\033[0;37m"
-echo "__          __             __      "
-echo "\ \_________\ \____________\ \___  "
-echo " \  _ \  _\ _  \  _\ __ \ __\   /  "
-echo "  \___/\__/\__/ \_\ \___/\__/\_\_\ "
-echo "      Bedrock Linux 1.0alpha3 Bosco"
-echo -ne "\033[0m"
+printf "$WHITE"
+cat <<EOF
+__          __             __      
+\ \_________\ \____________\ \___  
+ \  _ \  _\ _  \  _\ __ \ __\   /  
+  \___/\__/\__/ \_\ \___/\__/\_\_\ 
+    Bedrock Linux 1.0alpha4 Flopsie
+EOF
+printf "$NORMAL"
 
 announce(){
-	printf "%-60s" "$1"
+	printf "[ -- ] $1"
 }
 result(){
 	if [ $? -eq 0 ]
 	then
-		echo -e "\033[0;32mOKAY\033[0m"
+		printf "\r[${GREEN}OKAY$NORMAL]\n"
 	else
-		echo -e "\033[0;31mFAILED\033[0m"
+		printf "\r[${RED}FAIL$NORMAL]\n"
 	fi
 }
-initrdset(){
-		echo -e "\033[0;32mINITRD SET\033[0m"
-}
 
-announce "Preparing /proc..."
-if [ -r /proc/mounts ] && grep -q "^\w\+ /proc proc" /proc/mounts
+# if /proc was mounted in an initrd, use it; otherwise, mount it
+announce "Preparing /proc"
+if ! [ -r /proc/mounts ] || ! grep -q "^\w\+ /proc proc" /proc/mounts
 then
-	initrdset
-else
 	mount -t proc proc /proc
-	result
 fi
+result
 
-announce "Preparing /sys..."
-if grep -q "^\w\+ /sys sysfs" /proc/mounts
+# if /sys was mounted in an initrd, use it; otherwise, mount it
+announce "Preparing /sys"
+if ! grep -q "^\w\+ /sys sysfs" /proc/mounts
 then
-	initrdset
-else
 	mount -t sysfs sysfs /sys
-	result
 fi
+result
 
-if [ "$DEVICE_MANAGER" = "initrd" ]
+# in case the initrd starts udev, remove it
+UDEVPIDS=$(ps | grep udev | grep -v grep | cut -d' ' -f2 | xargs)
+if [ -n "$UDEVPIDS" ]
 then
-	announce "Using initrd's /dev"
-	initrdset
-else
-	# attempt to undo a initrd's device manager work
+	announce "Removing initrd's udev"
+	kill $UDEVPIDS
+	sleep 1s
 	UDEVPIDS=$(ps | grep udev | grep -v grep | cut -d' ' -f2 | xargs)
 	if [ -n "$UDEVPIDS" ]
 	then
-		announce "Removing initrd's udev..."
-		kill $UDEVPIDS
+		kill -9 $UDEVPIDS
 		sleep 1s
-		UDEVPIDS=$(ps | grep udev | grep -v grep | cut -d' ' -f2 | xargs)
-		if [ -n "$UDEVPIDS" ]
-		then
-			kill -9 $UDEVPIDS
-			sleep 1s
-		fi
-		if [ -n "$(ps | grep udev | grep -v grep)" ]
-		then
-			eval /bin/false; result
-		else
-			eval /bin/true; result
-		fi
-	fi 
-	echo "" > /proc/sys/kernel/hotplug
-	echo "" > /sys/kernel/uevent_helper
-fi
+	fi
+	if [ -n "$(ps | grep udev | grep -v grep)" ]
+	then
+		eval /bin/false; result
+	else
+		eval /bin/true; result
+	fi
+fi 
+echo "" > /proc/sys/kernel/hotplug
+echo "" > /sys/kernel/uevent_helper
 
-if [ "$DEVICE_MANAGER" != "static" ] && [ "$DEVICE_MANAGER" != "initrd" ]
+announce "Preparing /dev, /dev/pts, /dev/shm"
+RESULT=/bin/true
+# if /dev was mounted in an initrd, use it; otherwise, mount it
+if ! grep -q "^\w\+ /dev \(dev\)\?tmpfs" /proc/mounts
 then
-	announce "Preparing /dev"
-	if grep -q "^\w\+ /dev \(dev\)\?tmpfs" /proc/mounts
-	then
-		initrdset
-	else
-		mount -w -t tmpfs tmpfs -o mode=755 /dev
-		result
-	fi
-	announce "Preparing /dev/pts"
-	if grep -q "^\w\+ /dev/pts devpts" /proc/mounts
-	then
-		initrdset
-	else
-		mkdir -p /dev/pts
-		mount -w -t devpts devpts -o mode=620 /dev/pts
-		result
-	fi
-	announce "Preparing /dev/shm"
-	if grep -q "^\w\+ /dev/shm tmpfs" /proc/mounts
-	then
-		initrdset
-	else
-		mkdir -p /dev/shm
-		mount -w -t tmpfs tmpfs -o mode=777 /dev/shm
-		result
-	fi
-	announce "Populating /dev"
-	mdev -s 2>/dev/null
-	result
+	mount -w -t tmpfs tmpfs -o mode=755 /dev || RESULT=/bin/false
 fi
+# if /dev/pts was mounted in an initrd, use it; otherwise, mount it
+if ! grep -q "^\w\+ /dev/pts devpts" /proc/mounts
+then
+	mkdir -p /dev/pts
+	mount -w -t devpts devpts -o mode=620 /dev/pts || RESULT=/bin/false
+fi
+# if /dev/shm was mounted in an initrd, use it; otherwise, mount it
+if ! grep -q "^\w\+ /dev/shm tmpfs" /proc/mounts
+then
+	mkdir -p /dev/shm
+	mount -w -t tmpfs tmpfs -o mode=777 /dev/shm || RESULT=/bin/false
+fi
+eval /bin/true; result
 
-announce "Preparing swap..."
+# have mdev populate /dev now and continue to as new things come in
+announce "Starting mdev"
+RESULT=/bin/true
+mdev -s 2>/dev/null || RESULT=/bin/false
+echo '/sbin/mdev' > /proc/sys/kernel/hotplug || RESULT=/bin/false
+eval $RESULT; result
+
+# load modules
+announce "Loading modules"
+find /sys/devices -name modalias -type f -exec cat {} \; | sort -u | xargs modprobe -a -b 2>/dev/null
+sleep 1
+find /sys/devices -name modalias -type f -exec cat {} \; | sort -u | xargs modprobe -a -b 2>/dev/null
+# modprobe will return false if any of the modules fail, even ones that
+# wouldn't normally work, so just make this always succeed.
+/bin/true; result
+
+announce "Preparing swap"
 swapon -a
 result
 
+# run fsck if required
 RESULT=/bin/true
 ROOT_FS_TYPE=$(cat /proc/mounts | awk '$1 == "/dev/root" && $2 == "/" {print$3}')
 ROOT_DEVICE=/dev/$(readlink /dev/root)
 if [ "$FSCK" != 1 ]
 then
-	announce "Skipping fsck (FSCK != 1 in rc.conf)..."
+	announce "Skipping fsck (FSCK != 1 in rc.conf)"
 elif ! which fsck >/dev/null
 then
-	announce "Skipping fsck (cannot find fsck)..."
+	announce "Skipping fsck (cannot find fsck)"
 	RESULT=/bin/false
 elif [ -f /fastboot ] || grep -i -q -w "fastboot" /proc/cmdline
 then
-	announce "Skipping fsck (fastboot requested)..."
+	announce "Skipping fsck (fastboot requested)"
 elif [ -f /forcefsck ] || grep -i -q -w "forcefsck" /proc/cmdline
 then
-	announce "Checkig filesystem (forcefsck requested)..."
+	announce "Checking filesystem (forcefsck requested)"
 	mount / -o remount,ro || RESULT=/bin/false          || RESULT=/bin/false
 	fsck -a -C0 -f -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
 	fsck -a -A -C0 -f -T                                || RESULT=/bin/false
 else
-	announce "Checking filesystem..."
+	announce "Checking filesystem"
 	mount / -o remount,ro || RESULT=/bin/false       || RESULT=/bin/false
 	fsck -a -C0 -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
 	fsck -a -A -C0 -T                                || RESULT=/bin/false
 fi
-eval $RESULT
-result
+eval $RESULT; result
 
-announce "Preparing root filesystem..."
+announce "Preparing root filesystem"
 mount / -o remount,rw
 result
 
-announce "Preparing /etc/fstab filesystems..."
+announce "Preparing /etc/fstab filesystems"
 mount -a
 result
 
-announce "Cleaning temporary files..."
+announce "Cleaning temporary files"
 RESULT=/bin/true
 if [ -f /forcefsck ]
 then
@@ -163,15 +162,14 @@ then
 	find /tmp -mindepth 1 -exec rm -rf {} \; 2>/dev/null
 	[ "$(ls -A /tmp)" = "" ] || $RESULT=/bin/false
 fi
-eval $RESULT
-result
+eval $RESULT; result
 
-announce "Preparing clock..."
+announce "Preparing clock"
 RESULT=/bin/true
 if [ -z "$TZ" ]
 then
-	echo ""
-	echo "TZ not set in /etc/rc.conf, defaulting to UTC"
+	printf "\r"
+	announce "TZ not set in /etc/rc.conf, defaulting to UTC"
 	RESULT=/bin/false
 else
 	export TZ
@@ -183,15 +181,14 @@ elif [ "$HWCLOCK" = "UTC" ]
 then
 	hwclock -us
 else
-	echo ""
-	echo "HWCLOCK not set in /etc/rc.conf, defaulting to UTC"
+	printf "\r"
+	announce "HWCLOCK not set in /etc/rc.conf, defaulting to UTC"
 	RESULT=/bin/false
 	hwclock -us
 fi
-eval $RESULT
-result
+eval $RESULT; result
 
-announce "Preparing PRNG..."
+announce "Preparing PRNG"
 if [ -f /proc/sys/kernel/random/poolsize ]
 then
 	POOLSIZE=$(cat /proc/sys/kernel/random/poolsize)
@@ -200,18 +197,20 @@ else
 fi
 if [ ! -f /var/lib/urandom/random-seed ]
 then
-	echo "No PRNG seed found."
-	echo "  If this takes more than a second"
-	echo "  you may need to type nonsense into the"
-	echo "  keyboard to generate entropy."
-	echo "Creating new seed from /dev/random"
+cat <<EOF
+No PRNG seed found.
+  If this takes more than a second
+  you may need to type nonsense into the
+  keyboard to generate entropy.
+Creating new seed from /dev/random
+EOF
 	mkdir -p /var/lib/urandom 2>/dev/null
 	dd if=/dev/random of=/var/lib/urandom/random-seed bs=$POOLSIZE count=1 2>/dev/null
 fi
 dd if=/var/lib/urandom/random-seed of=/dev/urandom bs=$POOLSIZE count=1 2>/dev/null
 result
 
-announce "Setting hostname..."
+announce "Setting hostname"
 if [ -r /etc/hostname ]
 then
 	hostname "$(cat /etc/hostname)"
@@ -221,46 +220,17 @@ else
 fi
 result
 
-announce "Setting up client shared items..."
-RESULT=/bin/true
+announce "Setting up client shared items"
 if [ -n "$(bri -l)" ]
 then
-	brs $(bri -l | xargs)
+	brs $(bri -l | xargs) 2>/dev/null
 fi
-eval $RESULT
 result
 
-announce "Preparing device manager..."
-if [ "$DEVICE_MANAGER" = "udev" ]
-then
-	if bri -l | grep -q "^$UDEV_CLIENT$"
-	then
-		brc $UDEV_CLIENT udevd --daemon                                 || RESULT=/bin/false
-		brc $UDEV_CLIENT udevadm trigger --action=add --type=subsystems || RESULT=/bin/false
-		brc $UDEV_CLIENT udevadm trigger --action=add --type=devices    || RESULT=/bin/false
-		brc $UDEV_CLIENT udevadm settle                                 || RESULT=/bin/false
-	else
-		if which udevd >/dev/null && which udevadm >/dev/null
-		then
-			udevd --daemon                                 || RESULT=/bin/false
-			udevadm trigger --action=add --type=subsystems || RESULT=/bin/false
-			udevadm trigger --action=add --type=devices    || RESULT=/bin/false
-			udevadm settle                                 || RESULT=/bin/false
-		else
-			RESULT=/bin/false
-		fi
-	fi
-elif [ "$DEVICE_MANAGER" = "mdev" ]
-then
-	echo /sbin/mdev > /proc/sys/kernel/hotplug || RESULT=/bin/false
-fi
-eval $RESULT
-result
-
-announce "Running client init scripts..."
+announce "Running client init scripts"
 sh /etc/init.d/rcS.clients
 result
 
-announce "Running /etc/rc.local..."
+announce "Running /etc/rc.local"
 sh /etc/rc.local
 result
