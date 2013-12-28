@@ -868,6 +868,11 @@ You will still need to install:
 - clients
 and configure the system.
 
+If you'd like, you can remove the top-level files (NOT directories) in
+$pwd
+(including this script) as well as remove the content from
+$pwd/src
+
 Enjoy!
 EOF
 fi
