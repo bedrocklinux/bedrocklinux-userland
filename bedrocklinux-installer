@@ -1,0 +1,873 @@
+#!/bin/sh
+### Bedrock Linux 1.0alpha4 Flopsie
+### bedrocklinux-installer
+
+# This script can be used to compile and install major components of a Bedrock
+# Linux system.
+
+
+# ------------------------------------------------------------------------------
+# - support functions                                                          -
+# ------------------------------------------------------------------------------
+
+# prints help
+print_help() {
+cat <<EOF
+Usage: bedrocklinux-installer make [components]
+   or: bedrocklinux-installer install [components]
+
+To compile components, have "make" be the first argument and the following
+arguments be components to install.  This can be done as a non-root user.  It
+will also compile the dependencies.
+
+To install components, first make them with the above instructions if they need
+to be made (i.e.: if the show up under "Make and install" below).  Then run
+bedrocklinux-installer with "install".  The following arguments should be a
+list of components to install.  They will be installed in the present working
+directory; make sure you've partitioned and mounted the desired filesystems
+and mv/untar/git-clone/etc the installer and bundled software into its root.
+
+The source code for the components to be compiled should be in a "src"
+directory in the present working directory, either as a tarball or a directory
+(such as the untarred tarball or a VCS repository).  The file or directory name
+should have the name of the component, such as "busybox" or "fuse" somewhere
+within it.
+
+You can set the "\$tmp" environmental variable to set where temporary files
+(such as the musl-based build stack) should be placed if you do not want the
+default location within /tmp.  Setting this elsewhere is useful for
+development/debugging.
+
+Components:
+Make and install:
+  all           the entire (core) Bedrock Linux system.
+  brc           brc (BedRock Chroot)
+  bru           bru (BedRock Union filesystem)
+  busybox       busybox
+  cap           setcap and getcap utilities, capabilities libraries
+Make only:
+  devstack      the development stack (headers, musl, fuse)
+  headers       linux headers
+  musl          the musl c library
+  fuse          the fuse libary
+Install only:
+  directories   create directories of core Bedrock Linux system
+  permissions   set permissions on the install directory
+
+EOF
+	exit
+}
+
+# If required source code is missing, this function should print instructions
+# on where to find it.  Called by copy_untar().
+source_help() {
+	echo "ERROR." | tee -a $log
+	echo "Cannot find required source for $task." | tee -a $log
+	case $task in
+		"brc"|"bru")
+cat <<EOF
+The source for $task should be bundled with this script.  Try deleting
+everything and downloading the tarball containing this script and bundled
+source from here:
+    http://bedrocklinux.org/1.0alpha4/bedrock-userland-1.0alpha4.tar.gz
+EOF
+			exit 1
+			;;
+		"musl")
+cat <<EOF
+The musl libc library is required.  The project's website is available at:
+    http://www.musl-libc.org/
+At the time of writing, the latest musl release - 0.9.14 - does not have all of
+the required functionality.  Either use a newer release (such as 0.9.15 or
+0.10.0) if available or get the latest version from git.  The latest stable
+releases and links to download them should be available here:
+    http://www.musl-libc.org/download.html
+And the git repository should be available here:
+    git clone git://git.musl-libc.org/musl
+EOF
+			exit
+			;;
+		"linux")
+cat <<EOF
+The Linux kernel repository is required for the Linux header files.  A tarball
+containing the latest Linux kernel should be found here:
+https://www.kernel.org/
+EOF
+			;;
+		"fuse")
+cat <<EOF
+FUSE is required.  The project's website is available at:
+    http://fuse.sourceforge.net/
+At the time of writing, the latest FUSE release - 2.9.3 - does not have all of
+the required functionality.  Either use a newer release (3.X) if available or
+get the latest version from git.  The latest stable releases should be found
+here:
+    http://sourceforge.net/projects/fuse/files/
+And the git repository should be available here:
+    git clone git://git.code.sf.net/p/fuse/fuse fuse-fuse
+EOF
+			;;
+		"busybox")
+cat <<EOF
+Busybox is required.  At the time of writing, the latest busybox release -
+1.21.1 - does not have all of the required functionality.  Either use a newer
+release (1.21.2, 1.22.0, etc) or get the latest version from git.  The latest
+stable release should be available as a tarball here:
+    http://www.busybox.net/
+And the git repository should be available here:
+    git clone git://busybox.net/busybox.git
+EOF
+			;;
+		"cap")
+cat <<EOF
+The Linux Capabilities libraries and utilities are required.  The project's
+website is at:
+    https://sites.google.com/site/fullycapable/
+At the time of writing a tarball is unavailable, but the git repository is
+available here:
+    git clone git://git.kernel.org/pub/scm/linux/kernel/git/morgan/libcap.git
+At the time of writing, the latest commit has broken things.  After checking
+out the repository, checkout commit 056ffb0bd25d91ffbcb83c521fc4d3d9904ec4d4
+    git checkout 056ffb0bd25d91ffbcb83c521fc4d3d9904ec4d4
+EOF
+			;;
+	esac
+cat <<EOF
+Place the source (tarball or directory) in:
+    $pwd/src
+with a file name containing the string "$task".
+EOF
+	exit 1
+}
+
+# Announce something high-level that may have subcategories
+announce_high() {
+	echo "$1" | tee -a $log
+}
+
+# Announce something low-level that will not have subcategories whose
+# completion will be indicated by check()
+announce_low() {
+	echo -n "  $1... " | tee -a $log
+}
+
+# Some error condition happened and the process is aborting.  If there is an
+# argument, print that as the error message; otherwise, direct the user to the
+# log file.
+abort() {
+	echo "ERROR:" | tee -a $log
+	if [ -n "$1" ]
+	then
+		echo "$@" | tee -a $log
+	else
+		echo "See log at"
+		echo "$log"
+	fi
+	exit 1
+}
+
+# Check if the last operation succeeded based on return code.  If so, close
+# announce_low(); otherwise, abort.
+check() {
+	if [ $? -ne 0 ]
+	then
+		abort
+	else
+		echo "done"
+	fi
+}
+
+# Run a shell command and log it.
+runcmd() {
+	echo ""       >>$log 2>&1
+	echo "\`$@\`" >>$log 2>&1
+	eval "$@"     >>$log 2>&1
+}
+
+# Copy or untar source for $task to temporary directory in preparation for use.
+# Leaves original copy pristine.
+copy_untar() {
+	announce_low "Preparing $task source"
+	runcmd "mkdir -p $src/$task" || abort
+	if ls $pwd/src/*$task*tar* >/dev/null 2>&1
+	then
+		runcmd "cd $src/$task/"
+		runcmd "tar xf $pwd/src/*$task*tar*"
+	elif ls $pwd/src/*$task* >/dev/null 2>&1
+	then
+		runcmd "cp -r $pwd/src/*$task* $src/$task/"
+	else
+		source_help
+	fi
+	check
+}
+
+# Run the configuration script for $task
+configure() {
+	announce_low "Configuring $task"
+	runcmd "cd $src/$task/"
+	runcmd "cd $(ls)"
+	runcmd "./configure $@"
+	check
+}
+
+# Compile $task
+compile() {
+	announce_low "Compiling $task"
+	runcmd "cd $src/$task/"
+	runcmd "cd $(ls)"
+	runcmd "make -j$JOBS $@"
+	check
+}
+
+# Run make install for $task
+install() {
+	announce_low "Installing $task"
+	runcmd "cd $src/$task/"
+	runcmd "cd $(ls)"
+	runcmd "make install $@"
+	check
+}
+
+
+# ------------------------------------------------------------------------------
+# - functions to make components                                               -
+# ------------------------------------------------------------------------------
+#
+# Each function will compile/prepare some item.  They will each set a variable
+# upon completing the task so, if called again it will not have to run again.
+# This can also be set externally to skip steps when debugging.  They will
+# automatically call functions to make any of their dependencies.
+
+make_headers() {
+	# check if already done
+	if [ -n "$MAKE_HEADERS" ]; then return; fi
+	# dependencies:
+	# (none)
+
+	task="linux"
+	announce_high "Making linux headers"
+	copy_untar
+	compile "headers_install INSTALL_HDR_PATH=$dev"
+
+	MAKE_HEADERS="1"
+}
+
+make_musl() {
+	# check if already done
+	if [ -n "$MAKE_MUSL" ]; then return; fi
+	# dependencies:
+	make_headers
+
+	task="musl"
+	announce_high "Making musl"
+	copy_untar
+	configure --prefix=$dev --disable-shared --enable-static
+	compile
+	install # installing in /tmp, won't keep in actual install
+
+	MAKE_MUSL="1"
+}
+
+make_fuse() {
+	# check if already done
+	if [ -n "$MAKE_FUSE" ]; then return; fi
+	# dependencies:
+	make_musl
+
+	task="fuse"
+	announce_high "Making fuse"
+	copy_untar
+	announce_low "Making configure script"
+	runcmd "cd $src/$task/"
+	runcmd "cd $(ls)"
+	runcmd "./makeconf.sh"
+	check
+	configure --prefix=$dev --disable-shared --enable-static --disable-util --disable-example
+	compile 'CC='"$dev/bin/musl-gcc"
+	install # installing in /tmp, won't keep in actual install
+
+	MAKE_FUSE="1"
+}
+
+make_devstack() {
+	# check if already done
+	if [ -n "$MAKE_DEVSTACK" ]; then return; fi
+	# dependencies:
+	make_musl
+	make_headers
+	make_fuse
+
+	# this doesn't directly do anything; it is simply a meta-item for all of
+	# the items in the build stack.
+	MAKE_DEVSTACK="1"
+}
+
+busybox_set_option() {
+	if grep -q "^$1=" .config
+	then
+		runcmd "sed 's/^$1=./$1=$2/' .config > .config-new"
+		runcmd "mv .config-new .config"
+	elif grep -q "^# $1 is not set" .config
+	then
+		runcmd "sed 's/^# $1 is not set/$1=$2/' .config > .config-new"
+		runcmd "mv .config-new .config"
+	else
+		runcmd "echo '$1=$2' >> .config"
+	fi
+}
+
+make_busybox() {
+	# check if already done
+	if [ -n "$MAKE_BUSYBOX" ]; then return; fi
+	# dependencies:
+	make_musl
+	make_headers
+
+	task="busybox"
+	announce_high "Making busybox"
+	copy_untar
+	announce_low "Making config"
+	runcmd 'cd $src/$task/'
+	runcmd 'cd $(ls)'
+	# use busybox's default config
+	runcmd 'make defconfig'
+	# ensure static
+	busybox_set_option "CONFIG_STATIC" "y"
+	# full modutils
+	busybox_set_option "CONFIG_FEATURE_MODPROBE_SMALL" "n"
+	busybox_set_option "CONFIG_INSMOD" "y"
+	busybox_set_option "CONFIG_RMMOD" "y"
+	busybox_set_option "CONFIG_LSMOD" "y"
+	busybox_set_option "CONFIG_FEATURE_LSMOD_PRETTY_2_6_OUTPUT" "y"
+	busybox_set_option "CONFIG_MODPROBE" "y"
+	busybox_set_option "CONFIG_FEATURE_MODPROBE_BLACKLIST" "y"
+	busybox_set_option "CONFIG_DEPMOD" "y"
+	# udhcp client
+	busybox_set_option "CONFIG_UDHCPC6" "y"
+	# remove items which make compiling difficult.  If the core doesn't need
+	# them, better to skip than to worry about patching
+	busybox_set_option "CONFIG_INETD" "n"
+	check
+	# if_ether.h needs a small patch to play with musl
+	announce_low "Fixing miscellaneous busybox-musl issues"
+	runcmd "cd $dev/include/netinet/"
+	runcmd "awk '{p=1}/^struct ethhdr/,/^}/{print \"//\"\$0; p=0}p==1' if_ether.h > if_ether.h.new"
+	runcmd "mv if_ether.h.new if_ether.h"
+	# busybox looks for some things in net/ not linux/, but we only have it in linux/
+	#runcmd "cp $dev/include/linux/if_slip.h $dev/include/net/"
+	check
+	announce_low "Cleaning"
+	runcmd 'cd $src/$task/'
+	runcmd 'cd $(ls)'
+	runcmd 'make clean'
+	check
+	compile "CC=$dev/bin/musl-gcc"
+
+	MAKE_BUSYBOX="1"
+}
+
+make_cap() {
+	# check if already done
+	if [ -n "$MAKE_CAP" ]; then return; fi
+	# dependencies:
+	make_musl
+
+	announce_high "Making cap"
+	task="cap"
+	copy_untar
+	compile
+
+	# installing in /tmp, won't keep in actual install unless explicitly
+	# requested with ./bedrocklinux-installer install
+	install DESTDIR=$dev prefix=/ RAISE_SETFCAP=NO
+	announce_low "Moving lib64 into lib"
+	runcmd 'mv $dev/lib64/* $dev/lib'
+	runcmd 'rmdir $dev/lib64/'
+	check
+
+	MAKE_CAP="1"
+}
+
+make_brc() {
+	# check if already done
+	if [ -n "$MAKE_BRC" ]; then return; fi
+	# dependencies:
+	make_musl
+	make_cap
+
+	announce_high "Making brc"
+	task="brc"
+	copy_untar
+	compile CC=$dev/bin/musl-gcc
+
+	MAKE_BRC="1"
+}
+
+make_bru() {
+	# check if already done
+	if [ -n "$MAKE_BRU" ]; then return; fi
+	# dependencies:
+	make_musl
+	make_fuse
+
+	announce_high "Making bru"
+	task="bru"
+	copy_untar
+	compile CC=$dev/bin/musl-gcc
+
+	MAKE_BRU="1"
+}
+
+make_all() {
+	# dependencies:
+	make_brc
+	make_bru
+	make_busybox
+	make_cap
+	# this doesn't directly do anything; it is simply a meta-item for
+	# everything else.
+}
+
+# ------------------------------------------------------------------------------
+# - functions to install components                                            -
+# ------------------------------------------------------------------------------
+#
+# Each function will install some item.  They will each set a variable upon
+# completing the task so, if called again it will not have to run again.  This
+# can also be set externally to skip steps when debugging.  They will
+# automatically call functions to make any of their dependencies.
+
+# git will not track empty directories, so we will make the empty directories
+# here.
+install_directories() {
+	# check if already done
+	if [ -n "$INSTALL_DIRECTORIES" ]; then return; fi
+	# dependencies:
+	# (none)
+
+	announce_high "Making directory tree"
+	RESULT=/bin/true
+
+	for dir in                          \
+		bedrock                         \
+			bedrock/bin                 \
+			bedrock/brpath              \
+				bedrock/brpath/bin      \
+				bedrock/brpath/clients  \
+				bedrock/brpath/sbin     \
+			bedrock/clients             \
+				bedrock/clients/bedrock \
+			bedrock/etc                 \
+			bedrock/sbin                \
+		bin                             \
+		boot                            \
+		dev                             \
+		etc                             \
+			etc/init.d                  \
+		home                            \
+		lib                             \
+			lib/firmware                \
+			lib/modules                 \
+		mnt                             \
+		opt                             \
+		proc                            \
+		root                            \
+		sbin                            \
+		src                             \
+			src/brc                     \
+			src/bru                     \
+		sys                             \
+		tmp                             \
+		usr                             \
+			usr/bin                     \
+			usr/sbin                    \
+		var                             \
+			var/lib                     \
+				var/lib/urandom         \
+			var/tmp
+	do
+		runcmd "mkdir -p $dir" || RETURN=/bin/false
+	done
+	eval $RESULT; check
+
+	INSTALL_DIRECTORIES=1
+}
+
+# git will not track all permissions, explicitly set here.
+install_permissions() {
+	# check if already done
+	if [ -n "$INSTALL_PERMISSIONS" ]; then return; fi
+	# dependencies:
+	install_directories
+
+	announce_low "Setting permissions"
+	RESULT=/bin/true
+
+	# normal directories
+	for dir in                          \
+		bedrock                         \
+			bedrock/bin                 \
+			bedrock/brpath              \
+				bedrock/brpath/bin      \
+				bedrock/brpath/clients  \
+				bedrock/brpath/sbin     \
+			bedrock/clients             \
+				bedrock/clients/bedrock \
+			bedrock/etc                 \
+			bedrock/sbin                \
+		bin                             \
+		boot                            \
+		dev                             \
+		etc                             \
+			etc/init.d                  \
+		home                            \
+		lib                             \
+			lib/firmware                \
+			lib/modules                 \
+		mnt                             \
+		opt                             \
+		proc                            \
+		root                            \
+		sbin                            \
+		src                             \
+			src/brc                     \
+			src/bru                     \
+		sys                             \
+		usr                             \
+			usr/bin                     \
+			usr/sbin                    \
+		var                             \
+			var/lib
+	do
+		runcmd "chmod 755 $dir"       || RESULT=/bin/false
+		runcmd "chown root:root $dir" || RESULT=/bin/false
+	done
+
+	# directories for temporary files
+	for tmpdir in tmp var/tmp
+	do
+		runcmd "chmod a+rwxt $tmpdir"    || RESULT=/bin/false
+		runcmd "chown root:root $tmpdir" || RESULT=/bin/false
+	done
+
+	# normal files
+	for file in                            \
+		bedrock/etc/clients.d/bedrock.conf \
+		bedrock/etc/frameworks.d/default   \
+		bedrock/etc/rc.conf                \
+		etc/fstab                          \
+		etc/group                          \
+		etc/hostname                       \
+		etc/hosts                          \
+		etc/inittab                        \
+		etc/issue                          \
+		etc/lsb-release                    \
+		etc/passwd                         \
+		etc/profile                        \
+		etc/rc.local                       \
+		etc/shells
+	do
+		runcmd "chmod 644 $file"       || RESULT=/bin/false
+		runcmd "chown root:root $file" || RESULT=/bin/false
+	done
+
+	# secure files
+	for file in shadow sudoers
+	do
+		runcmd "chmod 600 $file"       || RESULT=/bin/false
+		runcmd "chown root:root $file" || RESULT=/bin/false
+	done
+
+	# executable files
+	for file in                \
+		bedrock/bin/bri        \
+		bedrock/bin/brl        \
+		bedrock/bin/brh        \
+		bedrock/bin/brw        \
+		bedrock/sbin/brp       \
+		bedrock/sbin/brs       \
+		bedrock/sbin/halt      \
+		bedrock/sbin/poweroff  \
+		bedrock/sbin/reboot    \
+		bedrock/sbin/shutdown  \
+		etc/init.d/rcK         \
+		etc/init.d/rcK.clients \
+		etc/init.d/rcS         \
+		etc/init.d/rcS.clients \
+		etc/init.d/rcS.udev
+	do
+		runcmd "chmod 755 $file"       || RESULT=/bin/false
+		runcmd "chown root:root $file" || RESULT=/bin/false
+	done
+
+	eval $RESULT; check
+	INSTALL_PERMISSIONS=1
+}
+
+install_cap() {
+	# check if already done
+	if [ -n "$INSTALL_CAP" ]; then return; fi
+	# dependencies:
+	install_directories
+	install_permissions
+
+	announce_low "Installing cap utilities"
+	task="cap"
+	runcmd "cd $src/$task/"
+	runcmd "cd $(ls)"
+	runcmd "cp ./progs/setcap $pwd/bedrock/sbin/setcap" || RESULT=/bin/false
+	runcmd "chmod 755 $pwd/bedrock/sbin/setcap"         || RESULT=/bin/false
+
+	eval $RESULT; check
+	INSTALL_CAP=1
+}
+
+install_brc() {
+	# check if already done
+	if [ -n "$INSTALL_BRC" ]; then return; fi
+	# dependencies:
+	install_directories
+	install_permissions
+	install_cap
+
+	announce_low "Installing brc"
+	task="brc"
+	runcmd "cd $src/$task/"
+	runcmd "cd $(ls)"
+	runcmd "cp ./brc $pwd/bedrock/bin/brc"  || RESULT=/bin/false
+	runcmd "chmod 755 $pwd/bedrock/bin/brc" || RESULT=/bin/false
+	runcmd "$pwd/bedrock/sbin/setcap cap_sys_chroot=ep $pwd/bedrock/bin" || RESULT=/bin/false
+
+	eval $RESULT; check
+	INSTALL_BRC=1
+}
+
+install_bru() {
+	# check if already done
+	if [ -n "$INSTALL_BRU" ]; then return; fi
+	# dependencies:
+	install_directories
+	install_permissions
+
+	announce_low "Installing bru"
+	task="bru"
+	runcmd "cd $src/$task/"
+	runcmd "cd $(ls)"
+	runcmd "cp ./bru $pwd/bedrock/sbin/bru"  || RESULT=/bin/false
+	runcmd "chmod 755 $pwd/bedrock/sbin/bru" || RESULT=/bin/false
+
+	eval $RESULT; check
+	INSTALL_BRU=1
+}
+
+install_busybox() {
+	# check if already done
+	if [ -n "$INSTALL_BUSYBOX" ]; then return; fi
+	# dependencies:
+	install_directories
+	install_permissions
+
+	announce_low "Installing busybox"
+	task="busybox"
+	runcmd "cd $src/$task/"
+	runcmd "cd $(ls)"
+	# there have been problems with the stripped version of busybox being
+	# broken when built with certain versions of some tools; unstripped is
+	# likely to reliably work (at the cost of extra size).
+	RESULT=/bin/true
+	runcmd "cp ./busybox_unstripped $pwd/bedrock/bin/busybox" || RESULT=/bin/false
+	runcmd "chmod 755 $pwd/bedrock/bin/busybox"               || RESULT=/bin/false
+	runcmd "chroot $pwd /bedrock/bin/busybox --install"       || RESULT=/bin/false
+	eval $RESULT; check
+
+	eval $RESULT; check
+	INSTALL_BUSYBOX=1
+}
+
+install_all() {
+	# dependencies:
+	install_directories
+	install_permissions
+	install_brc
+	install_bru
+	install_busybox
+	install_cap
+}
+
+
+
+# ------------------------------------------------------------------------------
+# - execution starts here                                                      -
+# ------------------------------------------------------------------------------
+
+if [ "$1" != "make" ] && [ "$1" != "install" ]
+then
+	print_help
+fi
+
+if [ -z "$tmp" ]
+then
+	tmp="/tmp/bedrocklinux-installer-tmp-$(whoami)"
+fi
+src="$tmp/src"
+dev="$tmp/dev"
+log="$tmp/log"
+pwd="$(pwd)"
+orig_args="$@"
+
+echo "-----------------------------------------"
+echo "Bedrock Linux 1.0alpha4 Flopsie installer"
+echo "-----------------------------------------"
+echo ""
+
+if [ "$1" = "make" ]
+then
+	shift
+	echo "Making: $@"
+
+	if [ -e $tmp ]
+	then
+		echo -n "Removing previous run... "
+		rm -rf $tmp
+		echo "done"
+	fi
+	echo -n "Making temporary directory structure... "
+	mkdir -p $tmp
+	mkdir -p $src
+	mkdir -p $dev
+	touch $log
+	echo "done"
+	announce_high "Starting logging at"
+	echo "$log"
+	echo "(consider tail -f)"
+	echo ""
+
+	if [ -z "$1" ]
+	then
+		echo "WARNING: No items were requested to be made.  Maybe you want:"
+		echo "./bedrocklinux-installer make all"
+		exit
+	fi
+
+	while [ -n "$1" ]
+	do
+		case "$1" in
+			"musl")
+				make_musl
+				;;
+			"headers")
+				make_headers
+				;;
+			"fuse")
+				make_fuse
+				;;
+			"devstack")
+				make_devstack
+				;;
+			"busybox")
+				make_busybox
+				;;
+			"cap")
+				make_cap
+				;;
+			"brc")
+				make_brc
+				;;
+			"bru")
+				make_bru
+				;;
+			"all")
+				make_all
+				;;
+			*)
+				abort "\"$1\" is not a valid component."
+				;;
+		esac
+		shift
+	done
+
+cat <<EOF
+Done making all requested items.  To install, run
+    tmp=$tmp ./bedrocklinux-installer install $orig_args
+as root.
+EOF
+elif [ "$1" = "install" ]
+then
+	shift
+	echo "Installing: $@"
+	if ! [ -e $tmp ]
+	then
+		echo -n "You have to make things first, see --help"
+		return 1
+	fi
+	announce_high "Starting logging at"
+	echo "$log"
+	echo "(consider tail -f)"
+	echo ""
+
+	announce_high "Performing sanity checks"
+	announce_low "$pwd is a mount point..."
+	if ! cut -d' ' -f2 | grep -q "^$(realpath $pwd)\$"
+	then
+cat <<EOF
+WARNING: Installing to
+    $pwd
+but this does not appear to be a mount point.
+Did you forget to partition, format, and mount the desired devices for this
+install?
+
+hit ENTER to continue with the installation (in case this is purposeful), or
+ctrl-c to abort.
+EOF
+		read PAUSE
+	fi
+
+	if [ -z "$1" ]
+	then
+		echo "WARNING: No items were requested to be installed  Maybe you want:"
+		echo "./bedrocklinux-installer install all"
+		exit
+	fi
+	while [ -n "$1" ]
+	do
+		case "$1" in
+			"directories")
+				install_directories
+				;;
+			"permissions")
+				install_permissions
+				;;
+			"busybox")
+				install_busybox
+				;;
+			"cap")
+				install_cap
+				;;
+			"brc")
+				install_brc
+				;;
+			"bru")
+				install_bru
+				;;
+			"all")
+				install_all
+				;;
+			*)
+				abort "\"$1\" is not a valid component."
+				;;
+		esac
+		shift
+	done
+
+cat <<EOF
+Done installing all requested items.
+You will still need to install:
+- a kernel (and initrd, modules, etc)
+- a bootloader
+- clients
+and configure the system.
+
+Enjoy!
+EOF
+fi
