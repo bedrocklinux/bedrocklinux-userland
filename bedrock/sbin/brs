@@ -14,16 +14,20 @@ ensure_exists() {
 		return 0
 	elif [ -d $src ] && ! [ -e $dst ]
 	then
-		return mkdir -p $dst
+		mkdir -p $dst
+		return $?
 	elif [ -f $src ] && ! [ -e $dst ]
 	then
-		return touch $dst
+		touch $dst
+		return $?
 	elif ! [ -e $src ] && [ -d $dst ]
 	then
-		return mkdir -p $src
+		mkdir -p $src
+		return $?
 	elif ! [ -e $src ] && [ -f $dst ]
 	then
-		return touch $src
+		touch $src
+		return $?
 	else
 		# couldn't resolve situation
 		return 1
