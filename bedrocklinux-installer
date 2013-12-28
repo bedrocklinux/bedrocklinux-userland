@@ -38,6 +38,12 @@ You can set the "\$tmp" environmental variable to set where temporary files
 default location within /tmp.  Setting this elsewhere is useful for
 development/debugging.
 
+You can set the "\$JOBS" environmental variable to set the number of build jobs
+make should attempt to do in parallel.
+
+You will need the libattr development library.  This is "libattr1-dev" on
+debian-based systems.
+
 Components:
 Make and install:
   all           the entire (core) Bedrock Linux system.
@@ -376,6 +382,9 @@ make_cap() {
 	announce_high "Making cap"
 	task="cap"
 	copy_untar
+	# NOT making with musl-gcc since we did not build libattr, so we can get it
+	# from the system.
+	# TODO: include libattr in this script.
 	compile
 
 	# installing in /tmp, won't keep in actual install unless explicitly
