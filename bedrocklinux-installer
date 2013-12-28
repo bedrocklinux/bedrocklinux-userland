@@ -41,8 +41,11 @@ development/debugging.
 You can set the "\$JOBS" environmental variable to set the number of build jobs
 make should attempt to do in parallel.
 
-You will need the libattr development library.  This is "libattr1-dev" on
-debian-based systems.
+You will need the following:
+- normal build utilities (make, gcc, etc)
+- libattr1-dev (for libcap)
+- libtool (for fuse)
+- autoconf (for fuse)
 
 Components:
 Make and install:
