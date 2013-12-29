@@ -93,6 +93,10 @@ up() {
 				cmd = cmd "&"
 				# run it
 				system(cmd)
+				# bru may take a fraction of a second to start if we do not
+				# wait here, the result check below will think it is not
+				# mounted
+				system("sleep .25")
 			}
 		'
 		echo "done"
