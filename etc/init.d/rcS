@@ -77,7 +77,8 @@ echo "" > /sys/kernel/uevent_helper
 announce "Preparing /dev, /dev/pts, /dev/shm"
 RESULT=/bin/true
 # if /dev was mounted in an initrd, use it; otherwise, mount it
-if ! grep -q "^\w* /dev \(dev\)\?tmpfs" /proc/mounts
+if ! grep -q "^\w* /dev devtmpfs" /proc/mounts && \
+   ! grep -q "^\w* /dev tmpfs"    /proc/mounts
 then
 	mount -w -o mode=755 -t tmpfs tmpfs /dev || RESULT=/bin/false
 fi
