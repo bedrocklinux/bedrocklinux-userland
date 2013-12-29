@@ -681,18 +681,19 @@ install_busybox() {
 	install_permissions
 
 	announce_low "Installing busybox"
+	RESULT=/bin/true
 	task="busybox"
 	runcmd "cd $src/$task/"
 	runcmd "cd $(ls)"
 	# there have been problems with the stripped version of busybox being
 	# broken when built with certain versions of some tools; unstripped is
 	# likely to reliably work (at the cost of extra size).
-	RESULT=/bin/true
 	runcmd "cp ./busybox_unstripped $pwd/bedrock/bin/busybox" || RESULT=/bin/false
 	runcmd "chmod 755 $pwd/bedrock/bin/busybox"               || RESULT=/bin/false
 	runcmd "chmod +s $pwd/bedrock/bin/busybox"                || RESULT=/bin/false
 	runcmd "chroot $pwd /bedrock/bin/busybox --install -s"    || RESULT=/bin/false
 	runcmd "chroot ln -s /bedrock/bin/busybox /bin"           || RESULT=/bin/false
+	runcmd "cp examples/mdev_fat.conf $pwd/etc/mdev.conf"     || RESULT=/bin/false
 	eval $RESULT; check
 
 	INSTALL_BUSYBOX=1
