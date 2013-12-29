@@ -164,7 +164,8 @@ ARGUMENTS:
    -c   cache -n value of current OR following client name(s) (requires root)
         provides a small performance improvement to following -n requests
    -h   print this Help
-   -l   print List of clients
+   -l   print List of enabled clients
+   -L   print List of all clients, enabled and disabled
    -m   prints mount points in current client OR following client name(s)
    -n   print Name of client currently in
    -p   print the client that provides the following Process id or
@@ -177,10 +178,17 @@ ARGUMENTS:
 EOF
 }
 
-# print a list of clients
+# print a list of enabled clients
 l() {
 	cd /bedrock/etc/clients.d
 	ls *.conf | sed 's/.....$//'
+}
+#
+# print a list of all clients, both enabled and disabled
+L() {
+	cd /bedrock/etc/clients.d
+	ls *.conf | sed 's/.....$//'
+	ls *.conf.disabled | sed 's/..............$//'
 }
 
 # print mount points and corresponding catagory in specified client(s)
@@ -380,6 +388,8 @@ case "$flag" in
 	# -h is covered in *)
 	-l)
 		l;;
+	-L)
+		L;;
 	-m)
 		m $extraargs;;
 	-n)
