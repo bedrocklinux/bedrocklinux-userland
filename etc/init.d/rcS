@@ -79,19 +79,19 @@ RESULT=/bin/true
 # if /dev was mounted in an initrd, use it; otherwise, mount it
 if ! grep -q "^\w* /dev \(dev\)\?tmpfs" /proc/mounts
 then
-	mount -w -t tmpfs tmpfs -o mode=755 /dev || RESULT=/bin/false
+	mount -w -o mode=755 -t tmpfs tmpfs /dev || RESULT=/bin/false
 fi
 # if /dev/pts was mounted in an initrd, use it; otherwise, mount it
 if ! grep -q "^\w* /dev/pts devpts" /proc/mounts
 then
 	mkdir -p /dev/pts
-	mount -w -t devpts devpts -o mode=620 /dev/pts || RESULT=/bin/false
+	mount -w -o mode=620 -t devpts devpts /dev/pts || RESULT=/bin/false
 fi
 # if /dev/shm was mounted in an initrd, use it; otherwise, mount it
 if ! grep -q "^\w* /dev/shm tmpfs" /proc/mounts
 then
 	mkdir -p /dev/shm
-	mount -w -t tmpfs tmpfs -o mode=777 /dev/shm || RESULT=/bin/false
+	mount -w -o mode=777 -t tmpfs tmpfs /dev/shm || RESULT=/bin/false
 fi
 eval /bin/true; result
 
@@ -132,19 +132,19 @@ then
 elif [ -f /forcefsck ] || grep -i -q -w "forcefsck" /proc/cmdline
 then
 	announce "Checking filesystem (forcefsck requested)"
-	mount / -o remount,ro || RESULT=/bin/false          || RESULT=/bin/false
+	mount -o remount,ro / || RESULT=/bin/false          || RESULT=/bin/false
 	fsck -a -C0 -f -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
 	fsck -a -A -C0 -f -T                                || RESULT=/bin/false
 else
 	announce "Checking filesystem"
-	mount / -o remount,ro || RESULT=/bin/false       || RESULT=/bin/false
+	mount -o remount,ro / || RESULT=/bin/false       || RESULT=/bin/false
 	fsck -a -C0 -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
 	fsck -a -A -C0 -T                                || RESULT=/bin/false
 fi
 eval $RESULT; result
 
 announce "Preparing root filesystem"
-mount / -o remount,rw
+mount -o remount,rw /
 result
 
 announce "Preparing /etc/fstab filesystems"
@@ -223,7 +223,7 @@ result
 announce "Setting up client shared items"
 if [ -n "$(bri -l)" ]
 then
-	brs $(bri -l | xargs) 2>/dev/null
+	brs up $(bri -l | xargs) 2>/dev/null
 fi
 result
 
