@@ -44,8 +44,9 @@ make should attempt to do in parallel.
 You will need the following:
 - normal build utilities (make, gcc, etc)
 - libattr1-dev (for libcap)
-- libtool (for fuse)
 - autoconf (for fuse)
+- libtool (for fuse)
+- gettext (for fuse)
 
 Components:
 Make and install:
