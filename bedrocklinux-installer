@@ -649,7 +649,7 @@ install_brc() {
 	runcmd "cd $(ls)"
 	runcmd "cp ./brc $pwd/bedrock/bin/brc"  || RESULT=/bin/false
 	runcmd "chmod 755 $pwd/bedrock/bin/brc" || RESULT=/bin/false
-	runcmd "$pwd/bedrock/sbin/setcap cap_sys_chroot=ep $pwd/bedrock/bin" || RESULT=/bin/false
+	runcmd "$pwd/bedrock/sbin/setcap cap_sys_chroot=ep $pwd/bedrock/bin/brc" || RESULT=/bin/false
 
 	eval $RESULT; check
 	INSTALL_BRC=1
