@@ -691,9 +691,9 @@ install_busybox() {
 	runcmd "cp ./busybox_unstripped $pwd/bedrock/bin/busybox" || RESULT=/bin/false
 	runcmd "chmod 755 $pwd/bedrock/bin/busybox"               || RESULT=/bin/false
 	runcmd "chroot $pwd /bedrock/bin/busybox --install"       || RESULT=/bin/false
+	runcmd "chroot ln -s /bedrock/bin/busybox /bin"           || RESULT=/bin/false
 	eval $RESULT; check
 
-	eval $RESULT; check
 	INSTALL_BUSYBOX=1
 }
 
