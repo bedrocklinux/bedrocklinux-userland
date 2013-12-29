@@ -214,6 +214,10 @@ fi
 dd if=/var/lib/urandom/random-seed of=/dev/urandom bs=$POOLSIZE count=1 2>/dev/null
 result
 
+announce "Bringing up loopback interface"
+ifconfig lo up
+result
+
 announce "Setting hostname"
 if [ -r /etc/hostname ]
 then
