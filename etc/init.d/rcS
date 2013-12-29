@@ -107,6 +107,8 @@ announce "Loading modules"
 find /sys/devices -name modalias -type f -exec cat {} \; | sort -u | xargs modprobe -a -b 2>/dev/null
 sleep 1
 find /sys/devices -name modalias -type f -exec cat {} \; | sort -u | xargs modprobe -a -b 2>/dev/null
+# try to explicitly load fuse, which will be needed later, in case it isn't built in.
+modprobe fuse >/dev/null 2>&1
 # modprobe will return false if any of the modules fail, even ones that
 # wouldn't normally work, so just make this always succeed.
 /bin/true; result
