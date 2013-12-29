@@ -225,14 +225,15 @@ fi
 result
 
 announce "Setting up client shared items"
+RESULT=/bin/true
 if [ -n "$(bri -l)" ]
 then
 	for client in $(bri -l)
 	do
-		brs up $client
+		brs up $client >/dev/null 2>&1 || RESULT=/bin/false
 	done
 fi
-result
+eval $RESULT; result
 
 announce "Running client init scripts"
 sh /etc/init.d/rcS.clients
