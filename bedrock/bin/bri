@@ -160,21 +160,21 @@ Usage: bri ARGUMENT
 bri will provide information about Bedrock Linux subsystems.
 
 ARGUMENTS:
-   -b   print configured bind mounts
-   -c   cache -n value of current OR following client name(s) (requires root)
+   -b   print configured Bind mounts
+   -c   Cache -n value of current OR following client name(s) (requires root)
         provides a small performance improvement to following -n requests
    -h   print this Help
    -l   print List of enabled clients
    -L   print List of all clients, enabled and disabled
-   -m   prints mount points in current client OR following client name(s)
+   -m   prints Mount points in current client OR following client name(s)
    -n   print Name of client currently in
    -p   print the client that provides the following Process id or
         (non-numeric) Process name
-   -P   print a list of processes provided by the current client OR following
+   -P   print a list of Processes provided by the current client OR following
         client name(s)
    -s   print the setup Status of the current OR following client name(s)
-   -u   print configured union mounts
-   -w   print the client which provides the command(s) in the argument(s)
+   -u   print configured Union mounts
+   -w   print the client Which provides the command(s) in the argument(s)
 EOF
 }
 
