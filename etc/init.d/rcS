@@ -99,7 +99,8 @@ eval /bin/true; result
 # have mdev populate /dev now and continue to as new things come in
 announce "Starting mdev"
 RESULT=/bin/true
-mdev -s 2>/dev/null || RESULT=/bin/false
+mdev -s 2>/dev/deleteme || RESULT=/bin/false
+rm /dev/deleteme 2>/dev/null
 echo '/sbin/mdev' > /proc/sys/kernel/hotplug || RESULT=/bin/false
 eval $RESULT; result
 
