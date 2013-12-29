@@ -595,7 +595,7 @@ install_permissions() {
 	for file in                \
 		bedrock/bin/bri        \
 		bedrock/bin/brl        \
-		bedrock/bin/brh        \
+		bedrock/bin/brsh       \
 		bedrock/bin/brw        \
 		bedrock/sbin/brp       \
 		bedrock/sbin/brs       \
