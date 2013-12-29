@@ -227,7 +227,10 @@ result
 announce "Setting up client shared items"
 if [ -n "$(bri -l)" ]
 then
-	brs up $(bri -l | xargs) 2>/dev/null
+	for client in $(bri -l)
+	do
+		brs up $client
+	done
 fi
 result
 
