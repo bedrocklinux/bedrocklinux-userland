@@ -7,16 +7,43 @@
 if [ -z "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]
 then
 cat <<EOF
-Usage: brl COMMAND
+Usage: brl [-c CONDITIONAL] COMMAND
 
-brl will run COMMAND in all available clients.
+If '-c' is not provided, brl will run COMMAND in all enabled clients.
+
+if '-c' is the first argument followed by a CONDITIONAL, the CONDITIONAL will
+be run in all enabled clients and if that command returns 0 the following
+COMMAND will be run.
+
+Examples:
+
+    # attempt to ping google in all clients to check if networking is working
+    brl ping -c 1 google.com
+
+    # run 'apt-get update' in all clients that have apt-get locally
+    brl -c 'brw apt-get|grep local' apt-get update
+
+    # clear the statoverride file in all clients which have it
+    brl -c '[ -e /var/lib/dpkg/statoverride ]' echo '' > /var/lib/dpkg/statoverride
 
 EOF
 	exit 0
 fi
 
+if [ "$1" = "-c" ]
+then
+	conditional="$2"
+	shift
+	shift
+fi
+
 for CLIENT in $(bri -l)
 do
-	echo "brl: running commands in $CLIENT"
-	brc $CLIENT "$@"
+	if eval "brc $CLIENT $conditional"
+	then
+		echo "brl: running commands in $CLIENT"
+		brc $CLIENT "$@"
+	else
+		echo "brl: skipping $CLIENT (conditional not met)"
+	fi
 done
