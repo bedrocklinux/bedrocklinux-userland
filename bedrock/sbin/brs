@@ -36,6 +36,11 @@ ensure_exists() {
 
 # loop over clients listed in arguments and enable them
 up() {
+	if [ "$1" = "bedrock" ]
+	then
+		echo "Cannot setup/teardown Bedrock Linux core"
+		return
+	fi
 	while [ -n "$1" ]
 	do
 		# refuse to setup partially setup clients to avoid mounting over mount points
@@ -71,7 +76,7 @@ up() {
 			{
 				# mount bru at the mount point for the client
 				# e.g.: /bedrock/sbin/bru /bedrock/clients/squeeze/etc
-				cmd = "/bedrock/sbin/brU /bedrock/clients/"client$1
+				cmd = "/bedrock/sbin/bru /bedrock/clients/"client$1
 				# first arg should be the client self-view (without mounts)
 				# e.g.: /bedrock/clients/squeeze/bedrock/clients/squeeze/etc
 				#       |               |                               \ self-view of /etc without mounts
@@ -135,6 +140,11 @@ up() {
 }
 
 down() {
+	if [ "$1" = "bedrock" ]
+	then
+		echo "Cannot setup/teardown Bedrock Linux core"
+		return
+	fi
 	while [ -n "$1" ]
 	do
 		# kill all of the client's processes
@@ -245,12 +255,6 @@ be "up" to setup a client or "down" to teardown the client.  The remaining
 arguments should be a list of clients to operate on.
 EOF
 	exit 1
-fi
-
-if [ "$2" = "bedrock" ]
-then
-	echo "Cannot setup/teardown core Bedrock"
-	exit 2
 fi
 
 # command has to be run in the core
