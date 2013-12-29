@@ -820,11 +820,12 @@ then
 	echo ""
 
 	announce_high "Performing sanity checks"
-	announce_low "$pwd is a mount point..."
+	announce_low "$pwd is a mount point"
 	if ! cut -d' ' -f2 /proc/mounts | grep -q "^$pwd\$"
 	then
 cat <<EOF
-WARNING: Installing to
+WARNING:
+Installing to
     $pwd
 but this does not appear to be a mount point.
 Did you forget to partition, format, and mount the desired devices for this
@@ -835,6 +836,7 @@ ctrl-c to abort.
 EOF
 		read PAUSE
 	fi
+	check
 
 	if [ -z "$1" ]
 	then
@@ -842,6 +844,7 @@ EOF
 		echo "./bedrocklinux-installer install all"
 		exit
 	fi
+	announce_high "Installing"
 	while [ -n "$1" ]
 	do
 		case "$1" in
