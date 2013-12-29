@@ -747,7 +747,8 @@ echo ""
 if [ "$1" = "make" ]
 then
 	shift
-	echo "Making: $@"
+	make_targets="$@"
+	echo "Making: $make_targets"
 
 	if [ -e $tmp ]
 	then
@@ -812,7 +813,7 @@ then
 
 cat <<EOF
 Done making all requested items.  To install, run
-	tmp=$tmp ./installer install $(echo $orig_args | cut -d' ' -f2-)
+	tmp=$tmp ./installer install $make_targets
 as root.
 EOF
 elif [ "$1" = "install" ]
