@@ -37,7 +37,7 @@ result(){
 
 # if /proc was mounted in an initrd, use it; otherwise, mount it
 announce "Preparing /proc"
-if ! [ -r /proc/mounts ] || ! grep -q "^\w\+ /proc proc" /proc/mounts
+if ! [ -r /proc/mounts ] || ! grep -q "^\w* /proc proc" /proc/mounts
 then
 	mount -t proc proc /proc
 fi
@@ -45,7 +45,7 @@ result
 
 # if /sys was mounted in an initrd, use it; otherwise, mount it
 announce "Preparing /sys"
-if ! grep -q "^\w\+ /sys sysfs" /proc/mounts
+if ! grep -q "^\w* /sys sysfs" /proc/mounts
 then
 	mount -t sysfs sysfs /sys
 fi
@@ -77,18 +77,18 @@ echo "" > /sys/kernel/uevent_helper
 announce "Preparing /dev, /dev/pts, /dev/shm"
 RESULT=/bin/true
 # if /dev was mounted in an initrd, use it; otherwise, mount it
-if ! grep -q "^\w\+ /dev \(dev\)\?tmpfs" /proc/mounts
+if ! grep -q "^\w* /dev \(dev\)\?tmpfs" /proc/mounts
 then
 	mount -w -t tmpfs tmpfs -o mode=755 /dev || RESULT=/bin/false
 fi
 # if /dev/pts was mounted in an initrd, use it; otherwise, mount it
-if ! grep -q "^\w\+ /dev/pts devpts" /proc/mounts
+if ! grep -q "^\w* /dev/pts devpts" /proc/mounts
 then
 	mkdir -p /dev/pts
 	mount -w -t devpts devpts -o mode=620 /dev/pts || RESULT=/bin/false
 fi
 # if /dev/shm was mounted in an initrd, use it; otherwise, mount it
-if ! grep -q "^\w\+ /dev/shm tmpfs" /proc/mounts
+if ! grep -q "^\w* /dev/shm tmpfs" /proc/mounts
 then
 	mkdir -p /dev/shm
 	mount -w -t tmpfs tmpfs -o mode=777 /dev/shm || RESULT=/bin/false
