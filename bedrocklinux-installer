@@ -585,7 +585,7 @@ install_permissions() {
 	done
 
 	# secure files
-	for file in shadow sudoers
+	for file in etc/shadow etc/sudoers
 	do
 		runcmd "chmod 600 $file"       || RESULT=/bin/false
 		runcmd "chown root:root $file" || RESULT=/bin/false
