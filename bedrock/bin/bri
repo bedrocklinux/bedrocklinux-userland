@@ -232,7 +232,7 @@ n() {
 p() {
 	while [ -n "$1" ]
 	do
-		if echo "$1" | grep -q "^[0-9]\+$"
+		if echo "$1" | grep -q "^[0-9]*$"
 		then
 			pids="$1"
 		else
@@ -252,7 +252,7 @@ p() {
 P() {
 	while [ -n "$1" ]
 	do
-		for pid in $(ls /proc | grep "^[0-9]\+$")
+		for pid in $(ls /proc | grep "^[0-9]*$")
 		do
 				# only want process that are not a zombie or kernel process and
 				# are in the client for which we're looking.
