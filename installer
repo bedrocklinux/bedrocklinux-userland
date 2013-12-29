@@ -698,9 +698,10 @@ install_busybox() {
 	runcmd "cp ./busybox_unstripped $pwd/bedrock/bin/busybox" || RESULT=/bin/false
 	runcmd "chmod 755 $pwd/bedrock/bin/busybox"               || RESULT=/bin/false
 	runcmd "chmod +s $pwd/bedrock/bin/busybox"                || RESULT=/bin/false
+	runcmd "cp ./examples/mdev_fat.conf $pwd/etc/mdev.conf"   || RESULT=/bin/false
+	runcmd "chmod 644 $pwd/etc/mdev.conf"                     || RESULT=/bin/false
 	runcmd "chroot $pwd /bedrock/bin/busybox --install -s"    || RESULT=/bin/false
-	runcmd "chroot ln -s /bedrock/bin/busybox /bin"           || RESULT=/bin/false
-	runcmd "cp examples/mdev_fat.conf $pwd/etc/mdev.conf"     || RESULT=/bin/false
+	runcmd "chroot $pwd ln -s /bedrock/bin/busybox /bin"      || RESULT=/bin/false
 	eval $RESULT; check
 
 	INSTALL_BUSYBOX=1
@@ -811,7 +812,7 @@ then
 
 cat <<EOF
 Done making all requested items.  To install, run
-    tmp=$tmp ./bedrocklinux-installer install $orig_args
+	tmp=$tmp ./installer install $(echo $orig_args | cut -d' ' -f2-)
 as root.
 EOF
 elif [ "$1" = "install" ]
