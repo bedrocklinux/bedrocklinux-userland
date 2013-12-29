@@ -458,7 +458,7 @@ install_directories() {
 	# dependencies:
 	# (none)
 
-	announce_high "Making directory tree"
+	announce_low "Making directory tree"
 	RESULT=/bin/true
 
 	for dir in                          \
