@@ -822,7 +822,7 @@ then
 	echo "Installing: $@"
 	if ! [ -e $tmp ]
 	then
-		echo -n "You have to make things first, see --help"
+		echo "You have to make things first, see --help"
 		return 1
 	fi
 	announce_high "Starting logging at"
