@@ -344,7 +344,9 @@ make_busybox() {
 	# ensure static
 	busybox_set_option "CONFIG_STATIC" "y"
 	# full modutils
-	busybox_set_option "CONFIG_FEATURE_MODPROBE_SMALL" "n"
+	busybox_set_option "CONFIG_MODPROBE_SMALL" "n"
+	busybox_set_option "CONFIG_FEATURE_MODPROBE_SMALL_OPTIONS_ON_CMDLINE" "n"
+	busybox_set_option "CONFIG_FEATURE_MODPROBE_SMALL_CHECK_ALREADY_LOADED" "n"
 	busybox_set_option "CONFIG_INSMOD" "y"
 	busybox_set_option "CONFIG_RMMOD" "y"
 	busybox_set_option "CONFIG_LSMOD" "y"
@@ -352,6 +354,9 @@ make_busybox() {
 	busybox_set_option "CONFIG_MODPROBE" "y"
 	busybox_set_option "CONFIG_FEATURE_MODPROBE_BLACKLIST" "y"
 	busybox_set_option "CONFIG_DEPMOD" "y"
+	busybox_set_option "CONFIG_FEATURE_CHECK_TAINTED_MODULE" "y"
+	busybox_set_option "CONFIG_FEATURE_MODUTILS_ALIAS" "y"
+	busybox_set_option "CONFIG_FEATURE_MODUTILS_SYMBOLS" "y"
 	# udhcp client
 	busybox_set_option "CONFIG_UDHCPC6" "y"
 	# remove items which make compiling difficult.  If the core doesn't need
