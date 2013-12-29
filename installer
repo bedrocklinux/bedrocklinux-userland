@@ -76,9 +76,10 @@ source_help() {
 		"brc"|"bru")
 cat <<EOF
 The source for $task should be bundled with this script.  Try deleting
-everything and downloading the tarball containing this script and bundled
-source from here:
-    http://bedrocklinux.org/1.0alpha4/bedrock-userland-1.0alpha4.tar.gz
+everything and re-cloning the repository from here:
+    git clone https://github.com/paradigm/bedrocklinux-userland.git
+be sure to checkout the 1.0alpha4 branch
+    git checkout 1.0alpha4
 EOF
 			exit 1
 			;;
