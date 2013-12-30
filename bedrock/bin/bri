@@ -429,10 +429,6 @@ case "$flag" in
 		w $extraargs;;
 	w)
 		w $extraargs;;
-	-x)
-		get_values "$extraargs" "bind" "0" "real";;
-	x)
-		get_values "$extraargs" "bind" "0" "real";;
 	*)
 		h;;
 esac
