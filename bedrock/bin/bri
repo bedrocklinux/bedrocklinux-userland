@@ -159,6 +159,9 @@ Usage: bri ARGUMENT
 
 bri will provide information about Bedrock Linux subsystems.
 
+Since the flags must all be the first argument, there is no ambiguity; the "-"
+character is optional.
+
 ARGUMENTS:
    -b   print configured Bind mounts
    -c   Cache -n value of current OR following client name(s) (requires root)
@@ -383,28 +386,52 @@ fi
 case "$flag" in
 	-b)
 		b $extraargs;;
+	b)
+		b $extraargs;;
 	-c)
+		c $extraargs;;
+	c)
 		c $extraargs;;
 	# -h is covered in *)
 	-l)
 		l;;
+	l)
+		l;;
 	-L)
+		L;;
+	L)
 		L;;
 	-m)
 		m $extraargs;;
+	m)
+		m $extraargs;;
 	-n)
+		n;;
+	n)
 		n;;
 	-p)
 		p $extraargs;;
+	p)
+		p $extraargs;;
 	-P)
+		P $extraargs;;
+	P)
 		P $extraargs;;
 	-s)
 		s $extraargs;;
+	s)
+		s $extraargs;;
 	-u)
+		u $extraargs;;
+	u)
 		u $extraargs;;
 	-w)
 		w $extraargs;;
+	w)
+		w $extraargs;;
 	-x)
+		get_values "$extraargs" "bind" "0" "real";;
+	x)
 		get_values "$extraargs" "bind" "0" "real";;
 	*)
 		h;;
