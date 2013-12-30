@@ -121,7 +121,7 @@ result
 
 # run fsck if required
 RESULT=/bin/true
-ROOT_FS_TYPE=$(cat /proc/mounts | awk '$1 == "/dev/root" && $2 == "/" {print$3}')
+ROOT_FS_TYPE=$(awk '$5 == "/"{print$8}' /proc/1/mountinfo)
 ROOT_DEVICE=/dev/$(readlink /dev/root)
 if [ "$FSCK" != 1 ]
 then
@@ -135,12 +135,12 @@ then
 	announce "Skipping fsck (fastboot requested)"
 elif [ -f /forcefsck ] || grep -i -q -w "forcefsck" /proc/cmdline
 then
-	announce "Checking filesystem (forcefsck requested)"
+	announce "fsck: "
 	mount -o remount,ro / || RESULT=/bin/false          || RESULT=/bin/false
 	fsck -a -C0 -f -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
 	fsck -a -A -C0 -f -T                                || RESULT=/bin/false
 else
-	announce "Checking filesystem"
+	announce "fsck: "
 	mount -o remount,ro / || RESULT=/bin/false       || RESULT=/bin/false
 	fsck -a -C0 -t "$ROOT_FS_TYPE" -T "$ROOT_DEVICE" || RESULT=/bin/false
 	fsck -a -A -C0 -T                                || RESULT=/bin/false
