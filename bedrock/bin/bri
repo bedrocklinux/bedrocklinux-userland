@@ -337,7 +337,7 @@ u() {
 w() {
 	while [ -n "$1" ]
 	do
-		loc=$(which $1)
+		loc=$(/bedrock/bin/busybox which $1)
 		if echo "$loc" | grep -q "^/bedrock/s\?bin/"
 		then
 			# if the executable is in /bedrock/{bin,sbin} then it is being
