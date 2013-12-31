@@ -730,7 +730,7 @@ fi
 
 if [ -z "$tmp" ]
 then
-	tmp="/tmp/bedrocklinux-installer-tmp-$(whoami)"
+	tmp="/tmp/bedrocklinux-installer-tmp"
 fi
 src="$tmp/src"
 dev="$tmp/dev"
@@ -811,11 +811,13 @@ then
 		shift
 	done
 
-cat <<EOF
-Done making all requested items.  To install, run
-	tmp=$tmp ./installer install $make_targets
-as root.
-EOF
+echo "Done making all requested items.  To install, run"
+if [ "$tmp" != "/tmp/bedrocklinux-installer-tmp" ]
+then
+	echo "    sudo tmp=$tmp ./installer install $make_targets"
+else
+	echo "    sudo ./installer install $make_targets"
+fi
 elif [ "$1" = "install" ]
 then
 	shift
