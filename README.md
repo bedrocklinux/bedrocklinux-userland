@@ -55,8 +55,8 @@ the files bundled with this README:
     git checkout 056ffb0bd25d91ffbcb83c521fc4d3d9904ec4d4
 - Run the following:
   - cd $BRINSTALL
-  - ./bedrocklinux-installer make all
-  - sudo ./bedrocklinux-installer install all
+  - ./installer make all
+  - sudo ./installer install all
 - If you run into any errors, see
   "/tmp/bedrocklinux-installer-tmp-$(whoami)/log".  You may simply be missing a
   build dependency.
