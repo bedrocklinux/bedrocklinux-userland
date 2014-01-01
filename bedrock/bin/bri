@@ -338,7 +338,12 @@ w() {
 	while [ -n "$1" ]
 	do
 		loc=$(/bedrock/bin/busybox which $1)
-		if echo "$loc" | grep -q "^/bedrock/s\?bin/"
+		if [ "$?" -ne 0 ]
+		then
+			# could not find the executable
+			echo "- (nonexistent)"
+		elif echo "$loc" | grep -q "^/bedrock/bin/" || \
+			echo "$loc" | grep -q "^/bedrock/sbin/"
 		then
 			# if the executable is in /bedrock/{bin,sbin} then it is being
 			# accessed directly without brc, but isn't technically part of the
