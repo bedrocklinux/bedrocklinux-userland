@@ -276,6 +276,7 @@ make_musl() {
 	configure --prefix=$dev --disable-shared --enable-static
 	compile
 	install # installing in /tmp, won't keep in actual install
+	ln -s $dev/lib $dev/lib64
 
 	MAKE_MUSL="1"
 }
@@ -400,10 +401,6 @@ make_cap() {
 	# installing in /tmp, won't keep in actual install unless explicitly
 	# requested with ./bedrocklinux-installer install
 	install DESTDIR=$dev prefix=/ RAISE_SETFCAP=NO
-	announce_low "Moving lib64 into lib"
-	runcmd 'mv $dev/lib64/* $dev/lib'
-	runcmd 'rmdir $dev/lib64/'
-	check
 
 	MAKE_CAP="1"
 }
