@@ -127,13 +127,13 @@ get_values() {
 # The functions have the same name as the corresponding flag.
 
 # print a list of bind mounts for the client as specified in the client's
-# config/frameworks.
+# config/frameworks, in the order they should be mounted.
 b() {
 	while [ -n "$1" ]
 	do
 		get_values "$1" "bind" "0" ""
 		shift
-	done
+	done | sort
 }
 
 # Caches -n value to speed up future -n requests
