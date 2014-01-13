@@ -35,6 +35,8 @@ then
 	conditional="$2"
 	shift
 	shift
+else
+	conditional="true"
 fi
 
 for CLIENT in $(bri -l)
