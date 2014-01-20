@@ -1,0 +1,324 @@
+#!/bin/sh
+### Bedrock Linux 1.0alpha4 Flopsie
+### brg (BedRock Get)
+# This script will acquire the files for a Linux distribution for purposes such
+# as:
+# - for use as a Bedrock Linux client
+# - bootstrapping a system from another system
+# - for use in something like lxc
+#
+# A key requirement of this project, in contrast to similar project is that
+# everything is very portable so that it can be run on as wide a variety of
+# Linux distributions as possible.  Ideally, busybox can provide everything
+# required.
+#
+# The system is laid out thusly:
+# - the brg script itself parses the arguments passed to it
+# - it sets variables based on the arguments
+# - it sources another file that has functions to provide distro-specific
+# functionality based on the variables/arguments
+# - it calls the function corresponding to the arguments
+
+# problems can arise if user has an unusual umask
+umask 022
+
+supportfuncs=/bedrock/share/brg/
+
+# ------------------------------------------------------------------------------
+# - Miscellaneous functions                                                    -
+# ------------------------------------------------------------------------------
+#
+# Functions which may be used later in brg or supporting functions
+
+print_help() {
+cat <<EOF
+Usage: brg ARGUMENT
+
+brg will download a Linux distribution's contents.  This could be used, for
+example, to serve as a Bedrock Linux client or in a LXC.
+
+The following arguments all require an additional following term:
+   -d   specify Distro
+   -r   specify Release
+        not required for rolling-release distros
+   -a   specify Architecture
+        optional, default is \`uname -m\`
+   -m   specify (http) Mirror
+        optional, default provided
+   -c   specify Client name (if using as Bedrock Linux client)
+   -o   specify Output location (do not use with -c)
+   -p   comma-separated list (no whitespace) of Packages to install
+
+The following arguments will specify additional steps for brg to take when
+acquiring a client and do not require an additinal following term:
+   -u   automatically Update after finalizing
+   -t   apply client-distro-specific bedrock linux Tweaks
+   -s   enable extra Sections in the package manager config
+        e.g.: in Debian this will enable non-free, in Arch this will enable
+        multiarch
+   -e   Enable when done acquiring (if using as bedorck linux client)
+
+The following arguments are used to request information from brg.
+When used, will not actually acquire the distro:
+   -h   print this Help
+   -D   list available Distros which brg can provide
+   -A   list available Architectures for distro/mirror
+   -R   list available Releases for distro/mirror
+EOF
+exit
+}
+
+# If previous command did not return 0 - i.e., had an error - then print this
+# function's arguments and quit.
+check() {
+	if [ $? -ne 0 ]
+	then
+		echo "ERROR: $@"
+		exit 1
+	fi
+}
+
+# Used when parsing args to ensure flags which require a following item have
+# htem.
+ensure_second_arg() {
+	if [ -z "$2" ]
+	then
+		echo "Flag \"$1\" requires additional term"
+		exit
+	fi
+}
+
+# Setup a chroot environment and run command in chroot.
+# give the same arguments as you would to chroot
+mount_chroot() {
+	mkdir -p "$1/proc"
+	mkdir -p "$1/sys"
+	mkdir -p "$1/dev"
+	mkdir -p "$1/etc"
+	mount -t proc proc    "$1/proc"
+	mount -t sysfs sysfs  "$1/sys"
+	mount --bind /dev     "$1/dev"
+	mount --bind /dev/pts "$1/dev/pts"
+	cp /etc/resolv.conf "$1/etc/resolv.conf"
+	chroot "$@"
+	result=$?
+	umount "$1/dev/pts"
+	umount "$1/dev"
+	umount "$1/sys"
+	umount "$1/proc"
+	return $result
+}
+
+
+# ------------------------------------------------------------------------------
+# - Parse arguments                                                            -
+# ------------------------------------------------------------------------------
+
+unset distro
+unset release
+unset arch
+unset mirror
+unset client
+unset output
+unset packages
+unset update
+unset tweak
+unset enable
+unset list_release
+unset list_arch
+unset list_distros
+
+if [ -z "$1" ]
+then
+	print_help
+fi
+
+while [ -n "$1" ]
+do
+	if [ "$1" = "-h" ]
+	then
+		print_help
+	elif [ "$1" = "-d" ]
+	then
+		ensure_second_arg "$@"
+		distro="$2"
+		shift
+	elif echo "$1" | grep -q "^-d"
+	then
+		distro=$(echo $1 | sed 's/^..//')
+	elif [ "$1" = "-D" ]
+	then
+		list_distros="1"
+	elif [ "$1" = "-r" ]
+	then
+		ensure_second_arg "$@"
+		release="$2"
+		shift
+	elif echo "$1" | grep -q "^-r"
+	then
+		release=$(echo $1 | sed 's/^..//')
+	elif [ "$1" = "-R" ]
+	then
+		list_release="1"
+	elif [ "$1" = "-a" ]
+	then
+		ensure_second_arg "$@"
+		arch="$2"
+		shift
+	elif echo "$1" | grep -q "^-a"
+	then
+		arch=$(echo $1 | sed 's/^..//')
+	elif [ "$1" = "-m" ]
+	then
+		ensure_second_arg "$@"
+		mirror="$2"
+		shift
+	elif [ "$1" = "-A" ]
+	then
+		list_arch="1"
+	elif echo "$1" | grep -q "^-m"
+	then
+		mirror=$(echo $1 | sed 's/^..//')
+	elif echo "$1" | grep "^-a"
+	then
+		arch=$(echo $1 | sed 's/^..//')
+	elif [ "$1" = "-c" ]
+	then
+		ensure_second_arg "$@"
+		client="$2"
+		shift
+	elif echo "$1" | grep -q "^-c"
+	then
+		client=$(echo $1 | sed 's/^..//')
+	elif [ "$1" = "-o" ]
+	then
+		ensure_second_arg "$@"
+		output="$2"
+		shift
+	elif echo "$1" | grep -q "^-o"
+	then
+		output=$(echo $1 | sed 's/^..//')
+	elif [ "$1" = "-p" ]
+	then
+		ensure_second_arg "$@"
+		packages="$2"
+		shift
+	elif echo "$1" | grep -q "^-p"
+	then
+		packages=$(echo $1 | sed 's/^..//')
+	elif [ "$1" = "-u" ]
+	then
+		ensure_second_arg "$@"
+		update="$2"
+		shift
+	elif echo "$1" | grep -q "^-u"
+	then
+		update=$(echo $1 | sed 's/^..//')
+	elif [ "$1" = "-t" ]
+	then
+		ensure_second_arg "$@"
+		tweak="$2"
+		shift
+	elif echo "$1" | grep -q "^-t"
+	then
+		tweak=$(echo $1 | sed 's/^..//')
+	elif [ "$1" = "-e" ]
+	then
+		enable="1"
+	fi
+	shift
+done
+
+# normalize
+# TODO: is this locale specific? do we need to do anything for other character
+# sets?
+if [ -n "$distro" ]
+then
+	distro=$(echo $distro | tr 'A-Z' 'a-z')
+fi
+if [ -n "$release" ]
+then
+	release=$(echo $release | tr 'A-Z' 'a-z')
+fi
+if [ -n "$arch" ]
+then
+	arch=$(echo $arch | tr 'A-Z' 'a-z')
+fi
+# ensure absolute path, not relative
+if echo "$output" | grep -q "^\."
+then
+	output="$(pwd)/$output"
+fi
+if [ -n "$client" ] && [ -z "$output" ]
+then
+	output="/bedrock/clients/$client"
+fi
+if [ -z "$arch" ]
+then
+	arch=$(uname -m)
+fi
+
+
+# ------------------------------------------------------------------------------
+# - Run operation                                                              -
+# ------------------------------------------------------------------------------
+
+if [ "$list_distros" = "1" ]
+then
+	cd $supportfuncs
+	ls
+	exit
+fi
+
+# get supporting functions corresponding to specified client
+. "$supportfuncs/$client"
+# This should include:
+# - list_release() to list available releases for the mirror
+# - list_arch(0 to list available architectures for the mirror
+# - acquire() to actually acquire distro
+
+if [ "$list_release" = "1" ]
+then
+	list_release
+	exit
+fi
+
+if [ "$list_arch" = "1" ]
+then
+	list_arch
+	exit
+fi
+
+### if not specifying -D, -A or -R, then acquire client.
+
+# sanity checks
+if [ -n "$client" ] && [ -n "$output" ]
+then
+	echo "ERROR: Specify -c or -o, not both."
+	exit 1
+fi
+if [ -z "$client" ] && [ -z "$output" ]
+then
+	echo "ERROR: Either -c or -o must be specified"
+	exit 1
+fi
+if [ -z "$client" ] && [ -n "$enable" ]
+then
+	echo "ERROR: Cannot use -e without -c"
+	exit 1
+fi
+# TODO: fakeroot?
+if [ $(id -u) != 0 ]
+then
+	echo "Acquiring a distro requires root"
+	exit 1
+fi
+# ensure we can find distro-client-specific support functions
+if [ ! -r "$supportfuncs/$client" ]
+then
+	echo "Could not find support functions at $supportfuncs/$client"
+	exit 1
+fi
+
+# Acquire the client
+acquire

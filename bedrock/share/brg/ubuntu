@@ -1,0 +1,44 @@
+### support functions for brg for Debian-based distros
+
+# Note that many functions from here may be sourced and used by other,
+# Debian-based distros.  Best to keep things broken up into individual
+# functions to other distros can pick-and-choose what is applicable.
+
+# source debian
+. /home/paradigm/.src/brg/debian
+
+# override with ubuntu-specific things
+
+# ubuntu has different default mirror than debian
+check_mirror() {
+	if [ -z "$mirror" ]
+	then
+		mirror="http://archive.ubuntu.com/ubuntu"
+	fi
+}
+
+# ubuntu has different repository mirrors than debian
+config_apt() {
+	echo "brg: Configuring apt"
+	mkdir -p "$output/etc/apt/"
+	(
+		echo "deb $mirror $release main"
+		echo "deb $mirror ${release}-security main"
+	) > "$output/etc/apt/sources.list"
+	mount_chroot "$output" apt-get -y update
+	check "could not setup apt"
+}
+
+# ubuntu handles locale differently from Debian
+tweak() {
+	echo "brg: Applying Bedrock Linux Tweaks"
+	# fixes statoverride errors
+	mkdir -p "$output/var/lib/dpkg/"
+	check "could not apply Bedrock Linux tweaks"
+	echo "" > "$output/var/lib/dpkg/statoverride"
+	check "could not apply Bedrock Linux tweaks"
+	# TODO: figure out package corresponding to locale and install it
+	# ensure client uses /proc/mounts instead of mtab
+	ln -f -s /proc/mounts "$output/etc/mtab"
+	check "could not apply Bedrock Linux tweaks"
+}

@@ -1,0 +1,352 @@
+### support functions for brg for Debian-based distros
+
+# Note that many functions from here may be sourced and used by other,
+# Debian-based distros.  Best to keep things broken up into individual
+# functions to other distros can pick-and-choose what is applicable.
+
+check_release() {
+	# ensure release is specified
+	if [ -z "$release" ]
+	then
+		echo "This distro requires release specified (-r)"
+		exit 1
+	fi
+}
+
+check_arch() {
+	# ensure arch string is in the format Debian expects
+	case "$arch" in
+		"64")
+			arch="amd64";;
+		"x86_64")
+			arch="amd64";;
+		"amd64")
+			arch="amd64";;
+		"32")
+			arch="i386";;
+		"x86")
+			arch="i386";;
+		"i686")
+			arch="i386";;
+		"i386")
+			arch="i386";;
+	esac
+}
+
+check_mirror() {
+	if [ -z "$mirror" ]
+	then
+		mirror="http://ftp.debian.org/debian"
+	fi
+}
+
+setup() {
+	echo "brg: Setup"
+	mkdir -p "$output/brg-tmp/brg-client/var/cache/apt/archives/"
+}
+
+get_packages_file() {
+	echo "brg: Getting \"Packages\" file"
+	wget "$mirror/dists/$release/main/binary-$arch/Packages.bz2" -O "$output/brg-tmp/Packages.bz2"
+	check "Could not get Packages.bz2 from $mirror/dists/$release/main/binary-$arch/Packages.bz2"
+	cd "$output/brg-tmp"
+	bunzip2 Packages.bz2
+	check "Could not get decompress $output/Packages.bz2"
+}
+
+calculate_dependencies() {
+	# print things for user to stderr and things for script to stdout
+
+	echo "brg: Calculating dependencies" | cat >&2
+
+	awk -F"[, ]" -v"packages_file=$output/brg-tmp/Packages" -v"packages=$@" '
+
+		# get a list of the dependencies for a given package can not return
+		# array, but there is no scoping, so use the provided "depends"
+		function get_depends(package, depends) {
+			in_section = 0
+			# clear what is provided just-in-case
+			for (depend in depends)
+				delete depends[depend]
+			# loop over every line looking for the package that provides
+			while ((getline < packages_file) > 0) {
+				if ($1 == "Package:" && $2 == package)
+					in_section = 1
+				if ($1 == "Provides:") {
+					for(i=2; i<=NF; i++) {
+						if ($i == package)
+							in_section = 1
+					}
+				}
+				if (in_section == 1 && $1 == "Depends:") {
+					sub("\\|.*$","")
+					for(i=2; i<=NF; i++)
+						if ($i != "")
+							depends[$i]
+				}
+				if (in_section == 1 && $1 == "Pre-Depends:") {
+					sub("\\|.*$","")
+					for(i=2; i<=NF; i++)
+						if ($i != "")
+							depends[$i]
+				}
+				if (in_section == 1 && $0 == "") {
+					close(packages_file)
+					return
+				}
+			}
+			# should never get here, but just in case
+			close(packages_file)
+			return
+		}
+
+		# get the name of a package that provides some dependency
+		function get_provides(package) {
+			pkgname = ""
+			while ((getline < packages_file) > 0) {
+				if ($1 == "Package:")
+					pkgname = $2
+				if ($1 == "Package:" && $2 == package) {
+					close(packages_file)
+					return pkgname
+				}
+				if ($1 == "Provides:") {
+					for(i=2; i<=NF; i++) {
+						if ($i == package) {
+							close(packages_file)
+							return pkgname
+						}
+					}
+				}
+			}
+			# should never get here, but just in case
+			close(packages_file)
+			return ""
+		}
+
+		BEGIN {
+			# package for which we want entire dependency list
+			split(packages, to_process_num)
+			for (pkg in to_process_num) {
+				to_process[get_provides(to_process_num[pkg])]
+				delete to_process_num[pkg]
+			}
+			# loop over all to_process packages, finding their dependencies
+			loop = 1
+			while (loop) {
+				for (package in to_process) {
+					# remove from list of items that we need to process
+					delete to_process[package]
+					# output for users
+					printf "%s ", package | "cat >&2"
+					# add to list of processed packages so we do not
+					# re-add/process it later
+					processed[package]
+					# loop over this packages dependencies
+					get_depends(package, depends)
+					for (depend in depends) {
+						# filter out version information; if we use the same
+						# mirror/repo for everything it *should* have the proper
+						# versions
+						# a single gsub could replace this if we could rely on
+						# busybox regex, but some busybox builds have broken regex
+						if (substr(depend,1,1) == "(" || substr(depend,length(depend),1) == ")") {
+							continue
+						}
+						# filter out empty fields
+						if (depend == "")
+							continue
+						# if we have not already processed the package, add it to the
+						# list to process
+						provides = get_provides(depend)
+						if (!(provides in processed))
+							to_process[provides]
+					}
+				}
+				# this seems to be the best way to determine if a list is empty in AWK
+				loop = 0
+				for (package in to_process) {
+					loop = 1
+					break
+				}
+			}
+			print "" | "cat >&2"
+			# print packages to stdout for calling function to utilize
+			for (package in processed)
+				printf "%s ", package
+		}
+	'
+}
+
+get_package_url() {
+	awk -F"[, ]" -v"package=$1" '
+	$1 == "Package:" && $2 == package {
+		in_section = 1
+	}
+	in_section == 1 && $1 == "Filename:" {
+		print $2
+		exit
+	}
+	' $output/brg-tmp/Packages
+}
+
+get_packages() {
+	echo "brg: Downloading packages"
+	cd "$output/brg-tmp/brg-client/var/cache/apt/archives/"
+	for package in "$@"
+	do
+		filepath="$(get_package_url $package)"
+		[ -n "$filepath" ]
+		check "Could not determine url for \"$package\""
+		url="$mirror/$filepath"
+		echo "$package from $url"
+		wget "$url"
+		check "Could not download: $package"
+	done
+	echo ""
+}
+
+expand_packages() {
+	echo "brg: Expanding packages"
+	cd $output/brg-tmp
+	for package in "$output"/brg-tmp/brg-client/var/cache/apt/archives/*.deb
+	do
+		echo "$package"
+		ar x $package
+		check "Could not open $package"
+		if [ -e data.tar.gz ]
+		then
+			gunzip data.tar.gz
+		elif [ -e data.tar.xz ]
+		then
+			unxz data.tar.xz
+		fi
+		tar xf data.tar
+		rm debian-binary
+		rm data.tar
+		rm control.tar.gz
+	done
+	if ! [ -e "$output"/brg-tmp/bin/sh ]
+	then
+		# the symlink will be correct the chroot
+		ln -s /bin/dash $output/brg-tmp/bin/sh
+	fi
+}
+
+install() {
+	echo "brg: Installing"
+	mount_chroot "$output/brg-tmp" /usr/sbin/debootstrap "--variant=minbase" "$release" "/brg-client" "$mirror"
+	check "debootstrap failed"
+}
+
+move() {
+	echo "brg: Moving into place"
+	# ensure no mount points left over somehow
+	umount "$output"/brg-tmp/brg-client/dev/pts >/dev/null 2>&1
+	umount "$output"/brg-tmp/brg-client/dev     >/dev/null 2>&1
+	umount "$output"/brg-tmp/brg-client/sys     >/dev/null 2>&1
+	umount "$output"/brg-tmp/brg-client/proc    >/dev/null 2>&1
+	umount "$output"/brg-tmp/dev/pts            >/dev/null 2>&1
+	umount "$output"/brg-tmp/dev                >/dev/null 2>&1
+	umount "$output"/brg-tmp/sys                >/dev/null 2>&1
+	umount "$output"/brg-tmp/proc               >/dev/null 2>&1
+	mv "$output/brg-tmp/brg-client/"* "$output"
+	check "could not move into proper location"
+}
+
+clean() {
+	echo "brg: Removing temporary files"
+	rm -r "$output/brg-tmp"
+	check "could not remove files at: $output/brg-tmp"
+}
+
+config_apt() {
+	echo "brg: Configuring apt"
+	mkdir -p "$output/etc/apt/"
+	(
+		echo "deb http://security.debian.org $release/updates main"
+		echo "deb $mirror $release main"
+	) > "$output/etc/apt/sources.list"
+	mount_chroot "$output" apt-get -y update
+	check "could not setup apt"
+}
+
+update() {
+	echo "brg: Updating"
+	mount_chroot "$output" apt-get -y upgrade
+	check "could not update system"
+}
+
+tweak() {
+	echo "brg: Applying Bedrock Linux Tweaks"
+	# fixes statoverride errors
+	mkdir -p "$output/var/lib/dpkg/"
+	check "could not apply Bedrock Linux tweaks"
+	echo "" > "$output/var/lib/dpkg/statoverride"
+	check "could not apply Bedrock Linux tweaks"
+	# ensure the locale files are in place
+	mount_chroot "$output" apt-get -y install locales-all
+	check "could not apply Bedrock Linux tweaks"
+	# ensure client uses /proc/mounts instead of mtab
+	ln -f -s /proc/mounts "$output/etc/mtab"
+	check "could not apply Bedrock Linux tweaks"
+}
+
+install_package() {
+	echo "brg: Installing specified packages"
+	chroot "$output" apt-get -y install $(echo "$packages" | sed 's/,/ /g')
+	check "could not install specified packages"
+}
+
+brconfig() {
+	echo "brg: Setting default Bedrock Linux config (disabled)"
+	echo "framework = default" > "/bedrock/etc/clients.d/${client}.conf.disabled"
+	check "could create default config"
+}
+
+enable() {
+	echo "brg: enabling client"
+	brs up $client
+	check "could not enable client"
+}
+
+list_release() {
+}
+
+acquire() {
+	# checks requirements and sets defaults
+	check_release
+	check_mirror
+	check_arch
+	setup
+	get_packages_file
+	# Lots of missing/assumed dependencies we need to explicitly list here.
+	get_packages $(calculate_dependencies "debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv")
+	expand_packages
+	install
+	move
+	clean
+	config_apt
+	if [ -n "$update" ]
+	then
+		update
+	fi
+	if [ -n "$tweak" ]
+	then
+		tweak
+	fi
+	if [ -n "$packages" ]
+	then
+		install_package
+	fi
+	if [ -n "$client" ]
+	then
+		brconfig
+		if [ -n "$enable" ]
+		then
+			enable
+		fi
+	fi
+
+	echo "brg: Done!"
+}
