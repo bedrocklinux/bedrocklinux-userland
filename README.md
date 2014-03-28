@@ -45,6 +45,8 @@ the files bundled with this README:
     http://sourceforge.net/projects/fuse/files/
     or
     git clone git://git.code.sf.net/p/fuse/fuse fuse-fuse
+    using a specific commit
+    git checkout dd432032db34c2ca22570af5ac6794822ef4c877
   - busybox (NEWER than 1.21.1 - such as git HEAD) from
     http://www.busybox.net
     or
