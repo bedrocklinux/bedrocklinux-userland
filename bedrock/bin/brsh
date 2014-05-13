@@ -1,7 +1,7 @@
 #!/bin/sh
 ### Bedrock Linux 1.0alpha4 Flopsie
 ### brsh (BedRock SHell)
-# this is a meta-shell which solves to potential issues:
+# this is a meta-shell which solves two potential issues:
 # - the full path to the desired shell changes from client to client, but
 # /etc/passwd requires the full path to the desired shell.  Hence, one can call
 # brsh - which should stay in the same place in all the clients -  and it can
