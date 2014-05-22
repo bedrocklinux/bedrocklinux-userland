@@ -227,7 +227,12 @@ compile() {
 	announce_low "Compiling $task"
 	runcmd "cd $src/$task/"
 	runcmd "cd $(ls)"
-	runcmd "make -j$JOBS $@"
+	if [ -n "${JOBS}" ]
+	then
+		runcmd "make -j$JOBS $@"
+	else
+		runcmd "make $@"
+	fi
 	check
 }
 
