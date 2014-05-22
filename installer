@@ -703,7 +703,7 @@ install_busybox() {
 	runcmd "cp ./examples/mdev_fat.conf $pwd/etc/mdev.conf"   || RESULT=/bin/false
 	runcmd "chmod 644 $pwd/etc/mdev.conf"                     || RESULT=/bin/false
 	runcmd "chroot $pwd /bedrock/bin/busybox --install"       || RESULT=/bin/false
-	runcmd "chroot $pwd ln -s /bedrock/bin/busybox /bin"      || RESULT=/bin/false
+	runcmd "chroot $pwd /bedrock/bin/busybox ln -s /bedrock/bin/busybox /bin" || RESULT=/bin/false
 	eval $RESULT; check
 
 	INSTALL_BUSYBOX=1
