@@ -35,10 +35,10 @@ the files bundled with this README:
   will automatically detect and decompress compressed tarballs), you can leave
   (compressed) tarballs in the '$BRINSTALL/src" directory.  Otherwise, you will
   need to decompress these and leave directories in "$BRINSTALL/src".
-  - musl (NEWER than 0.9.14 - such as git HEAD) from
+  - musl (latest from the 1.0.X series, such as 1.0.3) from
     http://www.musl-libc.org/download.html
     or
-    git clone git://git.musl-libc.org/musl
+    http://www.musl-libc.org/releases/musl-1.0.3.tar.gz
   - Linux kernel from
     https://www.kernel.org
   - FUSE (NEWER than 2.9.3 - probably 3.X or git HEAD) from
