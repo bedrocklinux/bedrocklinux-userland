@@ -88,13 +88,11 @@ EOF
 cat <<EOF
 The musl libc library is required.  The project's website is available at:
     http://www.musl-libc.org/
-At the time of writing, the latest musl release - 0.9.14 - does not have all of
-the required functionality.  Either use a newer release (such as 0.9.15 or
-0.10.0) if available or get the latest version from git.  The latest stable
-releases and links to download them should be available here:
+Use the latest version from the 1.0.X series, such as 1.0.3 which can be found here:
+    http://www.musl-libc.org/releases/musl-1.0.3.tar.gz
+Or check if a newer one from the same 1.0.X series (which may have later
+security fixes) is available here:
     http://www.musl-libc.org/download.html
-And the git repository should be available here:
-    git clone git://git.musl-libc.org/musl
 EOF
 			exit
 			;;
