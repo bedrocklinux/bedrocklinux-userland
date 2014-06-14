@@ -541,7 +541,7 @@ void parse_config()
 	}
 
 	free(line);
-	fclose(fp);
+	pclose(fp);
 }
 
 /*
