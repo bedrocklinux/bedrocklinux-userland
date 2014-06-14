@@ -638,6 +638,14 @@ static int brp_getattr(const char *in_path, struct stat *stbuf)
 							+ strlen(" \"$@\"\n");
 		} else if (items[i].oper == BRP_EXEC_FILTER && base_path[0] != '\0') {
 			/*
+			 * If it is a symlink, resolve it so we can set the proper
+			 * permissions of the file.  Otherwise we may get a symlink which
+			 * would bypass the filter.
+			 */
+			if (resolve_symlink(out_path) < 0 || lstat(out_path, stbuf) < 0) {
+				return -ENOENT;
+			}
+			/*
 			 * If it contains "^Exec=" and/or "^TryExec=/", read() will add in
 			 * more content.  This additional content must be taken into
 			 * consideration for size information.
