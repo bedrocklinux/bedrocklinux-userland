@@ -898,23 +898,14 @@ static int brp_open(const char *in_path, struct fuse_file_info *fi)
 
 	/*
 	 * Loop over the various out_path possibilities and check if any can be
-	 * read.  If so, return ok.  brc-wrap items, since their permissions are
-	 * based on the resolved value.
+	 * read.  If so, return ok.
 	 */
 	int i, n, c, len_remaining;
 	char out_path[PATH_MAX+1];
 	const char* base_path;
 	BRP_LOOP_START;
-	if (resolve_symlink(out_path) == 0) {
-		if (items[i].oper == BRP_BRC_WRAP && base_path[0] != '\0') {
-			if (resolve_symlink(out_path) == 0 && access(out_path, F_OK) == 0) {
-				return 0;
-			}
-		} else {
-			if (access(out_path, R_OK) >= 0) {
-				return 0;
-			}
-		}
+	if (resolve_symlink(out_path) == 0 && access(out_path, R_OK) >= 0) {
+		return 0;
 	}
 	BRP_LOOP_END;
 
