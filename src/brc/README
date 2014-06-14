@@ -1,0 +1,56 @@
+brc ("BedRock Chroot")
+======================
+
+brc provides the ability to run commands in clients, properly handling
+local-context switches.
+
+Usage
+-----
+
+To use (after it is properly configured), run:
+
+    brc <client-name> <command-to-run>
+
+Configuration
+-------------
+
+If there exists a root-owned file at
+
+    /bedrock/clients/etc/clients.d/<client-name>.conf
+
+brc will allow users to run software from that client, switching out local
+context files accordingly.  If this file does not exist or is writable by
+anyone other than root, brc will refuse to operate.  Be sure the client's files
+exist at /bedrock/clients/<client-name> and that brs has set it up
+(check bri -s <client-name>).  This should "just work" on a properly setup
+Bedrock Linux system.
+
+Installation
+------------
+
+Bedrock Linux should be distributed with a script which handles installation,
+but just in case:
+
+The dependencies are:
+
+- libcap (can be found here: https://sites.google.com/site/fullycapable/)
+- libbedrock (should be distributed with this)
+
+To compile, run
+
+    make
+
+To install into installdir, run
+
+    make prefix=<installdir> install
+
+Then proceed to use "setcap" to set the "cap_sys_chroot=ep" capability on the
+installed brc executable.
+
+To clean up, like usual:
+
+    make uninstall
+
+And finally, to remove it, run:
+
+    make prefix=<installdir> uninstall

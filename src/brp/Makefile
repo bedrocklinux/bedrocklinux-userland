@@ -1,0 +1,12 @@
+all: brp.c
+	$(CC) -Wall brp.c -o brp -lfuse3 -lbedrock
+
+clean:
+	-rm brp
+
+install:
+	mkdir -p $(prefix)/sbin
+	install -m 655 brc $(prefix)/sbin/brp
+
+uninstall:
+	rm $(prefix)/sbin/brp

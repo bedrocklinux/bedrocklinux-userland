@@ -27,6 +27,8 @@
 #include <dirent.h>         /* opendir()          */
 #include <errno.h>          /* errno              */
 
+#include <libbedrock.h>
+
 #define CONFIGDIR "/bedrock/etc/clients.d/"
 #define CLIENTDIR "/bedrock/clients/"
 #define CONFIGDIRLEN strlen(CONFIGDIR)
@@ -60,39 +62,6 @@ void ensure_capsyschroot(char* executable_name)
 	cap_free(current_capabilities);
 
 	/* required capabilities are in place */
-	return;
-}
-
-/* ensure config file is only writable by root */
-void ensure_config_secure(char *config_path)
-{
-	/* will hold config file stats - owner, UNIX permissions, etc */
-	struct stat config_stat;
-
-	/* get stats on file.  If we can't, file doesn't exist */
-	if (stat(config_path, &config_stat) != 0) {
-		fprintf(stderr, "The file \"%s\" does not exist, aborting.\n",
-				config_path);
-		exit(1);
-	}
-
-	/* ensure file is owned by root */
-	if (config_stat.st_uid != 0) {
-		fprintf(stderr, "\"%s\" is not owned by root.\n"
-				"This is a potential security issue; refusing to run.\n",
-				config_path);
-		exit(1);
-	}
-
-	/* ensure config file is not writable by anyone other than root */
-	if (config_stat.st_mode & (S_IWGRP | S_IWOTH)) {
-		fprintf(stderr, "\"%s\" is writable by someone other than root.\n"
-				"This is a potential security issue; refusing to run.\n",
-				config_path);
-		exit(1);
-	}
-
-	/* config looks good - okay to chroot to corresponding client */
 	return;
 }
 
