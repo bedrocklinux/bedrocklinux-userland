@@ -656,6 +656,14 @@ static int brp_getattr(const char *in_path, struct stat *stbuf)
 				}
 				fclose(fp);
 			}
+		} else if (base_path[0] == '\0') {
+			/*
+			 * Anything on the root of the filesystem should be a directory.
+			 * This check is in the root item is a symlink or has odd access
+			 * permissions which would make the rest of the things in them
+			 * inaccessible if the highest priority client does it.
+			 */
+			memcpy(stbuf, &root_stat, sizeof(struct stat));
 		}
 		return 0;
 	}
