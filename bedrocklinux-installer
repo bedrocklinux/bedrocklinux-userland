@@ -136,6 +136,7 @@ copy_untar() {
 	then
 		runcmd "cp -r $install_root/src/*$component* $src/$component/"
 	else
+		[ "$component" = "linux" ] && component="headers"
 		abort "Could not find source for $component.  Try running \`./bedrocklinux-installer source $component\`"
 	fi
 	check
