@@ -1,26 +1,33 @@
-#!/bin/sh
-### Bedrock Linux 1.0alpha4 Flopsie
+#!/bedrock/bin/busybox sh
+### Bedrock Linux 1.0beta1 Hawkey
 ### brsh (BedRock SHell)
-# this is a meta-shell which solves two potential issues:
-# - the full path to the desired shell changes from client to client, but
-# /etc/passwd requires the full path to the desired shell.  Hence, one can call
-# brsh - which should stay in the same place in all the clients -  and it can
-# call the desired shell.
-# - if the client which contains the desired shell breaks, fixing the issue can
-# be a bit of a mess.  This shell can attempt to detect this situation and drop
-# back to another, hopefully functioning, shell.
+# This is a meta-shell which solves several potential issues:
 #
-# TODO: find a better way to determine if login shell or not
-# TODO: find a shell-agnostic way to launch as login shell instead of sourcing /etc/profile directly
-# - perhaps force user to add the info to ~/.brsh.conf?
+# - /etc/passwd needs the full path to the user's shell.  While it is possible
+# to use /bedrock/brpath/bin/<shell> as a full path, the files there use
+# hash-bang lines to have some interpreter call brc.  It seems as though all
+# indication that something is being called as a login shell is lost if it is
+# also called via a hashbang line.  argv[0] is not prepended with a "-" in
+# these situations as one would have expected.
+#
+# - If the client which provides the desired shell breaks or is removed, the
+# end user will be unable to log in to remedy this.  While the "brroot" login
+# is a partial solution here, it'd be better to have the shell fall back to
+# /bin/sh in this situation, as this one does.
+#
+# - /etc/shells needs to contain the shell in /etc/passwd the user is using to
+# log in.  While package managers do populate this when new shells are
+# installed, they use the full local path.  If a user uses a shell from
+# /bedrock/brpath/bin/<shell>, he or shell will also be responsible for adding
+# it to /etc/shells.  End-users will forget to do this which will inevitably
+# cause problems.  For example, the KDE screen locker uses a PAM module which
+# will result in it refusing to unlock for a user whose shell is not in
+# /etc/shells.  By using this shell, which is always in the same place, we can
+# work around this.
 
-# hacky way to determine if called as login shell
-# TZ known to be set in /etc/profile - if it has not been set yet, probably login
-if [ -z "$TZ" ]
-then
-	. /etc/profile
-fi
 
+# Use the shell in ~/.brsh.conf if it is available; otherwise, fall back to
+# /bin/sh.
 if [ -f ~/.brsh.conf ] && which $(basename $(cat ~/.brsh.conf)) >/dev/null
 then
 	export SHELL=$(cat ~/.brsh.conf)
@@ -29,4 +36,15 @@ else
 	export SHELL=/bin/sh
 fi
 
-exec $(basename $SHELL) "$@"
+# Hacky way to determine if called as login shell.  #!/bin/sh seems to eat any
+# indication that it was called as a login shell - we cannot check $0 for a
+# starting "-", nor can we use "$-" on busybox sh.
+#
+# TZ known to be set in /etc/profile - if it has not been set yet, probably
+# login.
+if [ -z "$TZ" ]
+then
+	exec $(basename $SHELL) -l "$@"
+else
+	exec $(basename $SHELL) "$@"
+fi
