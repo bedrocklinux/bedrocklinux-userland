@@ -1023,7 +1023,7 @@ case "$1" in
 				exit 1;;
 		esac
 cat <<EOF
-Done making $2.  To install $2, run:
+Done making $2.  To install $2, run as root:
     ./bedrocklinux-installer install $2
 EOF
 		;;
