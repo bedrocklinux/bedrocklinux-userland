@@ -6,7 +6,7 @@ clean:
 
 install:
 	mkdir -p $(prefix)/sbin
-	install -m 655 brc $(prefix)/sbin/bru
+	install -m 655 bru $(prefix)/sbin/bru
 
 uninstall:
 	rm $(prefix)/sbin/bru
