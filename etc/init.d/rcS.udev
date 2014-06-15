@@ -2,7 +2,8 @@
 # This is disabled by default.
 # To use, fill in the UDEV_CLIENT variable below and then place the following
 # in /etc/init.d/rcS.clients (in the core):
-# /etc/init.d/rcS.udev
+#
+#     /etc/init.d/rcS.udev
 #
 # Exactly what needs to be done to setup udev changes from time-to-time and
 # this file may become out of date.

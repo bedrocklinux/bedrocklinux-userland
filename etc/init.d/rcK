@@ -1,5 +1,5 @@
 #!/bin/sh
-### Bedrock Linux 1.0alpha3 Bosco
+### Bedrock Linux 1.0beta1 Hawkey
 ### rcK shutdown script
 
 PATH="/bin:/sbin:/usr/bin:/usr/sbin"
@@ -18,7 +18,7 @@ __          __             __
 \ \_________\ \____________\ \___  
  \  _ \  _\ _  \  _\ __ \ __\   /  
   \___/\__/\__/ \_\ \___/\__/\_\_\ 
-    Bedrock Linux 1.0alpha4 Flopsie
+      Bedrock Linux 1.0beta1 Hawkey
 EOF
 printf "$NORMAL"
 
@@ -90,9 +90,9 @@ RESULT=/bin/true
 # - proc (as proc is needed to get mount information).
 # - /dev (problematic but since it is a tmpfs it wouldn't have anything synced)
 # - / (as it should be last, after proc)
-# If some things failed to unmount, it could be because they had
-# other things bind-mounted into them.  Keep looping until we've found we're no
-# longer making progress with unmounting.
+# If some things failed to unmount, it could be because they had other things
+# bind-mounted into them.  Keep looping until we've found we're no longer
+# making progress with unmounting.
 MOUNT_COUNT=$(expr $(cat /proc/mounts | wc -l) + 1)
 MOUNT_DIGITS="$(printf $MOUNT_COUNT | wc -c)"
 while [ "$(cat /proc/mounts | wc -l)" -lt "$MOUNT_COUNT" ]
@@ -100,7 +100,7 @@ do
 	MOUNT_COUNT=$(cat /proc/mounts | wc -l)
 	for MOUNT in $(cat /proc/mounts | awk '$2 != "/proc" && $2 != "/dev" {print $2}' | sort -r)
 	do
-		umount $MOUNT
+		umount $MOUNT 2>/dev/null
 	done
 done
 # if some things still fail to unmount, mount as read-only
@@ -113,12 +113,12 @@ then
 	for MOUNT in $(cat /proc/mounts | awk '$2 != "/proc" && $2 != "/dev" {print $2}' | sort -r)
 	do
 		echo "Mounting $MOUNT as read-only"
-		umount -r $MOUNT
+		umount -r $MOUNT 2>/dev/null
 	done
 fi
 eval $RESULT
 result
 # Unmount /proc, /dev and root directory now that they are no longer needed.
 umount /proc
-umount /
+umount /dev
 umount /
