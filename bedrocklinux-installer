@@ -54,7 +54,6 @@ COMMANDs:
                 parts of the devstack (into a temporary location, not the host
                 system)
     install     Install the component.
-    clean       Remove temporary files
     hard-clean  Remove everything that is not part of the installed system -
                 including this script!
 
@@ -845,6 +844,41 @@ install_busybox() {
 }
 
 # ------------------------------------------------------------------------------
+# - functions to clean workspace                                               -
+# ------------------------------------------------------------------------------
+
+hard_clean() {
+cat <<EOF
+	This will remove:
+	- README.md
+	- LICENSE
+	- This install script
+	- All of the source code
+	- .git
+
+	Are you sure you want to continue?
+EOF
+	printf "(y/N)"
+	read YN
+	if [ "$YN" != "y" ]
+	then
+		echo "Did not respond with \"y\", aborting"
+		return 0;
+	fi
+	for file in 
+		README.md \
+		LICENSE \
+		src \
+		.git \
+		bedrocklinux-installer
+	do
+		printf "Removing $file..."
+		rm -rf $file
+		echo "done"
+	done
+}
+
+# ------------------------------------------------------------------------------
 # - execution starts here                                                      -
 # ------------------------------------------------------------------------------
 
@@ -1052,6 +1086,10 @@ EOF
 				echo "\"$2\" is not a valid component, see \`./bedrocklinux-installer help\`"
 				exit 1;;
 		esac;;
+	"hard-clean")
+		hard_clean
+		return 0
+		;;
 	"help"|"h"|"--help"|"-h"|"")
 		print_help;;
 	*)
