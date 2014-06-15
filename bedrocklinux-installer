@@ -588,7 +588,7 @@ install_directories() {
 # git will not track all permissions, explicitly set here.
 install_permissions() {
 	# check if already done
-	if [ -n "$INSTALL_PERMISSIONS" ]; then return; fi
+	if [ -n "${INSTALL_PERMISSIONS}" ]; then return; fi
 	# dependencies:
 	install_directories
 
