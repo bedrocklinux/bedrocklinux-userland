@@ -1,5 +1,5 @@
 #!/bin/sh
-### Bedrock Linux 1.0alpha4 Flopsie
+### Bedrock Linux 1.0beta1 Hawkey
 ### shutdown wrapper
 # Busybox does not seem to provide shutdown, and thus the core Bedrock does not
 # have one.  A client's shutdown will probably not work either.  This script
