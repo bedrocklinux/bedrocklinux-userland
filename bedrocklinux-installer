@@ -865,7 +865,7 @@ EOF
 		echo "Did not respond with \"y\", aborting"
 		return 0;
 	fi
-	for file in 
+	for file in \
 		README.md \
 		LICENSE \
 		src \
