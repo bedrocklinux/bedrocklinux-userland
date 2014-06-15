@@ -1,5 +1,5 @@
 #!/bin/sh
-### Bedrock Linux 1.0alpha4 Flopsie
+### Bedrock Linux 1.0beta1 Hawkey
 ### poweroff wrapper
 # ensures the core bedrock's poweroff is used, as a client's will probably not
 # work.  This should be before the directory which contains a normal client's
