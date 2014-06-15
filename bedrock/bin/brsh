@@ -24,7 +24,32 @@
 # will result in it refusing to unlock for a user whose shell is not in
 # /etc/shells.  By using this shell, which is always in the same place, we can
 # work around this.
+#
+# We can't actually run the specified shell unless PATH is populated - so there
+# is need to source /etc/profile rather than let the shell we're calling do it.
+# If brsh is being called, it is almost certainly already a login shell, as any
+# point after this the desired shell will be launched directly, but just in
+# case we're checking if $TZ is set.  If not, this is probably because it is a
+# login shell.
+#
+# Moreover, there is a need to force sourcing /etc/profile as one shell in
+# particular, zsh, may not do it itself.  zsh does not parse /etc/profile on
+# login.  Rather, it sources other files which it expects to parse
+# /etc/profile.  Not all distros set this up so it works, and thus /etc/profile
+# does not "just work" on zsh on many distros.  Bedrock Linux strongly depends
+# on this being sourced.
+#
+# The main downside here is /etc/profile may be sourced twice - once here, and
+# once by the login shell.  Better to source it twice than to risk not having
+# it sourced at all, in which case Bedrock Linux's subsystems would be largely
+# broken.
 
+local login_shell=/bin/false
+if [ -z "$TZ" ]
+then
+	. /etc/profile
+	login_shell=/bin/true
+fi
 
 # Use the shell in ~/.brsh.conf if it is available; otherwise, fall back to
 # /bin/sh.
@@ -33,16 +58,15 @@ then
 	export SHELL=$(cat ~/.brsh.conf)
 else
 	echo "Error: brsh can not find shell specified in ~/.brsh.conf, defaulting to /bin/sh"
+	cat ~/.brsh.conf; echo $?
+	basename $(cat ~/.brsh.conf); echo $?
+	which $(basename $(cat ~/.brsh.conf)); echo $?
 	export SHELL=/bin/sh
 fi
 
-# Hacky way to determine if called as login shell.  #!/bin/sh seems to eat any
-# indication that it was called as a login shell - we cannot check $0 for a
-# starting "-", nor can we use "$-" on busybox sh.
-#
-# TZ known to be set in /etc/profile - if it has not been set yet, probably
-# login.
-if [ -z "$TZ" ]
+# This shell script does not provide us a means of prepending "-" to the
+# argv[0] of the shell we're calling.  Instead, we'll use -l.
+if $login_shell
 then
 	exec $(basename $SHELL) -l "$@"
 else
