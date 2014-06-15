@@ -169,7 +169,7 @@ compile() {
 # Run make install for $component
 install() {
 	announce_low "Installing $component"
-	runcmd "cd $src/$component/"
+	runcmd "cd $src/*$component*/"
 	runcmd "cd $(ls)"
 	runcmd "make install $@"
 	check
@@ -902,26 +902,13 @@ then
 	print_help
 fi
 
-if [ -e "$tmp" ] && [ -z "${KEEP_OLD:-}" ]
-then
-	echo -n "Removing previous run... "
-	rm -rf $tmp
-	echo "done"
-fi
-echo -n "Making temporary directory structure... "
-mkdir -p $tmp
-mkdir -p $src
-mkdir -p $dev
-touch $log
-echo "done"
-
-announce_high "Starting logging at"
-echo "$log"
-echo "(consider tail -f)"
-echo ""
-
 case "$1" in
 	"source")
+		announce_high "Starting logging at"
+		echo "$log"
+		echo "(consider tail -f)"
+		echo ""
+
 		case "$2" in
 			"all")
 				source_brc         # stub, source is bundled
@@ -969,6 +956,24 @@ case "$1" in
 				exit 1;;
 		esac;;
 	"make")
+		if [ -e "$tmp" ] && [ -z "${KEEP_OLD:-}" ]
+		then
+			echo -n "Removing previous run... "
+			rm -rf $tmp
+			echo "done"
+		fi
+		echo -n "Making temporary directory structure... "
+		mkdir -p $tmp
+		mkdir -p $src
+		mkdir -p $dev
+		touch $log
+		echo "done"
+
+		announce_high "Starting logging at"
+		echo "$log"
+		echo "(consider tail -f)"
+		echo ""
+
 		case "$2" in
 			"all")
 				make_brc
@@ -1022,6 +1027,10 @@ EOF
 		;;
 
 	"install")
+		announce_high "Starting logging at"
+		echo "$log"
+		echo "(consider tail -f)"
+		echo ""
 		case "$2" in
 			"all")
 				install_brc
