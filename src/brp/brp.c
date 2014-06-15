@@ -630,7 +630,7 @@ static int brp_getattr(const char *in_path, struct stat *stbuf)
 			 * Set size accordingly.  This is necessary for read() to know how
 			 * much to read.
 			 */
-			stbuf->st_size = strlen("#!/bin/sh\nexec brc ") \
+			stbuf->st_size = strlen("#!/bedrock/bin/busybox sh\nexec /bedrock/bin/brc ") \
 							+ client_lens[c] \
 							+ strlen(" ") \
 							+ items[i].in_lens[n] \
@@ -951,8 +951,8 @@ static int brp_read(const char *in_path, char *buf, size_t size, off_t offset, s
 			 */
 			if (access(out_path, F_OK) == 0) {
 				len_remaining = size;
-				strncpy(buf, "#!/bin/sh\nexec brc ", size);
-				len_remaining -= strlen("#!/bin/sh\nexec brc");
+				strncpy(buf, "#!/bedrock/bin/busybox sh\nexec /bedrock/bin/brc ", size);
+				len_remaining -= strlen("#!/bedrock/bin/busybox sh\nexec /bedrock/bin/brc ");
 				strncat(buf, clients[c], len_remaining);
 				len_remaining -= client_lens[c];
 				strncat(buf, " ", len_remaining);
