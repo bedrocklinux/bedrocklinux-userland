@@ -1,5 +1,5 @@
 #!/bin/sh
-### Bedrock Linux 1.0alpha3 Bosco
+### Bedrock Linux 1.0beta1 Hawkey
 ### /etc/rc.local
 # Place code here which you would like to be run at boot.
 #

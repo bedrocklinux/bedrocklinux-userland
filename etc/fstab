@@ -1,4 +1,4 @@
-### Bedrock Linux 1.0alpha4 Flopsie
+### Bedrock Linux 1.0beta1 Hawkey
 ### /etc/fstab
 #
 # For the most part, this is a /etc/fstab file such as you would find in any
@@ -22,8 +22,3 @@
 # into /bedrock/clients and should have bind items in their
 # client.conf/framework after the /bedrock item, similar to how the core is
 # mounted into /bedrock/clients/bedrock in the recommended defaults.
-#
-# - After the mounts from this are created, the bind and union items from the
-# client.conf and frameworks are mounted.  If you would like to mount anything
-# *after* that takes place, you will have to use something other than
-# /etc/fstab, such as /etc/rc.local
