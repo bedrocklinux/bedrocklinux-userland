@@ -700,7 +700,7 @@ static int brp_getattr(const char *in_path, struct stat *stbuf)
  * Returns the filenames in a specified directory.  This is the heart of what
  * you think of when `ls` is run.
  */
-static int brp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags)
+static int brp_readdir(const char *in_path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags)
 {
 	SET_CALLER_UID();
 
