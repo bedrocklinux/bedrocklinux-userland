@@ -512,6 +512,20 @@ make_busybox() {
 	MAKE_BUSYBOX="1"
 }
 
+make_directories() {
+	component=directories
+	announce_high "Making $component"
+	announce_low "$component is install-only, skipping"
+	check
+}
+
+make_permissions() {
+	component=permissions
+	announce_high "Making $component"
+	announce_low "$component is install-only, skipping"
+	check
+}
+
 
 # ------------------------------------------------------------------------------
 # - functions to install components                                            -
@@ -973,9 +987,9 @@ case "$1" in
 			"cap")
 				make_cap;;
 			"directories")
-				make_directories;;
+				make_directories;; # stub, nothing to make
 			"permissions")
-				make_permissions;;
+				make_permissions;; # stub, nothing to make
 			*)
 				echo "\"$2\" is not a valid component, see \`./bedrocklinux-installer help\`"
 				exit 1;;
