@@ -1,7 +1,8 @@
 #!/bin/sh
-### Bedrock Linux 1.0alpha4 Flopsie
+### Bedrock Linux 1.0beta1 Hawkey
 ### brl (BedRock aLl)
-# This script will run the argument in all available clients
+# This script will run the argument in the local context of all enabled
+# clients
 
 # check for need to print help
 if [ -z "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]
@@ -9,22 +10,25 @@ then
 cat <<EOF
 Usage: brl [-c CONDITIONAL] COMMAND
 
-If '-c' is not provided, brl will run COMMAND in all enabled clients.
+If '-c' is not provided, brl will run COMMAND with all available client local
+contexts.
 
-if '-c' is the first argument followed by a CONDITIONAL, the CONDITIONAL will
-be run in all enabled clients and if that command returns 0 the following
-COMMAND will be run.
+If '-c' is the first argument followed by a CONDITIONAL, the CONDITIONAL will
+be run in all enabled clients local contexts and if that command returns 0 the
+following COMMAND will be run.
 
 Examples:
 
-    # attempt to ping google in all clients to check if networking is working
+    # attempt to ping google ito check if networking is working
     brl ping -c 1 google.com
 
-    # run 'apt-get update' in all clients that have apt-get locally
-    brl -c 'brw apt-get|grep local' apt-get update
+    # run 'apt-get update && apt-get dist-upgrade' in all clients that have
+    # apt-get available in the local context
+    brl -c 'brw apt-get|grep "(direct)$"' sh -c 'apt-get update && apt-get dist-upgrade'
 
-    # clear the statoverride file in all clients which have it
-    brl -c '[ -e /var/lib/dpkg/statoverride ]' echo '' > /var/lib/dpkg/statoverride
+    # List all of the pids and their corresponding clients.  Can append "| sort
+    # -n" to sort by pid.
+    brl bri -P | grep -v "brl\|bri"
 
 EOF
 	exit 0
