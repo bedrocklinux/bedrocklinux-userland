@@ -558,6 +558,11 @@ w() {
 #  - execution starts here                                                     -
 #  -----------------------------------------------------------------------------
 
+# This will brc to the core, which could result in directory jump warnings.  To
+# avoid this, cd to the root.
+cd /
+
+
 # Parse arguments and call corresponding function.
 
 flag=$1 # store flag that we'll use later
