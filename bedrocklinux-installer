@@ -771,9 +771,7 @@ install_brc() {
 
 	component="brc"
 	announce_high "Installing $component"
-	announce_low "Putting into place"
 	install prefix=$install_root/bedrock/
-	check
 	# set capabilities
 	announce_low "Setting capabilities"
 	RESULT=/bin/true
@@ -791,7 +789,6 @@ install_brp() {
 	component="brp"
 	announce_high "Installing $component"
 	install prefix=$install_root/bedrock/
-	check
 	INTSALL_BRP="1"
 }
 
@@ -804,7 +801,6 @@ install_bru() {
 	component="bru"
 	announce_high "Installing $component"
 	install prefix=$install_root/bedrock/
-	check
 	INTSALL_BRU="1"
 }
 
