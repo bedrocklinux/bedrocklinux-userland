@@ -288,7 +288,7 @@ source_fuse() {
 	# compile against musl.  Hence, we have to use a bleeding-edge commit.
 	# This is the latest one which has been successfully used to compile the
 	# brp and bru.
-	runcmd 'git archive --format=tar --remote="git://git.code.sf.net/p/fuse/fuse" "dd432032db34c2ca22570af5ac6794822ef4c877" | tar xf -'
+	runcmd 'git archive --format=tar --remote="git://git.code.sf.net/p/fuse/fuse" "3f357f06ed4bb75244e745641af1c53d5b3d9984" | tar xf -'
 	check
 }
 
