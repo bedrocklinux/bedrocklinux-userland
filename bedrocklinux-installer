@@ -568,11 +568,6 @@ install_directories() {
 		root                            \
 		run                             \
 		sbin                            \
-		src                             \
-			src/brc                     \
-			src/brp                     \
-			src/bru                     \
-			src/libbedrock              \
 		sys                             \
 		tmp                             \
 		usr                             \
@@ -625,11 +620,6 @@ install_permissions() {
 		root                            \
 		run                             \
 		sbin                            \
-		src                             \
-			src/brc                     \
-			src/brp                     \
-			src/bru                     \
-			src/libbedrock              \
 		sys                             \
 		usr                             \
 			usr/bin                     \
@@ -680,7 +670,7 @@ install_permissions() {
 
 	# executable files
 	for file in                \
-		bedrock/bin/bri        \
+		bedrock/bin/brc        \
 		bedrock/bin/brl        \
 		bedrock/bin/brsh       \
 		bedrock/bin/brw        \
