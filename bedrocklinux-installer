@@ -65,6 +65,7 @@ COMPONENTS:
     brc         brc (BedRock Change local Contexts)
     brp         brp (BedRock Path)
     bru         bru (BedRock Union filesystem)
+    busybox     the swiss army knife of embedded linux
     headers     linux headers
     musl        the musl c library
     fuse        the fuse library
@@ -180,7 +181,7 @@ wget_source() {
 	if ls "$install_root"/src/*"$component"* >/dev/null 2>&1
 	then
 		announce_low "Removing previous run"
-		rm -rf "$install_root/src/*$component*"
+		rm -rf "$install_root"/src/*"$component"*
 		check
 	fi
 	cd "$install_root/src"
@@ -188,6 +189,20 @@ wget_source() {
 	# get the latest version that has been tested against the other components.
 	runcmd 'wget "'$1'"'
 	check
+}
+
+busybox_set_option() {
+	if grep -q "^$1=" .config
+	then
+		runcmd "sed 's/^$1=./$1=$2/' .config > .config-new"
+		runcmd "mv .config-new .config"
+	elif grep -q "^# $1 is not set" .config
+	then
+		runcmd "sed 's/^# $1 is not set/$1=$2/' .config > .config-new"
+		runcmd "mv .config-new .config"
+	else
+		runcmd "echo '$1=$2' >> .config"
+	fi
 }
 
 
@@ -221,6 +236,11 @@ source_bru() {
 	announce_high "Getting source for $component"
 	announce_low "$component's source should be bundled, nothing to do"
 	check
+}
+
+source_busybox() {
+	component=busybox
+	wget_source "http://www.busybox.net/downloads/busybox-1.22.1.tar.bz2"
 }
 
 source_headers() {
@@ -436,6 +456,60 @@ make_bru() {
 	compile "CC=$cc"
 
 	MAKE_BRU="1"
+}
+
+make_busybox() {
+	if [ -n "${MAKE_BUSYBOX:-}" ]; then return; fi
+	# dependencies:
+	make_musl
+	make_headers
+
+	component="busybox"
+	announce_high "Making $component"
+	copy_untar
+	announce_low "Making config"
+	runcmd 'cd $src/$component/'
+	runcmd 'cd $(ls)'
+	# use busybox's default config
+	runcmd 'make defconfig'
+	# ensure static
+	busybox_set_option "CONFIG_STATIC" "y"
+	# full modutils
+	busybox_set_option "CONFIG_MODPROBE_SMALL" "n"
+	busybox_set_option "CONFIG_FEATURE_MODPROBE_SMALL_OPTIONS_ON_CMDLINE" "n"
+	busybox_set_option "CONFIG_FEATURE_MODPROBE_SMALL_CHECK_ALREADY_LOADED" "n"
+	busybox_set_option "CONFIG_INSMOD" "y"
+	busybox_set_option "CONFIG_RMMOD" "y"
+	busybox_set_option "CONFIG_LSMOD" "y"
+	busybox_set_option "CONFIG_FEATURE_LSMOD_PRETTY_2_6_OUTPUT" "y"
+	busybox_set_option "CONFIG_MODPROBE" "y"
+	busybox_set_option "CONFIG_FEATURE_MODPROBE_BLACKLIST" "y"
+	busybox_set_option "CONFIG_DEPMOD" "y"
+	busybox_set_option "CONFIG_FEATURE_CHECK_TAINTED_MODULE" "y"
+	busybox_set_option "CONFIG_FEATURE_MODUTILS_ALIAS" "y"
+	busybox_set_option "CONFIG_FEATURE_MODUTILS_SYMBOLS" "y"
+	# udhcp client
+	busybox_set_option "CONFIG_UDHCPC6" "y"
+	# remove items which make compiling difficult. If the core doesn't need
+	# them, better to skip than to worry about patching
+	busybox_set_option "CONFIG_INETD" "n"
+	check
+	# if_ether.h needs a small patch to play with musl
+	announce_low "Fixing miscellaneous busybox-musl issues"
+	runcmd "cd $dev/include/netinet/"
+	runcmd "awk '{p=1}/^struct ethhdr/,/^}/{print \"//\"\$0; p=0}p==1' if_ether.h > if_ether.h.new"
+	runcmd "mv if_ether.h.new if_ether.h"
+	# busybox looks for some things in net/ not linux/, but we only have it in linux/
+	#runcmd "cp $dev/include/linux/if_slip.h $dev/include/net/"
+	check
+	announce_low "Cleaning"
+	runcmd 'cd $src/$component/'
+	runcmd 'cd $(ls)'
+	runcmd 'make clean'
+	check
+	compile "CC=$cc"
+
+	MAKE_BUSYBOX="1"
 }
 
 
@@ -739,6 +813,33 @@ install_bru() {
 	INTSALL_BRU="1"
 }
 
+install_busybox() {
+	# check if already done
+	if [ -n "${INSTALL_BUSYBOX:-}" ]; then return; fi
+	# dependencies:
+	install_directories
+	install_permissions
+
+	announce_low "Installing busybox"
+	RESULT=/bin/true
+	component="busybox"
+	runcmd "cd $src/$component/"
+	runcmd "cd $(ls)"
+	# there have been problems with the stripped version of busybox being
+	# broken when built with certain versions of some tools; unstripped is
+	# likely to reliably work (at the cost of extra size).
+	runcmd "cp ./busybox_unstripped $install_root/bedrock/bin/busybox" || RESULT=/bin/false
+	runcmd "chmod 755 $install_root/bedrock/bin/busybox" || RESULT=/bin/false
+	runcmd "chmod +s $install_root/bedrock/bin/busybox" || RESULT=/bin/false
+	runcmd "cp ./examples/mdev_fat.conf $install_root/etc/mdev.conf" || RESULT=/bin/false
+	runcmd "chmod 644 $install_root/etc/mdev.conf" || RESULT=/bin/false
+	runcmd "chroot $install_root /bedrock/bin/busybox --install" || RESULT=/bin/false
+	runcmd "chroot $install_root /bedrock/bin/busybox ln -s /bedrock/bin/busybox /bin" || RESULT=/bin/false
+	check $RESULT
+
+	INSTALL_BUSYBOX=1
+}
+
 # ------------------------------------------------------------------------------
 # - execution starts here                                                      -
 # ------------------------------------------------------------------------------
@@ -814,6 +915,8 @@ case "$1" in
 				source_brp;; # stub, source is bundled
 			"bru")
 				source_bru;; # stub, source is bundled
+			"busybox")
+				source_busybox;;
 			"headers")
 				source_headers;;
 			"musl")
@@ -859,6 +962,8 @@ case "$1" in
 				make_brp;;
 			"bru")
 				make_bru;;
+			"busybox")
+				make_busybox;;
 			"headers")
 				make_headers;;
 			"musl")
@@ -925,6 +1030,8 @@ EOF
 				install_brp;;
 			"bru")
 				install_bru;;
+			"busybox")
+				install_busybox;;
 			"headers")
 				install_headers;;
 			"musl")
