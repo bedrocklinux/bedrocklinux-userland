@@ -6,5 +6,5 @@
 # should catch an attempt to use shutdown and inform the user another,
 # supported command should be used instead.  This should be before the
 # directory which contains a normal client's shutdown in the $PATH.
-echo 'ERROR: Bedrock Linux 1.0alpha4 Flopsie does not support "shutdown".  Try'
+echo 'ERROR: Bedrock Linux 1.0beta1 Hawkey does not support "shutdown".  Try'
 echo 'halt, poweroff or reboot instead'
