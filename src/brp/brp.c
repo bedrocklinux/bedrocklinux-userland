@@ -719,7 +719,7 @@ static int brp_readdir(const char *in_path, void *buf, fuse_fill_dir_t filler, o
 		filler(buf, ".", NULL, 0, flags);
 		filler(buf, "..", NULL, 0, flags);
 		/* add the reparse_config file */
-		filler(buf, "reparse_config", NULL, 0);
+		filler(buf, "reparse_config", NULL, 0, flags);
 		/* Add all of the items[i].out root-level directories */
 		for (i=0; i<item_count; i++) {
 			filler(buf, items[i].out+1, NULL, 0, flags);
