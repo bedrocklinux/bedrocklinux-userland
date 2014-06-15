@@ -591,6 +591,10 @@ install_permissions() {
 	if [ -n "${INSTALL_PERMISSIONS:-}" ]; then return; fi
 	# dependencies:
 	install_directories
+	install_brc
+	install_brp
+	install_bru
+	install_busybox
 
 	announce_low "Setting permissions"
 	RESULT=/bin/true
