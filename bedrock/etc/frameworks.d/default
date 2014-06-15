@@ -1,6 +1,8 @@
 # This is a recommended collection of settings for clients to utilize.
-# To understand why these choices were made, read the comments in
+# To understand what the various fields do, read
+#
 #     /bedrock/etc/clients.d/bedrock.conf
+#
 # You are free to make other frameworks to use in stead of this one, or in
 # addition to this one.  Moreover, you're welcome to alter or delete this
 # framework without worry about breaking anything if no clients are configured
@@ -8,10 +10,39 @@
 #
 # If you agree with the choices here, you can directly utilize this framework
 # by setting
+#
 #     framework = default
+#
 # in the .conf files for the clients yo would like to utilize this.
 #
 
-bind = /proc, /sys, /dev, /dev/pts, /dev/shm, /bedrock
-bind = /bedrock/clients/bedrock, /home, /root, /lib/modules, /tmp, /var/tmp
-union = /etc: profile, hostname, hosts, passwd, group, shadow, sudoers, resolv.conf
+# These items make up the bulk of the files which are considered global.  If
+# you would like to share some files not listed here, feel free to add them
+# here.
+share = /proc, /sys, /dev, /home, /root, /lib/modules, /tmp, /var/tmp, /mnt
+share = /media, /run
+
+# Any mount points in /bedrock should be bind'd.  For example, if clients is
+# its own partition, add it to /etc/fstab so it is mounted at boot then add a
+# bind setting for it here.  Careful with the order - directories should come
+# before what they contain.
+bind =  /bedrock, /bedrock/brpath, /bedrock/clients/bedrock
+
+# One cannot rename() the share or bind items.  This is problematic for some
+# files in /etc (1) have neighboring items which are local (and so we cannot
+# share all of /etc) and (2) which are updated via rename()
+# Any files which hit the above two situations should be union'd.
+# One can break up share and bind items if the lines get to long, but union
+# items have a picky syntax; keep all of the items that are contained in the
+# same directory on the same line.
+union = /etc: profile, hostname, hosts, passwd, group, shadow, sudoers, resolv.conf, machine-id
+
+# Bedrock Linux has hooks which run before/after enabling/disabling a client.
+# This one is required to ensure several symlinks are in place which Bedrock
+# Linux expects for some of the above share items to work.
+preenable = /bedrock/share/brs/force-symlinks
+
+# No default scripts for the following hooks, but feel free to make your own.
+# postenable
+# predisable
+# postdisable
