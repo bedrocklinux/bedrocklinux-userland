@@ -904,6 +904,12 @@ fi
 
 case "$1" in
 	"source")
+		echo -n "Making temporary directory structure... "
+		mkdir -p $tmp
+		mkdir -p $src
+		mkdir -p $dev
+		touch $log
+		echo "done"
 		announce_high "Starting logging at"
 		echo "$log"
 		echo "(consider tail -f)"
@@ -1027,6 +1033,12 @@ EOF
 		;;
 
 	"install")
+		echo -n "Making temporary directory structure... "
+		mkdir -p $tmp
+		mkdir -p $src
+		mkdir -p $dev
+		touch $log
+		echo "done"
 		announce_high "Starting logging at"
 		echo "$log"
 		echo "(consider tail -f)"
