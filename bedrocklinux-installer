@@ -844,6 +844,7 @@ cat <<EOF
 	- README.md
 	- LICENSE
 	- This install script
+	- Temporary build files
 	- All of the source code
 	- .git
 
@@ -860,11 +861,12 @@ EOF
 		README.md \
 		LICENSE \
 		src \
+		$tmp \
 		.git \
 		bedrocklinux-installer
 	do
 		printf "Removing $file..."
-		rm -rf $file
+		rm -rf $file 2>/dev/null
 		echo "done"
 	done
 }
