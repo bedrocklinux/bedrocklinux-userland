@@ -701,7 +701,6 @@ install_headers() {
 	# check if already done
 	if [ -n "${INSTALL_HEADERS:-}" ]; then return; fi
 	# dependencies:
-	make_headers
 
 	component="headers"
 	announce_high "Installing $component"
@@ -714,7 +713,6 @@ install_musl() {
 	# check if already done
 	if [ -n "${INSTALL_MUSL:-}" ]; then return; fi
 	# dependencies:
-	make_musl
 
 	component="musl"
 	announce_high "Installing $component"
@@ -727,7 +725,6 @@ install_fuse() {
 	# check if already done
 	if [ -n "${INSTALL_FUSE:-}" ]; then return; fi
 	# dependencies:
-	make_fuse
 
 	component="fuse"
 	announce_high "Installing $component"
@@ -740,9 +737,7 @@ install_cap() {
 	# check if already done
 	if [ -n "${INSTALL_CAP:-}" ]; then return; fi
 	# dependencies:
-	make_cap
 	install_directories
-	install_permissions
 
 	component="cap"
 	announce_high "Installing $component"
@@ -759,7 +754,6 @@ install_libbedrock() {
 	# check if already done
 	if [ -n "${INSTALL_LIBBEDROCK:-}" ]; then return; fi
 	# dependencies:
-	make_libbedrock
 
 	component="libbedrock"
 	announce_high "Installing $component"
@@ -773,9 +767,7 @@ install_brc() {
 	if [ -n "${INSTALL_BRC:-}" ]; then return; fi
 	# dependencies:
 	install_directories
-	install_permissions
 	install_cap
-	make_brc
 
 	component="brc"
 	announce_high "Installing $component"
@@ -795,8 +787,6 @@ install_brp() {
 	if [ -n "${INSTALL_BRP:-}" ]; then return; fi
 	# dependencies:
 	install_directories
-	install_permissions
-	make_brp
 
 	component="brp"
 	announce_high "Installing $component"
@@ -810,8 +800,6 @@ install_bru() {
 	if [ -n "${INSTALL_BRU:-}" ]; then return; fi
 	# dependencies:
 	install_directories
-	install_permissions
-	make_bru
 
 	component="bru"
 	announce_high "Installing $component"
@@ -825,7 +813,6 @@ install_busybox() {
 	if [ -n "${INSTALL_BUSYBOX:-}" ]; then return; fi
 	# dependencies:
 	install_directories
-	install_permissions
 
 	announce_low "Installing busybox"
 	RESULT=/bin/true
