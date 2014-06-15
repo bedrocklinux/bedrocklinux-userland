@@ -444,7 +444,7 @@ make_brp() {
 
 make_bru() {
 	# check if already done
-	if [ -n "${MAKE_BRP:-}" ]; then return; fi
+	if [ -n "${MAKE_BRU:-}" ]; then return; fi
 	# dependencies:
 	make_musl
 	make_fuse
