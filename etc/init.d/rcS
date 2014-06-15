@@ -1,5 +1,5 @@
 #!/bin/sh
-### Bedrock Linux 1.0alpha4 Flopsie
+### Bedrock Linux 1.0beta1 Hawkey
 ### rcS init script
 
 # get settings from /bedrock/etc/rc.conf
@@ -19,7 +19,7 @@ __          __             __
 \ \_________\ \____________\ \___  
  \  _ \  _\ _  \  _\ __ \ __\   /  
   \___/\__/\__/ \_\ \___/\__/\_\_\ 
-    Bedrock Linux 1.0alpha4 Flopsie
+      Bedrock Linux 1.0beta1 Hawkey
 EOF
 printf "$NORMAL"
 
@@ -74,7 +74,7 @@ fi
 echo "" > /proc/sys/kernel/hotplug
 echo "" > /sys/kernel/uevent_helper
 
-announce "Preparing /dev, /dev/pts, /dev/shm"
+announce "Preparing /dev, /dev/pts, /dev/shm, /run"
 RESULT=/bin/true
 # if /dev was mounted in an initrd, use it; otherwise, mount it
 if ! grep -q "^\w* /dev devtmpfs" /proc/mounts && \
@@ -93,6 +93,12 @@ if ! grep -q "^\w* /dev/shm tmpfs" /proc/mounts
 then
 	mkdir -p /dev/shm
 	mount -w -o mode=777 -t tmpfs tmpfs /dev/shm || RESULT=/bin/false
+fi
+# if /run was mounted in an initrd, use it; otherwise, mount it
+if ! grep -q "^\w* /run tmpfs" /proc/mounts
+then
+	mkdir -p /dev/shm
+	mount -w -o mode=777 -t tmpfs tmpfs /run || RESULT=/bin/false
 fi
 eval /bin/true; result
 
@@ -234,7 +240,7 @@ if [ -n "$(bri -l)" ]
 then
 	for client in $(bri -l)
 	do
-		brs up $client >/dev/null 2>&1 || RESULT=/bin/false
+		brs enable $client >/dev/null 2>&1 || RESULT=/bin/false
 	done
 fi
 eval $RESULT; result
