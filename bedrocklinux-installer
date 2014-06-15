@@ -885,7 +885,11 @@ EOF
 install_root="$(pwd)"
 if [ -z "${BEDROCKLINUX_INSTALLER_TMP:-}" ]
 then
-	tmp="/tmp/bedrocklinux-installer-tmp"
+	# If someone is using a live system, /tmp could be ramdisk.  Thus, default
+	# to $install_root so it guarantees using real disk for temporary files.
+	# Worst comes to worst either the user wipes all of these files or reboots
+	# into Bedrock Linux which will clear this location in init.
+	tmp="$install_root/tmp/bedrocklinux-installer-tmp"
 else
 	tmp="$BEDROCKLINUX_INSTALLER_TMP"
 fi
