@@ -607,6 +607,7 @@ install_permissions() {
 
 	# normal directories
 	for dir in                          \
+		./                              \
 		bedrock                         \
 			bedrock/bin                 \
 			bedrock/brpath              \
