@@ -693,6 +693,7 @@ install_permissions() {
 	# executable files
 	for file in                          \
 		bedrock/bin/brc                  \
+		bedrock/bin/bri                  \
 		bedrock/bin/brl                  \
 		bedrock/bin/brsh                 \
 		bedrock/bin/brw                  \
