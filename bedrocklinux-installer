@@ -1058,6 +1058,7 @@ EOF
 				install_musl
 				install_permissions
 cat <<EOF
+
 Done installing all requested items.
 You will still need to install:
 - a kernel (and initrd, modules, etc)
@@ -1068,7 +1069,7 @@ and to configure the system.
 If you'd like, you can remove files that are not necessary to run the system
 with:
 
-./bedrocklinux-installer hard-clean.
+    ./bedrocklinux-installer hard-clean.
 
 Enjoy!
 EOF
