@@ -1,0 +1,81 @@
+#!/bin/sh
+### Bedrock Linux 1.0beta1 Hawkey
+### force-symlinks
+# This script will create symlinks in Bedrock Linux clients just before they are setup.
+
+create_symlinks() {
+	# ensure the directories that should contain both the source and destination exist.
+	mkdir -p $core-src-dir
+	mkdir -p $core-dst-dir
+
+	if [ -h $core-src ] && [ "$(readlink $core-src)" = "$client-dst" ]
+	then
+		# This is the desired situation, everything is already set up.
+		return
+	elif [ -h $core-src ] && [ "$(readlink $core-src)" != "$client-dst" ]
+	then
+		# The symlink exists but it is pointing in the wrong location.  This is
+		# a particularly bad situation as there is no way this could have
+		# happened that the script knows about.
+		ln -sf "$client-dst" "$core-src"
+	elif [ ! -e "$core-src" ]
+	then
+		# Nothing exists at where we want the symlink.  Just create it.
+		ln -sf "$client-dst" "$core-src"
+	elif [ -e "$core-src" ]
+	then
+		# Something exists at the location where we want the symlink that isn't
+		# a symlink.  This is the situation for which this script was made.
+		# Move that file/directory to where we want it to go, then create the
+		# symlink to it.
+		mv "$core-src" "core-dst"
+		ln -sf "$client-dst" "$core-src"
+	fi
+}
+
+
+
+client=$1
+
+# Install the /var/lib/dbus/machine-id -> /etc/machine-id symlink
+
+# This is where the core sees the location the symlink file will be placed.
+core-src=/bedrock/clients/$client/var/lib/dbus/machine-id
+core-src-dir=/bedrock/clients/$client/var/lib/dbus
+# This is where the core sees the location to which the symlink will point
+core-dst=/bedrock/clients/$client/etc/machine-id
+core-dst-dir=/bedrock/clients/$client/etc/
+# This is where the client sees the location to which the symlink will point.
+client-dst=/bedrock/clients/$client/etc/machine-id
+
+create_symlinks
+
+
+# Install the /var/run -> /run symlink
+
+# This is where the core sees the location the symlink file will be placed.
+core-src=/bedrock/clients/$client/var/run
+core-src-dir=/bedrock/clients/$client/var/
+# This is where the core sees the location to which the symlink will point
+core-dst=/bedrock/clients/$client/run
+core-dst-dir=/bedrock/clients/$client/
+# This is where the client sees the location to which the symlink will point.
+client-dst=/run
+
+create_symlinks
+
+# Install the /etc/mtab -> /proc/mounts
+
+# This is where the core sees the location the symlink file will be placed.
+core-src=/bedrock/clients/$client/etc/mtab
+core-src-dir=/bedrock/clients/$client/etc
+# This is where the core sees the location to which the symlink will point
+core-dst=/bedrock/clients/$client/proc/mounts
+core-dst-dir=/bedrock/clients/$client/proc
+# This is where the client sees the location to which the symlink will point.
+client-dst=/proc/mounts
+
+# we don't want to actually move an existing /etc/mtab, just delete it:
+[ -e $core-src ] && rm -rf $core-src >/dev/null 2>&1
+
+create_symlinks
