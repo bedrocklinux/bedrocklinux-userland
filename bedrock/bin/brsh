@@ -57,7 +57,7 @@ if [ -f ~/.brsh.conf ] && which $(basename $(cat ~/.brsh.conf)) >/dev/null
 then
 	export SHELL=$(cat ~/.brsh.conf)
 else
-	echo "Error: brsh can not find shell specified in ~/.brsh.conf, defaulting to /bin/sh"
+	echo "Warning: brsh can not find shell specified in ~/.brsh.conf, defaulting to /bin/sh"
 	export SHELL=/bin/sh
 fi
 
