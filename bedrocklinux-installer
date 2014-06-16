@@ -576,6 +576,11 @@ install_directories() {
 		usr                             \
 			usr/bin                     \
 			usr/sbin                    \
+			usr/share                   \
+				usr/share/man           \
+				usr/share/info          \
+				usr/share/icons         \
+				usr/share/applications  \
 		var                             \
 			var/lib                     \
 			var/run                     \
@@ -636,6 +641,11 @@ install_permissions() {
 		usr                             \
 			usr/bin                     \
 			usr/sbin                    \
+			usr/share                   \
+				usr/share/man           \
+				usr/share/info          \
+				usr/share/icons         \
+				usr/share/applications  \
 		var                             \
 			var/lib                     \
 				var/lib/urandom
