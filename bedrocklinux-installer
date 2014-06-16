@@ -916,6 +916,7 @@ case "$1" in
 				source_brc         # stub, source is bundled
 				source_brp         # stub, source is bundled
 				source_bru         # stub, source is bundled
+				source_busybox
 				source_cap
 				source_directories # stub, no source to get
 				source_fuse
