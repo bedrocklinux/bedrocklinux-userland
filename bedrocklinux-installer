@@ -981,6 +981,7 @@ case "$1" in
 				make_brc
 				make_brp
 				make_bru
+				make_busybox
 				make_cap
 				make_directories
 				make_fuse
