@@ -211,6 +211,9 @@ disable() {
 			echo "This must be resolved manually."
 		fi
 	fi
+
+	# tell brs about the change
+	echo 1 > /bedrock/brpath/reparse_config
 }
 
 # this does enable *and* update
@@ -374,6 +377,9 @@ EOF
 			echo "This must be resolved manually."
 		fi
 	fi
+
+	# tell brs about the change
+	echo 1 > /bedrock/brpath/reparse_config
 }
 
 update() {
