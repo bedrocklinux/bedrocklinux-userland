@@ -691,6 +691,7 @@ install_permissions() {
 		bedrock/sbin/halt                \
 		bedrock/sbin/poweroff            \
 		bedrock/sbin/reboot              \
+		bedrock/sbin/setcap              \
 		bedrock/sbin/shutdown            \
 		bedrock/share/brs/force-symlinks \
 		etc/init.d/rcK                   \
