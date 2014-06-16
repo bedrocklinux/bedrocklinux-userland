@@ -554,6 +554,8 @@ install_directories() {
 				bedrock/clients/bedrock \
 			bedrock/etc                 \
 			bedrock/sbin                \
+			bedrock/share               \
+				bedrock/share/brs       \
 		bin                             \
 		boot                            \
 		dev                             \
@@ -612,6 +614,8 @@ install_permissions() {
 				bedrock/clients/bedrock \
 			bedrock/etc                 \
 			bedrock/sbin                \
+			bedrock/share               \
+				bedrock/share/brs       \
 		bin                             \
 		boot                            \
 		dev                             \
@@ -676,21 +680,22 @@ install_permissions() {
 	done
 
 	# executable files
-	for file in                \
-		bedrock/bin/brc        \
-		bedrock/bin/brl        \
-		bedrock/bin/brsh       \
-		bedrock/bin/brw        \
-		bedrock/sbin/brp       \
-		bedrock/sbin/brs       \
-		bedrock/sbin/halt      \
-		bedrock/sbin/poweroff  \
-		bedrock/sbin/reboot    \
-		bedrock/sbin/shutdown  \
-		etc/init.d/rcK         \
-		etc/init.d/rcK.clients \
-		etc/init.d/rcS         \
-		etc/init.d/rcS.clients \
+	for file in                          \
+		bedrock/bin/brc                  \
+		bedrock/bin/brl                  \
+		bedrock/bin/brsh                 \
+		bedrock/bin/brw                  \
+		bedrock/sbin/brp                 \
+		bedrock/sbin/brs                 \
+		bedrock/sbin/halt                \
+		bedrock/sbin/poweroff            \
+		bedrock/sbin/reboot              \
+		bedrock/sbin/shutdown            \
+		bedrock/share/brs/force-symlinks \
+		etc/init.d/rcK                   \
+		etc/init.d/rcK.clients           \
+		etc/init.d/rcS                   \
+		etc/init.d/rcS.clients           \
 		etc/init.d/rcS.udev
 	do
 		runcmd "chmod 755 $file"       || RESULT=/bin/false
