@@ -121,7 +121,7 @@ disable() {
 		bri -P "$client" | cut -d' ' -f1 | xargs
 	}
 	body() {
-		kill $current || sleep 1 && kill $current
+		kill $current || sleep 2 && kill -9 $current
 	}
 	if ! repeat_down
 	then
@@ -212,7 +212,7 @@ disable() {
 		fi
 	fi
 
-	# tell brs about the change
+	# tell brp about the change
 	echo 1 > /bedrock/brpath/reparse_config
 }
 
@@ -378,7 +378,7 @@ EOF
 		fi
 	fi
 
-	# tell brs about the change
+	# tell brp about the change
 	echo 1 > /bedrock/brpath/reparse_config
 }
 
