@@ -58,9 +58,6 @@ then
 	export SHELL=$(cat ~/.brsh.conf)
 else
 	echo "Error: brsh can not find shell specified in ~/.brsh.conf, defaulting to /bin/sh"
-	cat ~/.brsh.conf; echo $?
-	basename $(cat ~/.brsh.conf); echo $?
-	which $(basename $(cat ~/.brsh.conf)); echo $?
 	export SHELL=/bin/sh
 fi
 
