@@ -704,7 +704,16 @@ install_permissions() {
 	done
 
 	check $RESULT
+
+	# setcap
+	for file in                          \
+		bedrock/bin/brc
+	do
+		runcmd "$install_root/bedrock/sbin/setcap cap_sys_chroot=ep $install_root/bedrock/bin/brc" || RESULT=/bin/false
+	done
+
 	INSTALL_PERMISSIONS=1
+
 }
 
 install_headers() {
