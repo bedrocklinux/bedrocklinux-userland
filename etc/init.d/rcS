@@ -234,6 +234,10 @@ else
 fi
 result
 
+announce "Setting up implicit path"
+brp /bedrock/brpath &
+result
+
 announce "Setting up client shared items"
 RESULT=/bin/true
 if [ -n "$(bri -l)" ]
