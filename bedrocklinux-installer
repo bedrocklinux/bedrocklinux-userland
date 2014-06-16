@@ -965,10 +965,11 @@ case "$1" in
 			*)
 				echo "\"$2\" is not a valid component, see \`./bedrocklinux-installer help\`"
 				exit 1;;
-		esac;;
+		esac
 		echo ""
 		echo "Successfully completed acquiring all requested items."
 		return
+		;;
 	"make")
 		if [ -e "$tmp" ] && [ -z "${KEEP_OLD:-}" ]
 		then
@@ -1035,13 +1036,11 @@ case "$1" in
 				echo "\"$2\" is not a valid component, see \`./bedrocklinux-installer help\`"
 				exit 1;;
 		esac
-		echo ""
-		echo "Successfully completed making all requested items."
-		return
 cat <<EOF
 Done making $2.  To install $2, run as root:
     ./bedrocklinux-installer install $2
 EOF
+		return
 		;;
 
 	"install")
@@ -1117,13 +1116,14 @@ return
 			*)
 				echo "\"$2\" is not a valid component, see \`./bedrocklinux-installer help\`"
 				exit 1;;
-		esac;;
+		esac
 		echo ""
 		echo "Successfully completed installing all requested items."
 		return
+		;;
 	"hard-clean")
 		hard_clean
-		return 0
+		return
 		;;
 	"help"|"h"|"--help"|"-h"|"")
 		print_help;;
