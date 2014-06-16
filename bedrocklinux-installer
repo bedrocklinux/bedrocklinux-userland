@@ -848,9 +848,8 @@ cat <<EOF
 	- All of the source code
 	- .git
 
-	Are you sure you want to continue?
 EOF
-	printf "(y/N)"
+	printf "Are you sure you want to continue? (y/N) "
 	read YN
 	if [ "$YN" != "y" ]
 	then
@@ -897,7 +896,7 @@ echo "Bedrock Linux 1.0beta1 Hawkey installer"
 echo "---------------------------------------"
 echo ""
 
-if [ -z "${1:-}" ] || [ -z "${2:-}" ]
+if [ -z "${1:-}" ]
 then
 	print_help
 fi
