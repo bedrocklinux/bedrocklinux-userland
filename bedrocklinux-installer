@@ -544,6 +544,8 @@ install_directories() {
 	announce_high "Making directory tree"
 	RESULT=/bin/true
 
+	cd $install_root
+
 	for dir in                          \
 		bedrock                         \
 			bedrock/bin                 \
@@ -596,8 +598,10 @@ install_permissions() {
 	install_bru
 	install_busybox
 
-	announce_low "Setting permissions"
+	announce_high "Setting permissions"
 	RESULT=/bin/true
+
+	cd $install_root
 
 	# normal directories
 	for dir in                          \
