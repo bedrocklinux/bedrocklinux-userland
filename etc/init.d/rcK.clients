@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/bedrock/bin/busybox sh
+#
 # Place commands for clients to run at shutdown in the order that you would
 # like to boot them.  For example, if you would like Debian Squeeze's cups
 # daemon to stop at shutdown:

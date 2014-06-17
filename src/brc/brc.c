@@ -5,7 +5,7 @@
  *      modify it under the terms of the GNU General Public License
  *      version 2 as published by the Free Software Foundation.
  *
- * Copyright (c) 2012-2013 Daniel Thau <paradigm@bedrocklinux.org>
+ * Copyright (c) 2012-2014 Daniel Thau <danthau@bedrocklinux.org>
  *
  * This program is a derivative work of capchroot 0.1, and thus:
  * Copyright (c) 2009 Thomas Bächler <thomas@archlinux.org>

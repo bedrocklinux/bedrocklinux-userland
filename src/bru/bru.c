@@ -1,11 +1,11 @@
 /*
  * bru.c
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * version 2 as published by the Free Software Foundation.
+ *      This program is free software; you can redistribute it and/or
+ *      modify it under the terms of the GNU General Public License
+ *      version 2 as published by the Free Software Foundation.
  *
- * Copyright (c) 2013 Daniel Thau <paradigm@bedrocklinux.org>
+ * Copyright (c) 2013-2014 Daniel Thau <danthau@bedrocklinux.org>
  *
  * This program will mount a virtual filesystem in the directory provided as
  * the first argument.  It will redirect filesystem calls to the directory

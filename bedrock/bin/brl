@@ -1,6 +1,13 @@
-#!/bin/sh
-### Bedrock Linux 1.0beta1 Hawkey
-### brl (BedRock aLl)
+#!/bedrock/bin/busybox sh
+#
+# brl (BedRock aLl)
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2014 Daniel Thau <danthau@bedrocklinux.org>
+#
 # This script will run the argument in the local context of all enabled
 # clients
 

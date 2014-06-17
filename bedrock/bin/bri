@@ -1,8 +1,16 @@
 #!/bedrock/bin/busybox sh
-### Bedrock Linux 1.0beta1 Hawkey
-### bri (BedRock Information / BedRock Introspection)
+#
+# bri (BedRock Information / BedRock Introspection)
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2014 Daniel Thau <danthau@bedrocklinux.org>
+#
+#
 # This script will provide information about Bedrock Linux subsystems
-
+#
 # Abort if anything returns non-zero unexpectedly
 #set -e TODO: go through and ensure everything that could desirably fail, like a "grep", is || true'd
 # Abort if accessing unassigned variable

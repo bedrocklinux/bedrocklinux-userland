@@ -1,6 +1,13 @@
-#!/bin/sh
-### Bedrock Linux 1.0beta1 Hawkey
-### rcS init script
+#!/bedrock/bin/busybox sh
+#
+# rcS init script
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2014 Daniel Thau <danthau@bedrocklinux.org>
+
 
 # get settings from /bedrock/etc/rc.conf
 . /bedrock/etc/rc.conf
