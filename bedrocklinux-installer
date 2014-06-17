@@ -887,7 +887,7 @@ EOF
 	if [ "$YN" != "y" ]
 	then
 		echo "Did not respond with \"y\", aborting"
-		return 0;
+		exit
 	fi
 	for file in \
 		README.md \
@@ -996,7 +996,7 @@ case "$1" in
 		esac
 		echo ""
 		echo "Successfully completed acquiring all requested items."
-		return
+		exit
 		;;
 	"make")
 		if [ -e "$tmp" ] && [ -z "${KEEP_OLD:-}" ]
@@ -1068,7 +1068,7 @@ cat <<EOF
 Done making $2.  To install $2, run as root:
     ./bedrocklinux-installer install $2
 EOF
-		return
+		exit
 		;;
 
 	"install")
@@ -1110,7 +1110,7 @@ with:
 
 Enjoy!
 EOF
-return
+exit
 				;;
 			"devstack")
 				install_cap
@@ -1147,11 +1147,11 @@ return
 		esac
 		echo ""
 		echo "Successfully completed installing all requested items."
-		return
+		exit
 		;;
 	"hard-clean")
 		hard_clean
-		return
+		exit
 		;;
 	"help"|"h"|"--help"|"-h"|"")
 		print_help;;
