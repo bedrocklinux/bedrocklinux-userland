@@ -1,6 +1,12 @@
 #!/bin/sh
-### Bedrock Linux 1.0beta1 Hawkey
-### bedrocklinux-installer
+#
+# bedrocklinux-installer
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2013-2014 Daniel Thau <danthau@bedrocklinux.org>
 
 # This script can be used to compile and install major components of a Bedrock
 # Linux system.

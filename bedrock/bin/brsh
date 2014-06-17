@@ -1,6 +1,13 @@
 #!/bedrock/bin/busybox sh
-### Bedrock Linux 1.0beta1 Hawkey
-### brsh (BedRock SHell)
+#
+# brsh (BedRock SHell)
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2014 Daniel Thau <danthau@bedrocklinux.org>
+#
 # This is a meta-shell which solves several potential issues:
 #
 # - /etc/passwd needs the full path to the user's shell.  While it is possible

@@ -1,6 +1,4 @@
-#!/bin/sh
-### Bedrock Linux 1.0beta1 Hawkey
-### /etc/profile
+#!/bedrock/bin/busybox sh
 
 # source settings from rc.conf
 . /bedrock/etc/rc.conf

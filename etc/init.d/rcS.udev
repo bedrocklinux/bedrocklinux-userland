@@ -1,3 +1,5 @@
+#!/bedrock/bin/busybox sh
+#
 # This script will replace mdev with udev from a client.
 # This is disabled by default.
 # To use, fill in the UDEV_CLIENT variable below and then place the following
