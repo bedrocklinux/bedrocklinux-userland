@@ -339,7 +339,8 @@ IFS="
 			# Print output
 			if [ "$found_type" = "$expected_type" ] ||\
 				[ "$expected_type" = "subshare" ] ||\
-				[ "$expected_type" = "other" ]
+				[ "$expected_type" = "other" ] ||\
+				( [ "$expected_type" = "share" ] && [ "$found_type" = "subshare" ] )
 			then
 				match="OK"
 			else
