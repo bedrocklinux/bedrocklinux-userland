@@ -278,7 +278,7 @@ EOF
 			mount --bind "$mount" "$mount"
 		fi
 		# ensure core's copy is shared
-		mount --make-rshared "/bedrock/clients/$client$mount"
+		mount --make-rshared "$mount"
 		mount --rbind "$mount" "/bedrock/clients/$client$mount"
 	done
 
