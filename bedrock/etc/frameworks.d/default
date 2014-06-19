@@ -35,7 +35,7 @@ bind =  /bedrock, /bedrock/brpath, /bedrock/clients/bedrock
 # One can break up share and bind items if the lines get to long, but union
 # items have a picky syntax; keep all of the items that are contained in the
 # same directory on the same line.
-union = /etc: profile, hostname, hosts, passwd, group, shadow, sudoers, resolv.conf, machine-id
+union = /etc: profile, hostname, hosts, passwd, group, shadow, sudoers, resolv.conf, machine-id, shells
 
 # Bedrock Linux has hooks which run before/after enabling/disabling a client.
 # This one is required to ensure several symlinks are in place which Bedrock
