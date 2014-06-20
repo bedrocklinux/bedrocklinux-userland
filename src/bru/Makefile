@@ -1,5 +1,5 @@
 all: bru.c
-	$(CC) -Wall bru.c -o bru -lfuse3
+	$(CC) -Wall bru.c -o bru -lfuse
 
 clean:
 	-rm bru

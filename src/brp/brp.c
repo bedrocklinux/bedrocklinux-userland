@@ -36,8 +36,8 @@
  * mnemonic index.
  */
 
-#define FUSE_USE_VERSION 30
-#include <fuse3/fuse.h>
+#define FUSE_USE_VERSION 29
+#include <fuse.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -700,7 +700,7 @@ static int brp_getattr(const char *in_path, struct stat *stbuf)
  * Returns the filenames in a specified directory.  This is the heart of what
  * you think of when `ls` is run.
  */
-static int brp_readdir(const char *in_path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags)
+static int brp_readdir(const char *in_path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
 {
 	SET_CALLER_UID();
 
@@ -716,13 +716,13 @@ static int brp_readdir(const char *in_path, void *buf, fuse_fill_dir_t filler, o
 	 */
 	if (in_path[0] == '/' && in_path[1] == '\0') {
 		/* add . and .. */
-		filler(buf, ".", NULL, 0, flags);
-		filler(buf, "..", NULL, 0, flags);
+		filler(buf, ".", NULL, 0);
+		filler(buf, "..", NULL, 0);
 		/* add the reparse_config file */
-		filler(buf, "reparse_config", NULL, 0, flags);
+		filler(buf, "reparse_config", NULL, 0);
 		/* Add all of the items[i].out root-level directories */
 		for (i=0; i<item_count; i++) {
-			filler(buf, items[i].out+1, NULL, 0, flags);
+			filler(buf, items[i].out+1, NULL, 0);
 		}
 		return 0;
 	}
@@ -815,11 +815,11 @@ static int brp_readdir(const char *in_path, void *buf, fuse_fill_dir_t filler, o
 	 */
 	qsort(files, file_i, sizeof(char*), strcmpwrap);
 	if (file_i > 0) {
-		filler(buf, files[0], NULL, 0, flags);
+		filler(buf, files[0], NULL, 0);
 	}
 	for (i=1; i<file_i; i++) {
 		if (strcmp(files[i], files[i-1]) != 0) {
-			filler(buf, files[i], NULL, 0, flags);
+			filler(buf, files[i], NULL, 0);
 		}
 	}
 	/* free */
