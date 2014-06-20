@@ -37,8 +37,8 @@
  * explicitly mentioned as required in the following fuse tutorial:
  * http://sourceforge.net/apps/mediawiki/fuse/index.php?title=Hello_World
  */
-#define FUSE_USE_VERSION 30
-#include <fuse3/fuse.h>
+#define FUSE_USE_VERSION 29
+#include <fuse.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -597,7 +597,7 @@ static int bru_opendir(const char *path, struct fuse_file_info *fi)
  * - Files that do not match redir_files and are in the same place in
  *   default_dir.
  */
-static int bru_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags)
+static int bru_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
 {
 
 	SET_CALLER_UID();
@@ -614,8 +614,8 @@ static int bru_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 	/*
 	 * Every directory has these.
 	 */
-	filler(buf, ".", NULL, 0, flags);
-	filler(buf, "..", NULL, 0, flags);
+	filler(buf, ".", NULL, 0);
+	filler(buf, "..", NULL, 0);
 
 	/*
 	 * Populate with items from redir_dir.
@@ -651,7 +651,7 @@ static int bru_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 				if (strncmp(full_path, redir_files[i], redir_file_lens[i]) == 0
 						&& (full_path[redir_file_lens[i]] == '\0'
 							|| full_path[redir_file_lens[i]] == '/')) {
-					filler(buf, dir->d_name, NULL, 0, flags);
+					filler(buf, dir->d_name, NULL, 0);
 					break;
 				}
 			}
@@ -702,7 +702,7 @@ static int bru_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 				}
 			}
 			if (match == 0)
-				filler(buf, dir->d_name, NULL, 0, flags);
+				filler(buf, dir->d_name, NULL, 0);
 			free(full_path);
 		}
 		closedir(d);

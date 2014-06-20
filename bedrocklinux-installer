@@ -290,11 +290,13 @@ source_fuse() {
 	mkdir -p "$install_root/src/$component"
 	cd "$install_root/src/$component"
 	announce_low "Downloading $component source"
-	# There are no stable/release commits which include patches required to
-	# compile against musl.  Hence, we have to use a bleeding-edge commit.
-	# This is the latest one which has been successfully used to compile the
-	# brp and bru.
-	runcmd 'git archive --format=tar --remote="git://git.code.sf.net/p/fuse/fuse" "3f357f06ed4bb75244e745641af1c53d5b3d9984" | tar xf -'
+	# I've run into problems using the 3.X branch with newer kernels;
+	# apparently kernel fuse updates are only tested against the latest stable.
+	# The 2.9.3 release tarball does not include a patch to compile against
+	# musl; however, the latest from the 2.9 bugfix branch does.  Presumably
+	# grabbing this will also include newer bugfixes in this line
+	# automatically.
+	runcmd 'git archive --format=tar --remote="git://git.code.sf.net/p/fuse/fuse" "fuse_2_9_bugfix" | tar xf -'
 	check
 }
 
@@ -443,7 +445,7 @@ make_brp() {
 	component="brp"
 	announce_high "Making $component"
 	copy_untar
-	compile "CC=$cc"
+	compile "'CC=$cc -D_FILE_OFFSET_BITS=64'"
 
 	MAKE_BRP="1"
 }
@@ -458,7 +460,7 @@ make_bru() {
 	component="bru"
 	announce_high "Making $component"
 	copy_untar
-	compile "CC=$cc"
+	compile "'CC=$cc -D_FILE_OFFSET_BITS=64'"
 
 	MAKE_BRU="1"
 }
