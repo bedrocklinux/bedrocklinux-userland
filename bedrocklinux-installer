@@ -574,6 +574,7 @@ install_directories() {
 			lib/firmware                \
 			lib/modules                 \
 		mnt                             \
+		media                           \
 		opt                             \
 		proc                            \
 		root                            \
@@ -640,6 +641,7 @@ install_permissions() {
 			lib/firmware                \
 			lib/modules                 \
 		mnt                             \
+		media                           \
 		opt                             \
 		proc                            \
 		root                            \
