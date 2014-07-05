@@ -6,7 +6,7 @@ clean:
 
 install:
 	mkdir -p $(prefix)/bin
-	install -m 655 brc $(prefix)/bin/brc
+	install -m 755 brc $(prefix)/bin/brc
 
 uninstall:
 	rm $(prefix)/bin/brc
