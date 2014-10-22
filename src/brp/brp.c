@@ -297,7 +297,7 @@ void free_config()
 
 	for (i=0; i<item_count; i++) {
 		free(items[i].out);
-		for (n=0; n<items[n].in_count; n++) {
+		for (n=0; n<items[i].in_count; n++) {
 			free(items[i].ins[n]);
 		}
 		free(items[i].ins);
