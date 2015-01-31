@@ -245,7 +245,7 @@ source_bru() {
 
 source_busybox() {
 	component=busybox
-	wget_source "http://www.busybox.net/downloads/busybox-1.22.1.tar.bz2"
+	wget_source "http://busybox.net/downloads/busybox-1.23.1.tar.bz2"
 }
 
 source_headers() {
@@ -500,6 +500,7 @@ make_busybox() {
 	# remove items which make compiling difficult. If the core doesn't need
 	# them, better to skip than to worry about patching
 	busybox_set_option "CONFIG_INETD" "n"
+	busybox_set_option "CONFIG_BRCTL" "n"
 	check
 	# if_ether.h needs a small patch to play with musl
 	announce_low "Fixing miscellaneous busybox-musl issues"
