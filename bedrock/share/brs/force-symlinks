@@ -35,7 +35,7 @@ create_symlinks() {
 		# a symlink.  This is the situation for which this script was made.
 		# Move that file/directory to where we want it to go, then create the
 		# symlink to it.
-		mv "$core_src" "core_dst"
+		mv "$core_src" "$core_dst"
 		ln -sf "$client_dst" "$core_src"
 	fi
 }
