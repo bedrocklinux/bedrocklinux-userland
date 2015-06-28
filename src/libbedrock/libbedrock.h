@@ -25,4 +25,4 @@
 
 
 /* ensure config file is only writable by root */
-void ensure_config_secure(char *config_path);
+int check_config_secure(char *config_path);

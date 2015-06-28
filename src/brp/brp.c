@@ -393,7 +393,10 @@ void parse_config()
 	/*
 	 * Ensure we're using a root-modifiable-only configuration file, just in case.
 	 */
-	ensure_config_secure(CONFIG);
+	if (!check_config_secure(CONFIG)) {
+		fprintf(stderr, "brp: config file at "CONFIG" is not secure, refusing to continue.");
+		exit(1);
+	}
 
 	/*
 	 * TODO: Maybe don't call out to shell to parse the config.

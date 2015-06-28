@@ -321,7 +321,8 @@ static int bru_rename(const char *old_path, const char *new_path)
 		ret = -errno;
 
 	/*
-	 * If it did *NOT* result in an EXDEV error, return.
+	 * If succeeded or errored with something other than an EXDEV error,
+	 * return.
 	 */
 	if (ret != -EXDEV) {
 		SET_RET_ERRNO();
@@ -484,6 +485,21 @@ static int bru_statfs(const char *path, struct statvfs *buf)
 	REDIR_PATH(path, new_path);
 	
 	int ret = statvfs(new_path, buf);
+
+	SET_RET_ERRNO();
+	return ret;
+}
+
+/*
+ * flush() is asking us to close the file descriptor to flush everything to
+ * disk, *but* this may be called multiple times, so we can't actually close
+ * the file.  We can abuse dup() to get the desired effect.
+ */
+static int bru_flush(const char *path, struct fuse_file_info *fi)
+{
+	SET_CALLER_UID();
+	
+	int ret = close(dup(fi->fh));
 
 	SET_RET_ERRNO();
 	return ret;
@@ -863,11 +879,7 @@ static struct fuse_operations bru_oper = {
 	.read = bru_read,
 	.write = bru_write,
 	.statfs = bru_statfs,
-	/*
-	 * I *think* we can skip implementing this, as the underlying filesystem
-	 * will take care of it. TODO: Confirm.
-	 * .flush = bru_flush,
-	 */
+	.flush = bru_flush,
 	.release = bru_release,
 	.fsync = bru_fsync,
 	.setxattr = bru_setxattr,
@@ -1010,6 +1022,12 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	/*
+	 * cd to mount point so we can (ab)use /proc/self/cwd to see under our
+	 * own mount point.
+	 */
+	chdir(mount_point);
+
 	/* Generate arguments for fuse:
 	 * - start with no arguments
 	 * - add argv[0] (which I think is just ignored)
@@ -1023,6 +1041,7 @@ int main(int argc, char* argv[])
 	struct fuse_args args = FUSE_ARGS_INIT(0, NULL);
 	fuse_opt_add_arg(&args, argv[0]);
 	fuse_opt_add_arg(&args, mount_point);
+	fuse_opt_add_arg(&args, "-d");
 	fuse_opt_add_arg(&args, "-s");
 	fuse_opt_add_arg(&args, "-oallow_other,nonempty");
 	/* stay in foreground, useful for debugging */
