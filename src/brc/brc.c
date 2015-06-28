@@ -5,7 +5,7 @@
  *      modify it under the terms of the GNU General Public License
  *      version 2 as published by the Free Software Foundation.
  *
- * Copyright (c) 2012-2014 Daniel Thau <danthau@bedrocklinux.org>
+ * Copyright (c) 2012-2015 Daniel Thau <danthau@bedrocklinux.org>
  *
  * This program is a derivative work of capchroot 0.1, and thus:
  * Copyright (c) 2009 Thomas Bächler <thomas@archlinux.org>
@@ -29,13 +29,145 @@
 
 #include <libbedrock.h>
 
-#define CONFIGDIR "/bedrock/etc/clients.d/"
-#define CLIENTDIR "/bedrock/clients/"
-#define CONFIGDIRLEN strlen(CONFIGDIR)
-#define CLIENTDIRLEN strlen(CONFIGDIR)
+/*
+ * This directory contains files corresponding to enabled strata
+ */
+#define STATEDIR "/bedrock/run/enabled_strata/"
+#define STATEDIRLEN strlen(STATEDIR)
+/*
+ * Directory containing actual strata files.
+ * This is what we will chroot() into
+ */
+#define STRATADIR "/bedrock/strata/"
+#define STRATADIRLEN strlen(STRATADIR)
+/*
+ * This directory is used to access executables in non-local strata.  If
+ * someone calls brc, they are specifying a specific strata, and are thus not
+ * looking for something in this directory. Thus we want to skip any $PATH
+ * entries that refer to this directory.
+ */
+#define BRPATHDIR "/bedrock/brpath/"
 
-/* ensure this process has the required capabilities */
-void ensure_capsyschroot(char* executable_name)
+
+/*
+ * Like execvp(), except skips any $PATH items starting with the "skip"
+ * argument.  "skip" should end with a "/".
+ */
+void execvp_skip(char *file, char *argv[], char *skip)
+{
+	/*
+	 * Ensure provided a NULL or empty string for file.
+	 */
+	if (!file || !*file) {
+		errno = ENOENT;
+		return;
+	}
+
+	/*
+	 * If file has a "/" in it, it is a specific path to a file; do not
+	 * search PATH.
+	 */
+	if (strchr(file, '/')) {
+		execv(file, argv);
+		/*
+		 * If we got here, there was some error.  errno should be set
+		 * accordingly.
+		 */
+		return;
+	}
+
+	/*
+	 * File does not have a "/" in it.  Search the $PATH.
+	 */
+
+	/*
+	 * get PATH variable
+	 */
+	char *path = getenv("PATH");
+
+	/*
+	 * If PATH is empty, set a default.
+	 */
+	if (!path) {
+		path = "/usr/local/bin:/usr/bin:/bin";
+	}
+
+	/*
+	 * Will be populated with filenames which could contain the target
+	 * executable.
+	 */
+	char path_entry[strlen(path) + 1 + strlen(file)];
+
+	int skip_len = strlen(skip);
+
+	/*
+	 * Iterate over PATH entries looking for executable.
+	 */
+	char* start;
+	char* end;
+
+	int loop = 1;
+	for (start = path, end = strchr(start, ':');
+			loop != 0;
+			start = end+1, end = strchr(start, ':')) {
+		/*
+		 * Get PATH entry
+		 */
+		if (end) {
+			strncpy(path_entry, start, end-start);
+			path_entry[end-start] = '\0';
+		} else {
+			/*
+			 * This is the last loop
+			 */
+			loop = 0;
+			end = path;
+			/*
+			 * Copy rest of path
+			 */
+			strcpy(path_entry, start);
+		}
+
+		/*
+		 * Check for empty path entry
+		 */
+		if (path_entry[0] == '\0') {
+			continue;
+		}
+
+		/*
+		 * Check if current entry is a skip entry
+		 */
+		if (strncmp(path_entry, skip, skip_len) == 0) {
+			continue;
+		}
+
+		/*
+		 * Concatenate file to the path.
+		 */
+		strcat(path_entry, "/");
+		strcat(path_entry, file);
+
+		/*
+		 * Attempt to execute.  If this succeeds, execution hands off
+		 * there and this program effectively ends. Otherwise - if this
+		 * program continues - check next entry next loop.
+		 */
+		execv(path_entry, argv);
+		if (!loop) {
+			break;
+		}
+	}
+
+	/*
+	 * Could not find item in PATH
+	 */
+	errno = ENOENT;
+	return;
+}
+
+/* check if this process has the required capabilities */
+int check_capsyschroot(char* executable_name)
 {
 	/* will store (all) current capabilities */
 	cap_t current_capabilities;
@@ -51,51 +183,57 @@ void ensure_capsyschroot(char* executable_name)
 	cap_get_flag(current_capabilities, CAP_SYS_CHROOT, CAP_PERMITTED, &chroot_permitted);
 	cap_get_flag(current_capabilities, CAP_SYS_CHROOT, CAP_EFFECTIVE, &chroot_effective);
 
-	/* if either chroot_permitted or chroot_effective is unset, abort */
+	/* if either chroot_permitted or chroot_effective is unset, return false */
+	int ret;
 	if (chroot_permitted != CAP_SET || chroot_effective != CAP_SET) {
-		fprintf(stderr, "This file is missing the cap_sys_chroot capability. To remedy this,\n"
-				"Run 'setcap cap_sys_chroot=ep %s' as root. \n",executable_name);
-		exit(1);
+		ret = 0;
+	} else {
+		ret = 1;
 	}
 
 	/* free memory used by current_capabilities as it is no longer needed */
 	cap_free(current_capabilities);
 
 	/* required capabilities are in place */
-	return;
+	return ret;
 }
 
-/* break out of chroot */
-void break_out_of_chroot()
+/*
+ * Break out of chroot().
+ *
+ * This requires some accessible directory to be specified via reference_dir.
+ */
+void break_out_of_chroot(char* reference_dir)
 {
 	/* go as high in the tree as possible */
 	chdir("/");
-	 /*
-	  * If CONFIGDIR did not exists, the config for the requested client would
-	  * not exist and the process would have aborted already.  Thus, CONFIGDIR
-	  * exists.
-	  *
-	  * Changing root to CONFIGDIR while we're in / means we're below the root
-	  * and thus outside of the chroot.
-	  *
-	  * What's below the roots (of the clients) but above the bedrock?  Dirt.
-	  */
-	if(chroot(CONFIGDIR) == -1){
-		perror("chroot");
+
+	if (chroot(reference_dir) == -1) {
+		fprintf(stderr, "brc: unable to use '%s' as a reference, aborting\n", reference_dir);
 		exit(1);
 	}
 	/*
-	 * We're in the dirt.  cd up the tree until we hit the actual, absolute
-	 * root directory.  We'll know we're there when the current and parent
-	 * directories both have the same inode.
+	 * We're in the dirt.  Change directory up the tree until we hit the
+	 * actual, absolute root directory.  We'll know we're there when the
+	 * current and parent directories both have the same device number and
+	 * inode.
+	 *
+	 * Note that it is technically possible for a directory and its parent
+	 * directory to have the same device number and inode without being the
+	 * real root. For example, this could occur if one bind mounts a directory
+	 * into itself, or using a filesystem (e.g. fuse) which does not use unique
+	 * inode numbers for every directory.  However, provided the directory
+	 * we are chroot()ed into on on the real root (e.g.
+	 * /bedrock/strata/<stratum>) does not have any of these situations,
+	 * the chdir("/") above will bypass any remaining possibility.
 	 */
 	struct stat stat_pwd;
 	struct stat stat_parent;
 	do {
 		chdir("..");
-		stat(".", &stat_pwd);
-		stat("..", &stat_parent);
-	} while(stat_pwd.st_ino != stat_parent.st_ino);
+		lstat(".", &stat_pwd);
+		lstat("..", &stat_parent);
+	} while(stat_pwd.st_ino != stat_parent.st_ino || stat_pwd.st_dev != stat_parent.st_dev);
 
 	/* We're at the absolute root directory, so set the root to where we are. */
 	chroot(".");
@@ -108,98 +246,174 @@ int main(int argc, char* argv[])
 	 * - ensure there are sufficient arguments
 	 */
 	if (argc < 2) {
-		fprintf(stderr, "No client specified, aborting\n");
+		fprintf(stderr, "brc: no stratum specified, aborting\n");
 		exit(1);
 	}
 
 	/*
 	 * Gather information we'll need later
-	 * - path to the client
-	 * - path to the config
+	 * - path to the stratum
+	 * - path to enabled/disabled state directory
 	 * - current working directory (relative to the current chroot, if we're in
 	 *   one)
 	 */
 
 	/*
-	 * "bedrock" client goes directly to the (real) root; everyone else goes in CLIENTDIR.
-	 *
-	 * /bedrock/clients/squeeze\0
-	 * |               ||     |\+ 1 for terminating NULL
-	 * |               |\-----+ strlen(argv[1])
-	 * \---------------+ CLIENTDIRLEN
-	 *
-	 * /\0
-	 * \-+ always shorter than above since "bedrock" is more than two characters.
+	 * /bedrock/strata/jessie\0
+	 * |              ||    |\+ 1 for terminating NULL
+	 * |              |\----+ strlen(argv[1])
+	 * \--------------+ STRATADIRLEN
 	 */
-	char client_path[CLIENTDIRLEN + strlen(argv[1]) + 1];
-	if (strcmp(argv[1],"bedrock") == 0) {
-		strcpy(client_path, "/");
-	} else {
-		strcpy(client_path, CLIENTDIR);
-		strcat(client_path, argv[1]);
-	}
+	char stratum_path[STRATADIRLEN + strlen(argv[1]) + 1];
+	strcpy(stratum_path, STRATADIR);
+	strcat(stratum_path, argv[1]);
 
 	/*
-	 * /bedrock/etc/clients.d/squeeze.conf\0
-	 * |                     ||    | |   |\+ 1 for terminating NULL
-	 * |                     ||    | \---+ 5 for ".conf"
-	 * |                     |\----+ argv[1]
-	 * \---------------------+ CONFIGDIRLEN
+	 * /bedrock/run/enabled_strata/jessie\0
+	 * |                          ||    |\+ 1 for terminating NULL
+	 * |                          ||    |
+	 * |                          |\----+ argv[1]
+	 * \--------------------------+ STATEDIRLEN
 	 */
-	char config_path[CONFIGDIRLEN + strlen(argv[1]) + 5 + 1];
-	strcpy(config_path, CONFIGDIR);
-	strcat(config_path, argv[1]);
-	strcat(config_path, ".conf");
+	char state_file_path[STATEDIRLEN + strlen(argv[1]) + 1];
+	strcpy(state_file_path, STATEDIR);
+	strcat(state_file_path, argv[1]);
 
 	char cwd_path[PATH_MAX + 1];
 	if (getcwd(cwd_path, PATH_MAX + 1) == NULL) {
 		/* failed to get cwd, falling back to root */
 		cwd_path[0] = '/';
 		cwd_path[1] = '\0';
-		fprintf(stderr,"WARNING: could not determine current working directory, "
-				"falling back to /");
+		fprintf(stderr,"brc: could not determine current working directory,\n"
+				"falling back to root directory\n");
 	}
 
 	/*
 	 * Sanity checks
+	 * - ensure state file exists and is secure if not using init or local
+	 *   alias
 	 * - ensure this process has the required capabilities
-	 * - ensure config exists and is secure
 	 */
-	ensure_capsyschroot(argv[0]);
-	ensure_config_secure(config_path);
 
-	/*
-	 * If we're in a chroot, break out
-	 */
-	break_out_of_chroot();
+	if (strcmp(argv[1], "init") != 0 && strcmp(argv[1], "local") != 0) {
+		if (check_config_secure(state_file_path)) {
+			/* config is found and secure, we're good to go */
+		} else if (errno == EACCES) {
+			fprintf(stderr, "brc: the state file for stratum\n"
+					"    %s\n"
+					"at\n"
+					"    %s\n"
+					"is insecure, refusing to continue.\n",
+					argv[1], state_file_path);
+			exit(1);
+		} else if (errno == ENOENT) {
+			fprintf(stderr, "brc: could not find state file for stratum\n"
+					"    %s\n"
+					"at\n"
+					"    %s\n"
+					"Perhaps the stratum is disabled or you typod the name?\n",
+					argv[1], state_file_path);
+			exit(1);
+		} else {
+			fprintf(stderr, "brc: error sanity checking request for stratum\n"
+					"    %s\n"
+					"via state file at\n"
+					"    %s\n",
+					argv[1], state_file_path);
+			exit(1);
+		}
+	}
 
-	/*
-	 * Try to cd to the client's root (relative to the now absolute root we're
-	 * at).  If this fails, it could be because the client doesn't actually exist.
-	 */
-	if (chdir(client_path) != 0) {
-		fprintf(stderr, "Could not find client, aborting.");
+	if (!check_capsyschroot(argv[0])) {
+		fprintf(stderr, "brc is missing the cap_sys_chroot capability. To remedy this,\n"
+				"Run '/bedrock/libexec/setcap cap_sys_chroot=ep /path/to/%s' as root.\n", argv[0]);
 		exit(1);
 	}
 
 	/*
-	 * We're at the desired client's root.  Set this as the root.
+	 * The next goal is to try to change directory to the target stratum's root
+	 * so we can chroot(".") the appropriate root.
+	 *
+	 * All of the strata will be in stratum_path relative to the real root
+	 * except two:
+	 *
+	 * - "local", the current stratum.  It is effectively a no-op with
+	 *   regards to changing local context.
+	 * - "init", the stratum that provides pid1.  This will be in the actual
+	 *   real root.
+	 *
+	 * When the init stratum is chosen, it is bind-mounted to its
+	 * stratum_path.  Thus, from the real root we can detect if the target
+	 * stratum is the real root stratum by comparing device number and inode
+	 * number of the real root to the stratum_path.  The down side to this
+	 * technique, however, is that if somehow that bind-mount is removed,
+	 * one cannot brc to the real root.  Without access to the real root,
+	 * problematic situations such as that bind-mount being removed will be
+	 * difficult to resolve.  In case this situation occurs, "init" is hard
+	 * coded as an alias to whatever stratum provides pid1.  Note that the
+	 * "init" stratum cannot be disabled.
 	 */
-	chroot(".");
+
+	if (strcmp(argv[1], "local") != 0) {
+		/*
+		 * If we're in a chroot, break out.
+		 *
+		 * brc is normally installed in /bedrock, so if this is
+		 * running, /bedrock should exist.  TODO: a better solution
+		 * would be to chdir("/") then readdir() and just pick
+		 * something we know exists.
+		 */
+		break_out_of_chroot("/bedrock");
+
+		struct stat stat_real_root;
+		struct stat stat_stratum_path;
+		stat(".", &stat_real_root);
+		stat(stratum_path, &stat_stratum_path);
+
+		/* not using init alias... */
+		if (strcmp(argv[1], "init") != 0 &&
+				/* ...and specified path is not bind mount to real
+				 * root, so it's not init, and so we need to chdir() and
+				 * chroot() to the new root */
+				(stat_real_root.st_dev != stat_stratum_path.st_dev ||
+				 stat_real_root.st_ino != stat_stratum_path.st_ino)) {
+			if (chdir(stratum_path) != 0) {
+				fprintf(stderr, "brc: could not find stratum's files, aborting\n");
+				exit(1);
+			}
+			/* We're at the desired stratum's root. */
+			chroot(".");
+		}
+	}
 
 	/*
-	 * Set the current working directory in this new client to the same as it
+	 * Set the current working directory in this new stratum to the same as it
 	 * was originally, if possible; fall back to the root otherwise.
 	 */
 	if(chdir(cwd_path) != 0) {
 		chdir("/");
-		fprintf(stderr,"WARNING: \"%s\" not present in target client, "
-				"falling back to root directory\n", cwd_path);
+		fprintf(stderr, "brc: warning: unable to set pwd to\n"
+				"    %s\n"
+				"for stratum\n"
+				"    %s\n",
+				cwd_path, argv[1]);
+		switch (errno) {
+		case EACCES:
+			fprintf(stderr, "due to: permission denied (EACCES).\n");
+			break;
+		case ENOENT:
+			fprintf(stderr, "due to: no such directory (ENOENT).\n");
+			break;
+		default:
+			perror("due to: execvp:\n");
+			break;
+		}
+		fprintf(stderr, "falling back to root directory\n");
 	}
 
 	/*
-	 * Get the command to run in the client.  If a command was provided, use
-	 * that.  If not, but $SHELL exists in the client, use that.  Failing
+	 * Get the command to run in the stratum.  If a command was provided, use
+	 * that.  If not, but $SHELL exists in the stratum, use that.  Failing
 	 * either of those, fall back to /bin/sh.
 	 */
 	char** cmd;
@@ -207,9 +421,11 @@ int main(int argc, char* argv[])
 		/*
 		 * The desired command was given as an argument to this program; use
 		 * that.
-		 * brc squeeze ls -l
-		 * ^ argv      |
-		 *             ^ argv + 2
+		 *
+		 * brc jessie ls -l
+		 * |   |      \ argv + 2
+		 * |   \argv+1
+		 * \ argv
 		 */
 		cmd = argv + 2;
 	} else {
@@ -228,13 +444,30 @@ int main(int argc, char* argv[])
 	}
 
 	/*
-	 * Everything is set, run the command.
+	 * Everything is set, run the command, skipping the brpath directory in
+	 * the $PATH search.
 	 */
-	execvp(cmd[0], cmd);
+	execvp_skip(cmd[0], cmd, BRPATHDIR);
 
 	/*
-	 * execvp() would have taken over if it worked.  If we're here, there was an error.
+	 * execvp() would have taken over if it worked.  If we're here, there
+	 * was an error.
 	 */
-	perror("execvp");
-	return -1;
+	fprintf(stderr, "brc: could not run\n"
+			"    %s\n"
+			"in stratum\n"
+			"    %s\n",
+			cmd[0], argv[1]);
+	switch (errno) {
+	case EACCES:
+		fprintf(stderr, "due to: permission denied (EACCES).\n");
+		break;
+	case ENOENT:
+		fprintf(stderr, "due to: unable to find file (ENOENT)\n");
+		break;
+	default:
+		perror("due to: execvp:\n");
+		break;
+	}
+	exit(1);
 }

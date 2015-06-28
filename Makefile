@@ -126,9 +126,10 @@ src/libattr/.success_retreiving_source:
 # Compile #
 ###########
 
-.PHONY: clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_brc clean_brp clean_bru clean_busybox
+.PHONY: clean clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_brc clean_brp clean_bru clean_busybox
 .PHONY: linux_headers musl fuse libattr libcap libbedrock brc brp bru busybox
 
+clean: clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_brc clean_brp clean_bru clean_busybox
 
 linux_headers: source_linux_headers build/.success_build_linux_headers
 
@@ -314,9 +315,8 @@ build/bin/busybox:
 		cp busybox_unstripped $(BUILD)/bin/busybox
 
 clean_busybox:
-	cd src/busybox && \
-		- rm set_bb_option
-		make clean
+	- rm src/busybox/set_bb_option
+	cd src/busybox && make clean
 
 ###########
 # tarball #
