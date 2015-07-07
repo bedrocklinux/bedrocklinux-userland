@@ -1,6 +1,10 @@
 BUILD=$(CURDIR)/build
 MUSLGCC=$(CURDIR)/build/bin/musl-gcc
 
+.PHONY: all
+
+all: gzip_tarball
+
 #############################
 # Manage third party source #
 #############################
