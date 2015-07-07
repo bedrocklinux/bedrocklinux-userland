@@ -309,10 +309,14 @@ build/bin/busybox:
 		./set_bb_option "CONFIG_UDHCPC6" "y" && \
 		./set_bb_option "CONFIG_INETD" "n" && \
 		./set_bb_option "CONFIG_BRCTL" "n"
-	# fix various busybox-musl issues
+	# fix various busybox-linux-musl issues
 	cd $(BUILD)/include/netinet/ && \
 		awk '{p=1}/^struct ethhdr/,/^}/{print "//"$$0; p=0}p==1' if_ether.h > if_ether.h.new && \
 		mv if_ether.h.new if_ether.h
+	cd $(BUILD)/include/linux/ && \
+		echo '' > in.h
+	cd $(BUILD)/include/linux/ && \
+		echo '' > in6.h
 	cp $(BUILD)/include/linux/if_slip.h $(BUILD)/include/net/
 	cd src/busybox && \
 		make CC=$(MUSLGCC) && \
