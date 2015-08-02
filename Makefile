@@ -146,7 +146,7 @@ build/.success_build_linux_headers:
 
 clean_linux_headers:
 	- rm -r $(BUILD)
-	cd src/linux_headers && \
+	- cd src/linux_headers && \
 		make mrproper
 
 
@@ -166,7 +166,7 @@ build/.success_build_musl:
 
 clean_musl:
 	- rm -r build
-	cd src/musl && \
+	- cd src/musl && \
 		make clean
 
 
@@ -183,7 +183,7 @@ build/lib/libfuse.a build/include/fuse.h:
 
 clean_fuse:
 	- rm -r build
-	cd src/fuse && \
+	- cd src/fuse && \
 		make clean
 
 
@@ -200,7 +200,7 @@ build/lib/libattr.so:
 		ln -fs libattr.so.1 $(BUILD)/lib/libattr.so; fi
 
 clean_libattr:
-	cd src/libattr && \
+	- cd src/libattr && \
 		make clean
 
 
@@ -219,7 +219,7 @@ build/bin/setcap build/lib/libcap.a:
 	#touch $(BUILD)/.success_build_libcap
 
 clean_libcap:
-	cd src/libcap && \
+	- cd src/libcap && \
 		make clean
 
 
@@ -232,7 +232,7 @@ build/lib/libbedrock.a build/include/libbedrock.h:
 		make install prefix=$(BUILD)
 
 clean_libbedrock:
-	cd src/libbedrock && \
+	- cd src/libbedrock && \
 		make clean
 
 
@@ -245,7 +245,7 @@ build/bin/brc:
 		make install prefix=$(BUILD)
 
 clean_brc:
-	cd src/brc && \
+	- cd src/brc && \
 		make clean
 
 
@@ -258,11 +258,11 @@ build/bin/brp:
 		make install prefix=$(BUILD)
 
 clean_brp:
-	cd src/brp && \
+	- cd src/brp && \
 		make clean
 
 
-bru: musl fuse build/bin/bru
+bru: musl fuse libbedrock build/bin/bru
 
 build/bin/bru:
 	mkdir -p $(BUILD)
@@ -271,7 +271,7 @@ build/bin/bru:
 		make install prefix=$(BUILD)
 
 clean_bru:
-	cd src/bru && \
+	- cd src/bru && \
 		make clean
 
 
@@ -324,7 +324,7 @@ build/bin/busybox:
 
 clean_busybox:
 	- rm src/busybox/set_bb_option
-	cd src/busybox && make clean
+	- cd src/busybox && make clean
 
 ###########
 # tarball #
