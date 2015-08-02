@@ -5,29 +5,38 @@
  *      modify it under the terms of the GNU General Public License
  *      version 2 as published by the Free Software Foundation.
  *
- * Copyright (c) 2013-2014 Daniel Thau <danthau@bedrocklinux.org>
+ * Copyright (c) 2013-2015 Daniel Thau <danthau@bedrocklinux.org>
  *
- * This program will mount a virtual filesystem in the directory provided as
- * the first argument.  It will redirect filesystem calls to the directory
- * provided either as the second or third argument, depending on whether or not
- * file(s) being operated on show up in the following arguments.
+ * This program will transparently redirect access to a specific list of files
+ * in one directory to another directory.
+ *
+ * The first argument should be the mount point and source for all files that
+ * will not be redirected.  The second argument should be the location of the
+ * redirect files.  Finally, all of the other arguments should be files to be
+ * redirected to the second argument location.
  *
  * For example, if bru is called with
- *     ./bru /tmp /mnt/realtmp /dev/shm /.X11-unix /.X0-lock
- * all calls to /tmp or its contents will be redirected to /mnt/realtmp
- * except for .X11-unix and .X0-lock, which will be redirected to
- * /dev/shm/.X11-unix and /dev/shm/.X0-lock.
- *
- * Makes heavy use of this FUSE API reference:
- *     http://fuse.sourceforge.net/doxygen/structfuse__operations.html
- *
- * Utilizes fuse 3, which at the time of writing is still pre-release.
+ *     ./bru /tmp /dev/shm .X11-unix .X0-lock
+ * all calls to /tmp will pass through normally except for .X11-unix and
+ * .X0-lock, which will be redirected to /dev/shm/.X11-unix and
+ * /dev/shm/.X0-lock.
  *
  * If you're using a standard Linux glibc-based stack, compile with:
  *     gcc -g -Wall `pkg-config fuse --cflags --libs` bru.c -o bru
  *
  * If you're using musl, compile with:
- *     musl-gcc -Wall bru.c -o bru -lfuse3
+ *     musl-gcc -Wall bru.c -o bru -lfuse
+ */
+
+/*
+ * TODO:
+ * - Currently chdir()'ing to the mount point before mounting and then using
+ *   /proc/self/cwd/ to refer to the files under the mount point.  Consider
+ *   changing to simply chdir()'ing to the mount point before mounting and then
+ *   using relative paths for items under the mount point.
+ * - default_dir as an independent variable made sense before the
+ *   under-the-mount-point system was utilized.  Consider removing the variable
+ *   entirely if changing to references to current working directory.
  */
 
 
@@ -44,6 +53,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
+
+#include <libbedrock.h>
 
 #include <dirent.h>    /* DIR       */
 #include <stdlib.h>    /* exit()    */
@@ -89,8 +100,8 @@ int*   redir_file_lens;  /* length of each of the redir_file entries     */
  * string we are returning *on the stack* - we don't have to free() it.  This
  * is a C99-ism which is not portable to C89.  Also note due to the fact we're
  * initializing a variable in the macro which needs to be utilized after the
- * macro, we can't wrap in do{}while(0) or the scoping will make the variable
- * unavailable.
+ * macro, we can't wrap in do{...}while(0) or the scoping will make the
+ * variable unavailable.
  *
  * We want to see if the passed file is either one of the redir_files
  * itself or if it is a file within a directory that is one of the
@@ -106,44 +117,38 @@ int*   redir_file_lens;  /* length of each of the redir_file entries     */
  *
  * Scoping is used to ensure the declared i variable is local.
  */
-#define REDIR_PATH(path, new_path)                                         \
-	char new_path[strlen(path) + dir_len + 1];                             \
-	new_path[0] = '\0';                                                    \
-	{                                                                      \
-		int i;                                                             \
-		for (i=0; i < redir_file_count; i++) {                             \
-			if (strncmp(redir_files[i], path, redir_file_lens[i]) == 0     \
-					&& (path[redir_file_lens[i]] == '\0'                   \
-						|| path[redir_file_lens[i]] == '/')) {             \
-				/*                                                         \
-				 * We have a match.  Create new path concatenating the     \
-				 * requested path onto redir_dir.                          \
-				 */                                                        \
-				strcat(new_path, redir_dir);                               \
-				i = redir_file_count + 1;                                  \
-			}                                                              \
-		}                                                                  \
-		/*                                                                 \
-		 * We did not find a match against any of the redir_files.  Create \
-		 * the new path concatenating the requested path onto the          \
-		 * default_dir.                                                    \
-		 */                                                                \
-		if (i <= redir_file_count)                                         \
-			strcat(new_path, default_dir);                                 \
-		strcat(new_path, path);                                            \
-	}
 
 /*
- * This macro sets the filesystem uid and gid to that of the calling user.
- * This allows the kernel to take care of permissions for us.
+ * TODO: could probably optimize this a tiny bit - can strcpy() instead of
+ * setting to '\0' then strcat().  Will also require changes if/when redir_dir
+ * is hardcoded to a relative path.
  */
-#define SET_CALLER_UID()                                                     \
-	/*                                                                       \
-	 * Get context (uid, gid, etc).                                          \
-	 */                                                                      \
-	struct fuse_context *context = fuse_get_context();                       \
-	seteuid(context->uid);                                                   \
-	setegid(context->gid);
+#define REDIR_PATH(path, new_path)                                                     \
+	char new_path[strlen(path) + dir_len + 1];                                     \
+	new_path[0] = '\0';                                                            \
+	{                                                                              \
+		int i;                                                                 \
+		for (i=0; i < redir_file_count; i++) {                                 \
+			if (strncmp(redir_files[i], path, redir_file_lens[i]) == 0     \
+					&& (path[redir_file_lens[i]] == '\0'           \
+						|| path[redir_file_lens[i]] == '/')) { \
+				/*                                                     \
+				 * We have a match.  Create new path concatenating the \
+				 * requested path onto redir_dir.                      \
+				 */                                                    \
+				strcat(new_path, redir_dir);                           \
+				i = redir_file_count + 1;                              \
+			}                                                              \
+		}                                                                      \
+		/*                                                                     \
+		 * We did not find a match against any of the redir_files.  Create     \
+		 * the new path concatenating the requested path onto the              \
+		 * default_dir.                                                        \
+		 */                                                                    \
+		if (i <= redir_file_count)                                             \
+			strcat(new_path, default_dir);                                 \
+		strcat(new_path, path);                                                \
+	}
 
 
 /*
@@ -456,6 +461,9 @@ static int bru_open(const char *path, struct fuse_file_info *fi)
 	return ret;
 }
 
+/*
+ * TODO: compare against FUSE's read_buf().
+ */
 static int bru_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
 	SET_CALLER_UID();
@@ -466,6 +474,9 @@ static int bru_read(const char *path, char *buf, size_t size, off_t offset, stru
 	return ret;
 }
 
+/*
+ * TODO: compare against FUSE's write_buf().
+ */
 static int bru_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
 	SET_CALLER_UID();
@@ -492,8 +503,9 @@ static int bru_statfs(const char *path, struct statvfs *buf)
 
 /*
  * flush() is asking us to close the file descriptor to flush everything to
- * disk, *but* this may be called multiple times, so we can't actually close
- * the file.  We can abuse dup() to get the desired effect.
+ * disk, *but* this may be called multiple times (multiple file descriptors to
+ * same file?), so we can't actually close the file.  We can abuse dup() to get
+ * the desired effect.
  */
 static int bru_flush(const char *path, struct fuse_file_info *fi)
 {
@@ -506,7 +518,7 @@ static int bru_flush(const char *path, struct fuse_file_info *fi)
 }
 
 /*
- * FUSE uses the word "release" rather than "close".
+ * Final close() call on the file.
  */
 static int bru_release(const char *path, struct fuse_file_info *fi)
 {
@@ -594,7 +606,8 @@ static int bru_opendir(const char *path, struct fuse_file_info *fi)
 	int ret;
 	DIR *d = opendir(new_path);
 	/*
-	 * It seems FUSE wants an int pointer, not a directory stream pointer.
+	 * TODO: there's something odd about how the type system is working
+	 * here with the fuse_file_info struct's fh.  Investigate.
 	 */
 	fi->fh = (intptr_t) d;
 	if (d)
@@ -773,6 +786,7 @@ static int bru_fsyncdir(const char *path, int datasync, struct fuse_file_info *f
  * TODO: To simplify things, we're mandating absolute paths.  We should
  * probably properly handle relative paths for this later and remove this
  * restriction.  Given this, the first argument to faccessat() is ignored.
+ * Note musl does support AT_FDCWD.
  * TODO: POSIX faccessat() doesn't support AT_SYMLINK_NOFOLLOW, and neither
  * does musl.  See if we can upstream support into musl.  Utilizing
  * AT_SYMLINK_NOFOLLOW is disabled for now so it will compile against musl.
@@ -786,7 +800,7 @@ static int bru_access(const char *path, int mask)
 	 * Disabling AT_SYMLINK_NOFOLLOW since musl does not (yet?) support it.
 	 * int ret = faccessat(0, new_path, mask, AT_EACCESS | AT_SYMLINK_NOFOLLOW);
 	 */
-    int ret = faccessat(0, new_path, mask, AT_EACCESS);
+	int ret = faccessat(0, new_path, mask, AT_EACCESS);
 
 	SET_RET_ERRNO();
 	return ret;
@@ -826,6 +840,18 @@ static int bru_fgetattr(const char *path, struct stat *stbuf, struct fuse_file_i
 	SET_RET_ERRNO();
 	return ret;
 }
+
+/*
+ * TODO: FUSE provides the implementation for us via ulockmgr_op?
+ * static int bru_lock(const char *path, struct fuse_file_info *fi, int cmd,
+ * 		    struct flock *lock)
+ * {
+ * 	(void) path;
+ * 
+ * 	return ulockmgr_op(fi->fh, cmd, lock, &fi->lock_owner,
+ * 			   sizeof(fi->lock_owner));
+ * }
+ */
 
 /*
  * TODO: To simplify things, we're mandating absolute paths.  We should
@@ -900,10 +926,7 @@ static struct fuse_operations bru_oper = {
 	.create = bru_create,
 	.ftruncate = bru_ftruncate,
 	.fgetattr = bru_fgetattr,
-	/*
-	 * TODO: Apparently this is unimplemented in the Linux kernel?
-	 * .lock = bru_lock,
-	 */
+	/* .lock = bru_lock */
 	.utimens = bru_utimens,
 	/*
 	 * This only makes sense for block devices.
@@ -925,22 +948,20 @@ static struct fuse_operations bru_oper = {
 int main(int argc, char* argv[])
 {
 	/*
-	 * Print help.  If there are less than two arguments the user probably
-	 * doesn't know how to use this, and will also cover things like --help and
-	 * -h.
+	 * Print help.  If there are insufficient arguments the user probably
+	 * doesn't know how to use this, and will also cover things like --help
+	 * and h.
 	 */
-	if (argc < 3) {
+	if (argc < 4) {
 		printf(
 "bru - BedRock linux Union filesystem\n"
 "\n"
-"Usage: bru [mount-point] [default directory] [redir directory] [paths]\n"
+"Usage: bru [mount-point] [redir directory] [paths]\n"
 "\n"
-"Example: bru /tmp /mnt/realtmp /dev/shm /.X11-unix /.X0-lock\n"
+"Example: bru /tmp /dev/shm /.X11-unix /.X0-lock\n"
 "\n"
 "[mount-point]       is the directory where the filesystem will be mounted.\n"
-"[default directory] is where filesystem calls which aren't to [paths] will be\n"
-"                    redirected.  This must be an absolute path.\n"
-"[redir directory]   is where filesystem calls which are to [paths] will be\n"
+"[redir directory]   is where filesystem calls which are in [paths] will be\n"
 "                    redirected.  This must be an absolute path.\n"
 "[paths]             is the list of file paths relative to [mount-point]\n"
 "                    which will be redirected to [redir directory].\n"
@@ -959,33 +980,19 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	 /*
-	  * There should be a minimum of four arguments (plus argv[0])
-	  */
-	if(argc < 5) {
-		fprintf(stderr, "ERROR: Insufficient arguments.\n");
-		return 1;
-	}
-
 	/*
-	 * The second, third and fourth arguments should all be existing directories.
+	 * The second and third arguments should be absolute paths to existing
+	 * directories.
 	 */
 	int i;
 	struct stat test_is_dir_stat;
-	for(i=1;i<4;i++) {
-		if (stat(argv[i], &test_is_dir_stat) != 0) {
-			fprintf(stderr, "ERROR: Could not find directory \"%s\"\n", argv[i]);
-			perror("stat()");
-			return 1;
-		}
-	}
-
-	/*
-	 * The third and fourth arguments should all have absolute paths.
-	 */
-	for(i=2;i<4;i++) {
+	for(i=1;i<3;i++) {
 		if (argv[i][0] != '/'){
 			fprintf(stderr, "ERROR: The following item is not a full path: \"%s\"\n", argv[i]);
+			return 1;
+		}
+		if (stat(argv[i], &test_is_dir_stat) != 0) {
+			fprintf(stderr, "ERROR: Could not find directory \"%s\"\n", argv[i]);
 			return 1;
 		}
 	}
@@ -994,12 +1001,12 @@ int main(int argc, char* argv[])
 	 * Store arguments in global variables
 	 */
 	mount_point       = argv[1];
-	default_dir       = argv[2];
+	default_dir       = "/proc/self/cwd";
 	default_dir_len   = strlen(argv[2]);
-	redir_dir         = argv[3];
-	redir_dir_len     = strlen(argv[3]);
-	redir_files       = argv + 4;
-	redir_file_count  = argc - 4;
+	redir_dir         = argv[2];
+	redir_dir_len     = strlen(argv[2]);
+	redir_files       = argv + 3;
+	redir_file_count  = argc - 3;
 	redir_file_lens = malloc(redir_file_count * sizeof(int));
 	for(i = 0; i<redir_file_count; i++){
 		redir_file_lens[i] = strlen(redir_files[i]);
@@ -1041,7 +1048,6 @@ int main(int argc, char* argv[])
 	struct fuse_args args = FUSE_ARGS_INIT(0, NULL);
 	fuse_opt_add_arg(&args, argv[0]);
 	fuse_opt_add_arg(&args, mount_point);
-	fuse_opt_add_arg(&args, "-d");
 	fuse_opt_add_arg(&args, "-s");
 	fuse_opt_add_arg(&args, "-oallow_other,nonempty");
 	/* stay in foreground, useful for debugging */
