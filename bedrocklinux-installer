@@ -507,6 +507,8 @@ make_busybox() {
 	runcmd "cd $dev/include/netinet/"
 	runcmd "awk '{p=1}/^struct ethhdr/,/^}/{print \"//\"\$0; p=0}p==1' if_ether.h > if_ether.h.new"
 	runcmd "mv if_ether.h.new if_ether.h"
+	runcmd "echo '' > $dev/include/linux/in.h"
+	runcmd "echo '' > $dev/include/linux/in6.h"
 	# busybox looks for some things in net/ not linux/, but we only have it in linux/
 	#runcmd "cp $dev/include/linux/if_slip.h $dev/include/net/"
 	check
