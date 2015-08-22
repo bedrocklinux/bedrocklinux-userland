@@ -687,6 +687,7 @@ int brp_realpath(char *in_path, char *out_path, size_t bufsize)
 				strcat(out_path, current_path + offset);
 			}
 			offset = stratum_prefix_len+1;
+			end = 0;
 			strcpy(current_path, out_path);
 			if ((loop++) >= LOOP_MAX) {
 				return -ELOOP;
@@ -734,6 +735,7 @@ int corresponding(char *in_path,
 
 	size_t i, j;
 	size_t in_path_len = strlen(in_path);
+	char tmp_path[out_path_size+1];
 
 	/* check for a match on something contained in one of the configured
 	 * directories */
@@ -742,13 +744,13 @@ int corresponding(char *in_path,
 				in_path[out_items[i].path_len] == '/' &&
 				out_items[i].file_type == FILE_TYPE_DIRECTORY) {
 			for (j = 0; j < out_items[i].in_item_count; j++) {
-				strncpy(out_path, out_items[i].in_items[j].full_path, out_path_size);
-				strncat(out_path, in_path + out_items[i].path_len, out_path_size - out_items[i].in_items[j].full_path_len);
-				if (strlen(out_path) == out_path_size) {
+				strncpy(tmp_path, out_items[i].in_items[j].full_path, out_path_size);
+				strncat(tmp_path, in_path + out_items[i].path_len, out_path_size - out_items[i].in_items[j].full_path_len);
+				if (strlen(tmp_path) == out_path_size) {
 					/* would have buffer overflowed, treat as bad value */
 					continue;
 				}
-				if (brp_stat(out_path, stbuf) >= 0) {
+				if (brp_realpath(tmp_path, out_path, out_path_size) >= 0 && lstat(out_path, stbuf) >= 0) {
 					*arg_out_item = &out_items[i];
 					*arg_in_item = &out_items[i].in_items[j];
 					*tail = in_path + out_items[i].path_len;
@@ -765,12 +767,8 @@ int corresponding(char *in_path,
 		if (strncmp(out_items[i].path, in_path, in_path_len) == 0 &&
 				(out_items[i].path[in_path_len] == '\0')) {
 			for (j = 0; j < out_items[i].in_item_count; j++) {
-				if (brp_stat(out_items[i].in_items[j].full_path, stbuf) >= 0) {
-					strncpy(out_path, out_items[i].in_items[j].full_path, out_path_size);
-					if (strlen(out_path) == out_path_size) {
-						/* would have buffer overflowed, treat as bad value */
-						continue;
-					}
+				if (brp_realpath(out_items[i].in_items[j].full_path, out_path, out_path_size) >=0 &&
+						lstat(out_path, stbuf) >= 0) {
 					*arg_out_item = &out_items[i];
 					*arg_in_item = &out_items[i].in_items[j];
 					*tail = "";
@@ -788,12 +786,8 @@ int corresponding(char *in_path,
 		if (strncmp(out_items[i].path, in_path, in_path_len) == 0 &&
 				(out_items[i].path[in_path_len] == '/')) {
 			for (j = 0; j < out_items[i].in_item_count; j++) {
-				if (brp_stat(out_items[i].in_items[j].full_path, stbuf) >= 0) {
-					strncpy(out_path, out_items[i].in_items[j].full_path, out_path_size);
-					if (strlen(out_path) == out_path_size) {
-						/* would have buffer overflowed, treat as bad value */
-						continue;
-					}
+				if (brp_realpath(out_items[i].in_items[j].full_path, out_path, out_path_size) >=0 &&
+						lstat(out_path, stbuf) >= 0) {
 					memcpy(stbuf, &parent_stat, sizeof(parent_stat));
 					*arg_out_item = &out_items[i];
 					*arg_in_item = &out_items[i].in_items[j];
@@ -1151,7 +1145,6 @@ static int brp_open(const char *in_path, struct fuse_file_info *fi)
 	}
 
 	if ( (ret = corresponding((char*)in_path, out_path, PATH_MAX, &stbuf, &out_item, &in_item, &tail)) >= 0) {
-		stat_filter(&stbuf, in_path, out_item->filter, in_item, tail);
 		return 0;
 	}
 	return -ENOENT;
