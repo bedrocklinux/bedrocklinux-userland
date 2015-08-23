@@ -1,0 +1,78 @@
+#!/bedrock/libexec/busybox sh
+#
+# brsh (BedRock SHell)
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2015 Daniel Thau <danthau@bedrocklinux.org>
+#
+# This is a meta-shell which solves several potential issues:
+#
+# - /etc/passwd needs the full path to the user's shell.  While it is possible
+# to use /bedrock/brpath/bin/<shell> as a full path, the files there use
+# hash-bang lines to have some interpreter call brc.  It seems as though all
+# indication that something is being called as a login shell is lost if it is
+# also called via a hashbang line.  argv[0] is not prepended with a "-" in
+# these situations as one would have expected.
+#
+# - If the stratum which provides the desired shell breaks or is removed, the
+# end user will be unable to log in to remedy this.  While the "brroot" login
+# is a partial solution here, it'd be better to have the shell fall back to
+# /bin/sh in this situation, as this one does.
+#
+# - /etc/shells needs to contain the shell in /etc/passwd the user is using to
+# log in.  While package managers do populate this when new shells are
+# installed, they use the full local path.  If a user uses a shell from
+# /bedrock/brpath/bin/<shell>, he or shell will also be responsible for adding
+# it to /etc/shells.  End-users will forget to do this which will inevitably
+# cause problems.  For example, the KDE screen locker uses a PAM module which
+# will result in it refusing to unlock for a user whose shell is not in
+# /etc/shells.  By using this shell, which is always in the same place, we can
+# work around this.
+#
+# We can't actually run the specified shell unless PATH is populated - so there
+# is need to source /etc/profile rather than let the shell we're calling do it.
+# If brsh is being called, it is almost certainly already a login shell, as any
+# point after this the desired shell will be launched directly, but just in
+# case we're checking if $TZ is set.  If not, this is probably because it is a
+# login shell.
+#
+# Moreover, there is a need to force sourcing /etc/profile as one shell in
+# particular, zsh, may not do it itself.  zsh does not parse /etc/profile on
+# login.  Rather, it sources other files which it expects to parse
+# /etc/profile.  Not all distros set this up so it works, and thus /etc/profile
+# does not "just work" on zsh on many distros.  Bedrock Linux strongly depends
+# on this being sourced.
+#
+# The main downside here is /etc/profile may be sourced twice - once here, and
+# once by the login shell.  Better to source it twice than to risk not having
+# it sourced at all, in which case Bedrock Linux's subsystems would be largely
+# broken.
+
+local login_shell=/bin/false
+if [ -z "$TZ" ]
+then
+	. /etc/profile
+	login_shell=/bin/true
+fi
+
+# Use the shell in ~/.brsh.conf if it is available; otherwise, fall back to
+# /bin/sh.
+if [ -f ~/.brsh.conf ] && which $(basename $(cat ~/.brsh.conf)) >/dev/null
+then
+	export SHELL=$(cat ~/.brsh.conf)
+else
+	echo "Warning: brsh can not find shell specified in ~/.brsh.conf, defaulting to /bin/sh"
+	export SHELL=/bin/sh
+fi
+
+# This shell script does not provide us a means of prepending "-" to the
+# argv[0] of the shell we're calling.  Instead, we'll use -l.
+if $login_shell
+then
+	exec $(basename $SHELL) -l "$@"
+else
+	exec $(basename $SHELL) "$@"
+fi

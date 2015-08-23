@@ -1,0 +1,62 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl (BedRock aLl)
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2014 Daniel Thau <danthau@bedrocklinux.org>
+#
+# This script will run the argument in the local context of all enabled
+# stratum
+
+# check for need to print help
+if [ -z "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]
+then
+cat <<EOF
+Usage: brl [-c CONDITIONAL] COMMAND
+
+If '-c' is not provided, brl will run COMMAND with all available stratum local
+contexts.
+
+If '-c' is the first argument followed by a CONDITIONAL, the CONDITIONAL will
+be run in all enabled stratum local contexts and if that command returns 0 the
+following COMMAND will be run.
+
+Examples:
+
+    # check if network/DNS is working
+    brl ping -c 1 bedrocklinux.org
+
+    # run 'apt-get update && apt-get dist-upgrade' in all stratum enabled that have
+    # apt-get available in the local context
+    brl -c 'brw apt-get|grep "(direct)$"' sh -c 'apt-get update && apt-get dist-upgrade'
+
+    # List all of the pids and their corresponding stratum.  Can append "| sort
+    # -n" to sort by pid.
+    brl bri -P | grep -v "brl\|bri"
+
+EOF
+	exit 0
+fi
+
+if [ "$1" = "-c" ]
+then
+	conditional="$2"
+	shift
+	shift
+else
+	conditional="/bedrock/libexec/busybox true"
+fi
+
+for stratum in $(/bedrock/bin/bri -l)
+do
+	if eval "/bedrock/bin/brc $stratum $conditional"
+	then
+		echo "brl: running commands in $stratum"
+		/bedrock/bin/brc $stratum "$@"
+	else
+		echo "brl: skipping $stratum (conditional not met)"
+	fi
+done

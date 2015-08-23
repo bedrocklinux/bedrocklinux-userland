@@ -1,9 +1,0 @@
-#!/bedrock/bin/busybox sh
-### Bedrock Linux 1.0beta1 Hawkey
-### /etc/rc.local
-# Place code here which you would like to be run at boot.
-#
-# A path is explicitly set below for convenience - feel free to change it.
-PATH="/bedrock/bin:/bedrock/sbin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/bedrock/brpath/bin:/bedrock/brpath/sbin"
-
-exit 0

@@ -1,6 +1,0 @@
-# By default, sudo drops a lot of path items bedrock needs.  Here, set path to
-# bedrock defaults.  Feel free to change this.
-Defaults secure_path=/bedrock/bin:/bedrock/sbin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/bedrock/brpath/bin:/bedrock/brpath/sbin
-
-# root can sudo everywhere
-root ALL=(ALL) ALL

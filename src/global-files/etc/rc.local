@@ -1,0 +1,10 @@
+#!/bedrock/libexec/busybox sh
+#
+# Convention has this file run by most major init systems as the very last
+# step.  Since this is set to be global, anything set here will be run at boot
+# irrelevant of which init system is used.
+#
+# A path is explicitly set below for convenience - feel free to change it.
+PATH="/bedrock/bin:/bedrock/sbin:/bedrock/brpath/pin/bin:/bedrock/brpath/pin/sbin:/usr/local/bin:/opt/bin:/usr/bin:/bin:/usr/local/sbin:/opt/sbin:/usr/sbin:/sbin:/bedrock/brpath/bin:/bedrock/brpath/sbin"
+
+exit 0
