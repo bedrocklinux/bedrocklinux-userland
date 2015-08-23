@@ -767,8 +767,12 @@ int corresponding(char *in_path,
 		if (strncmp(out_items[i].path, in_path, in_path_len) == 0 &&
 				(out_items[i].path[in_path_len] == '\0')) {
 			for (j = 0; j < out_items[i].in_item_count; j++) {
-				if (brp_realpath(out_items[i].in_items[j].full_path, out_path, out_path_size) >=0 &&
-						lstat(out_path, stbuf) >= 0) {
+				if (brp_realpath(out_items[i].in_items[j].full_path, out_path, out_path_size) >=0) {
+					if (out_items[i].file_type == FILE_TYPE_DIRECTORY) {
+						memcpy(stbuf, &parent_stat, sizeof(parent_stat));
+					} else {
+						lstat(out_path, stbuf);
+					}
 					*arg_out_item = &out_items[i];
 					*arg_in_item = &out_items[i].in_items[j];
 					*tail = "";
