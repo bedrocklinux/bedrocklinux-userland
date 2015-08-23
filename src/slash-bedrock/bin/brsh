@@ -1,4 +1,4 @@
-#!/bedrock/bin/busybox sh
+#!/bedrock/libexec/busybox sh
 #
 # brsh (BedRock SHell)
 #
@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2012-2014 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2012-2015 Daniel Thau <danthau@bedrocklinux.org>
 #
 # This is a meta-shell which solves several potential issues:
 #
@@ -17,7 +17,7 @@
 # also called via a hashbang line.  argv[0] is not prepended with a "-" in
 # these situations as one would have expected.
 #
-# - If the client which provides the desired shell breaks or is removed, the
+# - If the stratum which provides the desired shell breaks or is removed, the
 # end user will be unable to log in to remedy this.  While the "brroot" login
 # is a partial solution here, it'd be better to have the shell fall back to
 # /bin/sh in this situation, as this one does.
