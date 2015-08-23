@@ -1,4 +1,4 @@
-#!/bedrock/bin/busybox sh
+#!/bedrock/libexec/busybox sh
 #
 # bri (BedRock Information / BedRock Introspection)
 #
@@ -6,13 +6,11 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2012-2014 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2012-2015 Daniel Thau <danthau@bedrocklinux.org>
 #
 #
 # This script will provide information about Bedrock Linux subsystems
 #
-# Abort if anything returns non-zero unexpectedly
-#set -e TODO: go through and ensure everything that could desirably fail, like a "grep", is || true'd
 # Abort if accessing unassigned variable
 set -u
 
@@ -20,90 +18,109 @@ set -u
 #  - support functions                                                         -
 #  -----------------------------------------------------------------------------
 
-# given a pid as an argument, prints the client which provides the pid
+abort() {
+	echo "$1" >&2
+	exit 1
+}
+
+# given a pid as an argument, prints the stratum which provides the pid
 #
 # Note: there is a possibly faster way by readlink'ing /proc/$pid/root, except:
-# - it does not differentiate between local-client and core bedrock
-#   - this could be resolved by brc'ing to bedrock
+# - it does not differentiate between local-stratum and init
+#   - this could be resolved by brc'ing to init
 # - it requires root to use for another user's process
-# Note: Prior versions of this assumed pid1 was in the core.  If Bedrock Linux support
-# having PID1 provided by a client, this assumption will be false.  Instead,
-# `brc bedrock` is used to check the core.
-pid_client() {
+pid_stratum() {
 	# pick a mount point visible by the process
 	mount_number="$(head -n1 /proc/$1/mountinfo | cut -d" " -f1)"
-	# find where the core sees it as mounted
-	core_view="$(brc bedrock sh -c 'grep "^'"$mount_number"' " /proc/$$/mountinfo' | cut -d" " -f5)"
+	# find where init sees it as mounted
+	init_view="$(grep "^$mount_number " /proc/1/mountinfo | cut -d' ' -f5)"
 	# find where the process sees it as mounted
-	client_view="$(grep "^$mount_number " /proc/$1/mountinfo | cut -d' ' -f5)"
+	stratum_view="$(grep "^$mount_number " /proc/$1/mountinfo | cut -d' ' -f5)"
 
-	# if the process sees it mounted the same place as the core does, then the
-	# process is in the core
-	if [ "$core_view" = "$client_view" ]
+	# if the process sees it mounted the same place as init does, then the
+	# process is in the init stratum
+	if [ "$init_view" = "$stratum_view" ]
 	then
-		echo "bedrock"
+		# Report the name of the init stratum
+		a init
 	else
-		# must be in a client other than bedrock
-		# the core will see it mounted at
-		# <empty>/bedrock/client/<clientname>/something
-		# |       |       |      |            \- from here on out don't care
-		# |       |       |      \- client name
+		# must be in a stratum other than init
+		#
+		# init will see it mounted at
+		# <empty>/bedrock/stratum/<stratum-name>/something
+		# |       |       |      |              \- from here on out don't care
+		# |       |       |      \- stratum name
 		# |       |       \- third field
 		# |       \- second field
 		# \- first (empty) field
-		# Thus, the fourth field will be the client.  Note that forward slashes
+		#
+		# Thus, the fourth field will be the stratum.  Note that forward slashes
 		# are not allowed in Linux file names.
-		echo "$core_view" | cut -d'/' -f4
+		echo "$init_view" | cut -d'/' -f4
 	fi
 }
 
-# Parses client config/frameworks and returns requested information.
-# - First argument: the client
-# - Second argument: the key (bind, share, union, etc)
-# - Third argument: format information
+# Parses values out of strata configuration
+# - First argument is the stratum
+# - Second argument is the desired key (bind, share, union, etc)
+# - Third argument is the desired format
 #   - "first" -> only print first item per key and ignore the rest
-#   - "firstreal" -> only print first item per key, filter through "realpath"
+#   - "firstreal" -> only print first item per key, filtered through "realpath"
+#   relative to real root
+#   - "online" -> print the config without alteration.
+#   - "all" -> print all values for key, one per line
+#   - "allreal" -> print all values for key, filtered through "realpath"
 #   relative to real root.
-#   - "oneline" -> the config line without alteration.  This is useful for
-#   union where "all/allreal" would break up useful information.
-#   - "all" -> print all config items, one per line.
-#   - "allreal" -> print all config items, one per line, filter through
-#   "realpath" relative to real root
+#   - "last" -> prints last value for given key.
 #
-# Note realpath may fail in some situations, such as if the client is not set
+# Note realpath may fail in some situations, such as if the stratum is not set
 # up.  In these situations the this function will fall back to printing without
 # the realpath filter.
 
-# the awkward -F is because some versions of buysbox's awk doesn't seem to like
+# the awkward -F is because some builds of buysbox's awk doesn't seem to like
 # \t for a tab in a character class.
 get_values() {
-	# determine which config file to use, depending on whether the client is
-	# enabled or not
-	if [ -r "/bedrock/etc/clients.d/${1}.conf" ]
+	stratum="$(a "$1")"
+	if [ "$(a init)" = "$(a "$stratum")" ]
 	then
-		config="/bedrock/etc/clients.d/${1}.conf"
-	elif [ -r "/bedrock/etc/clients.d/${1}.conf.disabled" ]
-	then
-		config="/bedrock/etc/clients.d/${1}.conf.disabled"
+		realroot=""
 	else
-		echo "Cannot read config at /bedrock/etc/clients.d/${1}.conf or /bedrock/etc/clients.d/${1}.conf.disabled" >&2
-		exit 1
+		realroot="$(realpath /bedrock/strata/$stratum)"
 	fi
-	awk -v"client=$1" -v"key=$2" -v"format=$3" -F'([ ,:]|\\t)+' '
-		# find instances of the key in the current file and print values as
-		# requested.
+	awk -v"stratum=$stratum" -v"key=$2" -v"format=$3" -v"realroot=$realroot" -F'([ ,:]|\\t)+' '
+		BEGIN {
+			framework_cutoff = ARGC
+		}
+		# hit a section header
+		substr($0,1,1) == "[" {
+			# is this target section?
+			if ($0 == "["stratum"]") {
+				in_section = 1
+			} else {
+				in_section = 0
+			}
+		}
+		# if we are in a framework, it was inherited from the proper
+		# section header
+		ARGIND >= framework_cutoff {
+			in_section = 1
+		}
+		# in the wrong section, ignore line
+		!in_section {
+			next
+		}
+		# find key
 		$0 ~ "^[ \t]*"key"[ \t]*=[ \t]*[^ \t]" {
 			# should not be necessary, but trailing separators confuses some
-			# versions of busybox awk
+			# builds of busybox awk
 			sub(/([ ,:]|\\t)$/,"")
 			# remove "key ="
 			sub("^[ \t]*"key"[ \t]*=[ \t]*","")
-			# print output per formatting request
+			# handle value per format
 			if (format == "first") {
 				print $1
 			} else if (format == "firstreal") {
-				if (system("realpath /bedrock/clients/"client $1" 2>/dev/null") != 0)
-					print "/bedrock/clients/"client $1
+				print realroot""$1
 			} else if (format == "oneline") {
 				print $0
 			} else if (format == "all") {
@@ -112,12 +129,12 @@ get_values() {
 				}
 			} else if (format == "allreal") {
 				for (i=1; i<=NF; i++) {
-					if (system("realpath /bedrock/clients/"client $i" 2>/dev/null") != 0)
-						print "/bedrock/clients/"client $i
+					print realroot""$i
 				}
+			} else if (format == "last") {
+				value = $0
 			}
 		}
-
 		# find new frameworks in the current file and add them to ARGV to
 		# process
 		/^[ \t]*framework[ \t]*=[ \t]*[^ \t]/ {
@@ -134,15 +151,34 @@ get_values() {
 				}
 			}
 		}
-	' $config
+		END {
+			if (format == "last") {
+				print value
+			}
+		}
+		' /bedrock/etc/strata.conf $(ls -1 /bedrock/etc/strata.d/ | sed 's!^!/bedrock/etc/strata.d/!')
+}
+
+# If the item is a symlink or some other realpath change, use that.  If it
+# doesn't exist, return input.
+realpathfilter() {
+	while read path
+	do
+		if ! realpath $path 2>/dev/null
+		then
+			echo $path
+		fi
+	done
 }
 
 # This simply checks to ensure sufficient arguments have been provided.
 arg_count_check() {
 	if [ "$1" -lt "$2" ]
 	then
-		echo "ERROR: Insufficient arguments: $1 arguments provided, at least $2 arguments expected"
-		return 1;
+		echo "bri: insufficient arguments"
+		echo "$1 arguments provided, at least $2 arguments expected"
+		echo "see bri -h"
+		exit 1
 	fi
 }
 
@@ -152,33 +188,68 @@ arg_count_check() {
 #
 # The functions have the same name as the corresponding flag.
 
+# resolve aliases
+a() {
+	awk -v"alias=$1" -v"resolved=$1" -F'([ ,:]|\\t)+' '
+		$1 == alias {
+			# should not be necessary, but trailing separators confuses some
+			# builds of busybox awk
+			sub(/([ ,:]|\\t)$/,"")
+			# remove "key ="
+			sub("^[ \t]*"alias"[ \t]*=[ \t]*","")
+			resolved=$0
+		}
+		END {
+			print resolved
+		}
+	' /bedrock/etc/alias.conf $(ls -1 /bedrock/etc/alias.d/ | sed 's!^!/bedrock/etc/alias.d/!')
+}
+
 # Print config values.  This is useful for:
-# - end-user to check frameworks are set up as desired
+# - end-user to check configuration is setup as desired
 # - other utilities to use this rather than each read the configs with their own code
 c() {
 	arg_count_check "$#" "2"
 	# everything but union should use "all"
-	if [ "$2" = "union" ]
+	if [ "$2" = "union" ] || [ "$2" = "init" ]
 	then
-		format="oneline"
+		get_values "$1" "$2" oneline
+	elif [ "$2" = "init" ]
+	then
+		get_values "$1" "$2" oneline | tail -n1
+	elif [ "$2" = "enable" ]
+	then
+		value=$(get_values "$1" "$2" last)
+		# default to boot
+		if [ -z "$value" ]
+		then
+			echo "boot"
+		else
+			echo "$value"
+		fi
+	elif [ "$2" = "alias" ]
+	then
+		echo get_values "$1" "$2" last >&2
+		get_values "$1" "$2" last
 	else
-		format="all"
+		get_values "$1" "$2" all
 	fi
-	get_values "$1" "$2" "$format"
 }
 
-# Caches -n value to speed up future -n requests
-C() {
+# Populates Bedrock Linux-specific /etc files
+e() {
 	if [ "$(id -u)" != "0" ]
 	then
-		echo "bri -C requires root"
-		exit 1
+		abort "bri -e requires root"
 	fi
 	while [ -n "${1:-}" ]
 	do
-		echo "$1 > /bedrock/clients/$1/etc/br_client_name"
-		echo "$1" > /bedrock/clients/$1/etc/br_client_name
-		chmod 644 /bedrock/clients/$1/etc/br_client_name
+		mkdir -p /bedrock/strata/$1/etc/
+
+		echo "$1 > /bedrock/strata/$1/etc/bedrock_stratum"
+		echo "$1" > "/bedrock/strata/$1/etc/bedrock_stratum"
+		chmod 644 "/bedrock/strata/$1/etc/bedrock_stratum"
+
 		shift
 	done
 }
@@ -190,82 +261,159 @@ Usage: bri ARGUMENT
 
 bri will provide information about Bedrock Linux subsystems.
 
-Since the flags must all be the first argument, there is no ambiguity; the "-"
-character is optional.
+Since a flag must be provided, and used as the first argument, there is no
+ambiguity as to what is a flag; the "-" character is optional.
 
 ARGUMENTS:
-   -c   first following term must be client, second must be Config key.  prints
+   -c   first following term must be stratum, second must be Config key.  prints
         corresponding Config values.
-   -C   Cache -n value of current OR following client name(s) (requires root)
-        provides a small performance improvement to following -n requests
+   -e   populates the Etc file /etc/bedrock_stratum.  This provides small
+        performance improvement
+        to following -n requests and makes /bedrock/etc/strata.d/local.alias
+        work.
    -h   print this Help
-   -l   print List of enabled clients
-   -L   print List of all clients, enabled and disabled
-   -m   prints Mount points in current client OR following client name(s)
-   -n   print Name of client corresponding to current process
-   -p   print the client that provides the following Process id or
+   -i   print lIst of enabled strata and alIases
+   -I   print lIst of all strata and alIases, enabled and disabled
+   -l   print List of enabled strata
+   -L   print List of all strata, enabled and disabled
+   -m   print Mount points in current stratum OR following stratum name(s)
+   -M   print Missing mount points in current stratum OR following stratum
+        name(s)
+   -n   print Name of stratum corresponding to current process
+   -p   print the stratum that provides the following Process id or
         (non-numeric) Process name
-   -P   print a list of Processes provided by the current client OR following
-        client name(s)
-   -s   print the setup Status of the current OR following client name(s)
-   -w   print the client Which provides the command(s) in the argument(s)
+   -P   print a list of Processes provided by the current stratum OR following
+        stratum name(s)
+   -s   print the setup Status of the current OR following stratum name(s)
+   -w   print the stratum Which provides the command(s) in the argument(s)
 EOF
 }
 
-# print a list of enabled clients
+# print a list of enabled strata and aliases
+i() {
+	cd /bedrock/run/enabled_strata
+	awk '
+		BEGIN {
+			cmd="for x in *; do [ -f \"$x\" ] && ! [ -h \"$x\" ] && echo \"$x\"; done"
+			while ((cmd | getline) > 0) {
+				enabled[$0]
+				print
+			}
+			close(cmd)
+		}
+		$0 ~ "^[ \t]*[^ \t][^ \t]*[ \t]*=[ \t]*[^ \t]" && $3 in enabled {
+			print $1" -> "$3
+		}
+	' /bedrock/etc/alias.conf $(ls -1 /bedrock/etc/alias.d/ | sed 's!^!/bedrock/etc/alias.d/!')
+}
+
+# print a list of all strata and aliases, both enabled and disabled
+I() {
+	awk '
+		/^\[.*\]$/ {
+			sub("^.", "")
+			sub(".$", "")
+			strata[$0]
+		}
+		END {
+			for (stratum in strata) {
+				print stratum
+			}
+		}
+	' /bedrock/etc/strata.conf $(ls -1 /bedrock/etc/strata.d/ | sed 's!^!/bedrock/etc/strata.d/!')
+	awk -F'([ ,:]|\\t)+' '
+		$0 ~ "^[ \t]*[^ \t][^ \t]*[ \t]*=[ \t]*[^ \t]" {
+			print $1" -> "$3
+		}
+	' /bedrock/etc/alias.conf $(ls -1 /bedrock/etc/alias.d/ | sed 's!^!/bedrock/etc/alias.d/!')
+}
+
+# print a list of enabled strata 
 l() {
-	cd /bedrock/etc/clients.d
-	ls *.conf | sed 's/.....$//'
+	cd /bedrock/run/enabled_strata
+	for x in *
+	do
+		[ -f "$x" ] && ! [ -h "$x" ] && echo "$x"
+	done
 }
 
-# print a list of all clients, both enabled and disabled
+# print a list of all strata, both enabled and disabled
 L() {
-	cd /bedrock/etc/clients.d
-	ls *.conf | sed 's/.....$//'
-	ls *.conf.disabled | sed 's/..............$//'
+	awk '
+		/^\[.*\]$/ {
+			sub("^.", "")
+			sub(".$", "")
+			strata[$0]
+		}
+		END {
+			for (stratum in strata) {
+				print stratum
+			}
+		}
+	' /bedrock/etc/strata.conf $(ls -1 /bedrock/etc/strata.d/ | sed 's!^!/bedrock/etc/strata.d/!')
 }
 
-# print mount points and corresponding category in specified client(s)
+# print mount points and corresponding category in specified stratum/strata
 m() {
 	while [ -n "${1:-}" ]
 	do
-		client="${1}"
+		stratum="${1}"
 		shift
 
-		if [ "$client" = "bedrock" ]
+		if [ "$(a init)" = "$(a "$stratum")" ]
 		then
-			# The core must be handled differently from clients.  For one
-			# thing, it has no config values.
-
-			# iterate over mount points not in any clients (i.e. just in core),
-			# just printing them along with the only possible type information:
-			# (other/OK)
-			brc bedrock sh -c 'cat /proc/$$/mountinfo' | awk '$5 !~ "^/bedrock/clients(/|$)"{print $5" (other/OK)"}'
-			continue
+			is_init=true
+		else
+			is_init=false
+		fi
+		if [ "$(a init)" = "$(a global)" ]
+		then
+			global_is_init=true
+		else
+			global_is_init=false
 		fi
 
-		# get the configured mount points (to compare)
-		bind_mounts=$(get_values "$client" "bind" "allreal")
-		union_mounts=$(get_values "$client" "union" "firstreal")
-		share_mounts=$(get_values "$client" "share" "allreal")
+		all_mounts="$(cat /proc/1/mountinfo)"
 		# get all mount points
-		all_mounts="$(brc bedrock sh -c 'cat /proc/$$/mountinfo')"
-		# get mount points for client from core's point of view
-		client_mounts="$(brc bedrock sh -c 'cat /proc/$$/mountinfo' | awk '$5 ~ "^/bedrock/clients/'"${client}"'(/|$)"')"
+		if $is_init
+		then
+			# init's mounts are relative to the real root, not /bedrock/stratum/<stratum-name>
+			mount_lines="$(awk '$5 !~ "^/bedrock/strata/[^/][^/]*/."' /proc/1/mountinfo)"
+			bind_mounts=$(get_values "$stratum" "bind" "all" | realpathfilter)
+			union_mounts=$(get_values "$stratum" "union" "first" | realpathfilter)
+			share_mounts=$(get_values "$stratum" "share" "all" | realpathfilter)
+			unmanaged_mounts=$(get_values "$stratum" "unmanaged" "all" | realpathfilter)
+		else
+			mount_lines=$(awk -v"stratum=${stratum}" '$5 ~ "^/bedrock/strata/"stratum"(/|$)"' /proc/1/mountinfo)
+			bind_mounts=$(get_values "$stratum" "bind" "allreal" | realpathfilter)
+			union_mounts=$(get_values "$stratum" "union" "firstreal" | realpathfilter)
+			share_mounts=$(get_values "$stratum" "share" "allreal" | realpathfilter)
+			unmanaged_mounts=$(get_values "$stratum" "unmanaged" "allreal" | realpathfilter)
+		fi
 
 IFS="
 "
-		# iterate over mount points, determining (1) type and (2) if this matches config then (3) print output
-		for mount_line in $client_mounts
+		for mount_line in $mount_lines
 		do
 			# Gather useful here.  Makes if/else tree later easier to read.
 			# However, it calculates things which may not be necessary and
 			# slows things down.  TODO: consider refactor for performance
 			# benefit.
 			mount_point=$(echo $mount_line | cut -d' ' -f5)
-			core_equivalent_mount_point=/$(echo $mount_point | cut -d/ -f5-)
-			mount_point_stat="$(brc bedrock stat $mount_point 2>/dev/null | awk 'NR>1')"
-			core_equivalent_mount_point_stat="$(brc bedrock stat $core_equivalent_mount_point 2>/dev/null | awk 'NR>1')"
+			if $is_init && $global_is_init
+			then
+				global_equivalent_mount_point=$mount_point
+			elif $is_init && ! $global_is_init
+			then
+				global_equivalent_mount_point=/bedrock/strata/$(a global)$mount_point
+			elif ! $is_init && $global_is_init
+			then
+				global_equivalent_mount_point=/$(echo $mount_point | cut  -d/ -f5-)
+			else # ! $is_init && ! $global_is_init
+				global_equivalent_mount_point=/bedrock/strata/$(a global)/$(echo $mount_point | cut -d/ -f5-)
+			fi
+			mount_point_stat="$(brc init /bedrock/bin/busybox stat $mount_point 2>/dev/null | awk 'NR>1')"
+			global_equivalent_mount_point_stat="$(brc init /bedrock/bin/busybox stat $global_equivalent_mount_point 2>/dev/null | awk 'NR>1')"
 			fs_type=$(echo "$mount_line" | awk '{
 				for (i=7; i<NF; i++) {
 					if ($i == "-") {
@@ -285,49 +433,8 @@ IFS="
 					}
 				}
 			}')
-			parent_line_number="$(echo $mount_line | cut -d' ' -f2)"
-			parent_line="$(echo "$all_mounts" | awk '$1 == '$parent_line_number)"
-			parent_shared=$(echo "$parent_line" | awk '{
-				for (i=7; i<NF; i++) {
-					if ($i ~ "^shared:[0-9][0-9]*"){
-						print "true"
-						exit
-					} else if ($i == "-"){
-						print "false"
-						exit
-					}
-				}
-			}')
 
-			# Determine mount type.
-			# Five possibilities:
-			# - subshare
-			#   - mount line and parent's mount line should both have an option field saying "shared:\d\+"
-			# - share
-			#   - none of the above and mount line has optional field saying shared
-			# - bind
-			#   - none of the above and stat output matches core equivalent path
-			# - union
-			#   - none of the above and filesystem type filed says "fuse.bru"
-			# - other
-			#   - none of the above
-			if $parent_shared && $shared
-			then
-				found_type="subshare"
-			elif $shared
-			then
-				found_type="share"
-			elif [ "$mount_point_stat" = "$core_equivalent_mount_point_stat" ]
-			then
-				found_type="bind"
-			elif [ "$fs_type" = "fuse.bru" ]
-			then
-				found_type="union"
-			else
-				found_type="other"
-			fi
-
-			# Determine if a given mount type was expected
+			# determine the expected mount type
 			if echo "$bind_mounts" | grep -q "^$mount_point$"
 			then
 				expected_type="bind"
@@ -337,41 +444,152 @@ IFS="
 			elif echo "$share_mounts" | grep -q "^$mount_point$"
 			then
 				expected_type="share"
-			elif echo "$share_mounts" | grep -q "^$mount_point/"
+			elif echo "$unmanaged_mounts" | grep -q "^$mount_point$"
 			then
-				expected_type="subshare"
+				expected_type="unmanaged"
 			else
 				expected_type="other"
+				for shared_mount in $share_mounts
+				do
+					if echo "$mount_point" | grep -q "^$shared_mount/"
+					then
+						expected_type="subshare"
+						break
+					fi
+				done
 			fi
 
-			# Print output
-			if [ "$found_type" = "$expected_type" ] ||\
-				[ "$expected_type" = "subshare" ] ||\
-				[ "$expected_type" = "other" ] ||\
-				( [ "$expected_type" = "share" ] && [ "$found_type" = "subshare" ] )
+			# determine actual mount type
+			if echo "$unmanaged_mounts" | grep -q "^$mount_point$"
 			then
-				match="OK"
+				found_type="unmanaged"
+			elif $shared && [ "$expected_type" != "subshare" ]
+			then
+				found_type="share"
+			elif $shared && [ "$expected_type" == "subshare" ]
+			then
+				found_type="subshare"
+			elif [ "$mount_point_stat" = "$global_equivalent_mount_point_stat" ]
+			then
+				found_type="bind"
+			elif [ "$fs_type" = "fuse.bru" ]
+			then
+				found_type="union"
 			else
-				match="expected: $expected_type"
+				found_type="other"
 			fi
-			echo "$core_equivalent_mount_point ($found_type/$match)"
 
+			# print output
+			if [ "$expected_type" = "other" ] || [ "$expected_type" = "subshare" ] || [ "$expected_type" = "unmanaged" ]
+			then
+				match="okay"
+			elif [ "$found_type" = "$expected_type" ]
+			then
+				match="good"
+			else
+				match="expected: $expected_type/bad"
+			fi
+
+			if $is_init
+			then
+				echo "$mount_point ($found_type/$match)"
+			else
+				echo "/$(echo $mount_point | cut -d/ -f5- ) ($found_type/$match)"
+			fi
 		done
 	done
 }
 
-# find the client that we're currently in
+# print missing mount points
+M() {
+	while [ -n "${1:-}" ]
+	do
+		stratum="${1}"
+		shift
+
+		if [ "$(a init)" = "$(a "$stratum")" ]
+		then
+			is_init=true
+		else
+			is_init=false
+		fi
+		if [ "$(a init)" = "$(a global)" ]
+		then
+			global_is_init=true
+		else
+			global_is_init=false
+		fi
+		all_mounts="$(cat /proc/1/mountinfo)"
+		# get all mount points
+		if $is_init
+		then
+			# init's mounts are relative to the real root, not /bedrock/stratum/<stratum-name>
+			mount_points=$(awk '$5 !~ "^/bedrock/strata/[^/][^/]*/." {print$5}' /proc/1/mountinfo)
+			bind_mounts=$(get_values "$stratum" "bind" "all" | realpathfilter)
+			union_mounts=$(get_values "$stratum" "union" "first" | realpathfilter)
+			share_mounts=$(get_values "$stratum" "share" "all" | realpathfilter)
+			unmanaged_mounts=$(get_values "$stratum" "unmanaged" "all" | realpathfilter)
+		else
+			mount_points=$(awk '$5 ~ "^/bedrock/strata/'"${stratum}"'(/|$)" {print$5}' /proc/1/mountinfo)
+			bind_mounts=$(get_values "$stratum" "bind" "allreal" | realpathfilter)
+			union_mounts=$(get_values "$stratum" "union" "firstreal" | realpathfilter)
+			share_mounts=$(get_values "$stratum" "share" "allreal" | realpathfilter)
+			unmanaged_mounts=$(get_values "$stratum" "unmanaged" "allreal" | realpathfilter)
+		fi
+
+IFS="
+"
+		for bind_mount in $bind_mounts
+		do
+			if ! echo "$mount_points" | grep -q "^$bind_mount$"
+			then
+				if $is_init
+				then
+					echo "$bind_mount (expected bind)"
+				else
+					echo "/$(echo $bind_mount | cut -d/ -f5-) (expected bind)"
+				fi
+			fi
+		done
+		for share_mount in $share_mounts
+		do
+			if ! echo "$mount_points" | grep -q "^$share_mount$"
+			then
+				if $is_init
+				then
+					echo "$share_mount (expected share)"
+				else
+					echo "/$(echo $share_mount | cut -d/ -f5-) (expected share)"
+				fi
+			fi
+		done
+		for union_mount in $union_mounts
+		do
+			if ! echo "$mount_points" | grep -q "^$union_mount$"
+			then
+				if $is_init
+				then
+					echo "$union_mount (expected union)"
+				else
+					echo "/$(echo $union_mount | cut -d/ -f5-) (expected union)"
+				fi
+			fi
+		done
+	done
+}
+
+# find the stratum that we're currently in
 n() {
 	# if cached value, use that for tiny (0.025s -> 0.007s) performance boost
-	if [ -r /etc/br_client_name ]
+	if [ -r /etc/bedrock_stratum ]
 	then
-		cat /etc/br_client_name
+		cat /etc/bedrock_stratum
 	else
-		pid_client $$
+		pid_stratum $$
 	fi
 }
 
-# find the client that provides the specified process by pid or (non-numeric)
+# find the stratum that provides the specified process by pid or (non-numeric)
 # name
 p() {
 	while [ -n "${1:-}" ]
@@ -385,176 +603,127 @@ p() {
 		mentioned=" "
 		for pid in $(echo $pids)
 		do
-			echo "$pid $(cat /proc/$pid/comm) ($(pid_client $pid))"
+			echo "$pid $(cat /proc/$pid/comm) ($(pid_stratum $pid))"
 		done
 		shift
 	done
 }
 
 # print the pids all of the processes that are currently being provided by a
-# client
+# stratum
 P() {
 	while [ -n "${1:-}" ]
 	do
+		stratum="$(a "$1")"
 		for pid in $(ls /proc | grep "^[0-9]*$")
 		do
 				# only want process that are not a zombie or kernel process and
-				# are in the client for which we're looking.
+				# are in the stratum for which we're looking.
 				if [ -n "$(cat /proc/$pid/cmdline)" ] && \
-					[ "$(pid_client $pid)" = "$1" ]
+					[ "$(pid_stratum $pid)" = "$stratum" ]
 				then
-					echo "$pid $(cat /proc/$pid/comm) ($(pid_client $pid))"
+					echo "$pid $(cat /proc/$pid/comm) ($(pid_stratum $pid))"
 				fi
 		done 2>/dev/null # pids can disappear on us mid-run
 		shift
 	done
 }
 
-# Print client status
+# print stratum status
 s() {
 	while [ -n "${1:-}" ]
 	do
-		client="${1}"
+		stratum="$(a ${1})"
 		shift
-		if [ "$client" = "bedrock" ]
+
+		# figure out if stratum is configured as enabled or disabled
+		if [ -e "/bedrock/run/enabled_strata/$stratum" ]
 		then
-			echo "bedrock: no setup needed"
+			enable_status="enabled"
 		else
-			# figure out if client is configured as enabled or disabled
-			if [ -r "/bedrock/etc/clients.d/$client.conf" ]
-			then
-				enable_status="enabled"
-			elif [ -r "/bedrock/etc/clients.d/$client.conf.disabled" ]
-			then
-				enable_status="disabled"
-			else
-				echo "ERROR: No config corresponding to \"$client\""
-			fi
-
-			# generalize mount status as one of the following:
-			# - problematic mounts
-			# - fully mounted
-			# - no expected mounts
-			# - partially mounted
-
-			mounts="$(m $client)"
-			# anything that m() kicks out that doesn't end in (.../OK) is a
-			# problem.  All of these problematic outputs end in something that
-			# isn't a K followed by ).
-			found_problem_mounts="$(echo "$mounts" | grep '[^K])$')"
-			found_problem_count="$(echo "$found_problem_mounts" | wc -l)"
-			found_good_mounts="$(echo "$mounts" | grep '/OK)$' | grep -v "subshare/OK)$" | grep -v "other/OK)$")"
-			found_good_mount_count="$(echo "$found_good_mounts" | wc -l)"
-			goal_good_mounts="$(
-				(
-					get_values "$client" "bind" "allreal"
-					get_values "$client" "share" "allreal"
-					get_values "$client" "union" "firstreal"
-				)
-			)"
-			goal_good_mount_count="$(echo "$goal_good_mounts" | wc -l)"
-
-			if [ -n "$found_problem_mounts" ]
-			then
-				mount_status="problematic mounts"
-			elif [ "$found_good_mount_count" -eq "$goal_good_mount_count" ]
-			then
-				mount_status="fully mounted ($found_good_mount_count/$goal_good_mount_count)"
-			elif [ "$found_good_mount_count" -eq 0 ]
-			then
-				mount_status="no expected mounts ($found_good_mount_count/$goal_good_mount_count)"
-			else
-				mount_status="partially mounted ($found_good_mount_count/$goal_good_mount_count)"
-			fi
-
-			echo "$client: $enable_status, $mount_status"
-
-IFS_ORIG="$IFS"
-IFS="
-"
-			# if there is a problem, print out additional information describing it to help debug
-			if [ "$found_problem_count" -ne 0 ]
-			then
-				for mount in $found_problem_mounts
-				do
-					echo "problematic mount: $mount"
-				done
-			fi
-			# if there is a mount which is (1) expected, (2) not listed in the
-			# good mounts and (3) not listed as a problematic mount, list it to help debug.
-			if [ "$found_good_mount_count" -lt "$goal_good_mount_count" ]
-			then
-				# loop over goal mounts
-				for goal_mount in $(echo "$goal_good_mounts" | cut -d'/' -f5- | sed 's,^,/,')
-				do
-					found=/bin/false
-					# loop over found mounts.  If a goal one is not found in this list, it's missing.
-					for found_mount in $(echo "$found_good_mounts" | awk -F"(" '{$NF="";sub("..$","",$0)}1')
-					do
-						if [ "$goal_mount" = "$found_mount" ]
-						then
-							found=/bin/true
-							continue
-						fi
-					done
-					if ! $found
-					then
-						# We found a missing one.  Check that it isn't in the
-						# problematic mounts list (as we've already listed
-						# those).
-						found=/bin/false
-						for problem_mount in $(echo "$found_problem_mounts" | awk -F"(" '{$NF="";sub("..$","",$0)}1')
-						do
-							if [ "$goal_mount" = "$problem_mount" ]
-							then
-								found=/bin/true
-							fi
-						done
-						if ! $found
-						then
-							echo "missing mount: $goal_mount"
-						fi
-					fi
-				done
-			fi
-IFS="$IFS_ORIG"
+			enable_status="disabled"
 		fi
+
+		# generalize mount status as one of the following:
+		# - problematic mounts
+		# - fully mounted
+		# - no expected mounts
+		# - partially mounted
+		mounts="$(m $stratum)"
+		goal_expected_mounts="$(
+			(
+				get_values "$stratum" "bind" "allreal"
+				get_values "$stratum" "share" "allreal"
+				get_values "$stratum" "union" "firstreal"
+			) | sort | uniq
+		)"
+		if [ -z "$goal_expected_mounts" ]
+		then
+			goal_expected_mount_count="0"
+		else
+			goal_expected_mount_count="$(echo "$goal_expected_mounts" | wc -l)"
+		fi
+		found_expected_mounts="$(echo "$mounts" | grep '/good)$' | sort | uniq)"
+		if [ -z "$found_expected_mounts" ]
+		then
+			found_expected_mount_count="0"
+		else
+			found_expected_mount_count="$(echo "$found_expected_mounts" | wc -l)"
+		fi
+		found_problem_mounts="$(echo "$mounts" | grep -v '/good)$' | grep -v "/okay)$")"
+		if [ -z "$found_problem_mounts" ]
+		then
+			found_problem_mount_count="0"
+		else
+			found_problem_mount_count="$(echo "$found_problem_mounts" | wc -l)"
+		fi
+
+		if [ -n "$found_problem_mounts" ]
+		then
+			mount_status="problematic mounts"
+		elif [ "$found_expected_mount_count" -eq "$goal_expected_mount_count" ]
+		then
+			mount_status="fully mounted ($found_expected_mount_count/$goal_expected_mount_count)"
+		elif [ "$goal_expected_mount_count" -eq 0 ]
+		then
+			mount_status="no expected mounts ($found_expected_mount_count/$goal_expected_mount_count)"
+		elif [ "$found_expected_mount_count" -gt "$goal_expected_mount_count" ]
+		then
+			mount_status="too many mounts, improperly enabled ($found_expected_mount_count/$goal_expected_mount_count)"
+		else
+			mount_status="missing mounts ($found_expected_mount_count/$goal_expected_mount_count)"
+		fi
+
+		echo "$stratum: $enable_status, $mount_status"
 	done
 }
 
-# print client which provides command
-# TODO: we should differentiate between local and global for the last category.
-# We need a reliable way to determine if something is global or not.  Comparing
-# stat(1) output is probably the fastest/easiest way to rule out most things
-# that are not global; if those differ, it's local.  Unless symlinks are going
-# to be misleading there somehow.  Even if symlinks aren't a problem, stat(1)
-# comparison doesn't guarantee global, only guarantees local.  Maybe find the
-# item's mount point and check against m() if it is global?
+# print stratum which provides command
 w() {
 	while [ -n "${1:-}" ]
 	do
-		loc=$(/bedrock/bin/busybox which $1)
+		loc=$(which $1)
 		if [ "$?" -ne 0 ]
 		then
 			# could not find the executable
-			echo "- (nonexistent)"
+			echo "(nonexistent)"
 		elif echo "$loc" | grep -q "^/bedrock/bin/" || \
 			echo "$loc" | grep -q "^/bedrock/sbin/"
 		then
 			# if the executable is in /bedrock/{bin,sbin} then it is being
 			# accessed directly without brc, but isn't technically part of the
-			# local client, either.
-			echo "bedrock (direct/global)"
+			# local stratum, either.
+			echo "(bedrock)"
 		elif echo "$loc" | grep -q "^/bedrock/brpath/"
 		then
 			# if the executable is in /bedrock/brpath, then it is being
-			# provided by another client through the brc/brp.  Each of the
+			# provided by another stratum through the brc/brp.  Each of the
 			# items in the brp path are shell script wrappers which call brc
-			# for the given file.  The location of the client brc is to use is
+			# for the given file.  The location of the stratum brc is to use is
 			# constant; we can read that.
-			awk 'NR==2{print $3 " (brc/local)"}' "$loc"
+			awk 'NR==2{print $3" (implicit)"}' "$loc"
 		else
-			# if neither of the above situations is true, then the command is
+			# if none of the above situations is true, then the command is
 			# being provided directly.  However, we still have to determine if
 			# it is local or global.
 			echo "$(n) (direct)"
@@ -566,13 +735,15 @@ w() {
 #  -----------------------------------------------------------------------------
 #  - execution starts here                                                     -
 #  -----------------------------------------------------------------------------
-
-# This will brc to the core, which could result in directory jump warnings.  To
-# avoid this, cd to the root.
+# This will brc to init. To avoid directory jump warnings, cd to the root.
 cd /
 
-
 # Parse arguments and call corresponding function.
+
+if [ "$#" -eq 0 ]
+then
+	abort "bri: no argument provided, see bri -h"
+fi
 
 flag=$1 # store flag that we'll use later
 shift
@@ -580,27 +751,39 @@ extraargs="$@"
 if [ -z "$extraargs" ]
 then
 	# -p and -w require additional args to work
-	if [ "$flag" = "p" ] | [ "$flag" = "w" ]
+	if [ "$flag" = "p" ] || [ "$flag" = "-p" ]\
+		|| [ "$flag" = "w" ] || [ "$flag" = "-w" ]\
+		|| [ "$flag" = "a" ] || [ "$flag" = "-a" ]
 	then
-		echo "Additional arguments required, see bri -h"
+		abort "bri: additional arguments required, see bri -h"
 	fi
-	# Most flags which can take following args default to the current client if
+	# Most flags which can take following args default to the current stratum if
 	# no more args are provided.  If there are no more args, "fake" a following
-	# arg as the default/current client.
+	# arg as the default/current stratum.
 	extraargs=$(n)
 fi
+
 case "$flag" in
+	"-a"|"a")
+		a $extraargs;;
 	"-c"|"c")
 		c $extraargs;;
-	"-C"|"C")
-		C $extraargs;;
-	# -h is covered in *)
+	"-e"|"e")
+		e $extraargs;;
+	"-h"|"h"|"--help")
+		h;;
+	"-i"|"i")
+		i;;
+	"-I"|"I")
+		I;;
 	"-l"|"l")
 		l;;
 	"-L"|"L")
 		L;;
 	"-m"|"m")
 		m $extraargs;;
+	"-M"|"M")
+		M $extraargs;;
 	"-n"|"n")
 		n;;
 	"-p"|"p")
@@ -612,5 +795,5 @@ case "$flag" in
 	"-w"|"w")
 		w $extraargs;;
 	*)
-		h;;
+		abort "bri: illegal argument provided, see bri -h";;
 esac
