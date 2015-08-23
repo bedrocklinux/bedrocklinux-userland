@@ -1,0 +1,47 @@
+#!/bedrock/libexec/busybox sh
+#
+# setup-etc
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2015 Daniel Thau <danthau@bedrocklinux.org>
+#
+# This script will set up required Bedrock /etc files for:
+# - the local alias to function.
+# - the timezone to be set
+
+abort() {
+	echo "$@" >&2
+	exit 1
+}
+
+stratum=$1
+if [ "$(bri -a $stratum)" = "$(bri -a init)" ]
+then
+	stratum_root=""
+else
+	stratum_root="/bedrock/strata/$stratum"
+fi
+
+if ! [ -d "$stratum_root/etc" ]
+then
+	mkdir -p "$stratum_root/etc" || abort "Unable to setup /etc for $stratum"
+fi
+
+if [ "$(cat "$stratum_root/etc/bedrock_stratum")" != "$stratum" ]
+then
+	echo "$stratum" > "$stratum_root/etc/bedrock_stratum" || abort "Unable to setup /etc for $stratum"
+	chmod 644 "$stratum_root/etc/bedrock_stratum" || abort "Unable to setup /etc for $stratum"
+fi
+
+if [ -e /bedrock/etc/localtime ] && [ "$(sha1sum /bedrock/etc/localtime)" != "$(sha1sum $stratum_root/etc/localtime)" ]
+then
+	cp /bedrock/etc/localtime "$stratum_root/etc/localtime" || abort "Unable to setup /etc for $stratum"
+fi
+
+if [ -e /bedrock/etc/adjtime ] && [ "$(sha1sum /bedrock/etc/adjtime)" != "$(sha1sum $stratum_root/etc/adjtime)" ]
+then
+	cp /bedrock/etc/adjtime "$stratum_root/etc/adjtime" || abort "Unable to setup /etc for $stratum"
+fi
