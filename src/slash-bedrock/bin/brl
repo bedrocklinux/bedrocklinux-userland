@@ -1,4 +1,4 @@
-#!/bedrock/bin/busybox sh
+#!/bedrock/libexec/busybox sh
 #
 # brl (BedRock aLl)
 #
@@ -9,7 +9,7 @@
 # Copyright (c) 2012-2014 Daniel Thau <danthau@bedrocklinux.org>
 #
 # This script will run the argument in the local context of all enabled
-# clients
+# stratum
 
 # check for need to print help
 if [ -z "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]
@@ -17,23 +17,23 @@ then
 cat <<EOF
 Usage: brl [-c CONDITIONAL] COMMAND
 
-If '-c' is not provided, brl will run COMMAND with all available client local
+If '-c' is not provided, brl will run COMMAND with all available stratum local
 contexts.
 
 If '-c' is the first argument followed by a CONDITIONAL, the CONDITIONAL will
-be run in all enabled clients local contexts and if that command returns 0 the
+be run in all enabled stratum local contexts and if that command returns 0 the
 following COMMAND will be run.
 
 Examples:
 
-    # attempt to ping google ito check if networking is working
-    brl ping -c 1 google.com
+    # check if network/DNS is working
+    brl ping -c 1 bedrocklinux.org
 
-    # run 'apt-get update && apt-get dist-upgrade' in all clients that have
+    # run 'apt-get update && apt-get dist-upgrade' in all stratum enabled that have
     # apt-get available in the local context
     brl -c 'brw apt-get|grep "(direct)$"' sh -c 'apt-get update && apt-get dist-upgrade'
 
-    # List all of the pids and their corresponding clients.  Can append "| sort
+    # List all of the pids and their corresponding stratum.  Can append "| sort
     # -n" to sort by pid.
     brl bri -P | grep -v "brl\|bri"
 
@@ -47,16 +47,16 @@ then
 	shift
 	shift
 else
-	conditional="true"
+	conditional="/bedrock/libexec/busybox true"
 fi
 
-for CLIENT in $(bri -l)
+for stratum in $(/bedrock/bin/bri -l)
 do
-	if eval "brc $CLIENT $conditional"
+	if eval "/bedrock/bin/brc $stratum $conditional"
 	then
-		echo "brl: running commands in $CLIENT"
-		brc $CLIENT "$@"
+		echo "brl: running commands in $stratum"
+		/bedrock/bin/brc $stratum "$@"
 	else
-		echo "brl: skipping $CLIENT (conditional not met)"
+		echo "brl: skipping $stratum (conditional not met)"
 	fi
 done
