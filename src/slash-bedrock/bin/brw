@@ -1,4 +1,4 @@
-#!/bedrock/bin/busybox sh
+#!/bedrock/libexec/busybox sh
 #
 # brw (BedRock Where)
 #
@@ -6,14 +6,14 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2012-2014 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2012-2015 Daniel Thau <danthau@bedrocklinux.org>
 # Copyright (c) 2013 Brad Hollander <hollander.36@osu.edu>
 
 if [ -z "$1" ]
 then
     # if there's no arguments, run bri -n
-    exec bri -n
+    exec /bedrock/bin/bri -n
 else
     # if given arguments, pass them to bri -w
-    exec bri -w "$@"
+    exec /bedrock/bin/bri -w "$@"
 fi
