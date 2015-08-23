@@ -376,7 +376,12 @@ bedrock_linux_1.0beta2_nyla.tar:
 	mkdir -p build/bedrock/strata/fallback/run
 	mkdir -p build/bedrock/strata/fallback/systemd
 	mkdir -p build/bedrock/strata/fallback/systemd/system
-	mkdir -p build/bedrock/global-files/
+	mkdir -p build/bedrock/strata/fallback/systemd/system/multi-user.target.wants
+	mkdir -p build/bedrock/global-files
+	mkdir -p build/bedrock/global-files/etc/
+	mkdir -p build/bedrock/global-files/etc/systemd
+	mkdir -p build/bedrock/global-files/etc/systemd/system
+	mkdir -p build/bedrock/global-files/etc/systemd/system/multi-user.target.wants
 	# set directory permissions
 	chmod 0755 build/bedrock
 	chmod 0755 build/bedrock/bin
@@ -416,7 +421,12 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0755 build/bedrock/strata/fallback/run
 	chmod 0755 build/bedrock/strata/fallback/systemd
 	chmod 0755 build/bedrock/strata/fallback/systemd/system
-	chmod 0755 build/bedrock/global-files/
+	chmod 0755 build/bedrock/strata/fallback/systemd/system/multi-user.target.wants
+	chmod 0755 build/bedrock/global-files
+	chmod 0755 build/bedrock/global-files/etc
+	chmod 0755 build/bedrock/global-files/etc/systemd
+	chmod 0755 build/bedrock/global-files/etc/systemd/system
+	chmod 0755 build/bedrock/global-files/etc/systemd/system/multi-user.target.wants
 	# files
 	cp -d build/bin/brc                              build/bedrock/bin/
 	cp -d src/slash-bedrock/bin/bri                  build/bedrock/bin/
@@ -443,6 +453,22 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d src/slash-bedrock/etc/strata.d/init_root   build/bedrock/etc/strata.d/ # symlink
 	cp -d src/slash-bedrock/etc/strata.d/rootfs_root build/bedrock/etc/strata.d/ # symlink
 	cp -d build/bin/busybox                          build/bedrock/strata/fallback/bin/
+	cp -d src/global-files/etc/systemd/system/multi-user.target.wants/bedrock.service build/bedrock/global-files/etc/systemd/system/
+	cp -d src/global-files/etc/fstab                 build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/group                 build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/hostname              build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/hosts                 build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/inittab               build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/issue                 build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/lsb-release           build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/motd                  build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/os-release            build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/passwd                build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/profile               build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/rc.local              build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/shadow                build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/shells                build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/sudoers               build/bedrock/global-files/etc/
 	# set file permissions
 	chmod 0755 build/bedrock/bin/brc
 	chmod 0755 build/bedrock/bin/bri
