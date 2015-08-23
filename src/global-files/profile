@@ -1,4 +1,4 @@
-#!/bedrock/bin/busybox sh
+#!/bedrock/libexec/busybox sh
 
 # source settings from rc.conf
 . /bedrock/etc/rc.conf
@@ -8,10 +8,10 @@ export TZ
 export LANG
 
 # set the $*PATH variables
-export PATH="/bedrock/bin:$NPATH:/bedrock/brpath/bin"
+export PATH="/bedrock/bin:/bedrock/brpath/pin/bin:$NPATH:/bedrock/brpath/bin"
 if [ "$(id -u)" = "0" ]
 then
-	export PATH="/bedrock/bin:/bedrock/sbin:$NPATH:$SPATH:/bedrock/brpath/bin:/bedrock/brpath/sbin"
+	export PATH="/bedrock/bin:/bedrock/sbin:/bedrock/pin/bin:/bedrock/pin/sbin:$NPATH:$SPATH:/bedrock/brpath/bin:/bedrock/brpath/sbin"
 fi
 export MANPATH="$MANPATH:/bedrock/brpath/man"
 export INFOPATH="$INFOPATH:/bedrock/brpath/info"
