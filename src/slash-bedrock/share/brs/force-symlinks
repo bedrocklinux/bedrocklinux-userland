@@ -1,4 +1,4 @@
-#!/bedrock/bin/busybox sh
+#!/bedrock/libexec/busybox sh
 #
 # force-symlinks
 #
@@ -6,81 +6,62 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2012-2014 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2012-2015 Daniel Thau <danthau@bedrocklinux.org>
 #
-# This script will create symlinks in Bedrock Linux clients just before they are setup.
+# This script will create various required symlinks.
 
-create_symlinks() {
-	# ensure the directories that should contain both the source and destination exist.
-	mkdir -p $core_src_dir
-	mkdir -p $core_dst_dir
+abort() {
+	echo "$@" >&2
+	exit 1
+}
 
-	if [ -h $core_src ] && [ "$(readlink $core_src)" = "$client_dst" ]
+create_symlink() {
+	src=$1
+	dst=$2
+
+	# ensure the directories that should contain the symlink exists
+	mkdir -p $(dirname $src)
+
+	if [ -h "$src" ] && [ "$(readlink "$src")" = "$dst" ]
 	then
 		# This is the desired situation, everything is already set up.
 		return
-	elif [ -h $core_src ] && [ "$(readlink $core_src)" != "$client_dst" ]
+	elif [ -h "$src" ] && [ "$(readlink "$src")" != "$dst" ]
 	then
-		# The symlink exists but it is pointing in the wrong location.  This is
-		# a particularly bad situation as there is no way this could have
-		# happened that the script knows about.
-		ln -sf "$client_dst" "$core_src"
-	elif [ ! -e "$core_src" ]
+		# The symlink exists but it is pointing in the wrong location.
+		# This is a particularly bad situation as there is no way this
+		# could have happened that the script knows about.  Force it
+		# through anyways.
+		ln -sf "$dst" "$src" || abort "Unable to symlink $src -> $dst"
+	elif ! [ -e "$src" ]
 	then
-		# Nothing exists at where we want the symlink.  Just create it.
-		ln -sf "$client_dst" "$core_src"
-	elif [ -e "$core_src" ]
+		# Nothing exists where we want the symlink.  Just create it.
+		ln -sf "$dst" "$src" || abort "Unable to symlink $src -> $dst"
+	elif [ -e "$src" ]
 	then
-		# Something exists at the location where we want the symlink that isn't
-		# a symlink.  This is the situation for which this script was made.
-		# Move that file/directory to where we want it to go, then create the
-		# symlink to it.
-		mv "$core_src" "$core_dst"
-		ln -sf "$client_dst" "$core_src"
+		# Something exists at the location where we want the symlink
+		# that isn't a symlink.  Move that file/directory to where we
+		# want it to go, then create the symlink to it.
+		mv "$src" "$dst" || abort "Unable to symlink $src -> $dst"
+		ln -sf "$dst" "$src" || abort "Unable to symlink $src -> $dst"
 	fi
 }
 
-client=$1
+stratum="$1"
+if [ "$(bri -a $stratum)" = "$(bri -a init)" ]
+then
+	stratum_root=""
+else
+	stratum_root="/bedrock/strata/$stratum"
+fi
 
-# Install the /var/lib/dbus/machine-id -> /etc/machine-id symlink
+create_symlink "$stratum_root/var/lib/dbus/machine-id" "/etc/machine-id"
+create_symlink "$stratum_root/var/run" "/run"
 
-# This is where the core sees the location the symlink file will be placed.
-core_src=/bedrock/clients/$client/var/lib/dbus/machine-id
-core_src_dir=/bedrock/clients/$client/var/lib/dbus
-# This is where the core sees the location to which the symlink will point
-core_dst=/bedrock/clients/$client/etc/machine-id
-core_dst_dir=/bedrock/clients/$client/etc/
-# This is where the client sees the location to which the symlink will point.
-client_dst=/bedrock/clients/$client/etc/machine-id
-
-create_symlinks
-
-
-# Install the /var/run -> /run symlink
-
-# This is where the core sees the location the symlink file will be placed.
-core_src=/bedrock/clients/$client/var/run
-core_src_dir=/bedrock/clients/$client/var/
-# This is where the core sees the location to which the symlink will point
-core_dst=/bedrock/clients/$client/run
-core_dst_dir=/bedrock/clients/$client/
-# This is where the client sees the location to which the symlink will point.
-client_dst=/run
-
-create_symlinks
-
-# Install the /etc/mtab -> /proc/mounts
-
-# This is where the core sees the location the symlink file will be placed.
-core_src=/bedrock/clients/$client/etc/mtab
-core_src_dir=/bedrock/clients/$client/etc
-# This is where the core sees the location to which the symlink will point
-core_dst=/bedrock/clients/$client/proc/mounts
-core_dst_dir=/bedrock/clients/$client/proc
-# This is where the client sees the location to which the symlink will point.
-client_dst=/proc/mounts
-
-# we don't want to actually move an existing /etc/mtab, just delete it:
-[ -e $core_src ] && rm -rf $core_src >/dev/null 2>&1
-
-create_symlinks
+# Don't want to actually move an existing /etc/mtab, just delete it if it
+# points to the wrong place.
+if [ -e "$stratum_root/etc/mtab" ] && [ "$(readlink "$stratum_root/etc/mtab")" != "/proc/mounts" ]
+then
+	rm $stratum_root/etc/mtab || abort "Unable to remove bad /etc/mtab"
+fi
+create_symlink "$stratum_root/etc/mtab" "/proc/mounts"
