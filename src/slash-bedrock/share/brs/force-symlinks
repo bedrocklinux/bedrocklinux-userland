@@ -1,0 +1,67 @@
+#!/bedrock/libexec/busybox sh
+#
+# force-symlinks
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2015 Daniel Thau <danthau@bedrocklinux.org>
+#
+# This script will create various required symlinks.
+
+abort() {
+	echo "$@" >&2
+	exit 1
+}
+
+create_symlink() {
+	src=$1
+	dst=$2
+
+	# ensure the directories that should contain the symlink exists
+	mkdir -p $(dirname $src)
+
+	if [ -h "$src" ] && [ "$(readlink "$src")" = "$dst" ]
+	then
+		# This is the desired situation, everything is already set up.
+		return
+	elif [ -h "$src" ] && [ "$(readlink "$src")" != "$dst" ]
+	then
+		# The symlink exists but it is pointing in the wrong location.
+		# This is a particularly bad situation as there is no way this
+		# could have happened that the script knows about.  Force it
+		# through anyways.
+		ln -sf "$dst" "$src" || abort "Unable to symlink $src -> $dst"
+	elif ! [ -e "$src" ]
+	then
+		# Nothing exists where we want the symlink.  Just create it.
+		ln -sf "$dst" "$src" || abort "Unable to symlink $src -> $dst"
+	elif [ -e "$src" ]
+	then
+		# Something exists at the location where we want the symlink
+		# that isn't a symlink.  Move that file/directory to where we
+		# want it to go, then create the symlink to it.
+		mv "$src" "$dst" || abort "Unable to symlink $src -> $dst"
+		ln -sf "$dst" "$src" || abort "Unable to symlink $src -> $dst"
+	fi
+}
+
+stratum="$1"
+if [ "$(bri -a $stratum)" = "$(bri -a init)" ]
+then
+	stratum_root=""
+else
+	stratum_root="/bedrock/strata/$stratum"
+fi
+
+create_symlink "$stratum_root/var/lib/dbus/machine-id" "/etc/machine-id"
+create_symlink "$stratum_root/var/run" "/run"
+
+# Don't want to actually move an existing /etc/mtab, just delete it if it
+# points to the wrong place.
+if [ -e "$stratum_root/etc/mtab" ] && [ "$(readlink "$stratum_root/etc/mtab")" != "/proc/mounts" ]
+then
+	rm $stratum_root/etc/mtab || abort "Unable to remove bad /etc/mtab"
+fi
+create_symlink "$stratum_root/etc/mtab" "/proc/mounts"

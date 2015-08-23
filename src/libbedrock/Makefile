@@ -8,6 +8,7 @@ clean:
 
 install:
 	mkdir -p $(prefix)/lib
+	mkdir -p $(prefix)/include
 	install -m 644 libbedrock.a $(prefix)/lib/libbedrock.a
 	install -m 644 libbedrock.h $(prefix)/include/libbedrock.h
 

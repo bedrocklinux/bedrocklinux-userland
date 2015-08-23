@@ -1,0 +1,10 @@
+[Unit]
+Description=Bedrock Linux tweak to undo systemd mount changes
+DefaultDependencies=false
+
+[Service]
+Type=oneshot
+ExecStart=/bedrock/sbin/brs fix init
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,83 @@
+# This is a recommended collection of settings for strata to utilize.
+#
+# You are free to make other frameworks to use in stead of this one, or in
+# addition to this one.  Moreover, you're welcome to alter or delete this
+# framework without worry about breaking anything if no strata are configured
+# to utilize it.
+#
+# If you agree with the choices here, you can directly utilize this framework
+# by setting
+#
+#     framework = default
+#
+# in the corresponding section in /bedrock/etc/strata.conf or
+# /bedrock/etc/strata.d/<stratum-name>.conf
+
+# "share" indicates a given path should be considered global, i.e. that
+# everything should see the same set of files at any of these paths rather than
+# their own version.  New mount points in any of these directories will also be
+# treated as global (mount --share'd).
+share = /proc, /sys, /dev, /home, /root, /lib/modules, /tmp, /var/tmp, /mnt
+share = /media, /run
+
+# "bind" is similar to share, except new mount points made under these
+# directories are not treated as global.  This is primarily used to avoid
+# recursion where one global item is mounted within another.  In general,
+# anything set to be global in /bedrock should be "bind"'d rather than
+# "share"'d.
+#
+# Careful with the order - directories should come before what they contain.
+bind =  /bedrock, /bedrock/brpath, /bedrock/strata/bedrock
+
+# One cannot rename() the share or bind items.  This is problematic for some
+# files in /etc which (1) have neighboring items which are local (and so we
+# cannot share all of /etc) and (2) which are updated via rename(). Any files
+# which hit the above two situations should be union'd.  One can break up share
+# and bind items if the lines get to long, but union items have a picky syntax;
+# keep all of the items that are contained in the same directory on the same
+# line.
+union = /etc: profile, hostname, hosts, passwd, group, shadow, sudoers, resolv.conf, machine-id, shells, systemd/system/multi-user.target.wants/bedrock.service, locale.conf, motd, issue, os-release, lsb-release, rc.local
+
+# Bedrock Linux has hooks to run executables before/after enabling/disabling a
+# stratum.  These are required to ensure various things are in place which
+# Bedrock Linux expects for some of the above share items to work.
+preenable = /bedrock/share/brs/force-symlinks
+preenable = /bedrock/share/brs/setup-etc
+preenable = /bedrock/share/brs/run-lock
+
+# No default scripts for the following hooks, but feel free to make your own.
+# postenable
+# predisable
+# postdisable
+
+# "enable" indicates if the given stratum should be enabled at boot time.  This
+# can either be "boot" (indicating it should be enabled at boot time) or
+# "manual" (indicating it will be enabled/disabled manually).
+#
+# Feel free to override this with a "enable = manual" in the corresponding
+# stratum's section in /bedrock/etc/strata.conf or
+# /bedrock/etc/strata.d/<stratum>.conf.
+enable = boot
+
+# "init" indicates the given stratum can provide an init system.  The value
+# should be the command to run at boot if this stratum is chosen to provide
+# init.  The value is the entire line after the "="; do not place multiple init
+# commands in the same line separated by ","'s as one can do with "share".
+# Historically, "/sbin/init" is utilized as the command to run the init;
+# however, systemd systems seem to prefer /lib/systemd/system without a
+# corresponding symlink at "/sbin/init".
+#
+# In the corresponding stratum's section in /bedrock/etc/strata.conf or
+# /bedrock/etc/strata.d/<stratum>.conf, add something to the effect of
+#
+#     init = /sbin/init
+#
+# or
+#
+#     init = /lib/systemd/system
+#
+# To have it considered when querying the user for the init to chose.
+
+# Bedrock Linux will create init-related settings just after the given init was
+# chosen.  Utilize those.
+framework = init
