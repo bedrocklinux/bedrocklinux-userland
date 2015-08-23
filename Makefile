@@ -453,6 +453,8 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d src/slash-bedrock/etc/strata.d/init_root   build/bedrock/etc/strata.d/ # symlink
 	cp -d src/slash-bedrock/etc/strata.d/rootfs_root build/bedrock/etc/strata.d/ # symlink
 	cp -d build/bin/busybox                          build/bedrock/strata/fallback/bin/
+	cp -d src/slash-bedrock/strata/local             build/bedrock/strata/ # symlink
+	cp -d src/slash-bedrock/strata/init              build/bedrock/strata/ # symlink
 	cp -d src/global-files/etc/systemd/system/multi-user.target.wants/bedrock.service build/bedrock/global-files/etc/systemd/system/
 	cp -d src/global-files/etc/fstab                 build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/group                 build/bedrock/global-files/etc/
@@ -495,6 +497,8 @@ bedrock_linux_1.0beta2_nyla.tar:
 	# chmod 0777 build/bedrock/etc/strata.d/init_root # symlink
 	# chmod 0777 build/bedrock/etc/strata.d/rootfs_root # symlink
 	chmod 0755 build/bedrock/strata/fallback/bin/busybox
+	# chmod 0777 build/bedrock/strata/ # symlink
+	# chmod 0777 build/bedrock/strata/ # symlink
 	cd build/ && tar cvf ../bedrock_linux_1.0beta2_nyla.tar bedrock
 
 gzip_tarball: bedrock_linux_1.0beta2_nyla.tar.gz
