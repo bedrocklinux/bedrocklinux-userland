@@ -342,7 +342,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	mkdir -p build/bedrock/bin
 	mkdir -p build/bedrock/brpath
 	mkdir -p build/bedrock/etc
-	mkdir -p build/bedrock/etc/alias.d
+	mkdir -p build/bedrock/etc/aliases.d
 	mkdir -p build/bedrock/etc/frameworks.d
 	mkdir -p build/bedrock/etc/strata.d
 	mkdir -p build/bedrock/libexec
