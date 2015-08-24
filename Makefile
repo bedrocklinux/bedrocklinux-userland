@@ -487,7 +487,6 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0644 build/bedrock/etc/rc.conf
 	chmod 0644 build/bedrock/etc/strata.conf
 	chmod 0755 build/bedrock/strata/fallback/bin/busybox
-	cd build/ && tar cvf ../bedrock_linux_1.0beta2_nyla.tar bedrock
 	# create symlinks
 	ln -s /bedrock/run/init/alias       build/bedrock/etc/aliases.d/init
 	ln -s /bedrock/run/init/framework   build/bedrock/etc/frameworks.d/init
@@ -495,6 +494,8 @@ bedrock_linux_1.0beta2_nyla.tar:
 	ln -s /bedrock/run/init/rootfs_root build/bedrock/etc/strata.d/rootfs_root
 	ln -s /bedrock/run/init/root        build/bedrock/strata/init
 	ln -s /                             build/bedrock/strata/local
+	# build tarball
+	cd build/ && tar cvf ../bedrock_linux_1.0beta2_nyla.tar bedrock
 
 gzip_tarball: bedrock_linux_1.0beta2_nyla.tar.gz
 
