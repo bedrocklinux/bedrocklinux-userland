@@ -1,0 +1,405 @@
+#!/bedrock/libexec/busybox sh
+#
+# brn (BedRock iNit)
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2014-2015 Daniel Thau <danthau@bedrocklinux.org>
+#
+# This program will prepare a Bedrock Linux system in preparation for a
+# specified init executable.
+
+# Explicitly set $PATH.  Utilizes busybox's CONFIG_FEATURE_SH_STANDALONE for
+# non-bedrock utilities so they do not need to be in the $PATH.  This helps
+# ensure no conflict with strata utilities.
+PATH="/bedrock/bin:/bedrock/sbin"
+
+# exec needs default $IFS, so save it
+DEFAULT_IFS=$IFS
+# will loop over lines in strings a lot, make it IFS
+IFS="
+"
+
+# prepare colors
+NORMAL='\033[1;0m'
+WHITE='\033[1;37m'
+GREEN='\033[0;32m'
+CYAN='\033[1;36m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+
+print_logo() {
+	clear
+	printf "$WHITE"
+cat <<EOF
+__          __             __      
+\ \_________\ \____________\ \___  
+ \  _ \  _\ _  \  _\ __ \ __\   /  
+  \___/\__/\__/ \_\ \___/\__/\_\_\ 
+        Bedrock Linux 1.0beta2 Nyla
+EOF
+	printf "$NORMAL\n"
+}
+
+announce() {
+	printf "[ -- ] $1"
+}
+
+result() {
+	if [ $? -eq 0 ]
+	then
+		printf "\r[${GREEN}OKAY$NORMAL]\n"
+	else
+		printf "\r[${RED}FAIL$NORMAL]\n"
+	fi
+}
+
+fatal_error() {
+	echo ""
+	printf "${RED}$@${NORMAL}\n"
+	echo ""
+	echo "Starting emergency shell"
+	echo "Good luck"
+	echo ""
+	exec sh
+}
+
+pretty_print_init_options() {
+	i=0
+	for stratum in $(bri -L)
+	do
+		for cmd in $(bri -c "$stratum" init)
+		do
+			[ -z "$cmd" ] && break
+			i=$(expr $i \+ 1)
+			if [ "$stratum" = "$default_stratum" ] && [ "$cmd" = "$default_cmd" ]
+			then
+				star="${YELLOW}*${NORMAL}"
+			else
+				star=" "
+			fi
+			printf "${star}${WHITE}${i}${NORMAL}. ${GREEN}${stratum} ${CYAN}${cmd}${NORMAL}\n"
+		done
+	done
+}
+
+get_init_option_count() {
+	i=0
+	for stratum in $(bri -L)
+	do
+		for cmd in $(bri -c "$stratum" init)
+		do
+			[ -z "$cmd" ] && break
+			i=$(expr $i \+ 1)
+		done
+	done
+	echo "$i"
+}
+
+get_selected_stratum() {
+	i=0
+	for stratum in $(bri -L)
+	do
+		for cmd in $(bri -c "$stratum" init)
+		do
+			[ -z "$cmd" ] && break
+			i=$(expr $i \+ 1)
+			if [ "$i" -eq "$1" ]
+			then
+				echo $stratum
+				return
+			fi
+		done
+	done
+}
+
+get_selected_cmd() {
+	i=0
+	for stratum in $(bri -L)
+	do
+		for cmd in $(bri -c "$stratum" init)
+		do
+			[ -z "$cmd" ] && break
+			i=$(expr $i \+ 1)
+			if [ "$i" -eq "$1" ]
+			then
+				echo $cmd
+				return
+			fi
+		done
+	done
+}
+
+prompt_selection() {
+	if [ "$default_timeout" -gt 0 ] && [ -n "$default_stratum" ] && [ -n "$default_cmd" ]
+	then
+		printf "(${default_timeout}s): " >&2
+		selected_num="$(timeout -t "$default_timeout" /bedrock/libexec/busybox sh -c 'read default_timeout; echo $default_timeout')"
+	elif [ "$default_timeout" -eq 0 ] && [ -n "$default_stratum" ] && [ -n "$default_cmd" ]
+	then
+		selected_num=0
+	else
+		read selected_num
+	fi
+	if [ "$selected_num" = "" ]
+	then
+		selected_num="0"
+	fi
+	echo "$selected_num"
+}
+
+validate_init_choice() {
+	selected_num="$1"
+
+	if ! echo "$selected_num" | grep -q "[0-9][0-9]*"
+	then
+		return 1
+	elif [ "$selected_num" -eq 0 ] && [ -n "$default_stratum" ] && [ -n "$default_cmd" ]
+	then
+		return 0
+	elif ! [ "$selected_num" -gt 0 ]
+	then
+		return 1
+	elif ! [ "$selected_num" -le "$init_option_count" ]
+	then
+		return 1
+	else
+		return 0
+	fi
+}
+
+get_init_choice() {
+	while true
+	do
+		pretty_print_init_options
+		printf "\nInit number: "
+		selected_num="$(prompt_selection)"
+		if validate_init_choice "$selected_num"
+		then
+			return "$selected_num"
+		else
+			printf "${RED}Unrecognized choice.${NORMAL}\n"
+			continue
+		fi
+	done
+}
+
+sanity_check_strata() {
+	if ! bri -L | grep -q "\<$init_stratum\>"
+	then
+		fatal_error "Could not find init stratum (\"$init_stratum\")"
+	elif ! [ -d "/bedrock/strata/$init_stratum" ]
+	then
+		fatal_error "Could not find init stratum's root"
+	elif ! bri -L | grep -q "\<$rootfs_stratum\>"
+	then
+		fatal_error "Could not find rootfs stratum"
+	elif ! [ -d "/bedrock/strata/$rootfs_stratum" ]
+	then
+		fatal_error "Could not find rootfs stratum's root"
+	elif ! bri -L | grep -q "\<$global_stratum\>"
+	then
+		fatal_error "Could not find global stratum"
+	elif ! [ -d "/bedrock/strata/$global_stratum" ]
+	then
+		fatal_error "Could not find global stratum's root"
+	fi
+}
+
+pivot_root_to_init() {
+	announce "pivot_root'ing to $init_stratum (init)"
+
+	# ensure init_stratum root is a mount point
+	mount --bind /bedrock/strata/$init_stratum /bedrock/strata/$init_stratum
+
+	# make /bedrock - which is in rootfs_stratum - accessible in
+	# init_stratum so init_stratum can continue to do bedrock stuff
+	mkdir -p /bedrock/strata/$init_stratum/bedrock
+	mount --bind /bedrock /bedrock/strata/$init_stratum/bedrock
+
+	# pivot_root to init_stratum
+	cd /bedrock/strata/$init_stratum
+	pivot_root . bedrock/strata/$rootfs_stratum
+
+	# man 8 pivot_root says to `chroot .` here, but in practice this was
+	# found to make mount points - which need to be unmounted on shutdown -
+	# inaccessible, and no problems were found when skipping this step.
+	result
+}
+
+prepare_global() {
+	announce "Preparing $global_stratum (global)"
+
+	# ensure global has /bedrock
+	mkdir -p "$global_root/bedrock"
+	mkdir -p /bedrock
+	mount --bind /bedrock "$global_root/bedrock"
+	# ensure global can see its own explicit path
+	mkdir -p "$global_root/bedrock/strata/$global_stratum"
+	mount --bind "$global_root" "$global_root/bedrock/strata/$global_stratum"
+	# ensure global stratum can see init stratum's explicit path
+	mkdir -p "$global_root/bedrock/strata/$init_stratum"
+	mount --bind / "$global_root/bedrock/strata/$init_stratum"
+	# ensure /proc is shared
+	mkdir -p "$global_root/proc"
+	mkdir -p /proc
+	mount --bind "$global_root/proc" /proc
+	mount --make-shared /proc
+	# ensure /sys is shared
+	mkdir -p "$global_root/sys"
+	mkdir -p /sys
+	mount --bind "$global_root/sys" /sys
+	mount --make-shared /sys
+
+	result
+}
+
+prepare_bedrock_run() {
+	announce "Preparing /bedrock/run"
+
+	mkdir -p "$global_root/bedrock/run"
+	mount -t tmpfs bedrock_run "$global_root/bedrock/run"
+	if [ "$init_stratum" != "$global_stratum" ]
+	then
+		mount --bind "$global_root/bedrock/run" /bedrock/run
+	fi
+	mkdir -p /bedrock/run/init
+	mkdir -p /bedrock/run/enabled_strata
+
+	# settings for init stratum
+	ln -fs "/bedrock/strata/$init_stratum" /bedrock/run/init/root
+	echo "init = $init_stratum" > /bedrock/run/init/alias
+	echo "bind = /bedrock/strata/$init_stratum" > /bedrock/run/init/framework
+	echo "[$init_stratum]" > /bedrock/run/init/init_root
+	echo "unmanaged = /" >> /bedrock/run/init/init_root
+
+	# settings for rootfs stratum
+	if [ "$rootfs_stratum" != "$init_stratum" ]
+	then
+		echo "bind = /bedrock/strata/$rootfs_stratum" >> /bedrock/run/init/framework
+		echo "[$rootfs_stratum]" > /bedrock/run/init/rootfs_root
+		echo "unmanaged = /" >> /bedrock/run/init/rootfs_root
+	else
+		echo "# if initfs and rootfs differed" > /bedrock/run/init/rootfs_root
+		echo "# this would make rootfs' root directory" >> /bedrock/run/init/rootfs_root
+		echo "# set to unmanaged" >> /bedrock/run/init/rootfs_root
+	fi
+
+	result
+}
+
+enable_strata() {
+	for stratum in $(bri -L)
+	do
+		if [ "$(bri -c $stratum enable)" != "manual" ]
+		then
+			announce "Enabling $stratum"
+			# setsid to ensure bru has a non-zero pgrp so htop
+			# properly detects it as a non-kernel thread
+			/bedrock/libexec/busybox setsid /bedrock/sbin/brs force-enable "$stratum" >/bedrock/run/deleteme
+			result
+		fi
+	done
+	if [ -e /bedrock/run/deleteme ]
+	then
+		rm /bedrock/run/deleteme
+	fi
+}
+
+print_logo
+
+init_option_count=$(get_init_option_count)
+if [ "$init_option_count" -eq 0 ]
+then
+	fatal_error "No stratum with an init configured found"
+fi
+
+default_stratum=$(awk '$1 == "default_stratum" {default=$3} END {print ""default""}' /bedrock/etc/brn.conf)
+default_cmd=$(awk '$1 == "default_cmd" {default=$3} END {print ""default""}' /bedrock/etc/brn.conf)
+default_timeout=$(awk 'BEGIN{timeout=-1} $1 == "timeout" {timeout=$3} END {print timeout+0}' /bedrock/etc/brn.conf)
+get_init_choice
+i=$?
+
+if [ "$i" -gt 0 ]
+then
+	init_stratum=$(get_selected_stratum "$i")
+	init_cmd=$(get_selected_cmd "$i")
+else
+	init_stratum=$default_stratum
+	init_cmd=$default_cmd
+fi
+rootfs_stratum=$(bri -a rootfs)
+global_stratum=$(bri -a global)
+
+sanity_check_strata
+
+if [ "$init_stratum" != "$rootfs_stratum" ]
+then
+	pivot_root_to_init
+fi
+
+if [ "$init_stratum" = "$global_stratum" ]
+then
+	global_root="/"
+else
+	global_root="/bedrock/strata/$global_stratum"
+
+	prepare_global
+fi
+
+if ! [ -r /proc/mounts ] || ! grep -q "^\w* /proc proc" /proc/mounts
+then
+	announce "Mounting /proc"
+	mount -t proc proc /proc
+	result
+fi
+
+if ! grep -q "^\w* /sys sysfs" /proc/mounts
+then
+	announce "Mounting /sys"
+	mount -t sysfs sysfs /sys
+	result
+fi
+
+announce "Getting fuse module (FAIL okay if fuse built-in)"
+chroot "$global_root" /bedrock/libexec/busybox modprobe fuse
+lsmod | grep -q fuse
+result
+
+if ! [ -e /dev/fuse ]
+then
+	announce "Making fuse device"
+	mknod -m 660 /dev/fuse c 10 229
+	result
+fi
+
+announce "Running brp"
+# setsid to ensure brp has a non-zero pgrp so htop
+# properly detects it as a non-kernel thread
+chroot "$global_root" /bedrock/libexec/busybox setsid /bedrock/sbin/brp /bedrock/brpath &
+result
+
+prepare_bedrock_run
+
+enable_strata
+
+printf "${WHITE}\n"
+printf "Handing control off to\n"
+printf "  stratum: $init_stratum\n"
+printf "  cmd: $init_cmd\n"
+printf "${NORMAL}\n"
+
+if ! [ -x $(echo "$init_cmd" | awk '{print$1}') ]
+then
+	fatal_error "Specified ($init_cmd) is not executable"
+fi
+
+IFS=$DEFAULT_IFS
+exec $(echo "$init_cmd")
+
+# Should never get here.
+# If exec above succeeds, that takes over.
+# If exec above fails, we get a kernel panic.
+fatal_error "Unable to execute $init_stratum's $init_cmd"
