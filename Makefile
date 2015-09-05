@@ -282,7 +282,7 @@ build/bin/busybox:
 	cd src/busybox && \
 		echo '#!/bin/sh' > set_bb_option && \
 		echo 'if grep -q "^$$1=" .config; then' >> set_bb_option && \
-		echo 'sed "s,^$$1=.*/$$1=$$2," .config > .config-new' >> set_bb_option && \
+		echo 'sed "s,^$$1=.*,$$1=$$2," .config > .config-new' >> set_bb_option && \
 		echo 'mv .config-new .config' >> set_bb_option && \
 		echo 'elif grep -q "^# $$1 is not set" .config; then' >> set_bb_option && \
 		echo 'sed "s/^# $$1 is not set/$$1=$$2/" .config > .config-new' >> set_bb_option && \
