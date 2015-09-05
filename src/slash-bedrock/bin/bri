@@ -412,8 +412,8 @@ IFS="
 			else # ! $is_init && ! $global_is_init
 				global_equivalent_mount_point=/bedrock/strata/$(a global)/$(echo $mount_point | cut -d/ -f5-)
 			fi
-			mount_point_stat="$(brc init /bedrock/bin/busybox stat $mount_point 2>/dev/null | awk 'NR>1')"
-			global_equivalent_mount_point_stat="$(brc init /bedrock/bin/busybox stat $global_equivalent_mount_point 2>/dev/null | awk 'NR>1')"
+			mount_point_stat="$(brc init /bedrock/libexec/busybox stat $mount_point 2>/dev/null | awk 'NR>1')"
+			global_equivalent_mount_point_stat="$(brc init /bedrock/libexec/busybox stat $global_equivalent_mount_point 2>/dev/null | awk 'NR>1')"
 			fs_type=$(echo "$mount_line" | awk '{
 				for (i=7; i<NF; i++) {
 					if ($i == "-") {
