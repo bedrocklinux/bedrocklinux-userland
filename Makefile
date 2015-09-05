@@ -3,7 +3,7 @@ MUSLGCC=$(CURDIR)/build/bin/musl-gcc
 
 .PHONY: all
 
-all: gzip_tarball
+all: tarball
 
 #############################
 # Manage third party source #
@@ -514,9 +514,3 @@ bedrock_linux_1.0beta2_nyla.tar:
 	ln -s /                             build/bedrock/strata/local
 	# build tarball
 	cd build/ && tar cvf ../bedrock_linux_1.0beta2_nyla.tar bedrock
-
-gzip_tarball: bedrock_linux_1.0beta2_nyla.tar.gz
-
-bedrock_linux_1.0beta2_nyla.tar.gz:
-	make -f Makefile tarball
-	gzip bedrock_linux_1.0beta2_nyla.tar

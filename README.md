@@ -16,7 +16,6 @@ In addition to the third party source code listed below, building Bedrock Linux
 requires:
 
 - Standard UNIX tools such as sh, grep, sed, awk, and tar
-- optionally gzip
 - gcc (EXCEPT 4.8.X and 4.9.0 - older ones such as gcc 4.7.X or newer ones such
   as 4.9.1+ should be fine.)
 - autoconf (for FUSE)
@@ -62,17 +61,13 @@ so:
 Building
 --------
 
-To build a gzip'd tarball of the Bedrock Linux userland, ready to be installed
-via untar'ing, run:
+To build a tarball of the Bedrock Linux userland, ready to be installed via
+untar'ing, run:
 
     make
 
 This will pull in third party source code (if you did not already), compile,
-create the tarball and gzip it.
-
-To build just a tarball - skip gzip'ing it - run
-
-    make tarball
+and create the tarball.
 
 To clean up a build, run
 
