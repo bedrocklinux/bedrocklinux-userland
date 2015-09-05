@@ -387,8 +387,8 @@ enable_strata
 
 printf "${WHITE}\n"
 printf "Handing control off to\n"
-printf "  stratum: $init_stratum\n"
-printf "  cmd: $init_cmd\n"
+printf "  stratum: ${GREEN}$init_stratum${WHITE}\n"
+printf "  cmd: ${CYAN}$init_cmd${WHITE}\n"
 printf "${NORMAL}\n"
 
 if ! [ -x $(echo "$init_cmd" | awk '{print$1}') ]
