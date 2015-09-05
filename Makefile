@@ -337,6 +337,9 @@ clean_busybox:
 .PHONY: tarball gzip_tarball
 
 tarball: libcap brc brp bru busybox bedrock_linux_1.0beta2_nyla.tar
+	@echo
+	@echo "Successfully built Bedrock Linux tarball"
+	@echo
 
 bedrock_linux_1.0beta2_nyla.tar:
 	# ensure fresh start
