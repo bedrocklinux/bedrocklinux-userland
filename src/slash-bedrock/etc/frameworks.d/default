@@ -74,7 +74,7 @@ enable = boot
 #
 # or
 #
-#     init = /lib/systemd/system
+#     init = /lib/systemd/systemd
 #
 # To have it considered when querying the user for the init to chose.
 
