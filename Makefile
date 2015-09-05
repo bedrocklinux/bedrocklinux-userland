@@ -464,10 +464,8 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d src/global-files/etc/lsb-release           build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/motd                  build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/os-release            build/bedrock/global-files/etc/
-	cp -d src/global-files/etc/passwd                build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/profile               build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/rc.local              build/bedrock/global-files/etc/
-	cp -d src/global-files/etc/shadow                build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/shells                build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/sudoers               build/bedrock/global-files/etc/
 	# set file permissions
@@ -493,6 +491,20 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0644 build/bedrock/etc/rc.conf
 	chmod 0644 build/bedrock/etc/strata.conf
 	chmod 0755 build/bedrock/strata/fallback/bin/busybox
+	chmod 0644 build/bedrock/global-files/etc/systemd/system/bedrock.service
+	chmod 0644 build/bedrock/global-files/etc/fstab
+	chmod 0644 build/bedrock/global-files/etc/group
+	chmod 0644 build/bedrock/global-files/etc/hostname
+	chmod 0644 build/bedrock/global-files/etc/hosts
+	chmod 0644 build/bedrock/global-files/etc/inittab
+	chmod 0644 build/bedrock/global-files/etc/issue
+	chmod 0644 build/bedrock/global-files/etc/lsb-release
+	chmod 0644 build/bedrock/global-files/etc/motd
+	chmod 0644 build/bedrock/global-files/etc/os-release
+	chmod 0644 build/bedrock/global-files/etc/profile
+	chmod 0644 build/bedrock/global-files/etc/rc.local
+	chmod 0644 build/bedrock/global-files/etc/shells
+	chmod 0644 build/bedrock/global-files/etc/sudoers
 	# create symlinks
 	ln -s /bedrock/run/init/alias       build/bedrock/etc/aliases.d/init
 	ln -s /bedrock/run/init/framework   build/bedrock/etc/frameworks.d/init
