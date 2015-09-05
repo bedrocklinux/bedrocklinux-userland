@@ -23,6 +23,15 @@ abort() {
 	exit 1
 }
 
+# Provides the full, resolved path to all of the files *if* they resolve.  If
+# an item does not resolve (e.g. dangling symlink) it is skipped.
+ls_realpath() {
+	for f in $1
+	do
+		realpath $f 2>/dev/null
+	done
+}
+
 # given a pid as an argument, prints the stratum which provides the pid
 #
 # Note: there is a possibly faster way by readlink'ing /proc/$pid/root, except:
@@ -156,7 +165,7 @@ get_values() {
 				print value
 			}
 		}
-		' /bedrock/etc/strata.conf $(ls -1 /bedrock/etc/strata.d/ | sed 's!^!/bedrock/etc/strata.d/!')
+		' /bedrock/etc/strata.conf $(ls_realpath /bedrock/etc/strata.d/*)
 }
 
 # If the item is a symlink or some other realpath change, use that.  If it
@@ -202,7 +211,7 @@ a() {
 		END {
 			print resolved
 		}
-	' /bedrock/etc/alias.conf $(ls -1 /bedrock/etc/alias.d/ | sed 's!^!/bedrock/etc/alias.d/!')
+	' /bedrock/etc/aliases.conf $(ls_realpath /bedrock/etc/aliases.d/*)
 }
 
 # Print config values.  This is useful for:
@@ -304,7 +313,7 @@ i() {
 		$0 ~ "^[ \t]*[^ \t][^ \t]*[ \t]*=[ \t]*[^ \t]" && $3 in enabled {
 			print $1" -> "$3
 		}
-	' /bedrock/etc/alias.conf $(ls -1 /bedrock/etc/alias.d/ | sed 's!^!/bedrock/etc/alias.d/!')
+	' /bedrock/etc/aliases.conf $(ls_realpath /bedrock/etc/aliases.d/*)
 }
 
 # print a list of all strata and aliases, both enabled and disabled
@@ -320,12 +329,12 @@ I() {
 				print stratum
 			}
 		}
-	' /bedrock/etc/strata.conf $(ls -1 /bedrock/etc/strata.d/ | sed 's!^!/bedrock/etc/strata.d/!')
+	' /bedrock/etc/strata.conf $(ls_realpath /bedrock/etc/strata.d/*)
 	awk -F'([ ,:]|\\t)+' '
 		$0 ~ "^[ \t]*[^ \t][^ \t]*[ \t]*=[ \t]*[^ \t]" {
 			print $1" -> "$3
 		}
-	' /bedrock/etc/alias.conf $(ls -1 /bedrock/etc/alias.d/ | sed 's!^!/bedrock/etc/alias.d/!')
+	' /bedrock/etc/aliases.conf $(ls_realpath /bedrock/etc/aliases.d/*)
 }
 
 # print a list of enabled strata 
@@ -350,7 +359,7 @@ L() {
 				print stratum
 			}
 		}
-	' /bedrock/etc/strata.conf $(ls -1 /bedrock/etc/strata.d/ | sed 's!^!/bedrock/etc/strata.d/!')
+	' /bedrock/etc/strata.conf $(ls_realpath /bedrock/etc/strata.d/*)
 }
 
 # print mount points and corresponding category in specified stratum/strata
