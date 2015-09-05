@@ -436,6 +436,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d build/bin/brp                              build/bedrock/sbin/
 	cp -d build/bin/bru                              build/bedrock/sbin/
 	cp -d src/slash-bedrock/sbin/brs                 build/bedrock/sbin/
+	cp -d src/slash-bedrock/sbin/brn                 build/bedrock/sbin/
 	cp -d build/bin/busybox                          build/bedrock/libexec/
 	cp -d build/bin/setcap                           build/bedrock/libexec/
 	cp -d src/slash-bedrock/share/brs/force-symlinks build/bedrock/share/brs/
@@ -443,15 +444,11 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d src/slash-bedrock/share/brs/run-lock       build/bedrock/share/brs/
 	cp -d src/slash-bedrock/etc/adjtime              build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/aliases.conf         build/bedrock/etc/
-	cp -d src/slash-bedrock/etc/aliases.d/init       build/bedrock/etc/aliases.d/ # symlink
 	cp -d src/slash-bedrock/etc/brn.conf             build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/brp.conf             build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/frameworks.d/default build/bedrock/etc/frameworks.d/
-	cp -d src/slash-bedrock/etc/frameworks.d/init    build/bedrock/etc/frameworks.d/ # symlink
 	cp -d src/slash-bedrock/etc/rc.conf              build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/strata.conf          build/bedrock/etc/
-	cp -d src/slash-bedrock/etc/strata.d/init_root   build/bedrock/etc/strata.d/ # symlink
-	cp -d src/slash-bedrock/etc/strata.d/rootfs_root build/bedrock/etc/strata.d/ # symlink
 	cp -d build/bin/busybox                          build/bedrock/strata/fallback/bin/
 	cp -d src/global-files/etc/systemd/system/multi-user.target.wants/bedrock.service build/bedrock/global-files/etc/systemd/system/
 	cp -d src/global-files/etc/fstab                 build/bedrock/global-files/etc/
@@ -478,6 +475,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0755 build/bedrock/sbin/brp
 	chmod 0755 build/bedrock/sbin/bru
 	chmod 0755 build/bedrock/sbin/brs
+	chmod 0755 build/bedrock/sbin/brn
 	chmod 0755 build/bedrock/libexec/busybox
 	chmod 0755 build/bedrock/libexec/setcap
 	chmod 0755 build/bedrock/share/brs/force-symlinks
@@ -485,16 +483,20 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0755 build/bedrock/share/brs/run-lock
 	chmod 0644 build/bedrock/etc/adjtime
 	chmod 0644 build/bedrock/etc/aliases.conf
-	# chmod 0777 build/bedrock/etc/aliases.d/init # symlink
 	chmod 0644 build/bedrock/etc/brn.conf
 	chmod 0644 build/bedrock/etc/brp.conf
 	chmod 0644 build/bedrock/etc/frameworks.d/default
-	# chmod 0777 build/bedrock/etc/frameworks.d/init # symlink
 	chmod 0644 build/bedrock/etc/rc.conf
 	chmod 0644 build/bedrock/etc/strata.conf
-	# chmod 0777 build/bedrock/etc/strata.d/init_root # symlink
-	# chmod 0777 build/bedrock/etc/strata.d/rootfs_root # symlink
 	chmod 0755 build/bedrock/strata/fallback/bin/busybox
+	# create symlinks
+	ln -s /bedrock/run/init/alias       build/bedrock/etc/aliases.d/init
+	ln -s /bedrock/run/init/framework   build/bedrock/etc/frameworks.d/init
+	ln -s /bedrock/run/init/init_root   build/bedrock/etc/strata.d/init_root
+	ln -s /bedrock/run/init/rootfs_root build/bedrock/etc/strata.d/rootfs_root
+	ln -s /bedrock/run/init/root        build/bedrock/strata/init
+	ln -s /                             build/bedrock/strata/local
+	# build tarball
 	cd build/ && tar cvf ../bedrock_linux_1.0beta2_nyla.tar bedrock
 
 gzip_tarball: bedrock_linux_1.0beta2_nyla.tar.gz
