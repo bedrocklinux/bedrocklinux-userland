@@ -491,7 +491,6 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0644 build/bedrock/etc/rc.conf
 	chmod 0644 build/bedrock/etc/strata.conf
 	chmod 0755 build/bedrock/strata/fallback/bin/busybox
-	chmod 0644 build/bedrock/global-files/etc/systemd/system/bedrock.service
 	chmod 0644 build/bedrock/global-files/etc/fstab
 	chmod 0644 build/bedrock/global-files/etc/group
 	chmod 0644 build/bedrock/global-files/etc/hostname
