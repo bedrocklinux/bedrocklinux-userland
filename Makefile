@@ -282,10 +282,11 @@ build/bin/busybox:
 	cd src/busybox && \
 		echo '#!/bin/sh' > set_bb_option && \
 		echo 'if grep -q "^$$1=" .config; then' >> set_bb_option && \
-		echo 'sed "s/^$$1=./$$1=$$2/" .config > .config-new' >> set_bb_option && \
+		echo 'sed "s,^$$1=.*/$$1=$$2," .config > .config-new' >> set_bb_option && \
 		echo 'mv .config-new .config' >> set_bb_option && \
 		echo 'elif grep -q "^# $$1 is not set" .config; then' >> set_bb_option && \
 		echo 'sed "s/^# $$1 is not set/$$1=$$2/" .config > .config-new' >> set_bb_option && \
+		echo 'sed "s,^# $$1 is not set,$$1=$$2," .config > .config-new' >> set_bb_option && \
 		echo 'mv .config-new .config' >> set_bb_option && \
 		echo 'else' >> set_bb_option && \
 		echo 'echo "$$1=$$2" >> .config' >> set_bb_option && \
@@ -308,7 +309,10 @@ build/bin/busybox:
 		./set_bb_option "CONFIG_FEATURE_MODUTILS_SYMBOLS" "y" && \
 		./set_bb_option "CONFIG_UDHCPC6" "y" && \
 		./set_bb_option "CONFIG_INETD" "n" && \
-		./set_bb_option "CONFIG_BRCTL" "n"
+		./set_bb_option "CONFIG_BRCTL" "n" && \
+		./set_bb_option "CONFIG_FEATURE_PREFER_APPLETS" "y" && \
+		./set_bb_option "CONFIG_FEATURE_SH_STANDALONE" "y" && \
+		./set_bb_option "CONFIG_BUSYBOX_EXEC_PATH" '"/bedrock/libexec/busybox"'
 	# fix various busybox-linux-musl issues
 	cd $(BUILD)/include/netinet/ && \
 		awk '{p=1}/^struct ethhdr/,/^}/{print "//"$$0; p=0}p==1' if_ether.h > if_ether.h.new && \
