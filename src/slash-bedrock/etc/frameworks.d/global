@@ -1,0 +1,46 @@
+# Most strata should use the default framework.  The notable exception is the
+# global stratum which should instead use this one.  Most of the default
+# framework's settings inform Bedrock Linux which files to acquire from the
+# global stratum instead of the local stratum.  For the global stratum this
+# does not make sense and can cause issues.  However, some settings - such as
+# preenable - make sense for all strata.
+
+# Bedrock Linux has hooks to run executables before/after enabling/disabling a
+# stratum.  These are required to ensure various things are in place which
+# Bedrock Linux expects for some of the above share items to work.
+preenable = /bedrock/share/brs/force-symlinks
+preenable = /bedrock/share/brs/setup-etc
+preenable = /bedrock/share/brs/run-lock
+
+# No default scripts for the following hooks, but feel free to make your own.
+# postenable
+# predisable
+# postdisable
+
+# "enable" indicates if the given stratum should be enabled at boot time.  This
+# can either be "boot" (indicating it should be enabled at boot time) or
+# "manual" (indicating it will be enabled/disabled manually).
+#
+# Feel free to override this with a "enable = manual" in the corresponding
+# stratum's section in /bedrock/etc/strata.conf or
+# /bedrock/etc/strata.d/<stratum>.conf.
+enable = boot
+
+# "init" indicates the given stratum can provide an init system.  The value
+# should be the command to run at boot if this stratum is chosen to provide
+# init.  The value is the entire line after the "="; do not place multiple init
+# commands in the same line separated by ","'s as one can do with "share".
+# Historically, "/sbin/init" is utilized as the command to run the init;
+# however, systemd systems seem to prefer /lib/systemd/system without a
+# corresponding symlink at "/sbin/init".
+#
+# In the corresponding stratum's section in /bedrock/etc/strata.conf or
+# /bedrock/etc/strata.d/<stratum>.conf, add something to the effect of
+#
+#     init = /sbin/init
+#
+# or
+#
+#     init = /lib/systemd/systemd
+#
+# To have it considered when querying the user for the init to chose.
