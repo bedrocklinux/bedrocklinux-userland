@@ -8,9 +8,7 @@
 #
 # Copyright (c) 2015 Daniel Thau <danthau@bedrocklinux.org>
 #
-# This script will set up required Bedrock /etc files for:
-# - the local alias to function.
-# - the timezone to be set
+# This script will set up required Bedrock /etc files
 
 abort() {
 	echo "$@" >&2
