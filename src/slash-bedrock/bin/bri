@@ -199,6 +199,11 @@ arg_count_check() {
 
 # resolve aliases
 a() {
+	if  [ "$1" = "local" ]
+	then
+		n
+		return
+	fi
 	awk -v"alias=$1" -v"resolved=$1" -F'([ ,:]|\\t)+' '
 		$1 == alias {
 			# should not be necessary, but trailing separators confuses some
@@ -277,9 +282,7 @@ ARGUMENTS:
    -c   first following term must be stratum, second must be Config key.  prints
         corresponding Config values.
    -e   populates the Etc file /etc/bedrock_stratum.  This provides small
-        performance improvement
-        to following -n requests and makes /bedrock/etc/strata.d/local.alias
-        work.
+        performance improvement to following -n requests.
    -h   print this Help
    -i   print lIst of enabled strata and alIases
    -I   print lIst of all strata and alIases, enabled and disabled
