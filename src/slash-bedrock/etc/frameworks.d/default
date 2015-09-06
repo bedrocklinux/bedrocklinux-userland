@@ -36,7 +36,7 @@ bind =  /bedrock, /bedrock/brpath, /bedrock/strata/bedrock
 # and bind items if the lines get to long, but union items have a picky syntax;
 # keep all of the items that are contained in the same directory on the same
 # line.
-union = /etc: profile, hostname, hosts, passwd, group, shadow, sudoers, resolv.conf, machine-id, shells, systemd/system/multi-user.target.wants/bedrock.service, locale.conf, motd, issue, os-release, lsb-release, rc.local, adjtime
+union = /etc: profile, hostname, hosts, passwd, group, shadow, sudoers, resolv.conf, machine-id, shells, systemd/system/multi-user.target.wants/bedrock.service, locale.conf, motd, issue, os-release, lsb-release, rc.local, adjtime, fstab
 
 # Bedrock Linux has hooks to run executables before/after enabling/disabling a
 # stratum.  These are required to ensure various things are in place which

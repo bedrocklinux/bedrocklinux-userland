@@ -1,24 +1,7 @@
-### Bedrock Linux 1.0beta1 Hawkey
+### Bedrock Linux 1.0beta2 Nyla
 ### /etc/fstab
 #
-# For the most part, this is a /etc/fstab file such as you would find in any
-# other Linux distribution, and documentation for those distributions should
-# apply here as well.  This file is primarily used for mounting partitions at
-# boot or setting up the functionality for devices to be easily mounted by an
-# end-user, such as optical drives.
-#
-# However, there are a few additional things to note:
-#
-# - Bedrock Linux ensures /proc, /sys, /dev, /dev/pts, /dev/shm, and the root
-# directory are all set up during the init process and do not necessarily need
-# to be placed here.
-#
-# - The Bedrock Linux core system itself should be made accessible as a client.
-# Thus, it is bind-mounted into the location where the clients should go below.
-
-/  /bedrock/clients/bedrock  bind  defaults,bind  0  0
-
-# - If you have other clients on different partitions, they should be mounted
-# into /bedrock/clients and should have bind items in their
-# client.conf/framework after the /bedrock item, similar to how the core is
-# mounted into /bedrock/clients/bedrock in the recommended defaults.
+# This fstab is just like an fstab you would use for any other distro.
+# 
+# Note that, by default, this file is global such booting into any init system
+# from any stratum should utilize it.
