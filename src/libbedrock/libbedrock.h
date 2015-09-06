@@ -5,7 +5,7 @@
  * modify it under the terms of the GNU General Public License
  * version 2 as published by the Free Software Foundation.
  *
- * Copyright (c) 2012-2014 Daniel Thau <danthau@bedrocklinux.org>
+ * Copyright (c) 2012-2015 Daniel Thau <danthau@bedrocklinux.org>
  *
  * This is a shared header file for various Bedrock Linux C programs.
  */
