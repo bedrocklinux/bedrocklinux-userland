@@ -5,7 +5,7 @@ The bru command will mount a filesystem, unioning the contents of two
 directories. All filesystem calls to the mount point will be redirected to one
 of the directories, except a specified list which will be redirected to the
 other directory. This is setup for you automatically by the brs command
-depending on the union in the client.conf file for any given client.
+depending on the union in the stratum.conf file for any given stratum.
 
 
 Usage
