@@ -27,7 +27,7 @@ share = /media, /run
 # "share"'d.
 #
 # Careful with the order - directories should come before what they contain.
-bind =  /bedrock, /bedrock/brpath, /bedrock/strata/bedrock
+bind =  /bedrock, /bedrock/brpath, /bedrock/run
 
 # One cannot rename() the share or bind items.  This is problematic for some
 # files in /etc which (1) have neighboring items which are local (and so we
