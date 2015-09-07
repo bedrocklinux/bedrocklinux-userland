@@ -457,7 +457,6 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d src/slash-bedrock/etc/strata.conf          build/bedrock/etc/
 	cp -d build/bin/busybox                          build/bedrock/strata/fallback/bin/
 	cp -d src/global-files/etc/systemd/system/multi-user.target.wants/bedrock.service build/bedrock/global-files/etc/systemd/system/
-	cp -d src/global-files/etc/adjtime               build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/fstab                 build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/group                 build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/hostname              build/bedrock/global-files/etc/
@@ -486,7 +485,6 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0755 build/bedrock/share/brs/force-symlinks
 	chmod 0755 build/bedrock/share/brs/setup-etc
 	chmod 0755 build/bedrock/share/brs/run-lock
-	chmod 0644 build/bedrock/etc/adjtime
 	chmod 0644 build/bedrock/etc/aliases.conf
 	chmod 0644 build/bedrock/etc/brn.conf
 	chmod 0644 build/bedrock/etc/brp.conf
