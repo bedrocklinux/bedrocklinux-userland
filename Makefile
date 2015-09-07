@@ -453,6 +453,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d src/slash-bedrock/etc/brn.conf             build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/brp.conf             build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/frameworks.d/default build/bedrock/etc/frameworks.d/
+	cp -d src/slash-bedrock/etc/frameworks.d/global  build/bedrock/etc/frameworks.d/
 	cp -d src/slash-bedrock/etc/rc.conf              build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/strata.conf          build/bedrock/etc/
 	cp -d build/bin/busybox                          build/bedrock/strata/fallback/bin/
@@ -489,6 +490,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0644 build/bedrock/etc/brn.conf
 	chmod 0644 build/bedrock/etc/brp.conf
 	chmod 0644 build/bedrock/etc/frameworks.d/default
+	chmod 0644 build/bedrock/etc/frameworks.d/global
 	chmod 0644 build/bedrock/etc/rc.conf
 	chmod 0644 build/bedrock/etc/strata.conf
 	chmod 0755 build/bedrock/strata/fallback/bin/busybox
