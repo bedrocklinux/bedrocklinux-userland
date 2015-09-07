@@ -151,6 +151,7 @@ get_values() {
 			sub(/^[ \t]*framework[ \t]*=[ \t]*/,"")
 			# iterate over values (which are each awk fields)
 			for (i=1; i<=NF; i++) {
+				# ensure file exists
 				if ($i != "" && (!($i in frameworks))) {
 					# track frameworks we have processed so we do not reprocess
 					# them
@@ -165,7 +166,7 @@ get_values() {
 				print value
 			}
 		}
-		' /bedrock/etc/strata.conf $(ls_realpath /bedrock/etc/strata.d/*)
+		' /bedrock/etc/strata.conf $(ls_realpath /bedrock/etc/strata.d/*) 2>/dev/null
 }
 
 # If the item is a symlink or some other realpath change, use that.  If it
