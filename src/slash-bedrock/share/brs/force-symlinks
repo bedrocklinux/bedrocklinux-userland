@@ -32,7 +32,8 @@ create_symlink() {
 		# This is a particularly bad situation as there is no way this
 		# could have happened that the script knows about.  Force it
 		# through anyways.
-		ln -sf "$dst" "$src" || abort "Unable to symlink $src -> $dst"
+		rm "$src"
+		ln -s "$dst" "$src" || abort "Unable to symlink $src -> $dst"
 	elif ! [ -e "$src" ]
 	then
 		# Nothing exists where we want the symlink.  Just create it.
