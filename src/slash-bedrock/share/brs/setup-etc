@@ -34,12 +34,17 @@ then
 	chmod 644 "$stratum_root/etc/bedrock_stratum" || abort "Unable to setup /etc for $stratum"
 fi
 
-if [ -e /bedrock/etc/localtime ] && [ "$(sha1sum /bedrock/etc/localtime)" != "$(sha1sum $stratum_root/etc/localtime)" ]
+if [ -e /bedrock/etc/localtime ] && [ "$(sha1sum /bedrock/etc/localtime)" != "$(sha1sum $stratum_root/etc/localtime 2>/dev/null)" ]
 then
 	cp /bedrock/etc/localtime "$stratum_root/etc/localtime" || abort "Unable to setup /etc for $stratum"
 fi
 
-if [ -e /bedrock/etc/adjtime ] && [ "$(sha1sum /bedrock/etc/adjtime)" != "$(sha1sum $stratum_root/etc/adjtime)" ]
+if [ -e /bedrock/etc/adjtime ] && [ "$(sha1sum /bedrock/etc/adjtime)" != "$(sha1sum $stratum_root/etc/adjtime 2>/dev/null)" ]
 then
 	cp /bedrock/etc/adjtime "$stratum_root/etc/adjtime" || abort "Unable to setup /etc for $stratum"
+fi
+
+if [ -e $stratum_root/lib/systemd/systemd ] && [ ! -e $stratum_root/etc/systemd/system/multi-user.target.wants/ ]
+then
+	mkdir -p $stratum_root/etc/systemd/system/multi-user.target.wants/
 fi
