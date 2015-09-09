@@ -155,7 +155,7 @@ musl: source_musl linux_headers build/.success_build_musl
 build/.success_build_musl:
 	mkdir -p $(BUILD)
 	cd src/musl/ && \
-		./configure --prefix=$(BUILD) --enable-static && \
+		./configure --prefix=$(BUILD) --enable-static --enable-gcc-wrapper && \
 		make && \
 		make install
 	if ! [ -e $(BUILD)/lib64 ]; then \
@@ -179,7 +179,6 @@ build/lib/libfuse.a build/include/fuse.h:
 		./configure --prefix=$(BUILD) --disable-shared --enable-static --disable-util --disable-example && \
 		make CC=$(MUSLGCC) && \
 		make install
-	touch $(BUILD)/.success_build_fuse
 
 clean_fuse:
 	- rm -r build
@@ -212,11 +211,10 @@ build/bin/setcap build/lib/libcap.a:
 		cp $(BUILD)/include/linux/capability.h $(BUILD)/include/sys/capability.h; fi
 	cd src/libcap/libcap && \
 		make BUILD_CC=$(MUSLGCC) CC=$(MUSLGCC) lib=$(BUILD)/lib prefix=$(BUILD) BUILD_CFLAGS=-static && \
-		make install RAISE_SETFCAP=no DESTDIR=$(BUILD) prefix=/
+		make install RAISE_SETFCAP=no DESTDIR=$(BUILD) prefix=/ lib=lib
 	cd src/libcap/progs && \
 		make BUILD_CC=$(MUSLGCC) CC=$(MUSLGCC) lib=$(BUILD)/lib prefix=$(BUILD) LDFLAGS=-static && \
-		make install RAISE_SETFCAP=no DESTDIR=$(BUILD) prefix=/
-	#touch $(BUILD)/.success_build_libcap
+		make install RAISE_SETFCAP=no DESTDIR=$(BUILD) prefix=/ lib=lib
 
 clean_libcap:
 	- cd src/libcap && \
