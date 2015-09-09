@@ -515,4 +515,4 @@ bedrock_linux_1.0beta2_nyla.tar:
 	ln -s /bedrock/run/init/root        build/bedrock/strata/init
 	ln -s /                             build/bedrock/strata/local
 	# build tarball
-	cd build/ && tar cvf ../bedrock_linux_1.0beta2_nyla.tar bedrock
+	cd build/ && fakeroot tar cvf ../bedrock_linux_1.0beta2_nyla.tar bedrock

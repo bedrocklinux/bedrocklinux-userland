@@ -22,6 +22,7 @@ requires:
 - automake (for FUSE)
 - libtool (for FUSE)
 - gettext (for FUSE)
+- fakeroot (for building tarball with proper permissions)
 
 ----------------------
 Third party souce code
