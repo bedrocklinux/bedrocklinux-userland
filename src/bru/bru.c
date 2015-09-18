@@ -1002,7 +1002,7 @@ int main(int argc, char* argv[])
 	 */
 	mount_point       = argv[1];
 	default_dir       = "/proc/self/cwd";
-	default_dir_len   = strlen(argv[2]);
+	default_dir_len   = strlen(default_dir);
 	redir_dir         = argv[2];
 	redir_dir_len     = strlen(argv[2]);
 	redir_files       = argv + 3;
