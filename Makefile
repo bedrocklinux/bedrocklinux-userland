@@ -406,7 +406,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0755 build/bedrock/strata/fallback/bin
 	chmod 0755 build/bedrock/strata/fallback/dev
 	chmod 0755 build/bedrock/strata/fallback/etc
-	chmod 0755 build/bedrock/strata/fallback/etc/init.d/
+	chmod 0755 build/bedrock/strata/fallback/etc/init.d
 	chmod 0755 build/bedrock/strata/fallback/home
 	chmod 0755 build/bedrock/strata/fallback/lib
 	chmod 0755 build/bedrock/strata/fallback/lib/modules
@@ -454,6 +454,12 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d src/slash-bedrock/etc/frameworks.d/global  build/bedrock/etc/frameworks.d/
 	cp -d src/slash-bedrock/etc/rc.conf              build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/strata.conf          build/bedrock/etc/
+	cp -d src/slash-bedrock/strata/fallback/rcK      build/bedrock/strata/fallback/
+	cp -d src/slash-bedrock/strata/fallback/rcK.strata            build/bedrock/strata/fallback/
+	cp -d src/slash-bedrock/strata/fallback/etc/inittab           build/bedrock/strata/fallback/etc
+	cp -d src/slash-bedrock/strata/fallback/etc/init.d/rcS        build/bedrock/strata/fallback/etc/init.d/
+	cp -d src/slash-bedrock/strata/fallback/etc/init.d/rcS.strata build/bedrock/strata/fallback/etc/init.d/
+	cp -d src/slash-bedrock/strata/fallback/etc/init.d/rcS.udev   build/bedrock/strata/fallback/etc/init.d/
 	cp -d build/bin/busybox                          build/bedrock/strata/fallback/bin/
 	cp -d src/global-files/etc/systemd/system/multi-user.target.wants/bedrock.service build/bedrock/global-files/etc/systemd/system/multi-user.target.wants
 	cp -d src/global-files/etc/fstab                 build/bedrock/global-files/etc/
@@ -513,5 +519,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	ln -s /bedrock/run/init/root        build/bedrock/strata/init
 	ln -s /                             build/bedrock/strata/local
 	for util in `build/bedrock/strata/fallback/bin/busybox --list-utils`; do ln -s /bin/busybox build/bedrock/strata/fallback/$$util; done
+	ln -s /rcK                          build/bedrock/strata/fallback/etc/init.d/rcK
+	ln -s /rcK.strata                   build/bedrock/strata/fallback/etc/init.d/rcK.strata
 	# build tarball
 	cd build/ && fakeroot tar cvf ../bedrock_linux_1.0beta2_nyla.tar bedrock
