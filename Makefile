@@ -512,5 +512,6 @@ bedrock_linux_1.0beta2_nyla.tar:
 	ln -s /bedrock/run/init/rootfs_root build/bedrock/etc/strata.d/rootfs_root
 	ln -s /bedrock/run/init/root        build/bedrock/strata/init
 	ln -s /                             build/bedrock/strata/local
+	for util in `build/bedrock/strata/fallback/bin/busybox --list-utils`; do ln -s /bin/busybox build/bedrock/strata/fallback/$$util; done
 	# build tarball
 	cd build/ && fakeroot tar cvf ../bedrock_linux_1.0beta2_nyla.tar bedrock
