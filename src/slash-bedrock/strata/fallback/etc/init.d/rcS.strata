@@ -1,0 +1,19 @@
+#!/bin/busybox sh
+#
+# Place commands for strata to run at boot in the order that you would like to
+# boot them.  For example, if you would like Debian Squeeze's cups daemon to
+# start at boot:
+#
+#     brc squeeze /etc/init.d/cups start
+#
+# If you would like to use udev instead of mdev, populate the configuration in
+#
+#     /bedrock/strata/fallback/etc/init.d/rcS.udev
+#
+# Then include/uncomment the following here:
+#
+#     /etc/init.d/rcS.udev
+#
+# Note that this is being run as a full bourne shell script; if you would like
+# to try to be fancy and attempt to parallelize things it should be quite
+# possible.

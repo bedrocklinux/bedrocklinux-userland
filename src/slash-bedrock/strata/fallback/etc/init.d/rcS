@@ -1,0 +1,209 @@
+#!/bin/busybox sh
+#
+# rcS init script
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2015 Daniel Thau <danthau@bedrocklinux.org>
+
+# explicitly set PATH
+PATH="/bedrock/bin:/bedrock/sbin:/bin:/sbin:/usr/bin:/usr/sbin"
+
+NORMAL='\033[1;0m'
+WHITE='\033[1;37m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+clear
+printf "$WHITE"
+cat <<EOF
+__          __             __      
+\ \_________\ \____________\ \___  
+ \  _ \  _\ _  \  _\ __ \ __\   /  
+  \___/\__/\__/ \_\ \___/\__/\_\_\ 
+        Bedrock Linux 1.0beta2 Nyla
+EOF
+printf "$NORMAL"
+
+announce(){
+	printf "[ -- ] $1"
+}
+result(){
+	if [ $? -eq 0 ]
+	then
+		printf "\r[${GREEN}OKAY$NORMAL]\n"
+	else
+		printf "\r[${RED}FAIL$NORMAL]\n"
+	fi
+}
+
+# if /proc was mounted in an initrd, use it; otherwise, mount it
+announce "Preparing /proc"
+if ! [ -r /proc/mounts ] || ! grep -q "^\w* /proc proc" /proc/mounts
+then
+	mount -t proc proc /proc
+fi
+result
+
+# if /sys was mounted in an initrd, use it; otherwise, mount it
+announce "Preparing /sys"
+if ! grep -q "^\w* /sys sysfs" /proc/mounts
+then
+	mount -t sysfs sysfs /sys
+fi
+result
+
+# in case the initrd starts udev, remove it
+UDEVPIDS=$(ps | grep udev | grep -v grep | cut -d' ' -f2 | xargs)
+if [ -n "$UDEVPIDS" ]
+then
+	announce "Removing initrd's udev"
+	kill $UDEVPIDS
+	sleep 1s
+	UDEVPIDS=$(ps | grep udev | grep -v grep | cut -d' ' -f2 | xargs)
+	if [ -n "$UDEVPIDS" ]
+	then
+		kill -9 $UDEVPIDS
+		sleep 1s
+	fi
+	if [ -n "$(ps | grep udev | grep -v grep)" ]
+	then
+		eval /bin/false; result
+	else
+		eval /bin/true; result
+	fi
+fi 
+echo "" > /proc/sys/kernel/hotplug
+echo "" > /sys/kernel/uevent_helper
+
+announce "Preparing /dev, /dev/pts, /dev/shm, /run"
+RESULT=/bin/true
+# if /dev was mounted in an initrd, use it; otherwise, mount it
+if ! grep -q "^\w* /dev devtmpfs" /proc/mounts && \
+   ! grep -q "^\w* /dev tmpfs"    /proc/mounts
+then
+	mount -w -o mode=755 -t tmpfs tmpfs /dev || RESULT=/bin/false
+fi
+# if /dev/pts was mounted in an initrd, use it; otherwise, mount it
+if ! grep -q "^\w* /dev/pts devpts" /proc/mounts
+then
+	mkdir -p /dev/pts
+	mount -w -o mode=620 -t devpts devpts /dev/pts || RESULT=/bin/false
+fi
+# if /dev/shm was mounted in an initrd, use it; otherwise, mount it
+if ! grep -q "^\w* /dev/shm tmpfs" /proc/mounts
+then
+	mkdir -p /dev/shm
+	mount -w -o mode=777 -t tmpfs tmpfs /dev/shm || RESULT=/bin/false
+fi
+# if /run was mounted in an initrd, use it; otherwise, mount it
+if ! grep -q "^\w* /run tmpfs" /proc/mounts
+then
+	mkdir -p /dev/shm
+	mount -w -o mode=777 -t tmpfs tmpfs /run || RESULT=/bin/false
+fi
+eval /bin/true; result
+
+# have mdev populate /dev now and continue to as new things come in
+announce "Starting mdev"
+RESULT=/bin/true
+mdev -s 2>/dev/deleteme || RESULT=/bin/false
+rm /dev/deleteme 2>/dev/null
+echo '/sbin/mdev' > /proc/sys/kernel/hotplug || RESULT=/bin/false
+eval $RESULT; result
+
+# load modules
+announce "Loading modules"
+find /sys/devices -name modalias -type f -exec cat {} \; | sort -u | xargs modprobe -a -b 2>/dev/null
+sleep 1
+find /sys/devices -name modalias -type f -exec cat {} \; | sort -u | xargs modprobe -a -b 2>/dev/null
+# modprobe will return false if any of the modules fail, even ones that
+# wouldn't normally work, so just make this always succeed.
+/bin/true; result
+
+announce "Preparing swap"
+swapon -a
+result
+
+announce "Preparing root filesystem"
+mount -o remount,rw /
+result
+
+announce "Preparing /etc/fstab filesystems"
+mount -a
+result
+
+announce "Cleaning temporary files"
+RESULT=/bin/true
+if [ -f /forcefsck ]
+then
+	rm /forcefsck || RESULT=/bin/false
+fi
+if [ "$(ls -A /tmp)" != "" ]
+then
+	find /tmp -mindepth 1 -exec rm -rf {} \; 2>/dev/null
+	[ "$(ls -A /tmp)" = "" ] || $RESULT=/bin/false
+fi
+eval $RESULT; result
+
+announce "Preparing clock"
+HWCLOCK=$(sed -n 3p /etc/adjtime)
+RESULT=/bin/true
+if [ "$HWCLOCK" = "LOCAL" ]
+then
+	hwclock -ls
+elif [ "$HWCLOCK" = "UTC" ]
+then
+	hwclock -us
+else
+	printf "\r"
+	announce "HWCLOCK not set in /etc/adjtime, defaulting to UTC"
+	RESULT=/bin/false
+	hwclock -us
+fi
+eval $RESULT; result
+
+announce "Preparing PRNG"
+if [ -r /proc/sys/kernel/random/poolsize ]
+then
+	POOLSIZE=$(cat /proc/sys/kernel/random/poolsize)
+else
+	POOLSIZE=512
+fi
+if [ ! -f /var/lib/urandom/random-seed ]
+then
+cat <<EOF
+No PRNG seed found.
+  If this takes more than a second
+  you may need to type nonsense into the
+  keyboard to generate entropy.
+Creating new seed from /dev/random
+EOF
+	mkdir -p /var/lib/urandom 2>/dev/null
+	dd if=/dev/random of=/var/lib/urandom/random-seed bs=$POOLSIZE count=1 2>/dev/null
+fi
+dd if=/var/lib/urandom/random-seed of=/dev/urandom bs=$POOLSIZE count=1 2>/dev/null
+result
+
+announce "Bringing up loopback interface"
+ifconfig lo up
+result
+
+announce "Setting hostname"
+if [ -r /etc/hostname ]
+then
+	hostname "$(cat /etc/hostname)"
+else
+	hostname "bedrock-box"
+	/bin/false
+fi
+result
+
+announce "Running /etc/init.d/rcS.strata"
+sh /etc/init.d/rcS.strata
+result
+
+announce "Running /etc/rc.local"
+sh /etc/rc.local
+result

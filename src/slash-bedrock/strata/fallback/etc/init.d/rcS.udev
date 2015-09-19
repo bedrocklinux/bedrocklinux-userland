@@ -1,0 +1,65 @@
+#!/bin/busybox sh
+#
+# This script will replace mdev with udev from a stratum.
+# This is disabled by default.
+# To use, fill in the UDEV_STRATUM variable below and then place the following
+# in /bedrock/strata/fallback/etc/init.d/rcS.strata:
+#
+#     /etc/init.d/rcS.udev
+#
+# Exactly what needs to be done to setup udev changes from time-to-time and
+# this file may become out of date.
+
+# This should be the name of the stratum that will provide udev.  This should
+# have udev installed.
+UDEV_STRATUM=<TODO>
+
+
+unset UDEVD_EXEC
+unset UDEVADM_EXEC
+# first, find the udevd executable.
+for loc in /sbin/udevd /usr/sbin/udevd /usr/local/sbin/udevd /lib/systemd/systemd-udevd /usr/lib/systemd/systemd-udevd /usr/local/lib/systemd/systemd-udevd
+do
+	if [ -x /bedrock/strata/$UDEV_STRATUM/$loc ]
+	then
+		UDEVD_EXEC=$loc
+		break
+	fi
+done
+if [ -z "$UDEVD_EXEC" ]
+then
+	echo "ERROR: Could not find udevd provided by \"$UDEV_STRATUM\""
+	exit 1
+fi
+
+# next, find udevadm
+for loc in /sbin/udevadm /usr/sbin/udevadm /usr/local/sbin/udevadm /lib/systemd/systemd-udevadm /usr/lib/systemd/systemd-udevadm /usr/local/lib/systemd/systemd-udevadm
+do
+	if [ -x /bedrock/strata/$UDEV_STRATUM/$loc ]
+	then
+		UDEVADM_EXEC=$loc
+		break
+	fi
+done
+if [ -z "$UDEVADM_EXEC" ]
+then
+	echo "ERROR: Could not find udevadm provided by \"$UDEV_STRATUM\""
+	exit 1
+fi
+
+echo -n "Stopping mdev..."
+echo "" > /proc/sys/kernel/hotplug
+echo "" > /sys/kernel/uevent_helper
+echo "done"
+
+echo -n "Starting udev..."
+brc $UDEV_STRATUM $UDEVD_EXEC --daemon                                  || RESULT=/bin/false
+brc $UDEV_STRATUM $UDEVADM_EXEC trigger --action=add --type=subsystems  || RESULT=/bin/false
+brc $UDEV_STRATUM $UDEVADM_EXEC trigger --action=add --type=devices     || RESULT=/bin/false
+brc $UDEV_STRATUM $UDEVADM_EXEC settle                                  || RESULT=/bin/false
+if $RESULT
+then
+	echo "done"
+else
+	echo "ERROR!"
+fi
