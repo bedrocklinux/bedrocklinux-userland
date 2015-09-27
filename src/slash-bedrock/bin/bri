@@ -370,7 +370,7 @@ L() {
 m() {
 	while [ -n "${1:-}" ]
 	do
-		stratum="${1}"
+		stratum="$(a "$1")"
 		shift
 
 		if [ "$(a init)" = "$(a "$stratum")" ]
@@ -517,7 +517,7 @@ IFS="
 M() {
 	while [ -n "${1:-}" ]
 	do
-		stratum="${1}"
+		stratum="$(a "$1")"
 		shift
 
 		if [ "$(a init)" = "$(a "$stratum")" ]
