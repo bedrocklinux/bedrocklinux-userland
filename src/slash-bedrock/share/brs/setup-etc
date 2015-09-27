@@ -28,7 +28,7 @@ then
 	mkdir -p "$stratum_root/etc" || abort "Unable to setup /etc for $stratum"
 fi
 
-if [ "$(cat "$stratum_root/etc/bedrock_stratum")" != "$stratum" ]
+if [ ! -r "$stratum_root/etc/bedrock_stratum" ] || [ "$(cat "$stratum_root/etc/bedrock_stratum")" != "$stratum" ]
 then
 	echo "$stratum" > "$stratum_root/etc/bedrock_stratum" || abort "Unable to setup /etc for $stratum"
 	chmod 644 "$stratum_root/etc/bedrock_stratum" || abort "Unable to setup /etc for $stratum"

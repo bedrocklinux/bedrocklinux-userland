@@ -241,7 +241,7 @@ void parse_config()
 			"' " CONFIG, "r");
 
 	if (fp == NULL) {
-		fprintf(stderr, "Failed to parse config\n");
+		fprintf(stderr, "brp: Failed to parse config\n");
 		exit(1);
 	}
 
@@ -272,7 +272,7 @@ void parse_config()
 		} else if (strcmp(line, "directory") == 0) {
 			out_items[i].file_type = FILE_TYPE_DIRECTORY;
 		} else {
-			fprintf(stderr, "Failed to parse config\n");
+			fprintf(stderr, "brp: Failed to parse config\n");
 			exit(1);
 		}
 
@@ -286,7 +286,7 @@ void parse_config()
 		} else if (strcmp(line, "exec-filter") == 0) {
 			out_items[i].filter = FILTER_EXEC;
 		} else {
-			fprintf(stderr, "Failed to parse config\n");
+			fprintf(stderr, "brp: Failed to parse config\n");
 			exit(1);
 		}
 

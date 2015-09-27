@@ -43,6 +43,7 @@ create_symlink() {
 		# Something exists at the location where we want the symlink
 		# that isn't a symlink.  Move that file/directory to where we
 		# want it to go, then create the symlink to it.
+		[ -d "$dst" ] && rm -r "$dst" || abort "Unable to symlink $src -> $dst"
 		mv "$src" "$dst" || abort "Unable to symlink $src -> $dst"
 		ln -sf "$dst" "$src" || abort "Unable to symlink $src -> $dst"
 	fi
