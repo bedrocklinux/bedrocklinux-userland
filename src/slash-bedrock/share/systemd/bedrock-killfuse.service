@@ -6,7 +6,7 @@ Description=Shutdown Bedrock Linux brp and bru filesystems.
 [Service]
 RemainAfterExit=yes
 ExecStart=-/bedrock/libexec/busybox true
-ExecStart=-/bedrock/libexec/busybox pkill '^(/bedrock/sbin/bru|/bedrock/sbin/brp)$'
+ExecStop=-/bedrock/libexec/busybox pkill '^(/bedrock/sbin/bru|/bedrock/sbin/brp)$'
 
 [Install]
 WantedBy=multi-user.target

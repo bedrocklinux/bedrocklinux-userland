@@ -447,6 +447,8 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d src/slash-bedrock/share/brs/force-symlinks build/bedrock/share/brs/
 	cp -d src/slash-bedrock/share/brs/setup-etc      build/bedrock/share/brs/
 	cp -d src/slash-bedrock/share/brs/run-lock       build/bedrock/share/brs/
+	cp -d src/slash-bedrock/share/systemd/bedrock-killfuse.service     build/bedrock/share/systemd/
+	cp -d src/slash-bedrock/share/systemd/bedrock-privatemount.service build/bedrock/share/systemd/
 	cp -d src/slash-bedrock/etc/aliases.conf         build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/brn.conf             build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/brp.conf             build/bedrock/etc/
@@ -461,7 +463,6 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d src/slash-bedrock/strata/fallback/etc/init.d/rcS.strata build/bedrock/strata/fallback/etc/init.d/
 	cp -d src/slash-bedrock/strata/fallback/etc/init.d/rcS.udev   build/bedrock/strata/fallback/etc/init.d/
 	cp -d build/bin/busybox                          build/bedrock/strata/fallback/bin/
-	cp -d src/global-files/etc/systemd/system/multi-user.target.wants/bedrock.service build/bedrock/global-files/etc/systemd/system/multi-user.target.wants
 	cp -d src/global-files/etc/fstab                 build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/group                 build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/hostname              build/bedrock/global-files/etc/
@@ -490,6 +491,8 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0755 build/bedrock/share/brs/force-symlinks
 	chmod 0755 build/bedrock/share/brs/setup-etc
 	chmod 0755 build/bedrock/share/brs/run-lock
+	chmod 0644 build/bedrock/share/systemd/bedrock-killfuse.service
+	chmod 0644 build/bedrock/share/systemd/bedrock-privatemount.service
 	chmod 0644 build/bedrock/etc/aliases.conf
 	chmod 0644 build/bedrock/etc/brn.conf
 	chmod 0644 build/bedrock/etc/brp.conf
@@ -521,5 +524,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	for util in `build/bedrock/strata/fallback/bin/busybox --list-utils`; do ln -s /bin/busybox build/bedrock/strata/fallback/$$util; done
 	ln -s /rcK                          build/bedrock/strata/fallback/etc/init.d/rcK
 	ln -s /rcK.strata                   build/bedrock/strata/fallback/etc/init.d/rcK.strata
+	ln -s /bedrock/share/systemd/bedrock-killfuse.service build/bedrock/global-files/etc/systemd/system/multi-user.target.wants/
+	ln -s /bedrock/share/systemd/bedrock-privatemount.service build/bedrock/global-files/etc/systemd/system/multi-user.target.wants/
 	# build tarball
 	cd build/ && fakeroot tar cvf ../bedrock_linux_1.0beta2_nyla.tar bedrock
