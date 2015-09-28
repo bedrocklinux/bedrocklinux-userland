@@ -815,7 +815,7 @@ static int bru_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	REDIR_PATH(path, new_path);
 
 	int ret = 0;
-	if ((fi->fh = creat(new_path, mode)) < 0)
+	if ((fi->fh = open(new_path, fi->flags, mode)) < 0)
 		ret = -errno;
 
 	return ret;
