@@ -48,3 +48,15 @@ if [ -e $stratum_root/lib/systemd/systemd ] && [ ! -e $stratum_root/etc/systemd/
 then
 	mkdir -p $stratum_root/etc/systemd/system/multi-user.target.wants/
 fi
+
+# bru does not currently know to "create" directories for multi-level items.
+# Instead, force the actual creation.
+
+for line in $(bri -c "$stratum" union)
+do
+	mount_point=$(echo $line | cut -d: -f1)
+	for dir in $(echo $line | cut -d: -f2- | awk 'BEGIN{RS=",";OFS=FS="/"} {$NF=""}1' | sed -e 's/^ *//' -e 's/ *$//g')
+	do
+		mkdir -p "$stratum_root/$mount_point/$dir"
+	done
+done
