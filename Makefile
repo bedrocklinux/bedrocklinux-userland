@@ -138,14 +138,12 @@ clean: clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clea
 linux_headers: source_linux_headers build/.success_build_linux_headers
 
 build/.success_build_linux_headers:
-	mkdir -p build
+	mkdir -p build/include
 	cd src/linux_headers/ && \
-		make mrproper && \
 		make headers_install INSTALL_HDR_PATH=$(BUILD)
-	touch build/.success_build_linux_headers
 
 clean_linux_headers:
-	- rm -r $(BUILD)
+	- rm -r $(BUILD)/include
 	- cd src/linux_headers && \
 		make mrproper
 
