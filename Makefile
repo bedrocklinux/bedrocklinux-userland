@@ -306,6 +306,8 @@ build/bin/busybox:
 		./set_bb_option "CONFIG_UDHCPC6" "y" && \
 		./set_bb_option "CONFIG_INETD" "n" && \
 		./set_bb_option "CONFIG_BRCTL" "n" && \
+		./set_bb_option "CONFIG_FEATURE_WTMP" "n" && \
+		./set_bb_option "CONFIG_FEATURE_UTMP" "n" && \
 		./set_bb_option "CONFIG_FEATURE_PREFER_APPLETS" "y" && \
 		./set_bb_option "CONFIG_FEATURE_SH_STANDALONE" "y" && \
 		./set_bb_option "CONFIG_BUSYBOX_EXEC_PATH" '"/bedrock/libexec/busybox"'
