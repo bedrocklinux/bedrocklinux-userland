@@ -130,10 +130,10 @@ src/libattr/.success_retreiving_source:
 # Compile #
 ###########
 
-.PHONY: clean clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_brc clean_brp clean_bru clean_busybox
+.PHONY: clean clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_brc clean_brp clean_bru clean_busybox clean_tarball
 .PHONY: linux_headers musl fuse libattr libcap libbedrock brc brp bru busybox
 
-clean: clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_brc clean_brp clean_bru clean_busybox
+clean: clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_brc clean_brp clean_bru clean_busybox clean_tarball
 
 linux_headers: source_linux_headers build/.success_build_linux_headers
 
@@ -528,3 +528,6 @@ bedrock_linux_1.0beta2_nyla.tar:
 	ln -s /bedrock/share/systemd/bedrock-privatemount.service build/bedrock/global-files/etc/systemd/system/multi-user.target.wants/
 	# build tarball
 	cd build/ && fakeroot tar cvf ../bedrock_linux_1.0beta2_nyla.tar bedrock
+
+clean_tarball:
+	- rm bedrock_linux_1.0beta2_nyla.tar
