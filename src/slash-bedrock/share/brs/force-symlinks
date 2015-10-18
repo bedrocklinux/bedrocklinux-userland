@@ -10,9 +10,9 @@
 #
 # This script will create various required symlinks.
 
-abort() {
-	echo "$@" >&2
-	exit 1
+warn() {
+	echo ""
+	echo "$script warning for $stratum: $@" >&2
 }
 
 create_symlink() {
@@ -32,24 +32,25 @@ create_symlink() {
 		# This is a particularly bad situation as there is no way this
 		# could have happened that the script knows about.  Force it
 		# through anyways.
-		rm "$src"
-		ln -s "$dst" "$src" || abort "Unable to symlink $src -> $dst"
+		rm "$src" || warn "Unable to remove problematic symlink at $src"
+		ln -s "$dst" "$src" || warn "Unable to symlink $src -> $dst"
 	elif ! [ -e "$src" ]
 	then
 		# Nothing exists where we want the symlink.  Just create it.
-		ln -sf "$dst" "$src" || abort "Unable to symlink $src -> $dst"
+		ln -s "$dst" "$src" || warn "Unable to symlink $src -> $dst"
 	elif [ -e "$src" ]
 	then
 		# Something exists at the location where we want the symlink
 		# that isn't a symlink.  Move that file/directory to where we
 		# want it to go, then create the symlink to it.
-		[ -d "$dst" ] && rm -r "$dst" || abort "Unable to symlink $src -> $dst"
-		mv "$src" "$dst" || abort "Unable to symlink $src -> $dst"
-		ln -sf "$dst" "$src" || abort "Unable to symlink $src -> $dst"
+		[ -d "$dst" ] && rm -r "$dst" || warn "Unable to remove problematic file at $dst"
+		mv "$src" "$dst" || warn "Unable to move $dst -> $src"
+		ln -sf "$dst" "$src" || warn "Unable to symlink $src -> $dst"
 	fi
 }
 
 stratum="$1"
+script="force-symlinks"
 if [ "$(bri -a $stratum)" = "$(bri -a init)" ]
 then
 	stratum_root=""
@@ -64,6 +65,6 @@ create_symlink "$stratum_root/var/run" "/run"
 # points to the wrong place.
 if [ -e "$stratum_root/etc/mtab" ] && [ "$(readlink "$stratum_root/etc/mtab")" != "/proc/mounts" ]
 then
-	rm $stratum_root/etc/mtab || abort "Unable to remove bad /etc/mtab"
+	rm $stratum_root/etc/mtab || warn "Unable to remove bad /etc/mtab"
 fi
 create_symlink "$stratum_root/etc/mtab" "/proc/mounts"

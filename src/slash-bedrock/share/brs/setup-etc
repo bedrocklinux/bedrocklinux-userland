@@ -10,12 +10,13 @@
 #
 # This script will set up required Bedrock /etc files
 
-abort() {
-	echo "$@" >&2
-	exit 1
+warn() {
+	echo ""
+	echo "$script warning for $stratum: $@" >&2
 }
 
 stratum=$1
+script="setup-etc"
 if [ "$(bri -a $stratum)" = "$(bri -a init)" ]
 then
 	stratum_root=""
@@ -25,28 +26,28 @@ fi
 
 if ! [ -d "$stratum_root/etc" ]
 then
-	mkdir -p "$stratum_root/etc" || abort "Unable to setup /etc for $stratum"
+	mkdir -p "$stratum_root/etc" || warn "Unable to create $stratum_root/etc"
 fi
 
 if [ ! -r "$stratum_root/etc/bedrock_stratum" ] || [ "$(cat "$stratum_root/etc/bedrock_stratum")" != "$stratum" ]
 then
-	echo "$stratum" > "$stratum_root/etc/bedrock_stratum" || abort "Unable to setup /etc for $stratum"
-	chmod 644 "$stratum_root/etc/bedrock_stratum" || abort "Unable to setup /etc for $stratum"
+	echo "$stratum" > "$stratum_root/etc/bedrock_stratum" || warn "Unable to create $stratum_root/etc/bedrock_stratum"
+	chmod 644 "$stratum_root/etc/bedrock_stratum" || warn "Unable to set permissions on $stratum_root/etc/bedrock_stratum"
 fi
 
 if [ -e /bedrock/etc/localtime ] && [ "$(sha1sum /bedrock/etc/localtime)" != "$(sha1sum $stratum_root/etc/localtime 2>/dev/null)" ]
 then
-	cp /bedrock/etc/localtime "$stratum_root/etc/localtime" || abort "Unable to setup /etc for $stratum"
+	cp /bedrock/etc/localtime "$stratum_root/etc/localtime" || warn "Unable to copy /bedrock/etc/localtime to $stratum_root/etc/localtime"
 fi
 
 if [ -e /bedrock/etc/adjtime ] && [ "$(sha1sum /bedrock/etc/adjtime)" != "$(sha1sum $stratum_root/etc/adjtime 2>/dev/null)" ]
 then
-	cp /bedrock/etc/adjtime "$stratum_root/etc/adjtime" || abort "Unable to setup /etc for $stratum"
+	cp /bedrock/etc/adjtime "$stratum_root/etc/adjtime" || warn "Unable to copy /bedrock/etc/adjtime to $stratum_root/etc/adjtime"
 fi
 
 if [ -e $stratum_root/lib/systemd/systemd ] && [ ! -e $stratum_root/etc/systemd/system/multi-user.target.wants/ ]
 then
-	mkdir -p $stratum_root/etc/systemd/system/multi-user.target.wants/
+	mkdir -p $stratum_root/etc/systemd/system/multi-user.target.wants/ || warn "Unable to create $stratum_root/etc/systemd/system/multi-user.target.wants/"
 fi
 
 # bru does not currently know to "create" directories for multi-level items.
@@ -57,6 +58,6 @@ do
 	mount_point=$(echo $line | cut -d: -f1)
 	for dir in $(echo $line | cut -d: -f2- | awk 'BEGIN{RS=",";OFS=FS="/"} {$NF=""}1' | sed -e 's/^ *//' -e 's/ *$//g')
 	do
-		mkdir -p "$stratum_root/$mount_point/$dir"
+		mkdir -p "$stratum_root/$mount_point/$dir" || warn "Unable to create $stratum_root/$mount_point/$dir"
 	done
 done
