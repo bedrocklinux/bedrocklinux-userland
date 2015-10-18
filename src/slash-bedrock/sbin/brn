@@ -66,6 +66,19 @@ fatal_error() {
 	exec sh
 }
 
+setup_term() {
+	# Ensure plymouth isn't running, as it will fight with brn over control
+	# of the terminal.
+	killall plymouthd
+	# Ensure current virtual terminal is in focus.  Things like plymouth
+	# might set focus to another terminal in the initrd.
+	chvt "$(tty | awk -F/ '{print$NF}' | sed 's/[^0-9]//g')"
+	# Ensure sane virtual terminal settings.  Things like plymouth might
+	# change such values, removing things such as keyboard echo, which
+	# makes the brn menu functionally unusable.
+	stty sane
+}
+
 pretty_print_init_options() {
 	i=0
 	for stratum in $(bri -L)
@@ -341,6 +354,8 @@ enable_strata() {
 		rm /bedrock/run/deleteme
 	fi
 }
+
+setup_term
 
 print_logo
 
