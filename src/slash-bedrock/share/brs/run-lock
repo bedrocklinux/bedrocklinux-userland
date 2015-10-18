@@ -15,3 +15,4 @@ if ! [ -e /bedrock/strata/$1/run/lock ]
 then
 	mkdir /bedrock/strata/$1/run/lock
 fi
+return 0
