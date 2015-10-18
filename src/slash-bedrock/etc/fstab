@@ -1,0 +1,5 @@
+# This fstab is just like an fstab you would use for any other distro, except
+# it is run before the init system is ever run.  It is primarily used to ensure
+# init systems on partitions other than the root partition are accessible.
+# Note it is managed by busybox; any fstab setting busybox does not understand
+# will not be utilized.
