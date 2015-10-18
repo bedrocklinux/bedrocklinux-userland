@@ -1,7 +1,0 @@
-### Bedrock Linux 1.0beta2 Nyla
-### /etc/fstab
-#
-# This fstab is just like an fstab you would use for any other distro.
-# 
-# Note that, by default, this file is global such booting into any init system
-# from any stratum should utilize it.
