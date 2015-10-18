@@ -12,14 +12,16 @@
 
 /*
  * This macro sets the filesystem uid and gid to that of the calling user for
- * FUSE filesystems.  This allows the kernel to take care of permissions for
- * us with regards to filesystem calls.
+ * FUSE filesystems.  This allows the kernel to take care of UID/GID-related
+ * permissions for us with regards to filesystem calls.  It does not handle
+ * supplemental groups.
  */
 #define SET_CALLER_UID()                                           \
 	do {                                                       \
 		struct fuse_context *context = fuse_get_context(); \
-		seteuid(context->uid);                             \
+		seteuid(0);                                        \
 		setegid(context->gid);                             \
+		seteuid(context->uid);                             \
 	} while (0);
 
 
