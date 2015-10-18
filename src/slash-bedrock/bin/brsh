@@ -60,12 +60,27 @@ fi
 
 # Use the shell in ~/.brsh.conf if it is available; otherwise, fall back to
 # /bin/sh.
-if [ -f ~/.brsh.conf ] && which $(basename $(cat ~/.brsh.conf)) >/dev/null
+local config_shell=$(cat ~/.brsh.conf 2>/dev/null)
+if [ "$config_shell" = "" ]
 then
-	export SHELL=$(cat ~/.brsh.conf)
-else
-	echo "Warning: brsh can not find shell specified in ~/.brsh.conf, defaulting to /bin/sh"
+	echo "Warning: either brsh cannot find config at ~/.brsh.conf or it is empty, defaulting to /bin/sh"
+	echo ""
+	echo "To configure brsh, put normal path to shell in ~/.brsh.conf"
+	echo "e.g.: echo '/bin/bash' > ~/.brsh.conf"
+	echo "Then brsh will ensure that shell is used on login even if init stratum does not provide it so long as another stratum does provide it."
+	echo ""
 	export SHELL=/bin/sh
+elif ! which $config_shell >/dev/null 2>&1
+then
+	echo "Warning: brsh can not find shell specified in ~/.brsh.conf (\"$config_shell\"), defaulting to /bin/sh"
+	echo ""
+	echo "Do any strata provide \"$config_shell\"?"
+	echo "Try: ls -l /bedrock/strata/*/$config_shell"
+	echo "If not, either install \"$config_shell\" or configure ~/.brsh.conf to use another shell"
+	echo ""
+	export SHELL=/bin/sh
+else
+	export SHELL=$config_shell
 fi
 
 # This shell script does not provide us a means of prepending "-" to the
