@@ -230,11 +230,12 @@ pivot_root_to_init() {
 	# make /bedrock - which is in rootfs_stratum - accessible in
 	# init_stratum so init_stratum can continue to do bedrock stuff
 	mkdir -p /bedrock/strata/$init_stratum/bedrock
-	mount --bind /bedrock /bedrock/strata/$init_stratum/bedrock
+	mount --rbind /bedrock /bedrock/strata/$init_stratum/bedrock
 
 	# pivot_root to init_stratum
 	cd /bedrock/strata/$init_stratum
 	pivot_root . bedrock/strata/$rootfs_stratum
+	cd /
 
 	# man 8 pivot_root says to `chroot .` here, but in practice this was
 	# found to make mount points - which need to be unmounted on shutdown -
@@ -355,9 +356,41 @@ enable_strata() {
 	fi
 }
 
+mount_fstab() {
+	# Busybox's mount can parse and mount a fstab, but apparently it only
+	# reads from `/etc/fstab`; there does not appear to be any way to tell
+	# it to read from elsewhere.  Thus, we'll need to ensure
+	# `/bedrock/etc/fstab`'s contents are accessible at `/etc/fstab` so we
+	# can have busybox mount it, but then undo that so the normal
+	# `/etc/fstab` is accessible afterwards.
+
+	# If the /bedrock/etc/fstab file does not exist, nothing to do here.
+	if ! [ -e /bedrock/etc/fstab ]
+	then
+		return
+	fi
+
+	# ensure a file exists at /etc/fstab
+	if !  [ -e /etc/fstab ]
+	then
+		touch /etc/fstab
+	fi
+
+	# temporarily bind mount so busybox's mount will read /bedrock/etc/fstab
+	mount --bind /bedrock/etc/fstab /etc/fstab
+
+	# mount fstab
+	mount -a
+
+	# remove temp bind mount
+	umount /etc/fstab
+}
+
 setup_term
 
 print_logo
+
+mount_fstab
 
 init_option_count=$(get_init_option_count)
 if [ "$init_option_count" -eq 0 ]
