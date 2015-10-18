@@ -364,6 +364,16 @@ mount_fstab() {
 	# can have busybox mount it, but then undo that so the normal
 	# `/etc/fstab` is accessible afterwards.
 
+	# ensure /etc/mtab is a symlink to /proc/mounts rather than a maintained file.
+	if ! [ -e /etc/mtab ]
+	then
+		ln -s /proc/mounts /etc/mtab
+	elif [ "$(readlink /etc/mtab)" != "/proc/mounts" ]
+	then
+		rm /etc/mtab
+		ln -s /proc/mounts /etc/mtab
+	fi
+
 	# If the /bedrock/etc/fstab file does not exist, nothing to do here.
 	if ! [ -e /bedrock/etc/fstab ]
 	then
