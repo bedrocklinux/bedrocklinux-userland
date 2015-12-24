@@ -77,7 +77,7 @@ src/fuse/.success_retreiving_source:
 	# at time of writing, 2.9.X is stable branch
 	git clone --depth=1 \
 		-b fuse_2_9_bugfix \
-		'git://git.code.sf.net/p/fuse/fuse' \
+		'git://github.com/libfuse/libfuse.git' \
 		src/fuse
 	touch src/fuse/.success_retreiving_source
 
