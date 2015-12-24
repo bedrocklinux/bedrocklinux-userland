@@ -130,10 +130,10 @@ src/libattr/.success_retreiving_source:
 # Compile #
 ###########
 
-.PHONY: clean clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_brc clean_brp clean_bru clean_busybox clean_tarball
-.PHONY: linux_headers musl fuse libattr libcap libbedrock brc brp bru busybox
+.PHONY: clean clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_manage_tty_lock clean_brc clean_brp clean_bru clean_busybox clean_tarball
+.PHONY: linux_headers musl fuse libattr libcap libbedrock manage_tty_lock brc brp bru busybox
 
-clean: clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_brc clean_brp clean_bru clean_busybox clean_tarball
+clean: clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_manage_tty_lock clean_brc clean_brp clean_bru clean_busybox clean_tarball
 
 linux_headers: source_linux_headers build/.success_build_linux_headers
 
@@ -229,6 +229,19 @@ build/lib/libbedrock.a build/include/libbedrock.h:
 
 clean_libbedrock:
 	- cd src/libbedrock && \
+		make clean
+
+
+manage_tty_lock: musl build/sbin/manage_tty_lock
+
+build/sbin/manage_tty_lock:
+	mkdir -p $(BUILD)
+	cd src/manage_tty_lock && \
+		make CC=$(MUSLGCC) && \
+		make install prefix=$(BUILD)
+
+clean_manage_tty_lock:
+	- cd src/manage_tty_lock && \
 		make clean
 
 
@@ -334,7 +347,7 @@ clean_busybox:
 
 .PHONY: tarball gzip_tarball
 
-tarball: libcap brc brp bru busybox bedrock_linux_1.0beta2_nyla.tar
+tarball: libcap manage_tty_lock brc brp bru busybox bedrock_linux_1.0beta2_nyla.tar
 	@echo
 	@echo "Successfully built Bedrock Linux tarball"
 	@echo
@@ -444,6 +457,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d src/slash-bedrock/sbin/brn                 build/bedrock/sbin/
 	cp -d build/bin/busybox                          build/bedrock/libexec/
 	cp -d build/bin/setcap                           build/bedrock/libexec/
+	cp -d build/sbin/manage_tty_lock                 build/bedrock/libexec/
 	cp -d src/slash-bedrock/share/brs/force-symlinks build/bedrock/share/brs/
 	cp -d src/slash-bedrock/share/brs/setup-etc      build/bedrock/share/brs/
 	cp -d src/slash-bedrock/share/brs/run-lock       build/bedrock/share/brs/
@@ -484,6 +498,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0755 build/bedrock/sbin/brn
 	chmod 0755 build/bedrock/libexec/busybox
 	chmod 0755 build/bedrock/libexec/setcap
+	chmod 0755 build/bedrock/libexec/manage_tty_lock
 	chmod 0755 build/bedrock/share/brs/force-symlinks
 	chmod 0755 build/bedrock/share/brs/setup-etc
 	chmod 0755 build/bedrock/share/brs/run-lock
