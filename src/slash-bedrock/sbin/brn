@@ -69,14 +69,16 @@ fatal_error() {
 setup_term() {
 	# Ensure plymouth isn't running, as it will fight with brn over control
 	# of the terminal.
-	killall plymouthd
-	# Ensure current virtual terminal is in focus.  Things like plymouth
-	# might set focus to another terminal in the initrd.
-	chvt "$(tty | awk -F/ '{print$NF}' | sed 's/[^0-9]//g')"
-	# Ensure sane virtual terminal settings.  Things like plymouth might
-	# change such values, removing things such as keyboard echo, which
-	# makes the brn menu functionally unusable.
+	killall -9 -f plymouthd
+
+	# Plymouth will lock the terminal settings.  This causes the following
+	# commands to fail if not unlocked.
+	/bedrock/libexec/manage_tty_lock unlock
+
+	# Ensure sane terminal settings.  This is probably overkill.
 	stty sane
+	stty cooked
+	reset
 }
 
 pretty_print_init_options() {
