@@ -4,6 +4,7 @@ src/brp/brp
 src/bru/bru
 src/libbedrock/libbedrock.o
 src/libbedrock/libbedrock.a
+src/manage_tty_lock/manage_tty_lock
 
 # third party source
 src/busybox
