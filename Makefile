@@ -471,6 +471,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d src/slash-bedrock/etc/frameworks.d/global  build/bedrock/etc/frameworks.d/
 	cp -d src/slash-bedrock/etc/rc.conf              build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/strata.conf          build/bedrock/etc/
+	cp -d src/slash-bedrock/etc/fstab                build/bedrock/etc/
 	cp -d src/slash-bedrock/strata/fallback/rcK      build/bedrock/strata/fallback/
 	cp -d src/slash-bedrock/strata/fallback/rcK.strata            build/bedrock/strata/fallback/
 	cp -d src/slash-bedrock/strata/fallback/etc/inittab           build/bedrock/strata/fallback/etc
@@ -513,6 +514,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0644 build/bedrock/etc/frameworks.d/global
 	chmod 0644 build/bedrock/etc/rc.conf
 	chmod 0644 build/bedrock/etc/strata.conf
+	chmod 0644 build/bedrock/etc/fstab
 	chmod 0755 build/bedrock/strata/fallback/bin/busybox
 	chmod 0644 build/bedrock/global-files/etc/hostname
 	chmod 0644 build/bedrock/global-files/etc/hosts
@@ -521,7 +523,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0644 build/bedrock/global-files/etc/motd
 	chmod 0644 build/bedrock/global-files/etc/os-release
 	chmod 0644 build/bedrock/global-files/etc/profile
-	chmod 0644 build/bedrock/global-files/etc/rc.local
+	chmod 0755 build/bedrock/global-files/etc/rc.local
 	chmod 0644 build/bedrock/global-files/etc/shells
 	# create symlinks
 	ln -s /bedrock/run/init/alias       build/bedrock/etc/aliases.d/init
