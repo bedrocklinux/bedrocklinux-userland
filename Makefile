@@ -449,6 +449,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d build/bin/brc                              build/bedrock/bin/
 	cp -d src/slash-bedrock/bin/bri                  build/bedrock/bin/
 	cp -d src/slash-bedrock/bin/brl                  build/bedrock/bin/
+	cp -d src/slash-bedrock/bin/brr                  build/bedrock/bin/
 	cp -d src/slash-bedrock/bin/brsh                 build/bedrock/bin/
 	cp -d src/slash-bedrock/bin/brw                  build/bedrock/bin/
 	cp -d build/bin/brp                              build/bedrock/sbin/
@@ -490,6 +491,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0755 build/bedrock/bin/brc
 	chmod 0755 build/bedrock/bin/bri
 	chmod 0755 build/bedrock/bin/brl
+	chmod 0755 build/bedrock/bin/brr
 	chmod 0755 build/bedrock/bin/brsh
 	chmod 0755 build/bedrock/bin/brw
 	chmod 0755 build/bedrock/sbin/brp
