@@ -400,6 +400,8 @@ bedrock_linux_1.0beta2_nyla.tar:
 	mkdir -p build/bedrock/global-files/etc/systemd
 	mkdir -p build/bedrock/global-files/etc/systemd/system
 	mkdir -p build/bedrock/global-files/etc/systemd/system/multi-user.target.wants
+	mkdir -p build/bedrock/global-files/etc/X11
+	mkdir -p build/bedrock/global-files/etc/X11/Xsession.d
 	# set directory permissions
 	chmod 0755 build/bedrock
 	chmod 0755 build/bedrock/bin
@@ -445,6 +447,8 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0755 build/bedrock/global-files/etc/systemd
 	chmod 0755 build/bedrock/global-files/etc/systemd/system
 	chmod 0755 build/bedrock/global-files/etc/systemd/system/multi-user.target.wants
+	chmod 0755 build/bedrock/global-files/etc/X11
+	chmod 0755 build/bedrock/global-files/etc/X11/Xsession.d
 	# files
 	cp -d build/bin/brc                              build/bedrock/bin/
 	cp -d src/slash-bedrock/bin/bri                  build/bedrock/bin/
@@ -488,6 +492,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d src/global-files/etc/profile               build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/rc.local              build/bedrock/global-files/etc/
 	cp -d src/global-files/etc/shells                build/bedrock/global-files/etc/
+	cp -d src/global-files/etc/X11/Xsession.d/41bedrock_env build/bedrock/global-files/etc/X11/Xsession.d
 	# set file permissions
 	chmod 0755 build/bedrock/bin/brc
 	chmod 0755 build/bedrock/bin/bri
@@ -525,6 +530,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0644 build/bedrock/global-files/etc/profile
 	chmod 0755 build/bedrock/global-files/etc/rc.local
 	chmod 0644 build/bedrock/global-files/etc/shells
+	chmod 0644 build/bedrock/global-files/etc/X11/Xsession.d/41bedrock_env
 	# create symlinks
 	ln -s /bedrock/run/init/alias       build/bedrock/etc/aliases.d/init
 	ln -s /bedrock/run/init/framework   build/bedrock/etc/frameworks.d/init
