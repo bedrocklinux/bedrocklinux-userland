@@ -463,10 +463,13 @@ then
 	result
 fi
 
-announce "Getting fuse module (FAIL okay if fuse built-in)"
-chroot "$global_root" /bedrock/libexec/busybox modprobe fuse
-lsmod | grep -q fuse
-result
+if ! grep -q "\<fuse\>" /proc/filesystems
+then
+	announce "Loading fuse module"
+	chroot "$global_root" /proc/1/root/bedrock/libexec/busybox modprobe fuse
+	lsmod | grep -q fuse
+	result
+fi
 
 if ! [ -e /dev/fuse ]
 then
