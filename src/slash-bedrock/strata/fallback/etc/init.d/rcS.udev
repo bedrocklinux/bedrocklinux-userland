@@ -18,7 +18,7 @@ UDEV_STRATUM=<TODO>
 unset UDEVD_EXEC
 unset UDEVADM_EXEC
 # first, find the udevd executable.
-for loc in /sbin/udevd /usr/sbin/udevd /usr/local/sbin/udevd /lib/systemd/systemd-udevd /usr/lib/systemd/systemd-udevd /usr/local/lib/systemd/systemd-udevd
+for loc in /bin/udevd /sbin/udevd /usr/bin/udevd /usr/sbin/udevd /usr/local/bin/udevd /usr/local/sbin/udevd /lib/systemd/systemd-udevd /usr/lib/systemd/systemd-udevd /usr/local/lib/systemd/systemd-udevd
 do
 	if [ -x /bedrock/strata/$UDEV_STRATUM/$loc ]
 	then
@@ -33,7 +33,7 @@ then
 fi
 
 # next, find udevadm
-for loc in /sbin/udevadm /usr/sbin/udevadm /usr/local/sbin/udevadm /lib/systemd/systemd-udevadm /usr/lib/systemd/systemd-udevadm /usr/local/lib/systemd/systemd-udevadm
+for loc in /bin/udevadm /sbin/udevadm /usr/bin/udevadm /usr/sbin/udevadm /usr/local/bin/udevadm /usr/local/sbin/udevadm /lib/systemd/systemd-udevadm /usr/lib/systemd/systemd-udevadm /usr/local/lib/systemd/systemd-udevadm
 do
 	if [ -x /bedrock/strata/$UDEV_STRATUM/$loc ]
 	then
