@@ -39,7 +39,6 @@
 	do {                                                       \
 		strncat(buf, tail, len_remaining);                 \
 		len_remaining -= MIN(strlen(tail), len_remaining); \
-		printf("remaining: %d\n", len_remaining); \
 	} while (0)
 
 enum filter {
