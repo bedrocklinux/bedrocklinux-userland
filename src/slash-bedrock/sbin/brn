@@ -276,18 +276,33 @@ prepare_global() {
 		mount --bind $rootfs_root "$global_root/bedrock/strata/$rootfs_stratum"
 	fi
 
-	# ensure /proc is shared
+	# ensure /proc is mounted and shared
 	mkdir -p "$global_root/proc"
 	mkdir -p /proc
-	mount --bind "$global_root/proc" /proc
-	mount --make-shared /proc
 	[ -r /proc/mounts ] || mount -t proc proc "$global_root/proc"
-	# ensure /sys is shared
+	mount --rbind "$global_root/proc" /proc
+	mount --make-rshared /proc
+
+	# ensure /sys is mounted and shared
 	mkdir -p "$global_root/sys"
 	mkdir -p /sys
-	mount --bind "$global_root/sys" /sys
-	mount --make-shared /sys
 	mount | grep -q "^[^ ]* on /sys type sysfs " || mount -t sysfs sysfs "$global_root/sys"
+	mount --rbind "$global_root/sys" /sys
+	mount --make-rshared /sys
+
+	# ensure /dev is mounted and shared
+	mkdir -p "$global_root/dev"
+	mkdir -p /dev
+	mount | grep -q "^[^ ]* on /dev type devtmpfs " || mount -t devtmpfs devtmpfs "$global_root/dev"
+	mount --rbind "$global_root/dev" /dev
+	mount --make-rshared /dev
+
+	# ensure /run is mounted and shared
+	mkdir -p "$global_root/run"
+	mkdir -p /run
+	mount | grep -q "^[^ ]* on /run type tmpfs " || mount -t tmpfs tmpfs "$global_root/run"
+	mount --rbind "$global_root/run" /run
+	mount --make-rshared /run
 
 	result
 }
