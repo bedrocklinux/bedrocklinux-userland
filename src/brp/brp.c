@@ -1174,7 +1174,7 @@ static int brp_read(const char *in_path, char *buf, size_t size, off_t offset, s
 		config_str = config_contents();
 		if (config_str) {
 			strncpy(buf, config_str, size);
-			ret = MIN(strlen(config_str), size)
+			ret = MIN(strlen(config_str), size);
 			free(config_str);
 			return ret;
 		} else {
