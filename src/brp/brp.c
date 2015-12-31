@@ -34,6 +34,14 @@
 #define STRATA_ROOT "/bedrock/strata/"
 #define STRATA_ROOT_LEN strlen(STRATA_ROOT)
 
+#define MIN(x,y) (x < y ? x : y)
+#define STRNCATLEN(buf, tail, len_remaining)                       \
+	do {                                                       \
+		strncat(buf, tail, len_remaining);                 \
+		len_remaining -= MIN(strlen(tail), len_remaining); \
+		printf("remaining: %d\n", len_remaining); \
+	} while (0)
+
 enum filter {
 	FILTER_PASS,     /* pass file through unaltered */
 	FILTER_BRC_WRAP, /* return a script that wraps executable with brc */
@@ -896,22 +904,15 @@ int read_filter(const char *in_path,
 
 	case FILTER_BRC_WRAP:
 		if (access(in_path, F_OK) == 0) {
+			buf[0] = '\0';
 			len_remaining = size;
-			strncpy(buf, "#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/brc ", size);
-			len_remaining -= strlen("#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/brc ");
-			strncat(buf, item->stratum, len_remaining);
-			len_remaining -= item->stratum_len;
-			strncat(buf, " ", len_remaining);
-			len_remaining -= strlen(" ");
-			strncat(buf, item->stratum_path, len_remaining);
-			len_remaining -= item->stratum_path_len;
-			strncat(buf, tail, len_remaining);
-			len_remaining -= strlen(tail);
-			strncat(buf, " \"$@\"\n", len_remaining);
-			/*
-			 * TODO: can we replace "strlen(buf)" with "size - len_remaining" ?
-			 */
-			return strlen(buf);
+			STRNCATLEN(buf, "#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/brc ", len_remaining);
+			STRNCATLEN(buf, item->stratum, len_remaining);
+			STRNCATLEN(buf, " ", len_remaining);
+			STRNCATLEN(buf, item->stratum_path, len_remaining);
+			STRNCATLEN(buf, tail, len_remaining);
+			STRNCATLEN(buf, " \"$@\"\n", len_remaining);
+			return size - len_remaining;
 		} else {
 			return -EPERM;
 		}
@@ -919,34 +920,34 @@ int read_filter(const char *in_path,
 
 	case FILTER_EXEC:
 		if (access(in_path, F_OK) == 0) {
-			len_remaining = size;
 			buf[0] = '\0';
+			len_remaining = size;
 			fp = fopen(in_path, "r");
+			if (!fp) {
+				return -errno;
+			}
 			while (fgets(line, line_max, fp) != NULL) {
 				size_t i;
 				int found = 0;
 				for (i = 0; i < exec_cnt; i++) {
 					if (strncmp(line, execs[i], strlen(execs[i])) == 0) {
 						found = 1;
-						strncat(buf, execs[i], len_remaining);
-						len_remaining -= strlen(execs[i]);
-						strncat(buf, "/bedrock/bin/brc ", len_remaining);
-						len_remaining -= strlen("/bedrock/bin/brc");
-						strncat(buf, item->stratum, len_remaining);
-						len_remaining -= item->stratum_len;
-						strncat(buf, " ", 1);
-						len_remaining -= 1;
-						strncat(buf, line + strlen(execs[i]), len_remaining);
-						len_remaining -= strlen(line + strlen(execs[i]));
+						STRNCATLEN(buf, execs[i], len_remaining);
+						STRNCATLEN(buf, "/bedrock/bin/brc ", len_remaining);
+						STRNCATLEN(buf, item->stratum, len_remaining);
+						STRNCATLEN(buf, " ", len_remaining);
+						STRNCATLEN(buf, line + strlen(execs[i]), len_remaining);
 					}
 				}
 				if (!found) {
-					strncat(buf, line, len_remaining);
-					len_remaining -= strlen(line);
+					STRNCATLEN(buf, line, len_remaining);
+				}
+				if (!len_remaining) {
+					break;
 				}
 			}
 			fclose(fp);
-			return strlen(buf);
+			return size - len_remaining;
 		} else {
 			return -EPERM;
 		}
@@ -1173,8 +1174,9 @@ static int brp_read(const char *in_path, char *buf, size_t size, off_t offset, s
 		config_str = config_contents();
 		if (config_str) {
 			strncpy(buf, config_str, size);
+			ret = MIN(strlen(config_str), size)
 			free(config_str);
-			return strlen(buf);
+			return ret;
 		} else {
 			return -ENOMEM;
 		}
