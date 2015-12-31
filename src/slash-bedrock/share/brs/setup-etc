@@ -53,6 +53,8 @@ fi
 # bru does not currently know to "create" directories for multi-level items.
 # Instead, force the actual creation.
 
+IFS="
+"
 for line in $(bri -c "$stratum" union)
 do
 	mount_point=$(echo $line | cut -d: -f1)
