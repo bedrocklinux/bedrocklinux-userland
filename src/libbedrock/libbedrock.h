@@ -22,7 +22,7 @@
 		seteuid(0);                                        \
 		setegid(context->gid);                             \
 		seteuid(context->uid);                             \
-	} while (0);
+	} while (0)
 
 
 /* ensure config file is only writable by root */
