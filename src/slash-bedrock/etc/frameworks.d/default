@@ -52,12 +52,13 @@ preenable = /bedrock/share/brs/run-lock
 
 # "enable" indicates if the given stratum should be enabled at boot time.  This
 # can either be "boot" (indicating it should be enabled at boot time) or
-# "manual" (indicating it will be enabled/disabled manually).
+# "manual" (indicating it will be enabled/disabled manually).  If left
+# unspecified, default to "boot".
 #
-# Feel free to override this with a "enable = manual" in the corresponding
-# stratum's section in /bedrock/etc/strata.conf or
+# Feel free to override the default boot with a "enable = manual" in the
+# corresponding stratum's section in /bedrock/etc/strata.conf or
 # /bedrock/etc/strata.d/<stratum>.conf.
-enable = boot
+#enable = boot
 
 # "init" indicates the given stratum can provide an init system.  The value
 # should be the command to run at boot if this stratum is chosen to provide
