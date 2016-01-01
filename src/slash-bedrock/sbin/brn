@@ -264,7 +264,7 @@ prepare_global() {
 	do
 		(
 			mkdir -p "$global_root/$mount"
-			mount --move "$mount" "$global_root/$mount"
+			mount --move "$rootfs_root/$mount" "$global_root/$mount"
 			mount --make-shared "$global_root/$mount"
 		) 2>/dev/null
 	done
@@ -279,30 +279,30 @@ prepare_global() {
 	# ensure /proc is mounted and shared
 	mkdir -p "$global_root/proc"
 	mkdir -p /proc
-	[ -r /proc/mounts ] || mount -t proc proc "$global_root/proc"
+	[ -r $global_root/proc/mounts ] || mount -t proc proc "$global_root/proc"
+	mount --make-rshared "$global_root/proc"
 	mount --rbind "$global_root/proc" /proc
-	mount --make-rshared /proc
 
 	# ensure /sys is mounted and shared
 	mkdir -p "$global_root/sys"
 	mkdir -p /sys
-	mount | grep -q "^[^ ]* on /sys type sysfs " || mount -t sysfs sysfs "$global_root/sys"
+	mount | grep -q "^[^ ]* on $global_root/sys type sysfs " || mount -t sysfs sysfs "$global_root/sys"
+	mount --make-rshared "$global_root/sys"
 	mount --rbind "$global_root/sys" /sys
-	mount --make-rshared /sys
 
 	# ensure /dev is mounted and shared
 	mkdir -p "$global_root/dev"
 	mkdir -p /dev
-	mount | grep -q "^[^ ]* on /dev type devtmpfs " || mount -t devtmpfs devtmpfs "$global_root/dev"
+	mount | grep -q "^[^ ]* on $global_root/dev type devtmpfs " || mount -t devtmpfs devtmpfs "$global_root/dev"
+	mount --make-rshared "$global_root/dev"
 	mount --rbind "$global_root/dev" /dev
-	mount --make-rshared /dev
 
 	# ensure /run is mounted and shared
 	mkdir -p "$global_root/run"
 	mkdir -p /run
-	mount | grep -q "^[^ ]* on /run type tmpfs " || mount -t tmpfs tmpfs "$global_root/run"
+	mount | grep -q "^[^ ]* on $global_root/run type tmpfs " || mount -t tmpfs tmpfs "$global_root/run"
+	mount --make-rshared "$global_root/run"
 	mount --rbind "$global_root/run" /run
-	mount --make-rshared /run
 
 	result
 }
