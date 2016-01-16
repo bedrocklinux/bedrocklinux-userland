@@ -869,19 +869,16 @@ static int bru_utimens(const char *path, const struct timespec *times)
 	return ret;
 }
 
-/*
- * TODO: implement
- * static int bru_ioctl(const char *path, int request, void *arg, struct
- * 		fuse_file_info *fi, unsigned int flags, void *data)
- * {
- * 	SET_CALLER_UID();
- * 
- * 	int ret = ioctl(fi->fh, request, data);
- * 
- * 	SET_RET_ERRNO();
- * 	return ret;
- * }
- */
+static int bru_ioctl(const char *path, int request, void *arg, struct
+		fuse_file_info *fi, unsigned int flags, void *data)
+{
+	SET_CALLER_UID();
+
+	int ret = ioctl(fi->fh, request, data);
+
+	SET_RET_ERRNO();
+	return ret;
+}
 
 
 /*
@@ -932,9 +929,9 @@ static struct fuse_operations bru_oper = {
 	 * This only makes sense for block devices.
 	 * .bmap = bru_bmap,
 	 */
+	 .ioctl = bru_ioctl,
 	/*
 	 * TODO: implement these:
-	 * .ioctl = bru_ioctl,
 	 * .poll = bru_poll,
 	 * .write_buf = bru_write_buf,
 	 * .read_buf = bru_read_buf,
