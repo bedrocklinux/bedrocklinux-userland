@@ -65,8 +65,8 @@ if [ "$config_shell" = "" ]
 then
 	echo "Warning: either brsh cannot find config at ~/.brsh.conf or it is empty, defaulting to /bin/sh"
 	echo ""
-	echo "To configure brsh, put normal path to shell in ~/.brsh.conf"
-	echo "e.g.: echo '/bin/bash' > ~/.brsh.conf"
+	echo "To configure brsh, put desired shell in ~/.brsh.conf"
+	echo "e.g.: echo 'bash' > ~/.brsh.conf"
 	echo "Then brsh will ensure that shell is used on login even if init stratum does not provide it so long as another stratum does provide it."
 	echo ""
 	export SHELL=/bin/sh
@@ -75,8 +75,11 @@ then
 	echo "Warning: brsh can not find shell specified in ~/.brsh.conf (\"$config_shell\"), defaulting to /bin/sh"
 	echo ""
 	echo "Do any strata provide \"$config_shell\"?"
-	echo "Try: ls -l /bedrock/strata/*/$config_shell"
-	echo "If not, either install \"$config_shell\" or configure ~/.brsh.conf to use another shell"
+	echo "If not, consider installing it."
+	echo "If so, update the following files so it shows up in the \$PATH:"
+	echo "    /etc/shells"
+	echo "    /bedrock/etc/rc.conf"
+	echo "    /bedrock/etc/brp.conf"
 	echo ""
 	export SHELL=/bin/sh
 else
