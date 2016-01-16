@@ -35,11 +35,6 @@
 #define STRATA_ROOT_LEN strlen(STRATA_ROOT)
 
 #define MIN(x,y) (x < y ? x : y)
-#define STRNCATLEN(buf, tail, len_remaining)                       \
-	do {                                                       \
-		strncat(buf, tail, len_remaining);                 \
-		len_remaining -= MIN(strlen(tail), len_remaining); \
-	} while (0)
 
 enum filter {
 	FILTER_PASS,     /* pass file through unaltered */
@@ -388,7 +383,7 @@ char* config_contents()
 	}
 	len += strlen("\n");
 
-	char *config_str = malloc(len * sizeof(char*));
+	char *config_str = malloc((len+1) * sizeof(char));
 	if (!config_str) {
 		return NULL;
 	}
@@ -530,7 +525,7 @@ void str_vec_sort(struct str_vec *v) {
 }
 
 /*
- * TODO: Just empty's repeated items, does not remove.  Expects calling code to
+ * TODO: Just empties repeated items, does not remove.  Expects calling code to
  * check for empty strings.  That's ugly, see if we can cleanly fix.
  */
 int str_vec_uniq(struct str_vec *v)
@@ -556,6 +551,31 @@ int str_vec_uniq(struct str_vec *v)
  * miscellaneous/support
  * ============================================================================
  */
+
+/*
+ * Like strncat, except:
+ * - Do not use trailing null; track offset into buffer instead
+ * - Able to skip set number of input bytes before writing into buffer
+ */
+void strcatoffset(char *buf, const char const *str, size_t *left_to_skip, size_t *written, size_t max)
+{
+	size_t str_len = strlen(str);
+	int i = 0;
+
+	if ((*left_to_skip) >= str_len) {
+		(*left_to_skip) -= str_len;
+		return;
+	}
+
+	if ((*left_to_skip) > 0) {
+		i += (*left_to_skip);
+		(*left_to_skip) = 0;
+	}
+
+	for (; i < str_len && (*written) < max; i++, (*written)++) {
+		buf[(*written)] = str[i];
+	}
+}
 
 /*
  * Writing to this filesystem is only used as a way to signal that the
@@ -885,7 +905,7 @@ int read_filter(const char *in_path,
 {
 	char *execs[] = {"TryExec=", "ExecStart=", "ExecStop=", "ExecReload=", "Exec="};
 	size_t exec_cnt = sizeof(execs) / sizeof(execs[0]);
-	int fd, ret, len_remaining;
+	int fd, ret;
 	const size_t line_max = PATH_MAX;
 	char line[line_max+1];
 	FILE *fp;
@@ -903,15 +923,15 @@ int read_filter(const char *in_path,
 
 	case FILTER_BRC_WRAP:
 		if (access(in_path, F_OK) == 0) {
-			buf[0] = '\0';
-			len_remaining = size;
-			STRNCATLEN(buf, "#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/brc ", len_remaining);
-			STRNCATLEN(buf, item->stratum, len_remaining);
-			STRNCATLEN(buf, " ", len_remaining);
-			STRNCATLEN(buf, item->stratum_path, len_remaining);
-			STRNCATLEN(buf, tail, len_remaining);
-			STRNCATLEN(buf, " \"$@\"\n", len_remaining);
-			return size - len_remaining;
+			size_t left_to_skip = offset;
+			size_t written = 0;
+			strcatoffset(buf, "#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/brc ", &left_to_skip, &written, size);
+			strcatoffset(buf, item->stratum, &left_to_skip, &written, size);
+			strcatoffset(buf, " ", &left_to_skip, &written, size);
+			strcatoffset(buf, item->stratum_path, &left_to_skip, &written, size);
+			strcatoffset(buf, tail, &left_to_skip, &written, size);
+			strcatoffset(buf, " \"$@\"\n", &left_to_skip, &written, size);
+			return written;
 		} else {
 			return -EPERM;
 		}
@@ -919,8 +939,8 @@ int read_filter(const char *in_path,
 
 	case FILTER_EXEC:
 		if (access(in_path, F_OK) == 0) {
-			buf[0] = '\0';
-			len_remaining = size;
+			size_t left_to_skip = offset;
+			size_t written = 0;
 			fp = fopen(in_path, "r");
 			if (!fp) {
 				return -errno;
@@ -931,22 +951,22 @@ int read_filter(const char *in_path,
 				for (i = 0; i < exec_cnt; i++) {
 					if (strncmp(line, execs[i], strlen(execs[i])) == 0) {
 						found = 1;
-						STRNCATLEN(buf, execs[i], len_remaining);
-						STRNCATLEN(buf, "/bedrock/bin/brc ", len_remaining);
-						STRNCATLEN(buf, item->stratum, len_remaining);
-						STRNCATLEN(buf, " ", len_remaining);
-						STRNCATLEN(buf, line + strlen(execs[i]), len_remaining);
+						strcatoffset(buf, execs[i], &left_to_skip, &written, size);
+						strcatoffset(buf, "/bedrock/bin/brc ", &left_to_skip, &written, size);
+						strcatoffset(buf, item->stratum, &left_to_skip, &written, size);
+						strcatoffset(buf, " ", &left_to_skip, &written, size);
+						strcatoffset(buf, line + strlen(execs[i]), &left_to_skip, &written, size);
 					}
 				}
 				if (!found) {
-					STRNCATLEN(buf, line, len_remaining);
+					strcatoffset(buf, line, &left_to_skip, &written, size);
 				}
-				if (!len_remaining) {
+				if (written >= size) {
 					break;
 				}
 			}
 			fclose(fp);
-			return size - len_remaining;
+			return written;
 		} else {
 			return -EPERM;
 		}
@@ -1166,26 +1186,26 @@ static int brp_read(const char *in_path, char *buf, size_t size, off_t offset, s
 	struct in_item *in_item;
 	char *tail;
 	char *config_str;
-	int ret;
 	struct stat stbuf;
+	int ret;
 
 	if (strcmp(in_path, "/reparse_config") == 0) {
 		config_str = config_contents();
-		if (config_str) {
-			strncpy(buf, config_str, size);
-			ret = MIN(strlen(config_str), size);
-			free(config_str);
-			return ret;
-		} else {
+		if (!config_str) {
 			return -ENOMEM;
 		}
+		ret = MIN(strlen(config_str + offset), size);
+		memcpy(buf, config_str + offset, ret);
+		free(config_str);
+		return ret;
 	}
 
-	if ( (ret = corresponding((char*) in_path, out_path, PATH_MAX, &stbuf, &out_item, &in_item, &tail)) >= 0) {
-		return read_filter(out_path, out_item->filter, in_item, tail, buf, size, offset);
+	ret = corresponding((char*) in_path, out_path, PATH_MAX, &stbuf, &out_item, &in_item, &tail);
+	if (ret < 0) {
+		return ret;
 	}
 
-	return ret;
+	return read_filter(out_path, out_item->filter, in_item, tail, buf, size, offset);
 }
 
 /*
