@@ -68,6 +68,16 @@ then
 	create_symlink "$stratum_root/usr/local/bin/initctl" "/sbin/initctl"
 fi
 
+# NetworkManager attempts to use the FS_IOC_GETFLAGS ioctl on /etc/resolv.conf
+# which is fundamentally broken in Linux - the API is different between access
+# to non-FUSE and FUSE filesystems.  Since ioctl() resolves symlinks before
+# applying to the underlying file, easiest work-around is to ensure
+# /etc/resolv.conf resolves off of any FUSE filesystems.
+# See the following links for more information about FS_IOC_GETFLAGS's issue:
+#     http://linux-fsdevel.vger.kernel.narkive.com/eUZdzNjw/argument-type-for-fs-ioc-getflags-fs-ioc-setflags-ioctls
+#     http://sourceforge.net/p/fuse/mailman/message/31773852/
+create_symlink "$stratum_root/etc/resolv.conf" "/bedrock/etc/resolv.conf"
+
 # Don't want to actually move an existing /etc/mtab, just delete it if it
 # points to the wrong place.
 if [ -e "$stratum_root/etc/mtab" ] && [ "$(readlink "$stratum_root/etc/mtab")" != "/proc/mounts" ]
