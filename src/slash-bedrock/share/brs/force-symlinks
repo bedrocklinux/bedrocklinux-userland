@@ -61,6 +61,13 @@ fi
 create_symlink "$stratum_root/var/lib/dbus/machine-id" "/etc/machine-id"
 create_symlink "$stratum_root/var/run" "/run"
 
+# Some versions of Unity expect /sbin/initctl to be in the non-root user's
+# $PATH.
+if [ -e "$stratum_root/sbin/initctl" ]
+then
+	create_symlink "$stratum_root/usr/local/bin/initctl" "/sbin/initctl"
+fi
+
 # Don't want to actually move an existing /etc/mtab, just delete it if it
 # points to the wrong place.
 if [ -e "$stratum_root/etc/mtab" ] && [ "$(readlink "$stratum_root/etc/mtab")" != "/proc/mounts" ]
