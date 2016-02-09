@@ -299,6 +299,7 @@ ARGUMENTS:
         stratum name(s)
    -s   print the setup Status of the current OR following stratum name(s)
    -w   print the stratum Which provides the command(s) in the argument(s)
+   -x   print the stratum Which provides an Xorg window
 EOF
 }
 
@@ -757,6 +758,20 @@ w() {
 	done
 }
 
+# print which stratum provides xorg window
+x() {
+	if ! which xprop >/dev/null 2>&1
+	then
+		abort "Requires xprop utility"
+	fi
+	if xprop --help 2>&1 | grep 'unable to open display' >/dev/null
+	then
+		abort 'xprop cannot run.  Is $DISPLAY set properly?'
+	fi
+	echo "Click on a window"
+	p "$(xprop | awk '$1 ~ /PID/ {print $3}')"
+}
+
 #  -----------------------------------------------------------------------------
 #  - execution starts here                                                     -
 #  -----------------------------------------------------------------------------
@@ -819,6 +834,8 @@ case "$flag" in
 		s $extraargs;;
 	"-w"|"w")
 		w $extraargs;;
+	"-x"|"x")
+		x;;
 	*)
 		abort "bri: illegal argument provided, see bri -h";;
 esac
