@@ -51,7 +51,7 @@
 # it sourced at all, in which case Bedrock Linux's subsystems would be largely
 # broken.
 
-local login_shell=/bin/false
+login_shell=/bin/false
 if [ -z "$TZ" ]
 then
 	. /etc/profile
@@ -60,7 +60,7 @@ fi
 
 # Use the shell in ~/.brsh.conf if it is available; otherwise, fall back to
 # /bin/sh.
-local config_shell=$(cat ~/.brsh.conf 2>/dev/null)
+config_shell=$(cat ~/.brsh.conf 2>/dev/null)
 if [ "$config_shell" = "" ]
 then
 	echo "Warning: either brsh cannot find config at ~/.brsh.conf or it is empty, defaulting to /bin/sh"
