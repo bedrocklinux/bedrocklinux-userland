@@ -387,31 +387,6 @@ int main(int argc, char* argv[])
 	}
 
 	/*
-	 * Set the current working directory in this new stratum to the same as it
-	 * was originally, if possible; fall back to the root otherwise.
-	 */
-	if(chdir(cwd_path) != 0) {
-		chdir("/");
-		fprintf(stderr, "brc: warning: unable to set pwd to\n"
-				"    %s\n"
-				"for stratum\n"
-				"    %s\n",
-				cwd_path, argv[1]);
-		switch (errno) {
-		case EACCES:
-			fprintf(stderr, "due to: permission denied (EACCES).\n");
-			break;
-		case ENOENT:
-			fprintf(stderr, "due to: no such directory (ENOENT).\n");
-			break;
-		default:
-			perror("due to: execvp:\n");
-			break;
-		}
-		fprintf(stderr, "falling back to root directory\n");
-	}
-
-	/*
 	 * Get the command to run in the stratum.  If a command was provided, use
 	 * that.  If not, but $SHELL exists in the stratum, use that.  Failing
 	 * either of those, fall back to /bin/sh.
@@ -441,6 +416,34 @@ int main(int argc, char* argv[])
 			cmd[0] = shell;
 		else
 			cmd[0] = "/bin/sh";
+	}
+
+	/*
+	 * Set the current working directory in this new stratum to the same as it
+	 * was originally, if possible; fall back to the root otherwise.
+	 */
+	if(chdir(cwd_path) != 0) {
+		int err = errno;
+		chdir("/");
+		fprintf(stderr, "brc: warning: unable to set pwd to\n"
+				"    %s\n"
+				"for stratum\n"
+				"    %s\n"
+				"and command\n"
+				"    %s\n",
+				cwd_path, argv[1], cmd[0]);
+		switch (err) {
+		case EACCES:
+			fprintf(stderr, "due to: permission denied (EACCES).\n");
+			break;
+		case ENOENT:
+			fprintf(stderr, "due to: no such directory (ENOENT).\n");
+			break;
+		default:
+			perror("due to: chdir:\n");
+			break;
+		}
+		fprintf(stderr, "falling back to root directory\n");
 	}
 
 	/*
