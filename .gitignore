@@ -13,6 +13,7 @@ src/libattr
 src/libcap
 src/linux_headers
 src/musl
+src/netselect
 
 # build results and temporary files
 build

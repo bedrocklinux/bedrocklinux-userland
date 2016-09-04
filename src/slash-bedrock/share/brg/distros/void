@@ -1,0 +1,160 @@
+#!/bin/sh
+
+RELEASE_MIRROR="http://repo.voidlinux.eu/current/"
+MUSL_RELEASE_MIRROR="http://repo.voidlinux.eu/current/musl/"
+
+list_releases() {
+	echo "rolling (DEFAULT)"
+}
+
+list_regions() {
+	echo "world"
+}
+
+list_mirrors() {
+	echo "$ONLY_MIRROR"
+}
+
+get() {
+	trap 'abort "Error occurred executing step"' EXIT
+	CLEAN_UP=""
+	steps=18
+
+	progress 1 "$steps" "Determining stratum name"
+	if [ -z "$NAME" ]
+	then
+		if [ "$DISTRO" = "void-musl" ]
+		then
+			NAME="void-musl"
+		else
+			NAME="void"
+		fi
+	fi
+	notice "Using \"$NAME\""
+
+	config="$STRATACONFDIR/$NAME.conf"
+	target_dir="$STRATADIR/$NAME"
+	bootstrap_dir="$STRATADIR/$NAME/bootstrap"
+	ARCHITECTURE=$(uname -m)
+
+	progress 2 "$steps" "Performing sanity checks"
+	if [ "$(id -u)" != "0" ]
+	then
+		abort "Requires root"
+	fi
+	if [ -n "$RELEASE" ] && [ "$RELEASE" != "rolling" ]
+	then
+		abort "Unsupported release specified"
+	fi
+	if [ -z "$NAME" ]
+	then
+		abort "Name is empty; this is disallowed"
+	fi
+	if [ -e "$target_dir" ]
+	then
+		abort "Something already exists at \"$target_dir\".  This could be another stratum, thus aborting.  If it is just temporary files from prior, failed brg attempt, remove then re-run brg."
+	fi
+	if [ -e "$config" ]
+	then
+		abort "Something already exists at \"$config\".  This could be another stratum, thus aborting.  If it is just temporary files from prior, failed brg attempt, remove then re-run brg."
+	fi
+
+	progress 3 "$steps" "Determining mirror"
+	if [ "$DISTRO" = "void-musl" ]
+	then
+		MIRROR="$MUSL_RELEASE_MIRROR"
+	else
+		MIRROR="$RELEASE_MIRROR"
+	fi
+	notice "Using \"$MIRROR\""
+
+	progress 4 "$steps" "Finding static xbps"
+	FILENAME_REGEX="^xbps-static-latest[.]${ARCHITECTURE}-musl[.]tar[.]xz"
+ 	notice "Architecture is $ARCHITECTURE; expected file name matches $FILENAME_REGEX"
+	BOOTSTRAP_TOOL_DIR="https://repo.voidlinux.eu/static/"
+	BOOTSTRAP_TOOL_URL="$(get_file_url_from_http_index "$BOOTSTRAP_TOOL_DIR" "$FILENAME_REGEX")"
+	[ -z "$BOOTSTRAP_TOOL_URL" ] && abort "Unable to find expected filename in index.  Could be transient issue with server, could be bug in brg, possibly this architecture ($ARCHITECTURE) is not supported by this distro and thus does not show up in the mirror.  Double check this distro supports $ARCHITECTURE and try again."
+	notice "Using \"$BOOTSTRAP_TOOL_URL\""
+
+	progress 5 "$steps" "Making directory structure"
+	CLEAN_UP="less_lethal_rm_rf \"$target_dir\""
+	mkdir -p "$target_dir" "$bootstrap_dir"
+	chmod a+rx "$target_dir" "$bootstrap_dir"
+
+	progress 6 "$steps" "Acquiring static xbps"
+	wget -O "$bootstrap_dir/xbps-static.tar.xz" "$BOOTSTRAP_TOOL_URL"
+
+	progress 7 "$steps" "Extracting static xbps"
+	(cd "$bootstrap_dir" && tar xf xbps-static.tar.xz)
+
+	progress 8 "$steps" "Preparing bootstrap chroot"
+	CLEAN_UP="tear_down_chroot \"$bootstrap_dir\"; less_lethal_rm_rf \"$target_dir\""
+	setup_chroot "$bootstrap_dir"
+
+	progress 9 "$steps" "Installing base-system"
+ 	CLEAN_UP="umount \"$bootstrap_dir/target-root\"; tear_down_chroot \"$bootstrap_dir\"; less_lethal_rm_rf \"$target_dir\""
+	mkdir "$bootstrap_dir/target-root"
+	mount --bind "$target_dir" "$bootstrap_dir/target-root"
+	# it appears yes always returns non-zero, baring --help.  Need to disable pipefail.
+	set +o pipefail
+	if [ "$DISTRO" = "void-musl" ]
+	then
+		export XBPS_ARCH="$(uname -m)-musl"
+	else
+		export XBPS_ARCH="$(uname -m)"
+	fi
+	yes "" | LANG=C chroot "$bootstrap_dir" /usr/bin/xbps-install -S -R "$MIRROR" -r "/target-root" base-system
+	set -o pipefail
+	umount "$bootstrap_dir/target-root"
+	CLEAN_UP="tear_down_chroot \"$bootstrap_dir\"; less_lethal_rm_rf \"$target_dir\""
+
+	progress 10 "$steps" "Tearing down bootstrap chroot environment"
+	tear_down_chroot "$bootstrap_dir"
+	CLEAN_UP="less_lethal_rm_rf \"$target_dir\""
+
+	progress 11 "$steps" "Removing bootstrap files"
+	less_lethal_rm_rf "$bootstrap_dir"
+
+	progress 12 "$steps" "Preparing chroot"
+	CLEAN_UP="tear_down_chroot \"$target_dir\"; less_lethal_rm_rf \"$target_dir\""
+	setup_chroot "$target_dir"
+
+ 	progress 13 "$steps" "Installing specified packages"
+ 	if [ -n "$INCLUDE_PACKAGES" ]
+ 	then
+ 		# it appears yes always returns non-zero, baring --help.  Need to disable pipefail.
+ 		set +o pipefail
+ 		yes "" | LANG=C chroot "$target_dir" /usr/bin/xbps-install -S $(echo "$INCLUDE_PACKAGES" | sed 's/,/ /g')
+ 		set -o pipefail
+ 	else
+ 		notice "No extra packages specified"
+ 	fi
+
+	progress 14 "$steps" "Preparing locale"
+	# void-musl does not use locales such that they'd need to be configured
+	if [ -n "$LANG" ] && [ "$LANG" != "C" ] && [ "$DISTRO" != "void-musl" ]
+	then
+		echo "### Added by Bedrock Linux when acquiring this stratum" >> "$target_dir/etc/default/libc-locales"
+		echo "$LANG UTF-8" >> "$target_dir/etc/default/libc-locales"
+		LANG=C chroot "$target_dir" /usr/bin/xbps-reconfigure -f glibc-locales
+	else
+		echo "Warning: Could not determine desired locale, skipping setting locale"
+	fi
+
+	progress 15 "$steps" "Tearing down chroot environment"
+	tear_down_chroot "$target_dir"
+	CLEAN_UP="less_lethal_rm_rf \"$target_dir\""
+
+	progress 18 "$steps" "Creating stratum configuration"
+	create_config "$target_dir" "$config"
+
+	if [ -n "$ENABLE_AFTER_ACQUIRE" ] && $ENABLE_AFTER_ACQUIRE
+	then
+		notice "Enabling stratum"
+		brs enable "$NAME"
+	fi
+
+	CLEAN_UP=""
+	echo ""
+	notice "Successfully acquired $DISTRO stratum"
+}

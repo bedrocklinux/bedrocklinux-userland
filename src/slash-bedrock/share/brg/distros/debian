@@ -1,0 +1,462 @@
+#!/bin/sh
+
+# automatically redirects to a good mirror
+if [ "$DISTRO" = "debian" ]
+then
+	MIRROR_LIST_URL='https://www.debian.org/mirror/list'
+	RELEASE_MIRROR='http://httpredir.debian.org/debian'
+	UNSTABLE_CODENAME='sid'
+elif [ "$DISTRO" = "ubuntu" ]
+then
+	MIRROR_LIST_URL='https://launchpad.net/ubuntu/+archivemirrors'
+	RELEASE_MIRROR='http://archive.ubuntu.com/ubuntu/'
+	RELEASE_LIST_URL='http://releases.ubuntu.com/'
+elif [ "$DISTRO" = "devuan" ]
+then
+	# does not look like mirror is yet listed
+	# https://devuan.org/os/mirrors/packages.devuan.org
+	#MIRROR_LIST_URL=''
+	RELEASE_MIRROR='https://auto.mirror.devuan.org/merged/'
+	UNSTABLE_CODENAME='ceres'
+fi
+
+list_releases() {
+	trap 'abort "Unable to get or parse Release files at \"$RELEASE_MIRROR\""' EXIT
+	# awk exits early which upsets wget
+	set +o pipefail
+	if [ "$DISTRO" = "debian" ] || [ "$DISTRO" = "devuan" ]
+	then
+		stable_code_name="$(wget -O- "$RELEASE_MIRROR/dists/stable/Release" 2>/dev/null | awk '$1 == "Codename:" {print $2;x=1;exit}END{exit(1-x)}')"
+		stable_version="$(wget -O- "$RELEASE_MIRROR/dists/stable/Release" 2>/dev/null | awk '$1 == "Version:" {sub("[.].*$","",$2);print $2;x=1;exit}END{exit(1-x)}')"
+		testing_code_name="$(wget -O- "$RELEASE_MIRROR/dists/testing/Release" 2>/dev/null | awk '$1 == "Codename:" {print $2;x=1;exit}END{exit(1-x)}')"
+		testing_version="$(expr "$stable_version" \+ 1)"
+		echo "$stable_code_name, stable, $DISTRO-$stable_version (DEFAULT)"
+		echo "$testing_code_name, testing, $DISTRO-$testing_version"
+		echo "$UNSTABLE_CODENAME, unstable"
+	elif [ "$DISTRO" = "ubuntu" ]
+	then
+		wget -O- "$RELEASE_LIST_URL" 2>/dev/null | awk -F'[<>" /]' '/^<li><a href="[^:]*"/ && ! /Beta/ {codename=$6; version=$10; sub("[.][0-9]*$","",version); printf "%s, ubuntu-%s", codename, version; if ($11 == "LTS") {printf " (LTS)"} if (!default_printed) {printf " (DEFAULT)"}; printf "\n"; default_printed=1 }'
+		wget -O- "$RELEASE_MIRROR/dists/devel/Release" 2>/dev/null | awk '$1 == "Suite:" {codename=$2} $1 == "Version:" {version=$2;exit} END {printf "%s, ubuntu-%s, devel\n", codename, version}'
+	else
+		abort "Unrecognized distro \"$DISTRO\""
+	fi
+	set -o pipefail
+}
+
+list_regions() {
+	trap 'abort "Unable to get or parse mirror list at \"$MIRROR_LIST_URL\""' EXIT
+	if [ "$DISTRO" = "debian" ]
+	then
+		wget -O- "$MIRROR_LIST_URL" 2>/dev/null | awk -F'[<>"]' '/<big><strong>/{print$11}'
+	elif [ "$DISTRO" = "ubuntu" ]
+	then
+		wget -O- "$MIRROR_LIST_URL" 2>/dev/null | awk -F'[<>]' '/colspan="2"/{print$3}'
+	elif [ "$DISTRO" = "devuan" ]
+	then
+		echo "world"
+	else
+		abort "Unrecognized distro \"$DISTRO\""
+	fi
+}
+
+list_mirrors() {
+	trap 'abort "Unable to get or parse mirror list at \"$MIRROR_LIST_URL\""' EXIT
+	if [ "$DISTRO" = "debian" ]
+	then
+		wget -O- "$MIRROR_LIST_URL" 2>/dev/null |  awk -v"target=$REGION" -F'[<>"]' '/<big><strong>/{region=$11} (target == region || target == "") && /a rel="nofollow" href="http:\/\/.*>\/debian\/</{print$9}'
+	elif [ "$DISTRO" = "ubuntu" ]
+	then
+		wget -O- "$MIRROR_LIST_URL" 2>/dev/null | awk -v"target=$REGION" -F'[<">]' '/colspan="2"/{region=$5} (target == region || target == "") && />http</ {print$3}'
+	elif [ "$DISTRO" = "devuan" ]
+	then
+		echo "$RELEASE_MIRROR"
+	else
+		abort "Unrecognized distro \"$DISTRO\""
+	fi
+}
+
+calculate_dependencies() {
+	# stdout is list of packages, stderr is progress UI for user
+	awk -F"[, ]" -v"packages_file=$1" -v"packages=$2" '
+		# Get a list of the dependencies for a given package.
+		#
+		# Can not return array.  However, awk does not have scoping, so
+		# we can write to the provided "depends" argument.
+		function get_depends(package, depends) {
+			# clear depends variable we are going to populate
+			for (depend in depends) {
+				delete depends[depend]
+			}
+			# loop over every line looking for target package
+			in_section = 0
+			while ((getline < packages_file) > 0) {
+				if (in_section == 1 && $1 == "Package:") {
+					close(packages_file)
+					return
+				}
+				if ($1 == "Package:" && $2 == package) {
+					in_section = 1
+				}
+				if ($1 == "Provides:") {
+					for (i=2; i<=NF; i++) {
+						if ($i == package) {
+							in_section = 1
+						}
+					}
+				}
+				if (in_section == 1 && $1 == "Depends:") {
+					sub("\\|.*$","")
+					for (i=2; i<=NF; i++) {
+						if ($i != "") {
+							depends[$i]
+						}
+					}
+				}
+			}
+			close(packages_file)
+			return
+		}
+
+		# Get the name of a package that provides some dependency
+		function get_provides(package) {
+			pkgname = ""
+			while ((getline < packages_file) > 0) {
+				if ($1 == "Package:") {
+					pkgname = $2
+				}
+				if ($1 == "Package:" && $2 == package) {
+					close(packages_file)
+					return pkgname
+				}
+				if ($1 == "Provides:") {
+					for (i=2; i<=NF; i++) {
+						if ($i == package) {
+							close(packages_file)
+							return pkgname
+						}
+					}
+				}
+			}
+			# should never get here, but just in case
+			close(packages_file)
+			return ""
+		}
+
+		BEGIN {
+			printf "Finding dependencies for: %s\n", packages > "/dev/stderr"
+			# package for which we want entire dependency list
+			split(packages, to_process_num)
+			for (pkg in to_process_num) {
+				printf "Finding provides for %s... ", to_process_num[pkg] > "/dev/stderr"
+				to_process[get_provides(to_process_num[pkg])]
+				delete to_process_num[pkg]
+				printf "done\n" > "/dev/stderr"
+			}
+			# loop over all to_process packages, finding their dependencies
+			loop = 1
+			while (1) {
+				for (package in to_process) {
+					# remove from list of items that we need to process
+					delete to_process[package]
+					# output for users
+					current_count=length(to_process)
+					printf "Processing %s... ", package > "/dev/stderr"
+					# add to list of processed packages so we do not
+					# re-add/process it later
+					processed[package]
+					# loop over this packages dependencies
+					get_depends(package, depends)
+					for (depend in depends) {
+						# if we have not already processed the package, add it to the
+						# list to process
+						provides = get_provides(depend)
+						if (!(provides in processed))
+							to_process[provides]
+					}
+					new_count=length(to_process)
+					delta=length(to_process) - current_count
+					printf "done (added %d package(s), %d package(s) left to consider)\n", delta, new_count > "/dev/stderr"
+				}
+				# this seems to be the best way to determine if a list is empty in AWK
+				if (length(to_process) <= 0) {
+					break
+				}
+			}
+			print "" > "/dev/stderr"
+			# print packages to stdout for calling function to utilize
+			for (package in processed)
+				printf "%s ", package
+		}
+	'
+}
+
+get_package_url() {
+	awk -F"[, ]" -v"package=$2" '
+	$1 == "Package:" && $2 == package {
+		in_section = 1
+	}
+	in_section == 1 && $1 == "Filename:" {
+		print $2
+		exit
+	}
+	' $1
+}
+
+get() {
+	trap 'abort "Error occurred executing step"' EXIT
+	CLEAN_UP=""
+	steps=21
+
+	progress 1 "$steps" "Determining distro release"
+	set +o pipefail
+	if [ -z "$RELEASE" ]
+	then
+		if [ "$DISTRO" = "debian" ] || [ "$DISTRO" = "devuan" ]
+		then
+			RELEASE="$(wget -O- "$RELEASE_MIRROR/dists/stable/Release" 2>/dev/null | awk '$1 == "Codename:" {print $2;x=1;exit}END{exit(1-x)}')"
+		elif [ "$DISTRO" = "ubuntu" ]
+		then
+			RELEASE="$(wget -O- "$RELEASE_LIST_URL" 2>/dev/null | awk -F'[<>" /]' '/^<li><a href="[^:]*"/ && ! /Beta/ {print $6;exit}')"
+		else
+			abort "Unrecognized distro \"$DISTRO\""
+		fi
+	fi
+	if [ "$DISTRO" = "debian" ] || [ "$DISTRO" = "devuan" ]
+	then
+		stable_code_name="$(wget -O- "$RELEASE_MIRROR/dists/stable/Release" 2>/dev/null | awk '$1 == "Codename:" {print $2;x=1;exit}END{exit(1-x)}')"
+		stable_version="$(wget -O- "$RELEASE_MIRROR/dists/stable/Release" 2>/dev/null | awk '$1 == "Version:" {sub("[.].*$","",$2);print $2;x=1;exit}END{exit(1-x)}')"
+		testing_code_name="$(wget -O- "$RELEASE_MIRROR/dists/testing/Release" 2>/dev/null | awk '$1 == "Codename:" {print $2;x=1;exit}END{exit(1-x)}')"
+		testing_version="$(expr "$stable_version" \+ 1)"
+		set -o pipefail
+		if [ "$RELEASE" = "stable" ] ||\
+			[ "$RELEASE" = "$stable_code_name" ] ||\
+			[ "$RELEASE" = "debian-$stable_version" ]
+		then
+			RELEASE="$stable_code_name"
+		elif [ "$RELEASE" = "testing" ] ||\
+			[ "$RELEASE" = "$testing_code_name" ] ||\
+			[ "$RELEASE" = "debian-$testing_version" ]
+		then
+			RELEASE="$testing_code_name"
+		elif [ "$RELEASE" = "unstable" ] ||\
+			[ "$RELEASE" = "$UNSTABLE_CODENAME" ]
+		then
+			RELEASE="$UNSTABLE_CODENAME"
+		else
+			abort "Unable to determine release"
+		fi
+	elif [ "$DISTRO" = "ubuntu" ]
+	then
+		for branch in $(wget -O- "$RELEASE_LIST_URL" 2>/dev/null | awk -F'[<>" /]' '/^<li><a href="[^:]*"/ && ! /Beta/ {print $6}') "devel"
+		do
+			code_name="$(wget -O- "$RELEASE_MIRROR/dists/$branch/Release" 2>/dev/null | awk '$1 == "Codename:" {print $2;x=1;exit}END{exit(1-x)}')"
+			version="$(wget -O- "$RELEASE_MIRROR/dists/$branch/Release" 2>/dev/null | awk '$1 == "Version:" {print $2;x=1;exit}END{exit(1-x)}')"
+			if [ "$RELEASE" = "$code_name" ] || [ "$RELEASE" = "$DISTRO-$version" ]
+			then
+				RELEASE="$code_name"
+				break
+			fi
+		done
+	else
+		abort "Unrecognized distro \"$DISTRO\""
+	fi
+	set -o pipefail
+	notice "Using $RELEASE"
+
+	progress 2 "$steps" "Determining stratum name"
+	NAME="${NAME:-$RELEASE}"
+	notice "Using $NAME"
+
+	config="$STRATACONFDIR/$NAME.conf"
+	target_dir="$STRATADIR/$NAME"
+	bootstrap_dir="$STRATADIR/$NAME/bootstrap"
+	archive_dir="$bootstrap_dir/var/cache/apt/archives"
+
+	# Debian does not share CPU architecture naming with uname
+	ARCHITECTURE="$(uname -m)"
+	if [ "$ARCHITECTURE" = "x86_64" ]
+	then
+		ARCHITECTURE="amd64"
+	elif echo "$ARCHITECTURE" | grep -q "i.86"
+	then
+		ARCHITECTURE="i386"
+	fi
+	# May need to translate other architectures as well.
+
+	progress 3 "$steps" "Performing sanity checks"
+	if [ "$(id -u)" != "0" ]
+	then
+		abort "Requires root"
+	fi
+	if [ -z "$NAME" ]
+	then
+		abort "Name is empty; this is disallowed"
+	fi
+	if [ -e "$target_dir" ]
+	then
+		abort "Something already exists at \"$target_dir\".  This could be another stratum, thus aborting.  If it is just temporary files from prior, failed brg attempt, remove then re-run brg."
+	fi
+	if [ -e "$config" ]
+	then
+		abort "Something already exists at \"$config\".  This could be another stratum, thus aborting.  If it is just temporary files from prior, failed brg attempt, remove then re-run brg."
+	fi
+
+	progress 4 "$steps" "Determining mirror"
+	if [ -z "$MIRROR" ]
+	then
+		MIRROR=$(netselect -v $(list_mirrors) | awk '{print$2}')
+		[ $? -ne 0 ] && abort "Unable to determine best mirror via netselect"
+	fi
+	notice "Using \"$MIRROR\""
+
+	progress 5 "$steps" "Making directory stucture"
+	CLEAN_UP="less_lethal_rm_rf \"$target_dir\""
+	mkdir -p "$target_dir" "$bootstrap_dir" "$archive_dir"
+	chmod a+rx "$target_dir" "$bootstrap_dir" "$archive_dir"
+
+	progress 6 "$steps" "Getting Packages file"
+	trap 'abort "Unable to get Packages file.  Does $DISTRO support your architecture, $ARCHITECTURE?"' EXIT
+	wget -O "$bootstrap_dir/Packages.gz" "$MIRROR/dists/$RELEASE/main/binary-$ARCHITECTURE/Packages.gz"
+
+	progress 7 "$steps" "Processing Package file"
+	echo "Extracting"
+	gunzip "$bootstrap_dir/Packages.gz"
+	echo "Filtering out content unneeded for calculating dependencies"
+	#grep -e '^Package:' -e '^Provides:' -e '^Depends:' -e '^Pre-Depends:' "$bootstrap_dir/"Packages > "$bootstrap_dir/Packages-filtered"
+	grep -e '^Package:' \
+		-e '^Provides:' \
+		-e '^Depends:' \
+		-e '^Pre-Depends:' "$bootstrap_dir/Packages" | \
+		sed -e 's/^Pre-Depends/Depends/' \
+		-e 's/^\(Depends:[^|]*\) |.*$/\1/' \
+		-e 's/ ([^)]*)//g' > "$bootstrap_dir/Packages-dep"
+	echo "Filtering out content unneeded for finding filenames"
+	grep -e '^Package:' -e '^Filename:' "$bootstrap_dir/Packages" > "$bootstrap_dir/Packages-filename"
+
+	progress 8 "$steps" "Finding debootstrap dependencies"
+	trap 'abort "Error calculating dependencies.  This is probably due to brg failing to understand new Debian Package list formatting/features"' EXIT
+	# debootstrap does not list all of its functional dependencies; we have
+	# to manually compile additional required packages and list them here.
+	# For example, debootstrap requires dpkg, but it is not listed as a
+	# dependency for debootstrap.  dpkg requires /bin/sh to run post-inst
+	# scripts, but that is not listed as a dependency for dpkg.
+	dependencies=$(calculate_dependencies "$bootstrap_dir/Packages-dep" "debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv")
+	trap 'abort "Error occurred executing step"' EXIT
+
+	progress 9 "$steps" "Downloading bootstrap packages"
+	for package in $dependencies
+	do
+		echo "Downloading $package"
+		FILENAME="$(get_package_url "$bootstrap_dir/Packages-filename" "$package")"
+		(cd "$archive_dir" && wget "$MIRROR/$FILENAME")
+	done
+
+	progress 10 "$steps" "Expanding packages"
+	trap 'abort "Error occurred executing step"' EXIT
+	cd "$bootstrap_dir"
+	for package in $archive_dir/*.deb
+	do
+		echo "Expanding $package"
+		ar x "$package"
+		if [ -e "$bootstrap_dir/data.tar.gz" ]
+		then
+			gunzip "$bootstrap_dir/data.tar.gz"
+		elif [ -e "$bootstrap_dir/data.tar.xz" ]
+		then
+			unxz "$bootstrap_dir/data.tar.xz"
+		fi
+		tar xf data.tar
+		rm "$bootstrap_dir/debian-binary"
+		rm "$bootstrap_dir/data.tar"
+		rm "$bootstrap_dir/control.tar."*
+	done
+	# Looks like the dash package is what is responsible for providing
+	# /bin/sh.  However, it can't install properly without /bin/sh because
+	# its post-inst requires it.  So just make it here.
+	if ! [ -e "$bootstrap_dir/bin/sh" ]
+	then
+		# the symlink will be correct the chroot
+		ln -s /bin/dash $bootstrap_dir/bin/sh
+	fi
+
+	progress 11 "$steps" "Ensuring host system has required group crontab"
+	grep -q '^crontab' /etc/group || addgroup --system crontab
+
+	progress 12 "$steps" "Preparing bootstrap chroot"
+	CLEAN_UP="tear_down_chroot \"$bootstrap_dir\"; less_lethal_rm_rf \"$target_dir\""
+	setup_chroot "$bootstrap_dir"
+
+	progress 13 "$steps" "Downloading distro"
+	CLEAN_UP="umount \"$bootstrap_dir/target-root/sys\"; umount \"$bootstrap_dir/target-root/proc\"; umount \"$bootstrap_dir/target-root\"; tear_down_chroot \"$bootstrap_dir\"; less_lethal_rm_rf \"$target_dir\""
+	mkdir "$bootstrap_dir/target-root"
+	mount --bind "$target_dir" "$bootstrap_dir/target-root"
+	set +o pipefail
+	yes "" | LANG=C chroot "$bootstrap_dir" debootstrap "$RELEASE" "/target-root"
+	set -o pipefail
+	# debootstrap appears to mount /proc and /sys
+	umount "$bootstrap_dir/target-root/proc" >/dev/null 2>&1 || true
+	umount "$bootstrap_dir/target-root/sys"  >/dev/null 2>&1 || true
+	umount "$bootstrap_dir/target-root"
+	CLEAN_UP="tear_down_chroot \"$bootstrap_dir\"; less_lethal_rm_rf \"$target_dir\""
+
+	progress 14 "$steps" "Tearing down bootstrap chroot environment"
+	tear_down_chroot "$bootstrap_dir"
+	CLEAN_UP="less_lethal_rm_rf \"$target_dir\""
+
+	progress 15 "$steps" "Removing bootstrap files"
+	less_lethal_rm_rf "$bootstrap_dir"
+
+	progress 16 "$steps" "Preparing chroot"
+	CLEAN_UP="tear_down_chroot \"$target_dir\"; less_lethal_rm_rf \"$target_dir\""
+	setup_chroot "$target_dir"
+
+	progress 17 "$steps" "Updating"
+	CLEAN_UP="tear_down_chroot \"$target_dir\"; less_lethal_rm_rf \"$target_dir\""
+	set +o pipefail
+	yes "" | LANG=C chroot "$target_dir" /usr/bin/apt-get update
+	yes "" | LANG=C chroot "$target_dir" /usr/bin/apt-get upgrade
+	set -o pipefail
+
+	progress 18 "$steps" "Installing specified packages"
+	if [ -n "$INCLUDE_PACKAGES" ]
+	then
+		# it appears yes always returns non-zero, baring --help.  Need to disable pipefail.
+		set +o pipefail
+		yes "" | LANG=C chroot "$target_dir" /usr/bin/apt-get install $(echo "$INCLUDE_PACKAGES" | sed 's/,/ /g')
+		set -o pipefail
+	else
+		notice "No extra packages specified"
+	fi
+
+	progress 19 "$steps" "Preparing locale"
+	set +o pipefail
+	if [ "$DISTRO" = "debian" ] || [ "$DISTRO" = "devuan" ]
+	then
+		yes "" | LANG=C chroot "$target_dir" /usr/bin/apt-get install locales-all
+	elif [ "$DISTRO" = "ubuntu" ] && [ -n "$LANG" ] && [ "$LANG" != "C" ]
+	then
+		package_name="language-pack-$(echo $LANG | sed 's/_.*$//')"
+		echo "LANG=$LANG, target package is $package_name"
+		yes "" | LANG=C chroot "$target_dir" /usr/bin/apt-get install "$package_name"
+	else
+		abort "Unrecognized distro \"$DISTRO\""
+	fi
+	set -o pipefail
+
+	progress 20 "$steps" "Tearing down chroot environment"
+	tear_down_chroot "$target_dir"
+	CLEAN_UP="less_lethal_rm_rf \"$target_dir\""
+
+	progress 21 "$steps" "Creating stratum configuration"
+	create_config "$target_dir" "$config"
+
+	if [ -n "$ENABLE_AFTER_ACQUIRE" ] && $ENABLE_AFTER_ACQUIRE
+	then
+		notice "Enabling stratum"
+		brs enable "$NAME"
+	fi
+
+	CLEAN_UP=""
+	echo ""
+	notice "Successfully acquired $DISTRO stratum"
+}

@@ -1,0 +1,375 @@
+#!/bedrock/libexec/busybox sh
+#
+# brg (BedRock Get)
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2014-2016 Daniel Thau <danthau@bedrocklinux.org>
+#
+# TODO: set timezone, hostname
+
+#
+# Feel free to change the variables below if you're developing brg backend
+# scripts on a non-Bedrock system.
+#
+# Directory into which acquired distros will be placed.
+STRATADIR=/bedrock/strata/
+# Directory into which stratum config will be placed.
+STRATACONFDIR=/bedrock/etc/strata.d/
+# brg config location
+BRGCONF=/bedrock/etc/brg.conf
+# Directory in which distro-specific back-end scripts are expected to be
+# placed.
+BACKENDDIR=/bedrock/share/brg/distros/
+
+COLOR_RED='\033[0;31m'
+COLOR_YELLOW='\033[0;33m'
+COLOR_GREEN='\033[0;32m'
+COLOR_NORMAL='\033[0m'
+
+# Set by sourced back-end scripts to clean up.
+CLEAN_UP=""
+
+#
+# Functions which may be used by back-end scripts.
+#
+
+abort() {
+	trap '' EXIT
+	set +e
+
+	[ -t 1 ] && printf "$COLOR_RED" || true
+	echo ""
+	echo "brg error:"
+	echo "$@"
+	if [ -n "$CLEAN_UP" ]
+	then
+		echo "Cleaning up..."
+		eval "$CLEAN_UP"
+	fi
+
+	echo "Aborting operation"
+	echo ""
+	[ -t 1 ] && printf "$COLOR_NORMAL" || true
+
+	exit 1
+}
+
+notice() {
+	[ -t 1 ] && printf "$COLOR_YELLOW" || true
+	echo "$@"
+	[ -t 1 ] && printf "$COLOR_NORMAL" || true
+}
+
+warn() {
+	[ -t 1 ] && printf "$COLOR_YELLOW" || true
+	echo ""
+	echo "brg warning:"
+	echo "$@"
+	echo ""
+	[ -t 1 ] && printf "$COLOR_NORMAL" || true
+}
+
+# progress <current-step-count> <total-step-count> <message>
+# e.g.
+#    progress 2 14 "Downloading ISO"
+progress() {
+	[ -z "${3:-}" ] && abort "insufficient arguments provided to progress()"
+	echo "$1" | grep -q '^[0-9][0-9]*$' || abort "non-integer value provided to progress() where integer was expected"
+	echo "$2" | grep -q '^[0-9][0-9]*$' || abort "non-integer value provided to progress() where integer was expected"
+
+	step_count_size=$(printf "%d" "$2" | wc -c)
+	percent="$(expr "$1" \* 100 / "$2")"
+
+	[ -t 1 ] && printf "$COLOR_GREEN" || true
+	printf "[%${step_count_size}d/%d (%3d%%)] %s\n" "$1" "$2" "$percent" "$3"
+	[ -t 1 ] && printf "$COLOR_NORMAL" || true
+}
+
+# Filters out everything from stdin except hyperlinks found in href="..."
+#
+# This is largely intended to be used in a pipe, probably after a "wget -O-".
+#
+# This is very finicky and easy to break.  This is primarily intended to be
+# utilized in well formatted HTML index pages.
+list_links() {
+	sed 's/[<> \t\n\r]/\n/g' | awk -F\" '/^href=/ {print$2}'
+}
+
+setup_chroot() {
+	[ -n "${1:-}" ] || abort "set_up_chroot called without providing chroot directory"
+	[ -d "$1" ] || abort "set_up_chroot provided non-directory \"root\""
+
+	mkdir -p "$1/etc"
+	cp -rpL /etc/resolv.conf "$1/etc/resolv.conf"
+	[ -e "$1/etc/ssl" ] || cp -rpL /etc/ssl "$1/etc/"
+	[ -e "$1/etc/passwd" ] || cp -rpL /etc/passwd "$1/etc/"
+	[ -e "$1/etc/group" ] || cp -rpL /etc/group "$1/etc/"
+
+	if ! [ -e "$1/bin/sh" ]
+	then
+		cp /bedrock/libexec/busybox "$1/"
+		mkdir -p "$1/bin" "$1/sbin" "$1/usr/bin" "$1/usr/sbin"
+		chroot "$1" "/busybox" --install
+	fi
+
+	mount --bind "$1" "$1"
+	mkdir -p "$1/proc"
+	mount -t proc /proc "$1/proc"
+	mkdir -p "$1/sys"
+	mount -t sysfs /sys "$1/sys"
+	mkdir -p "$1/dev"
+	mount --bind /dev "$1/dev"
+	mount --bind /dev/pts "$1/dev/pts"
+	mount -t tmpfs shm "$1/dev/shm/"
+	chmod 1777 "$1/dev/shm/"
+	mkdir -p "$1/run"
+	mount -t tmpfs run "$1/run"
+	chmod 1777 "$1/run/"
+}
+
+tear_down_chroot() {
+	[ -n "${1:-}" ] || abort "tear_down_chroot called without providing chroot directory"
+	[ -d "$1" ] || abort "tear_down_chroot provided non-directory \"root\""
+
+	# Kill any processes in the chroot.  Otherwise they may keep us from
+	# being able to umount.
+	for pid in $(ls -1 /proc)
+	do
+		if [ "$(readlink "/proc/$pid/root")" = "$1" ]
+		then
+			kill "$pid"
+		fi
+	done
+	sleep 2
+	for pid in $(ls -1 /proc)
+	do
+		if [ "$(readlink "/proc/$pid/root")" = "$1" ]
+		then
+			kill -9 "$pid"
+		fi
+	done
+
+	# TODO: test if mounted
+	umount "$1/run"
+	umount "$1/dev/shm"
+	umount "$1/dev/pts"
+	umount "$1/dev"
+	umount "$1/sys"
+	umount "$1/proc"
+	umount "$1"
+}
+
+# If brg fails and it does not clean up, users are likely to `rm -rf` the
+# temporary files which might include a bind-mounted /dev or otherwise fail
+# horribly.
+#
+# If brg tries to clean up after itself and there's a bug, it could fail
+# horribly.
+#
+# This is an attempt to make a constrained `rm -rf` that is less likely to go
+# horribly wrong.
+less_lethal_rm_rf() {
+	[ -n "${1:-}" ] || abort "less_lethal_rm_rf called without providing a directory"
+	[ -d "$1" ] || abort "less_lethal_rm_rf provided non-directory \"$1\""
+	awk -va="$1" -vb="$STRATADIR" 'BEGIN{exit (substr(a,0,length(b)) == b)}' && abort "less_lethal_rm_rf told to remove \"$1\" which is outside of expected \"$STRATADIR\", aborting"
+
+	cp /proc/self/exe "$1/busybox"
+	# TODO: use -xdev and possibly -delete
+	chroot "$1" "./busybox" find / -maxdepth 1 -exec ./busybox sh -c 'if [ "{}" != "/" ] && [ "{}" != "/busybox" ] ; then ./busybox rm -rf "{}"; fi' \;
+	rm "$1/busybox"
+	rmdir "$1"
+}
+
+create_config() {
+	[ -n "${1:-}" ] || abort "create_config called without providing stratum root"
+	[ -d "$1" ] || abort "create_config provided non-directory stratum root"
+	[ -n "${2:-}" ] || abort "create_config called without providing config path"
+
+	echo "### Created by Bedrock Linux when acquiring this stratum" >> "$2"
+	echo "framework = default" >> "$2"
+	if [ -x "$1/sbin/init" ]
+	then
+		echo "init=/sbin/init" >> "$2"
+	elif [ -x "$1/lib/systemd/systemd" ]
+	then
+		echo "init=/lib/systemd/systemd" >> "$2"
+	else
+		warning "Unable to find init command; not configuring stratum with any init"
+	fi
+
+	if [ -n "$CONFIG_ENABLE" ]
+	then
+		echo "enable=$CONFIG_ENABLE" >> "$2"
+	else
+		warning "default enable= value not set in brg.conf, leaving unset.  Defaults to enable=boot."
+	fi
+}
+
+get_file_url_from_http_index() {
+	[ -n "${2:-}" ] || abort "get_file_url_from_http_index called with insufficient arguments"
+
+	for link in $(wget -O- "$1" 2>/dev/null | list_links)
+	do
+		if echo "$link" | grep -q "$2"
+		then
+			echo "$1/$link"
+			return
+		fi
+	done
+}
+
+#
+# Stubs for expected back-end provided functionality.  Useful for providing a
+# proper error message in cases where a back-end script misses a required
+# function.
+#
+
+list_releases() {
+	abort "list_releases() was not implemented by $DISTRO's script"
+}
+list_regions() {
+	abort "list_regions() was not implemented by $DISTRO's script"
+}
+list_mirrors() {
+	abort "list_mirrors() was not implemented by $DISTRO's script"
+}
+get() {
+	abort "get() was not implemented by $DISTRO's script"
+}
+
+# Abort on unexpected error
+trap 'abort "Unexpected Error"' EXIT
+set -e
+# Abort if accessing unassigned variable
+set -u
+# Ensure created files have expected permissions
+umask 022
+# Non-zero errors propagate through pipes.  Useful for immediately parsing wget
+# output
+set -o pipefail
+
+COMMAND=""
+DISTRO=""
+RELEASE=""
+REGION=""
+MIRROR=""
+NAME=""
+INCLUDE_PACKAGES=""
+while [ -n "${1:-}" ]
+do
+	case "$1" in
+		"help" | "-h" | "--help")
+			abort "TODO: print help";;
+		"get")
+			COMMAND="get";;
+		"list-distros")
+			COMMAND="list-distros";;
+		"list-releases")
+			COMMAND="list-releases";;
+		"list-regions")
+			COMMAND="list-regions";;
+		"list-mirrors")
+			COMMAND="list-mirrors";;
+		"-d" | "--distro")
+			shift
+			[ -n "${1:-}" ] || abort "Must specify distro after -d/--distro"
+			DISTRO="${1:-}";;
+		-d*)
+			DISTRO="$(echo "$1" | sed 's/^..//g')";;
+		--distro=*)
+			DISTRO="$(echo "$1" | sed 's/^[^=]*=//g')";;
+		"-r" | "--release")
+			shift
+			[ -n "${1:-}" ] || abort "Must specify release after -r/--release"
+			RELEASE="${1:-}";;
+		-r*)
+			RELEASE="$(echo "$1" | sed 's/^..//g')";;
+		--release=*)
+			RELEASE="$(echo "$1" | sed 's/^[^=]*=//g')";;
+		"-R" | "--region")
+			shift
+			[ -n "${1:-}" ] || abort "Must specify region after -R/--region"
+			REGION="${1:-}";;
+		-R*)
+			REGION="$(echo "$1" | sed 's/^..//g')";;
+		--region=*)
+			REGION="$(echo "$1" | sed 's/^[^=]*=//g')";;
+		"-m" | "--mirror")
+			shift
+			[ -n "${1:-}" ] || abort "Must specify mirror after -m/--mirror"
+			MIRROR="${1:-}";;
+		-m*)
+			MIRROR="$(echo "$1" | sed 's/^..//g')";;
+		--mirror=*)
+			MIRROR="$(echo "$1" | sed 's/^[^=]*=//g')";;
+		"-n" | "--name")
+			shift
+			[ -n "${1:-}" ] || abort "Must specify name after -m/--mirror"
+			NAME="${1:-}";;
+		-n*)
+			NAME="$(echo "$1" | sed 's/^..//g')";;
+		--name=*)
+			NAME="$(echo "$1" | sed 's/^[^=]*=//g')";;
+		"-l" | "--lang" | "--language" | "--locale")
+			shift
+			[ -n "${1:-}" ] || abort "Must specify language after -m/--mirror"
+			LANG="${1:-}";;
+		-l*)
+			LANG="$(echo "$1" | sed 's/^..//g')";;
+		--lang=*)
+			LANG="$(echo "$1" | sed 's/^[^=]*=//g')";;
+		"-i" | "--include")
+			shift
+			[ -n "${1:-}" ] || abort "Must specify package list after -i/--include"
+			INCLUDE_PACKAGES="${1:-}";;
+		-i*)
+			INCLUDE_PACKAGES="$(echo "$1" | sed 's/^..//g')";;
+		--include=*)
+			INCLUDE_PACKAGES="$(echo "$1" | sed 's/^[^=]*=//g')";;
+		*)
+			abort "Unrecognized argument: \"$1\"";;
+	esac
+	shift
+done
+
+if [ -z "$COMMAND" ]
+then
+	abort "No command specified, see --help"
+fi
+
+if [ "$COMMAND" != "list-distros" ] && [ -z "$DISTRO" ]
+then
+	abort "Specified command requires distro specified, see --help"
+fi
+
+if [ -n "$DISTRO" ]
+then
+	[ -r "$BACKENDDIR/$DISTRO" ] || abort "Could not find or read back-end script for specified distro \"$DISTRO\" in $BACKENDDIR; distro not supported."
+	source $BACKENDDIR/$DISTRO
+fi
+
+if [ -r "$BRGCONF" ]
+then
+	source "$BRGCONF"
+else
+	abort "Unable to find or read configuration at $BRGCONF"
+fi
+
+case "$COMMAND" in
+	"get")
+		get;;
+	"list-distros")
+		ls -1 "$BACKENDDIR";;
+	"list-releases")
+		list_releases;;
+	"list-regions")
+		list_regions;;
+	"list-mirrors")
+		list_mirrors;;
+	*)
+		abort "Unrecognized command \"$COMMAND\" specified, see --help";;
+esac
+trap '' EXIT

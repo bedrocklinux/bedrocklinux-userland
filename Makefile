@@ -9,12 +9,12 @@ all: tarball
 # Manage third party source #
 #############################
 
-.PHONY: clean_source_all clean_source_busybox clean_source_linux_headers clean_source_musl clean_source_fuse clean_source_libcap clean_source_libattr
-.PHONY: source_all source_busybox source_linux_headers source_musl source_fuse source_libcap source_libattr
+.PHONY: clean_source_all clean_source_busybox clean_source_linux_headers clean_source_musl clean_source_fuse clean_source_libcap clean_source_libattr clean_source_netselect
+.PHONY: source_all source_busybox source_linux_headers source_musl source_fuse source_libcap source_libattr source_netselect
 
-source_all: source_busybox source_linux_headers source_musl source_fuse source_libcap source_libattr
+source_all: source_busybox source_linux_headers source_musl source_fuse source_libcap source_libattr source_netselect
 
-clean_source_all: clean_source_busybox clean_source_linux_headers clean_source_musl clean_source_fuse clean_source_libcap clean_source_libattr
+clean_source_all: clean_source_busybox clean_source_linux_headers clean_source_musl clean_source_fuse clean_source_libcap clean_source_libattr clean_source_netselect
 
 
 source_busybox: src/busybox/.success_retreiving_source
@@ -126,14 +126,27 @@ src/libattr/.success_retreiving_source:
 		mv src/libattr/include/xattr.h-fixed src/libattr/include/xattr.h
 	touch src/libattr/.success_retreiving_source
 
+source_netselect: src/netselect/.success_retreiving_source
+
+clean_source_netselect:
+	- rm -rf src/netselect
+
+src/netselect/.success_retreiving_source:
+	mkdir -p src/netselect
+	git clone --depth=1 \
+		'https://github.com/apenwarr/netselect.git' \
+		src/netselect
+	touch src/netselect/.success_retreiving_source
+
+
 ###########
 # Compile #
 ###########
 
-.PHONY: clean clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_manage_tty_lock clean_brc clean_brp clean_bru clean_busybox clean_tarball
-.PHONY: linux_headers musl fuse libattr libcap libbedrock manage_tty_lock brc brp bru busybox
+.PHONY: clean clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_manage_tty_lock clean_brc clean_brp clean_bru clean_busybox clean_netselect clean_tarball
+.PHONY: linux_headers musl fuse libattr libcap libbedrock manage_tty_lock brc brp bru busybox netselect
 
-clean: clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_manage_tty_lock clean_brc clean_brp clean_bru clean_busybox clean_tarball
+clean: clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_manage_tty_lock clean_brc clean_brp clean_bru clean_busybox clean_netselect clean_tarball
 
 linux_headers: source_linux_headers build/.success_build_linux_headers
 
@@ -341,13 +354,34 @@ clean_busybox:
 	- rm src/busybox/set_bb_option
 	- cd src/busybox && make clean
 
+netselect: source_netselect musl build/bin/netselect
+
+build/bin/netselect:
+	mkdir -p $(BUILD)
+	# netselect uses non-standard types which musl does not recognize.
+	if ! grep -q '^#include "fix_types.h"' src/netselect/netselect.c; then \
+		echo '#define u_char unsigned char' > src/netselect/fix_types.h && \
+		echo '#define u_short unsigned short' >> src/netselect/fix_types.h && \
+		echo '#define u_long unsigned long' >> src/netselect/fix_types.h && \
+		echo '#include "fix_types.h"' > src/netselect/netselect_fixed.c && \
+		cat src/netselect/netselect.c >> src/netselect/netselect_fixed.c && \
+		mv src/netselect/netselect_fixed.c src/netselect/netselect.c; fi
+	cd src/netselect/ && \
+		make CC=$(MUSLGCC) LDFLAGS='-static' && \
+		cp netselect $(BUILD)/bin/netselect
+
+clean_busybox:
+	- cd src/netselect && make clean
+
+
+
 ###########
 # tarball #
 ###########
 
 .PHONY: tarball gzip_tarball
 
-tarball: libcap manage_tty_lock brc brp bru busybox bedrock_linux_1.0beta2_nyla.tar
+tarball: libcap manage_tty_lock brc brp bru busybox netselect bedrock_linux_1.0beta2_nyla.tar
 	@echo
 	@echo "Successfully built Bedrock Linux tarball"
 	@echo
@@ -367,6 +401,8 @@ bedrock_linux_1.0beta2_nyla.tar:
 	mkdir -p build/bedrock/run
 	mkdir -p build/bedrock/sbin
 	mkdir -p build/bedrock/share
+	mkdir -p build/bedrock/share/brg
+	mkdir -p build/bedrock/share/brg/distros
 	mkdir -p build/bedrock/share/brs
 	mkdir -p build/bedrock/share/systemd
 	mkdir -p build/bedrock/strata
@@ -414,6 +450,8 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0755 build/bedrock/run
 	chmod 0755 build/bedrock/sbin
 	chmod 0755 build/bedrock/share
+	chmod 0755 build/bedrock/share/brg
+	chmod 0755 build/bedrock/share/brg/distros
 	chmod 0755 build/bedrock/share/brs
 	chmod 0755 build/bedrock/share/systemd
 	chmod 0755 build/bedrock/strata
@@ -461,14 +499,23 @@ bedrock_linux_1.0beta2_nyla.tar:
 	cp -d src/slash-bedrock/sbin/brs                 build/bedrock/sbin/
 	cp -d src/slash-bedrock/sbin/brn                 build/bedrock/sbin/
 	cp -d build/bin/busybox                          build/bedrock/libexec/
+	cp -d build/bin/netselect                        build/bedrock/libexec/
 	cp -d build/bin/setcap                           build/bedrock/libexec/
 	cp -d build/sbin/manage_tty_lock                 build/bedrock/libexec/
+	cp -d src/slash-bedrock/share/brg/distros/alpine    build/bedrock/share/brg/distros/
+	cp -d src/slash-bedrock/share/brg/distros/arch      build/bedrock/share/brg/distros/
+	cp -d src/slash-bedrock/share/brg/distros/debian    build/bedrock/share/brg/distros/
+	cp -d src/slash-bedrock/share/brg/distros/devuan    build/bedrock/share/brg/distros/
+	cp -d src/slash-bedrock/share/brg/distros/ubuntu    build/bedrock/share/brg/distros/
+	cp -d src/slash-bedrock/share/brg/distros/void      build/bedrock/share/brg/distros/
+	cp -d src/slash-bedrock/share/brg/distros/void-musl build/bedrock/share/brg/distros/
 	cp -d src/slash-bedrock/share/brs/force-symlinks build/bedrock/share/brs/
 	cp -d src/slash-bedrock/share/brs/setup-etc      build/bedrock/share/brs/
 	cp -d src/slash-bedrock/share/brs/run-lock       build/bedrock/share/brs/
 	cp -d src/slash-bedrock/share/systemd/bedrock-killfuse.service     build/bedrock/share/systemd/
 	cp -d src/slash-bedrock/share/systemd/bedrock-privatemount.service build/bedrock/share/systemd/
 	cp -d src/slash-bedrock/etc/aliases.conf         build/bedrock/etc/
+	cp -d src/slash-bedrock/etc/brg.conf             build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/brn.conf             build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/brp.conf             build/bedrock/etc/
 	cp -d src/slash-bedrock/etc/frameworks.d/default build/bedrock/etc/frameworks.d/
@@ -503,14 +550,23 @@ bedrock_linux_1.0beta2_nyla.tar:
 	chmod 0755 build/bedrock/sbin/brs
 	chmod 0755 build/bedrock/sbin/brn
 	chmod 0755 build/bedrock/libexec/busybox
+	chmod 0755 build/bedrock/libexec/netselect
 	chmod 0755 build/bedrock/libexec/setcap
 	chmod 0755 build/bedrock/libexec/manage_tty_lock
+	chmod 0644 build/bedrock/share/brg/distros/alpine
+	chmod 0644 build/bedrock/share/brg/distros/arch
+	chmod 0644 build/bedrock/share/brg/distros/debian
+	chmod 0644 build/bedrock/share/brg/distros/devuan
+	chmod 0644 build/bedrock/share/brg/distros/ubuntu
+	chmod 0644 build/bedrock/share/brg/distros/s/void
+	chmod 0644 build/bedrock/share/brg/distros/d-musl
 	chmod 0755 build/bedrock/share/brs/force-symlinks
 	chmod 0755 build/bedrock/share/brs/setup-etc
 	chmod 0755 build/bedrock/share/brs/run-lock
 	chmod 0644 build/bedrock/share/systemd/bedrock-killfuse.service
 	chmod 0644 build/bedrock/share/systemd/bedrock-privatemount.service
 	chmod 0644 build/bedrock/etc/aliases.conf
+	chmod 0644 build/bedrock/etc/brg.conf
 	chmod 0644 build/bedrock/etc/brn.conf
 	chmod 0644 build/bedrock/etc/brp.conf
 	chmod 0644 build/bedrock/etc/frameworks.d/default
