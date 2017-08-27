@@ -1,4 +1,6 @@
 all: manage_tty_lock
+
+manage_tty_lock:
 	$(CC) -Wall manage_tty_lock.c -o manage_tty_lock -static
 
 clean:
