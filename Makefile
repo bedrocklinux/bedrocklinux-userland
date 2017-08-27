@@ -54,12 +54,12 @@ clean_source_musl:
 
 src/musl/.success_retreiving_source:
 	mkdir -p src/musl
-	# at time of writing, 1.0.X branch is stable branch
+	# at time of writing, 1.1.X branch is stable branch
 	git clone --depth=1 \
 		-b `git ls-remote --tags 'git://git.musl-libc.org/musl' | \
 		awk -F/ '{print $$NF}' | \
 		sed 's/^v//g' | \
-		grep '^1\.0\..' | \
+		grep '^1\.1\..' | \
 		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
 		tail -n1 | \
 		sed 's/^/v/'` 'git://git.musl-libc.org/musl' \
