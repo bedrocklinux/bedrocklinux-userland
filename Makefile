@@ -207,6 +207,7 @@ build/bin/setcap build/lib/libcap.a:
 	mkdir -p $(BUILD)
 	if ! [ -e $(BUILD)/include/sys/capability.h ]; then \
 		cp $(BUILD)/include/linux/capability.h $(BUILD)/include/sys/capability.h; fi
+	sed 's/^BUILD_GPERF.*/BUILD_GPERF=no/' src/libcap/Make.Rules > src/libcap/Make.Rules-new && mv src/libcap/Make.Rules-new src/libcap/Make.Rules
 	cd src/libcap/libcap && \
 		make BUILD_CC=$(MUSLGCC) CC=$(MUSLGCC) lib=$(BUILD)/lib prefix=$(BUILD) BUILD_CFLAGS=-static && \
 		make install RAISE_SETFCAP=no DESTDIR=$(BUILD) prefix=/ lib=lib
