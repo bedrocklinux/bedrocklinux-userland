@@ -121,9 +121,7 @@ src/libattr/.success_retreiving_source:
 		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
 		tail -n1 | \
 		sed 's/^/v/'` 'git://git.savannah.nongnu.org/attr.git' \
-		src/libattr && \
-		sed -e 's/__BEGIN_DECLS//g' -e 's/__END_DECLS//g' -e 's/__THROW//g' src/libattr/include/xattr.h > src/libattr/include/xattr.h-fixed && \
-		mv src/libattr/include/xattr.h-fixed src/libattr/include/xattr.h
+		src/libattr
 	touch src/libattr/.success_retreiving_source
 
 ###########
@@ -189,10 +187,10 @@ libattr: source_libattr musl build/lib/libattr.so
 build/lib/libattr.so:
 	mkdir -p $(BUILD)
 	cd src/libattr/ && \
-		make configure && \
-		./configure --prefix=$(BUILD) && \
-		make CC=$(MUSLGCC) libattr && \
-		make install-lib
+		./autogen.sh && \
+		CC=$(MUSLGCC) ./configure --prefix=$(BUILD) --enable-static && \
+		make CC=$(MUSLGCC) && \
+		make install
 	if ! [ -e $(BUILD)/lib/libattr.so ]; then \
 		ln -fs libattr.so.1 $(BUILD)/lib/libattr.so; fi
 
