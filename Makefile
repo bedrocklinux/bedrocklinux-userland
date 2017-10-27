@@ -110,18 +110,20 @@ clean_source_libattr:
 
 src/libattr/.success_retreiving_source:
 	mkdir -p src/libattr
-	# this will touch up a problematic "xattr.h" file
-	git clone --depth=1 \
-		-b `git ls-remote --tags 'git://git.savannah.nongnu.org/attr.git' | \
-		awk -F/ '{print $$NF}' | \
-		sed 's/^v//g' | \
-		grep '^[0-9]' | \
-		grep '[.]' | \
-		grep -v '{}' | \
-		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
-		tail -n1 | \
-		sed 's/^/v/'` 'git://git.savannah.nongnu.org/attr.git' \
-		src/libattr
+	#
+	# Hard coding v2.4.47 here because v2.4.48 triggers this issue with gcc:
+	#
+	#     https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81523
+	#
+	# when building statically across gcc 5.x, 6.x, and 7.x
+	#
+	# Debian does not appear to have backported any security updates to
+	# v2.4.47, so as far as I can tell the v2.4.48 bump was not for
+	# security purposes.
+	#
+	git clone --depth=1 -b v2.4.47 'git://git.savannah.nongnu.org/attr.git' src/libattr
+	sed -e 's/__BEGIN_DECLS//g' -e 's/__END_DECLS//g' -e 's/__THROW//g' src/libattr/include/xattr.h > src/libattr/include/xattr.h-fixed
+	mv src/libattr/include/xattr.h-fixed src/libattr/include/xattr.h
 	touch src/libattr/.success_retreiving_source
 
 ###########
@@ -187,10 +189,10 @@ libattr: source_libattr musl build/lib/libattr.so
 build/lib/libattr.so:
 	mkdir -p $(BUILD)
 	cd src/libattr/ && \
-		./autogen.sh && \
-		CC=$(MUSLGCC) ./configure --prefix=$(BUILD) --enable-static && \
-		make CC=$(MUSLGCC) && \
-		make install
+		make configure && \
+		./configure --prefix=$(BUILD) && \
+		make CC=$(MUSLGCC) libattr && \
+		make install-lib
 	if ! [ -e $(BUILD)/lib/libattr.so ]; then \
 		ln -fs libattr.so.1 $(BUILD)/lib/libattr.so; fi
 
