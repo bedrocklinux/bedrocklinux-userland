@@ -2,11 +2,11 @@ all: brc.c
 	$(CC) -Wall brc.c -o brc -static -lcap -lbedrock
 
 clean:
-	-rm brc
+	rm -f brc
 
 install:
 	mkdir -p $(prefix)/bin
 	install -m 755 brc $(prefix)/bin/brc
 
 uninstall:
-	rm $(prefix)/bin/brc
+	rm -f $(prefix)/bin/brc

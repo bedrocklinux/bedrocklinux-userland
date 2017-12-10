@@ -22,6 +22,8 @@ requires:
 - automake (for FUSE)
 - libtool (for FUSE)
 - gettext (for FUSE)
+	- and possibly gettext-dev or gettext-devel depending on your distro's
+	  packaging choices.
 - fakeroot (for building tarball with proper permissions)
 
 ----------------------
@@ -29,8 +31,8 @@ Third party souce code
 ----------------------
 
 If make does not see the required third party source code it will attempt to
-automatically require it via git.  If you do not want this, acquire the source
-code for the following projects:
+automatically require it via git.  This requires git 1.8 or above for --branch.
+If you do not want this, acquire the source code for the following projects:
 
 - busybox (tested with version 1.23.1, but newer should be fine)
 - fuse (version 2.9.X)
