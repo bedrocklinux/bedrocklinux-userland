@@ -3,8 +3,8 @@ all: libbedrock.c libbedrock.h
 	ar rcs libbedrock.a libbedrock.o
 
 clean:
-	-rm libbedrock.o
-	-rm libbedrock.a
+	- rm -f libbedrock.o
+	- rm -f libbedrock.a
 
 install:
 	mkdir -p $(prefix)/lib
@@ -13,5 +13,5 @@ install:
 	install -m 644 libbedrock.h $(prefix)/include/libbedrock.h
 
 uninstall:
-	rm $(prefix)/lib/libbedrock.a
-	rm $(prefix)/include/libbedrock.h
+	- rm -f $(prefix)/lib/libbedrock.a
+	- rm -f $(prefix)/include/libbedrock.h

@@ -1,43 +1,39 @@
-BUILD=$(CURDIR)/build
-MUSLGCC=$(CURDIR)/build/bin/musl-gcc
-
-.PHONY: all
+BUILD=$(shell pwd)/build
+MUSLGCC=$(shell pwd)/build/bin/musl-gcc
 
 all: tarball
 
-#############################
-# Manage third party source #
-#############################
+clean:
+	rm -rf ./build
+	rm -f ./bedrock_linux_1.0beta2_nyla.tar
+	for dir in src/*/Makefile; do make -C "$${dir%Makefile}" clean; done
 
-.PHONY: clean_source_all clean_source_busybox clean_source_linux_headers clean_source_musl clean_source_fuse clean_source_libcap clean_source_libattr
-.PHONY: source_all source_busybox source_linux_headers source_musl source_fuse source_libcap source_libattr
+clean_source_all:
+	rm -rf src/busybox
+	rm -rf src/fuse
+	rm -rf src/libattr
+	rm -rf src/libcap
+	rm -rf src/linux_headers
+	rm -rf src/musl
 
-source_all: source_busybox source_linux_headers source_musl source_fuse source_libcap source_libattr
-
-clean_source_all: clean_source_busybox clean_source_linux_headers clean_source_musl clean_source_fuse clean_source_libcap clean_source_libattr
-
-
-source_busybox: src/busybox/.success_retreiving_source
-
-clean_source_busybox:
-	- rm -rf src/busybox
-
-src/busybox/.success_retreiving_source:
-	mkdir -p src/busybox
-	# get latest stable version
-	git clone --depth=1 \
-		-b `git ls-remote --heads 'git://git.busybox.net/busybox' | \
-		awk -F/ '$$NF ~ /stable$$/ {print $$NF}' | \
-		sort -t _ -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
-		tail -n1` 'git://git.busybox.net/busybox' \
-		src/busybox && \
-		touch src/busybox/.success_retreiving_source
-
-
-source_linux_headers: src/linux_headers/.success_retreiving_source
-
-clean_source_linux_headers:
-	- rm -rf src/linux_headers
+#
+# Most of the items below will groups of two or three recipes:
+# - If needed, a recipe to grab upstream source.
+# - A recipe to build the component
+# - A recipe with a convenient name which is only dependent on the recipe to
+#   build the component.
+#
+# Recipes which grab source should touch a file called
+# ".success_retreiving_source" in the source directory, and anything dependent
+# on the source should check for this file.  This is cleaner than trying to
+# track each individual file in the given project's source.  This is placed in
+# the project's source so that, if the source is removed, the file goes with
+# it.
+#
+# Recipes which build multiple files should touch a file called
+# ".success_build_*", replacing * as appropriate, in the local build directory.
+# This is again easier than tracking each of their outputs separately.
+#
 
 src/linux_headers/.success_retreiving_source:
 	mkdir -p src/linux_headers
@@ -45,12 +41,12 @@ src/linux_headers/.success_retreiving_source:
 	git clone --depth=1 'git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git' \
 		src/linux_headers
 	touch src/linux_headers/.success_retreiving_source
-
-
-source_musl: src/musl/.success_retreiving_source
-
-clean_source_musl:
-	- rm -rf src/musl
+build/.success_build_linux_headers: src/linux_headers/.success_retreiving_source
+	mkdir -p build/include
+	cd src/linux_headers/ && \
+		make headers_install INSTALL_HDR_PATH=$(BUILD)
+	touch $(BUILD)/.success_build_linux_headers
+linux_headers: build/.success_build_linux_headers
 
 src/musl/.success_retreiving_source:
 	mkdir -p src/musl
@@ -65,12 +61,18 @@ src/musl/.success_retreiving_source:
 		sed 's/^/v/'` 'git://git.musl-libc.org/musl' \
 		src/musl
 	touch src/musl/.success_retreiving_source
-
-
-source_fuse: src/fuse/.success_retreiving_source
-
-clean_source_fuse:
-	- rm -rf src/fuse
+build/.success_build_musl: src/musl/.success_retreiving_source build/.success_build_linux_headers
+	mkdir -p build
+	cd src/musl/ && \
+		./configure --prefix=$(BUILD) --enable-static --enable-gcc-wrapper && \
+		make && \
+		make install
+	if ! [ -e $(BUILD)/lib64 ]; then \
+		ln -fs lib $(BUILD)/lib64; fi
+	if ! [ -e $(BUILD)/sbin ]; then \
+		ln -fs bin $(BUILD)/sbin; fi
+	touch $(BUILD)/.success_build_musl
+musl: build/.success_build_musl
 
 src/fuse/.success_retreiving_source:
 	mkdir -p src/fuse
@@ -80,33 +82,14 @@ src/fuse/.success_retreiving_source:
 		'git://github.com/libfuse/libfuse.git' \
 		src/fuse
 	touch src/fuse/.success_retreiving_source
-
-
-source_libcap: src/libcap/.success_retreiving_source
-
-clean_source_libcap:
-	- rm -rf src/libcap
-
-src/libcap/.success_retreiving_source:
-	mkdir -p src/libcap
-	git clone --depth=1 \
-		-b `git ls-remote --tags 'git://git.kernel.org/pub/scm/linux/kernel/git/morgan/libcap.git' | \
-		awk -F/ '{print $$NF}' | \
-		sed 's/^libcap-//g' | \
-		grep '^[0-9]' | \
-		grep '[.]' | \
-		grep -v '{}' | \
-		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
-		tail -n1 | \
-		sed 's/^/libcap-/'` 'git://git.kernel.org/pub/scm/linux/kernel/git/morgan/libcap.git' \
-		src/libcap
-	touch src/libcap/.success_retreiving_source
-
-
-source_libattr: src/libattr/.success_retreiving_source
-
-clean_source_libattr:
-	- rm -rf src/libattr
+build/.success_build_fuse: src/fuse/.success_retreiving_source build/.success_build_musl
+	cd src/fuse/ && \
+		./makeconf.sh && \
+		./configure --prefix=$(BUILD) --disable-shared --enable-static --disable-util --disable-example && \
+		make CC=$(MUSLGCC) && \
+		make install
+	touch $(BUILD)/.success_build_fuse
+fuse: build/.success_build_fuse
 
 src/libattr/.success_retreiving_source:
 	mkdir -p src/libattr
@@ -125,69 +108,7 @@ src/libattr/.success_retreiving_source:
 	sed -e 's/__BEGIN_DECLS//g' -e 's/__END_DECLS//g' -e 's/__THROW//g' src/libattr/include/xattr.h > src/libattr/include/xattr.h-fixed
 	mv src/libattr/include/xattr.h-fixed src/libattr/include/xattr.h
 	touch src/libattr/.success_retreiving_source
-
-###########
-# Compile #
-###########
-
-.PHONY: clean clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_manage_tty_lock clean_brc clean_brp clean_bru clean_busybox clean_tarball
-.PHONY: linux_headers musl fuse libattr libcap libbedrock manage_tty_lock brc brp bru busybox
-
-clean: clean_linux_headers clean_musl clean_fuse clean_libattr clean_libcap clean_libbedrock clean_manage_tty_lock clean_brc clean_brp clean_bru clean_busybox clean_tarball
-
-linux_headers: source_linux_headers build/.success_build_linux_headers
-
-build/.success_build_linux_headers:
-	mkdir -p build/include
-	cd src/linux_headers/ && \
-		make headers_install INSTALL_HDR_PATH=$(BUILD)
-
-clean_linux_headers:
-	- rm -r $(BUILD)/include
-	- cd src/linux_headers && \
-		make mrproper
-
-
-musl: source_musl linux_headers build/.success_build_musl
-
-build/.success_build_musl:
-	mkdir -p $(BUILD)
-	cd src/musl/ && \
-		./configure --prefix=$(BUILD) --enable-static --enable-gcc-wrapper && \
-		make && \
-		make install
-	if ! [ -e $(BUILD)/lib64 ]; then \
-		ln -fs lib $(BUILD)/lib64; fi
-	if ! [ -e $(BUILD)/sbin ]; then \
-		ln -fs bin $(BUILD)/sbin; fi
-	touch $(BUILD)/.success_build_musl
-
-clean_musl:
-	- rm -r build
-	- cd src/musl && \
-		make clean
-
-
-fuse: source_fuse musl build/lib/libfuse.a build/include/fuse.h
-
-build/lib/libfuse.a build/include/fuse.h:
-	mkdir -p $(BUILD)
-	cd src/fuse/ && \
-		./makeconf.sh && \
-		./configure --prefix=$(BUILD) --disable-shared --enable-static --disable-util --disable-example && \
-		make CC=$(MUSLGCC) && \
-		make install
-
-clean_fuse:
-	- rm -r build
-	- cd src/fuse && \
-		make clean
-
-
-libattr: source_libattr musl build/lib/libattr.so
-
-build/lib/libattr.so:
-	mkdir -p $(BUILD)
+build/.success_build_libattr: src/libattr/.success_retreiving_source build/.success_build_musl
 	cd src/libattr/ && \
 		make configure && \
 		./configure --prefix=$(BUILD) && \
@@ -195,16 +116,24 @@ build/lib/libattr.so:
 		make install-lib
 	if ! [ -e $(BUILD)/lib/libattr.so ]; then \
 		ln -fs libattr.so.1 $(BUILD)/lib/libattr.so; fi
+	touch $(BUILD)/.success_build_libattr
+libattr: build/.success_build_libattr
 
-clean_libattr:
-	- cd src/libattr && \
-		make clean
-
-
-libcap: source_libcap musl libattr build/bin/setcap build/lib/libcap.a
-
-build/bin/setcap build/lib/libcap.a:
-	mkdir -p $(BUILD)
+src/libcap/.success_retreiving_source:
+	mkdir -p src/libcap
+	git clone --depth=1 \
+		-b `git ls-remote --tags 'git://git.kernel.org/pub/scm/linux/kernel/git/morgan/libcap.git' | \
+		awk -F/ '{print $$NF}' | \
+		sed 's/^libcap-//g' | \
+		grep '^[0-9]' | \
+		grep '[.]' | \
+		grep -v '{}' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed 's/^/libcap-/'` 'git://git.kernel.org/pub/scm/linux/kernel/git/morgan/libcap.git' \
+		src/libcap
+	touch src/libcap/.success_retreiving_source
+build/.success_build_libcap: src/libcap/.success_retreiving_source build/.success_build_libattr
 	if ! [ -e $(BUILD)/include/sys/capability.h ]; then \
 		cp $(BUILD)/include/linux/capability.h $(BUILD)/include/sys/capability.h; fi
 	sed 's/^BUILD_GPERF.*/BUILD_GPERF=no/' src/libcap/Make.Rules > src/libcap/Make.Rules-new && mv src/libcap/Make.Rules-new src/libcap/Make.Rules
@@ -214,80 +143,56 @@ build/bin/setcap build/lib/libcap.a:
 	cd src/libcap/progs && \
 		make BUILD_CC=$(MUSLGCC) CC=$(MUSLGCC) lib=$(BUILD)/lib prefix=$(BUILD) LDFLAGS=-static && \
 		make install RAISE_SETFCAP=no DESTDIR=$(BUILD) prefix=/ lib=lib
+	touch $(BUILD)/.success_build_libcap
+libcap: build/.success_build_libcap
 
-clean_libcap:
-	- cd src/libcap && \
-		make clean
-
-
-libbedrock: musl build/lib/libbedrock.a build/include/libbedrock.h
-
-build/lib/libbedrock.a build/include/libbedrock.h:
-	mkdir -p $(BUILD)
+build/.success_build_libbedrock: build/.success_build_musl
 	cd src/libbedrock && \
 		make CC=$(MUSLGCC) && \
 		make install prefix=$(BUILD)
+	touch $(BUILD)/.success_build_libbedrock
+libbedrock: build/.success_build_libbedrock
 
-clean_libbedrock:
-	- cd src/libbedrock && \
-		make clean
-
-
-manage_tty_lock: musl build/sbin/manage_tty_lock
-
-build/sbin/manage_tty_lock:
-	mkdir -p $(BUILD)
+build/sbin/manage_tty_lock: build/.success_build_musl
 	cd src/manage_tty_lock && \
 		make CC=$(MUSLGCC) && \
 		make install prefix=$(BUILD)
+manage_tty_lock: build/sbin/manage_tty_lock
 
-clean_manage_tty_lock:
-	- cd src/manage_tty_lock && \
-		make clean
-
-
-brc: musl libcap libbedrock build/bin/brc
-
-build/bin/brc:
+build/bin/brc: build/.success_build_musl build/.success_build_libcap build/.success_build_libbedrock
 	mkdir -p $(BUILD)
 	cd src/brc && \
 		make CC=$(MUSLGCC) && \
 		make install prefix=$(BUILD)
-
-clean_brc:
-	- cd src/brc && \
-		make clean
+brc: build/bin/brc
 
 
-brp: musl fuse libbedrock build/bin/brp
-
-build/bin/brp:
+build/bin/brp: build/.success_build_musl build/.success_build_libbedrock build/.success_build_fuse
 	mkdir -p $(BUILD)
 	cd src/brp && \
 		make CC="$(MUSLGCC) -D_FILE_OFFSET_BITS=64" && \
 		make install prefix=$(BUILD)
-
-clean_brp:
-	- cd src/brp && \
-		make clean
+brp: libbedrock build/bin/brp
 
 
-bru: musl fuse libbedrock build/bin/bru
-
-build/bin/bru:
+build/bin/bru: build/.success_build_musl build/.success_build_libbedrock build/.success_build_fuse
 	mkdir -p $(BUILD)
 	cd src/bru && \
 		make CC="$(MUSLGCC) -D_FILE_OFFSET_BITS=64" && \
 		make install prefix=$(BUILD)
+bru: build/bin/bru
 
-clean_bru:
-	- cd src/bru && \
-		make clean
-
-
-busybox: source_busybox musl build/bin/busybox
-
-build/bin/busybox:
+src/busybox/.success_retreiving_source:
+	mkdir -p src/busybox
+	# get latest stable version
+	git clone --depth=1 \
+		-b `git ls-remote --heads 'git://git.busybox.net/busybox' | \
+		awk -F/ '$$NF ~ /stable$$/ {print $$NF}' | \
+		sort -t _ -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1` 'git://git.busybox.net/busybox' \
+		src/busybox
+	touch src/busybox/.success_retreiving_source
+build/bin/busybox: src/busybox/.success_retreiving_source build/.success_build_musl
 	mkdir -p $(BUILD)
 	cd src/busybox && \
 		echo '#!/bin/sh' > set_bb_option && \
@@ -337,23 +242,9 @@ build/bin/busybox:
 	cd src/busybox && \
 		make CC=$(MUSLGCC) && \
 		cp busybox_unstripped $(BUILD)/bin/busybox
+busybox: build/bin/busybox
 
-clean_busybox:
-	- rm src/busybox/set_bb_option
-	- cd src/busybox && make clean
-
-###########
-# tarball #
-###########
-
-.PHONY: tarball gzip_tarball
-
-tarball: libcap manage_tty_lock brc brp bru busybox bedrock_linux_1.0beta2_nyla.tar
-	@echo
-	@echo "Successfully built Bedrock Linux tarball"
-	@echo
-
-bedrock_linux_1.0beta2_nyla.tar:
+bedrock_linux_1.0beta2_nyla.tar: build/.success_build_libcap build/sbin/manage_tty_lock build/bin/brc build/bin/brp build/bin/bru build/bin/busybox
 	# ensure fresh start
 	rm -rf build/bedrock
 	# make directory structure
@@ -542,6 +433,7 @@ bedrock_linux_1.0beta2_nyla.tar:
 	ln -s /bedrock/share/systemd/bedrock-privatemount.service build/bedrock/global-files/etc/systemd/system/multi-user.target.wants/
 	# build tarball
 	cd build/ && fakeroot tar cvf ../bedrock_linux_1.0beta2_nyla.tar bedrock
-
-clean_tarball:
-	- rm bedrock_linux_1.0beta2_nyla.tar
+tarball: bedrock_linux_1.0beta2_nyla.tar
+	@echo
+	@echo "Successfully built Bedrock Linux tarball"
+	@echo
