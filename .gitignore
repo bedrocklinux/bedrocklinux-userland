@@ -1,3 +1,6 @@
 bedrock-linux-*.sh
 build/
 vendor/
+
+src/strat/strat
+src/bouncer/bouncer
