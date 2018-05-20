@@ -205,6 +205,9 @@ gziped-tarball: build/slashbr.tar.gz
 
 build/unsigned-installer.sh: build/slashbr.tar.gz src/installer/installer.sh
 	cp src/installer/installer.sh build/unsigned-installer.sh-new
+	echo "-----BEGIN bedrock.conf-----" >> build/unsigned-installer.sh-new
+	cat src/default-configs/bedrock.conf >> build/unsigned-installer.sh-new
+	echo "-----END bedrock.conf-----" >> build/unsigned-installer.sh-new
 	echo "-----BEGIN EMBEDDED TARBALL-----" >> build/unsigned-installer.sh-new
 	cat build/slashbr.tar.gz >> build/unsigned-installer.sh-new
 	echo "" >> build/unsigned-installer.sh-new
