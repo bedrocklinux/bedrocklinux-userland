@@ -380,7 +380,6 @@ up the information yourself and providing it to `brl fetch` via flags.
 Options:
   -L, --list-distros   list supported distros
   -R, --list-releases  list releases [distro] provides
-  -M, --list-mirrors   list mirrors [distro] provides
   -r, --release        specify desired release
   -m, --mirror         specify desired mirror
   -h, --help           print this message
@@ -399,12 +398,6 @@ Examples:
   stretch
   buster
   sid
-  $ brl fetch --list-mirrors debian | head -n5
-  http://ftp.am.debian.org/debian/
-  http://ftp.au.debian.org/debian/
-  http://ftp.at.debian.org/debian/
-  http://ftp.by.debian.org/debian/
-  http://ftp.be.debian.org/debian/
   # brl fetch centos
   <acquires centos with automatically determined release and mirror>
   # brl fetch -r sid -m http://ftp.us.debian.org/debian/ debian
