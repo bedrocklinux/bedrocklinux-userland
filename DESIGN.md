@@ -209,7 +209,9 @@ attribute if the given stratum is unignored.
 Configuration
 -------------
 
-All user-facing configuration TODO
+All user-facing configuration is in a single file found at
+/bedrock/etc/bedrock.conf in the resulting install and
+src/default-configs/bedrock.conf in the code base.
 
 Expected command UI
 -------------------
