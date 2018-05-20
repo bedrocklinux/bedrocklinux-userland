@@ -120,7 +120,7 @@
 VERSION=0.7.0
 CODENAME=Poki
 ARCH=$(shell uname -m)
-SCRIPT=bedrock-linux-$(VERSION)-$(ARCH).sh
+INSTALLER=bedrock-linux-$(VERSION)-$(ARCH).sh
 
 SRC=$(shell pwd)/src/
 SUPPORT=$(shell pwd)/build/support
@@ -132,11 +132,11 @@ INDENT_FLAGS=--linux-style --dont-line-up-parentheses \
 	--continuation-indentation8 --indent-label0 --case-indentation0
 WERROR_FLAGS=-Werror -Wall -Wextra -std=c99 -pedantic
 
-all: $(SCRIPT)
+all: $(INSTALLER)
 
 clean:
 	rm -rf ./build/
-	rm -f $(SCRIPT)
+	rm -f $(INSTALLER)
 	if [ -e vendor/ ]; then \
 		for dir in vendor/*/Makefile; do \
 			$(MAKE) -C "$${dir%Makefile}" clean; \
@@ -148,6 +148,92 @@ clean:
 
 remove_vendor_source:
 	rm -rf ./vendor
+
+#
+# The build/ directory structure.  This is a dependency of just about
+# everything.
+#
+
+$(COMPLETED)/builddir:
+	mkdir -p $(SUPPORT)
+	mkdir -p $(SUPPORT)/include $(SUPPORT)/lib
+	cp -r src/slash-bedrock/ $(SLASHBR)
+	mkdir -p $(SLASHBR)/bin $(SLASHBR)/etc $(SLASHBR)/libexec
+	mkdir -p $(COMPLETED)
+	touch $(COMPLETED)/builddir
+builddir: $(COMPLETED)/builddir
+
+#
+# Support libraries and tools.  Populates $(SUPPORT)
+#
+
+# TODO
+
+#
+# Compiled binaries which will go into the output script.  Populates $(SLASHBR)
+#
+
+# TODO
+
+#
+# Use populated $(SLASHBR) to create the script
+#
+
+build/slashbr.tar.gz: $(COMPLETED)/builddir
+	# ensure permissions
+	find $(SLASHBR) -exec chmod a-s {} \;
+	find $(SLASHBR) -type f -exec chmod 0644 {} \;
+	find $(SLASHBR) -type d -exec chmod 0755 {} \;
+	find $(SLASHBR)/bin/ -type f -exec chmod 0755 {} \;
+	find $(SLASHBR)/libexec/ -type f -exec chmod 0755 {} \;
+	# ensure static
+	for bin in $(SLASHBR)/bin/* $(SLASHBR)/libexec/*; do \
+		if ldd "$$bin" >/dev/null 2>&1; then \
+			echo "error: $$bin is dynamically linked"; exit 1; \
+		fi; \
+	done
+	# strip binaries
+	for bin in $(SLASHBR)/bin/* $(SLASHBR)/libexec/*; do \
+		strip "$$bin"; \
+	done
+	# create a tarball
+	rm -f build/slashbr.tar
+	cd build/ && fakeroot tar cf slashbr.tar bedrock/
+	gzip -c build/slashbr.tar > build/slashbr.tar.gz-new
+	mv build/slashbr.tar.gz-new build/slashbr.tar.gz
+gziped-tarball: build/slashbr.tar.gz
+
+build/unsigned-installer.sh: build/slashbr.tar.gz src/installer/installer.sh
+	cp src/installer/installer.sh build/unsigned-installer.sh-new
+	echo "-----BEGIN EMBEDDED TARBALL-----" >> build/unsigned-installer.sh-new
+	cat build/slashbr.tar.gz >> build/unsigned-installer.sh-new
+	echo "" >> build/unsigned-installer.sh-new
+	echo "-----END EMBEDDED TARBALL-----" >> build/unsigned-installer.sh-new
+	mv build/unsigned-installer.sh-new build/unsigned-installer.sh
+
+$(INSTALLER): build/unsigned-installer.sh
+	if [ "$(SKIPSIGN)" = true ]; then \
+		cp build/unsigned-installer.sh $(INSTALLER); \
+	elif [ -z "$(GPGID)" ]; then \
+		echo 'Either SKIPSIGN or GPGID must be set.'; \
+		echo 'To create an unsigned script, run:'; \
+		echo '    make SKIPSIGN=true'; \
+		echo 'Or to create a script with an embedded signature, run:'; \
+		echo '    make GPGID=<gpg-id-with-which-to-sign>'; \
+		exit 1; \
+	elif ! gpg --version >/dev/null 2>&1; then \
+		echo 'gpg not found in $$PATH, but required to sign build.'; \
+		echo 'Use `make SKIPSIGN=true` to opt out of signing'; \
+		exit 1; \
+	else \
+		rm -f build/signed-installer.sh; \
+		cp build/unsigned-installer.sh build/signed-installer.sh; \
+		gpg --output - --armor --detach-sign build/unsigned-installer.sh >> build/signed-installer.sh; \
+		mv build/signed-installer.sh $(INSTALLER); \
+	fi
+	@ echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g'
+	@ echo "=== Completed creating $(INSTALLER) ==="
+	@ echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g'
 
 format:
 	# Standardizes code formatting
