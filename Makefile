@@ -243,6 +243,53 @@ $(COMPLETED)/libcap: vendor/libcap/.success_fetching_source $(COMPLETED)/builddi
 	touch $(COMPLETED)/libcap
 libcap: $(COMPLETED)/libcap
 
+vendor/libfuse/.success_fetching_source:
+	rm -rf vendor/libfuse
+	mkdir -p vendor/libfuse
+	git clone --depth=1 \
+		-b `git ls-remote --tags 'https://github.com/libfuse/libfuse.git' | \
+		awk -F/ '{print $$NF}' | \
+		sed 's/^fuse-//g' | \
+		grep '^[0-9.]*$$' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed 's/^/fuse-/'` 'https://github.com/libfuse/libfuse.git' \
+		vendor/libfuse
+	touch vendor/libfuse/.success_fetching_source
+$(COMPLETED)/libfuse: vendor/libfuse/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	rm -rf vendor/libfuse/build
+	mkdir -p vendor/libfuse/build
+	cd vendor/libfuse/build && \
+		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
+		meson configure -D buildtype=release && \
+		meson configure -D default_library=static && \
+		#meson configure -D strip=true && \
+		meson configure -D prefix=$(SUPPORT) && \
+		CC=$(MUSLCC)  ninja lib/libfuse3.a
+	cp -r vendor/libfuse/build/lib/* $(SUPPORT)/lib/
+	mkdir -p $(SUPPORT)/include/fuse3/
+	cp vendor/libfuse/include/*.h $(SUPPORT)/include/fuse3/
+	touch $(COMPLETED)/libfuse
+libfuse: $(COMPLETED)/libfuse
+
+vendor/uthash/.success_fetching_source:
+	rm -rf vendor/uthash
+	mkdir -p vendor/uthash
+	git clone --depth=1 \
+		-b `git ls-remote --tags 'https://github.com/troydhanson/uthash.git' | \
+		awk -F/ '{print $$NF}' | \
+		sed 's/^v//g' | \
+		grep '^[0-9.]*$$' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed 's/^/v/'` 'https://github.com/troydhanson/uthash.git' \
+		vendor/uthash
+	touch vendor/uthash/.success_fetching_source
+$(COMPLETED)/uthash: vendor/uthash/.success_fetching_source $(COMPLETED)/builddir
+	cp -r vendor/uthash/src/*.h $(SUPPORT)/include/
+	touch $(COMPLETED)/uthash
+uthash: $(COMPLETED)/uthash
+
 #
 # Compiled binaries which will go into the output script.  Populates $(SLASHBR)
 #
@@ -259,6 +306,15 @@ $(SLASHBR)/libexec/bouncer: $(COMPLETED)/builddir $(COMPLETED)/musl
 		cp ./bouncer $(SLASHBR)/libexec/bouncer
 bouncer: $(SLASHBR)/libexec/bouncer
 
+$(SLASHBR)/libexec/crossfs: $(COMPLETED)/builddir \
+	$(COMPLETED)/musl \
+	$(COMPLETED)/libfuse \
+	$(COMPLETED)/uthash
+	cd src/crossfs && \
+		make CC=$(MUSLCC) CFLAGS="$(CFLAGS)" && \
+		cp ./crossfs $(SLASHBR)/libexec/crossfs
+crossfs: $(SLASHBR)/libexec/crossfs
+
 #
 # Use populated $(SLASHBR) to create the script
 #
@@ -266,7 +322,8 @@ bouncer: $(SLASHBR)/libexec/bouncer
 build/slashbr.tar.gz: \
 	$(COMPLETED)/builddir \
 	$(SLASHBR)/bin/strat \
-	$(SLASHBR)/libexec/bouncer
+	$(SLASHBR)/libexec/bouncer \
+	$(SLASHBR)/libexec/crossfs
 	# ensure permissions
 	find $(SLASHBR) -exec chmod a-s {} \;
 	find $(SLASHBR) -type f -exec chmod 0644 {} \;
