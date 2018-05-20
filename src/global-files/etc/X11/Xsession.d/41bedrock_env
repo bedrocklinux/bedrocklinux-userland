@@ -1,5 +1,0 @@
-# Bedrock Linux makes key files for various Desktop Environment related tasks
-# available through /bedrock/brpath.  DE's learn about these files via
-# XDG_DATA_DIRS - ensure it is set.
-
-export XDG_DATA_DIRS=$XDG_DATA_DIRS:/usr/local/share:/usr/share:/bedrock/brpath
