@@ -167,19 +167,99 @@ builddir: $(COMPLETED)/builddir
 # Support libraries and tools.  Populates $(SUPPORT)
 #
 
-# TODO
+vendor/linux_headers/.success_fetching_source:
+	rm -rf vendor/linux_headers
+	mkdir -p vendor/linux_headers
+	git clone --depth=1 'https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git' vendor/linux_headers
+	touch vendor/linux_headers/.success_fetching_source
+$(COMPLETED)/linux_headers: vendor/linux_headers/.success_fetching_source $(COMPLETED)/builddir
+	cd vendor/linux_headers/ && \
+		$(MAKE) headers_install INSTALL_HDR_PATH=$(SUPPORT)
+	touch $(COMPLETED)/linux_headers
+linux_headers: $(COMPLETED)/linux_headers
+
+vendor/musl/.success_fetching_source:
+	rm -rf vendor/musl
+	mkdir -p vendor/musl
+	git clone --depth=1 \
+		-b `git ls-remote --tags 'git://git.musl-libc.org/musl' | \
+		awk -F/ '{print $$NF}' | \
+		sed 's/^v//g' | \
+		grep '^[0-9.]*$$' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed 's/^/v/'` 'git://git.musl-libc.org/musl' \
+		vendor/musl
+	touch vendor/musl/.success_fetching_source
+$(COMPLETED)/musl: vendor/musl/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/linux_headers
+	cd vendor/musl/ && \
+		./configure --prefix=$(SUPPORT) --enable-static --enable-gcc-wrapper && \
+		$(MAKE) && \
+		$(MAKE) install
+	if ! [ -e $(SUPPORT)/lib64 ]; then \
+		ln -fs lib $(SUPPORT)/lib64; \
+	fi
+	if ! [ -e $(SUPPORT)/sbin ]; then \
+		ln -fs bin $(SUPPORT)/sbin; \
+	fi
+	# gcc can get confused when using musl depending on -static/-pie setup,
+	# and so we need to enforce -static.  meson apparently ignores CFLAGS
+	# et al when sanity testing a compiler, requiring another method to
+	# ensure meson tests the compiler with -static.  Thus this hack: embed
+	# the -static flag into musl-gcc.
+	sed 's/ -specs/ -static -specs/' $(SUPPORT)/bin/musl-gcc > $(SUPPORT)/bin/musl-gcc-new
+	mv $(SUPPORT)/bin/musl-gcc-new $(SUPPORT)/bin/musl-gcc
+	chmod a+rx $(SUPPORT)/bin/musl-gcc
+	touch $(COMPLETED)/musl
+musl: $(COMPLETED)/musl
+
+vendor/libcap/.success_fetching_source:
+	rm -rf vendor/libcap
+	mkdir -p vendor/libcap
+	git clone --depth=1 \
+		-b `git ls-remote --tags 'https://git.kernel.org/pub/scm/linux/kernel/git/morgan/libcap.git' | \
+		awk -F/ '{print $$NF}' | \
+		sed 's/^libcap-//g' | \
+		grep '^[0-9.]*$$' | \
+		grep '[.]' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed 's/^/libcap-/'` 'https://git.kernel.org/pub/scm/linux/kernel/git/morgan/libcap.git' \
+		vendor/libcap
+	touch vendor/libcap/.success_fetching_source
+$(COMPLETED)/libcap: vendor/libcap/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	mkdir -p $(SUPPORT)/include/sys
+	if ! [ -e $(SUPPORT)/include/sys/capability.h ]; then \
+		cp $(SUPPORT)/include/linux/capability.h $(SUPPORT)/include/sys/capability.h; \
+	fi
+	sed 's/^BUILD_GPERF.*/BUILD_GPERF=no/' vendor/libcap/Make.Rules > vendor/libcap/Make.Rules-new
+	mv vendor/libcap/Make.Rules-new vendor/libcap/Make.Rules
+	cd vendor/libcap/libcap && \
+		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) lib=$(SUPPORT)/lib prefix=$(SUPPORT) BUILD_CFLAGS="$(CFLAGS) -static" && \
+		$(MAKE) install RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib
+	cd vendor/libcap/progs && \
+		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) lib=$(SUPPORT)/lib prefix=$(SUPPORT) LDFLAGS=-static && \
+		$(MAKE) install RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib
+	touch $(COMPLETED)/libcap
+libcap: $(COMPLETED)/libcap
 
 #
 # Compiled binaries which will go into the output script.  Populates $(SLASHBR)
 #
 
-# TODO
+$(SLASHBR)/bin/strat: $(COMPLETED)/builddir $(COMPLETED)/musl $(COMPLETED)/libcap
+	cd src/strat && \
+		$(MAKE) CC=$(MUSLCC) && \
+		cp ./strat $(SLASHBR)/bin/strat
+strat: $(SLASHBR)/bin/strat
 
 #
 # Use populated $(SLASHBR) to create the script
 #
 
-build/slashbr.tar.gz: $(COMPLETED)/builddir
+build/slashbr.tar.gz: \
+	$(COMPLETED)/builddir \
+	$(SLASHBR)/bin/strat
 	# ensure permissions
 	find $(SLASHBR) -exec chmod a-s {} \;
 	find $(SLASHBR) -type f -exec chmod 0644 {} \;
@@ -237,6 +317,10 @@ $(INSTALLER): build/unsigned-installer.sh
 	@ echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g'
 	@ echo "=== Completed creating $(INSTALLER) ==="
 	@ echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g'
+
+#
+# Code quality enforcement
+#
 
 format:
 	# Standardizes code formatting
