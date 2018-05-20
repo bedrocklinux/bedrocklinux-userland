@@ -253,13 +253,20 @@ $(SLASHBR)/bin/strat: $(COMPLETED)/builddir $(COMPLETED)/musl $(COMPLETED)/libca
 		cp ./strat $(SLASHBR)/bin/strat
 strat: $(SLASHBR)/bin/strat
 
+$(SLASHBR)/libexec/bouncer: $(COMPLETED)/builddir $(COMPLETED)/musl
+	cd src/bouncer && \
+		$(MAKE) CC=$(MUSLCC) && \
+		cp ./bouncer $(SLASHBR)/libexec/bouncer
+bouncer: $(SLASHBR)/libexec/bouncer
+
 #
 # Use populated $(SLASHBR) to create the script
 #
 
 build/slashbr.tar.gz: \
 	$(COMPLETED)/builddir \
-	$(SLASHBR)/bin/strat
+	$(SLASHBR)/bin/strat \
+	$(SLASHBR)/libexec/bouncer
 	# ensure permissions
 	find $(SLASHBR) -exec chmod a-s {} \;
 	find $(SLASHBR) -type f -exec chmod 0644 {} \;
