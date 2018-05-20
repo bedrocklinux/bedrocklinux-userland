@@ -4,5 +4,7 @@ vendor/
 
 src/*/*~
 
-src/strat/strat
 src/bouncer/bouncer
+src/crossfs/crossfs
+src/manage_tty_lock/manage_tty_lock
+src/strat/strat

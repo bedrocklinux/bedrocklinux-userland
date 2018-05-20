@@ -294,12 +294,6 @@ uthash: $(COMPLETED)/uthash
 # Compiled binaries which will go into the output script.  Populates $(SLASHBR)
 #
 
-$(SLASHBR)/bin/strat: $(COMPLETED)/builddir $(COMPLETED)/musl $(COMPLETED)/libcap
-	cd src/strat && \
-		$(MAKE) CC=$(MUSLCC) && \
-		cp ./strat $(SLASHBR)/bin/strat
-strat: $(SLASHBR)/bin/strat
-
 $(SLASHBR)/libexec/bouncer: $(COMPLETED)/builddir $(COMPLETED)/musl
 	cd src/bouncer && \
 		$(MAKE) CC=$(MUSLCC) && \
@@ -315,15 +309,28 @@ $(SLASHBR)/libexec/crossfs: $(COMPLETED)/builddir \
 		cp ./crossfs $(SLASHBR)/libexec/crossfs
 crossfs: $(SLASHBR)/libexec/crossfs
 
+$(SLASHBR)/libexec/manage_tty_lock: $(COMPLETED)/builddir $(COMPLETED)/musl
+	cd src/manage_tty_lock && \
+		$(MAKE) CC=$(MUSLCC) && \
+		cp manage_tty_lock $(SLASHBR)/libexec/manage_tty_lock
+manage_tty_lock: $(SLASHBR)/libexec/manage_tty_lock
+
+$(SLASHBR)/bin/strat: $(COMPLETED)/builddir $(COMPLETED)/musl $(COMPLETED)/libcap
+	cd src/strat && \
+		$(MAKE) CC=$(MUSLCC) && \
+		cp ./strat $(SLASHBR)/bin/strat
+strat: $(SLASHBR)/bin/strat
+
 #
 # Use populated $(SLASHBR) to create the script
 #
 
 build/slashbr.tar.gz: \
 	$(COMPLETED)/builddir \
-	$(SLASHBR)/bin/strat \
 	$(SLASHBR)/libexec/bouncer \
-	$(SLASHBR)/libexec/crossfs
+	$(SLASHBR)/libexec/crossfs \
+	$(SLASHBR)/libexec/manage_tty_lock \
+	$(SLASHBR)/bin/strat
 	# ensure permissions
 	find $(SLASHBR) -exec chmod a-s {} \;
 	find $(SLASHBR) -type f -exec chmod 0644 {} \;
