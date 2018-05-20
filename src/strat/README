@@ -26,6 +26,18 @@ Or to search Ubuntu's, one could run:
 
     strat ubuntu apt search vim
 
+Some commands require a specific argv[0].  To explicitly set this, use `-a` or
+`--arg0`.  For example:
+
+    strat --arg0 ls gentoo busybox
+
+It is often useful to restrict a given process to only the executables provided
+by its local stratum.  For example, this helps avoid mixing dependencies across
+strata when compiling.  To enforce this for the duration of a given command,
+run with `-l` or `--local`.  For example:
+
+    strat --local arch makepkg
+
 Installation
 ------------
 
