@@ -345,7 +345,8 @@ format:
 	done
 	# style C code
 	for file in $$(find src/ -type f -name "*.[ch]"); do \
-		indent $(INDENT_FLAGS) "$$file"; \
+		indent $(INDENT_FLAGS) "$$file" || exit 1; \
+		rm -f "$$file~"; \
 	done
 	@ echo "======================================"
 	@ echo "=== Completed formatting code base ==="
