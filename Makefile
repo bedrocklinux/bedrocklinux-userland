@@ -259,13 +259,41 @@ vendor/libfuse/.success_fetching_source:
 $(COMPLETED)/libfuse: vendor/libfuse/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/musl
 	rm -rf vendor/libfuse/build
 	mkdir -p vendor/libfuse/build
+	# meson/ninja sometimes fails with
+	#     ninja: error: unknown target 'lib/libfuse3.a'
+	# for no apparent reason.  It seems to eventually take after multiple
+	# tries.  Thus, retry a few times.
 	cd vendor/libfuse/build && \
 		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
 		meson configure -D buildtype=release && \
 		meson configure -D default_library=static && \
-		#meson configure -D strip=true && \
+		meson configure -D strip=true && \
 		meson configure -D prefix=$(SUPPORT) && \
-		CC=$(MUSLCC)  ninja lib/libfuse3.a
+		CC=$(MUSLCC) ninja lib/libfuse3.a || \
+		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
+		meson configure -D buildtype=release && \
+		meson configure -D default_library=static && \
+		meson configure -D strip=true && \
+		meson configure -D prefix=$(SUPPORT) && \
+		CC=$(MUSLCC) ninja lib/libfuse3.a || \
+		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
+		meson configure -D buildtype=release && \
+		meson configure -D default_library=static && \
+		meson configure -D strip=true && \
+		meson configure -D prefix=$(SUPPORT) && \
+		CC=$(MUSLCC) ninja lib/libfuse3.a || \
+		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
+		meson configure -D buildtype=release && \
+		meson configure -D default_library=static && \
+		meson configure -D strip=true && \
+		meson configure -D prefix=$(SUPPORT) && \
+		CC=$(MUSLCC) ninja lib/libfuse3.a || \
+		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
+		meson configure -D buildtype=release && \
+		meson configure -D default_library=static && \
+		meson configure -D strip=true && \
+		meson configure -D prefix=$(SUPPORT) && \
+		CC=$(MUSLCC) ninja lib/libfuse3.a
 	cp -r vendor/libfuse/build/lib/* $(SUPPORT)/lib/
 	mkdir -p $(SUPPORT)/include/fuse3/
 	cp vendor/libfuse/include/*.h $(SUPPORT)/include/fuse3/
