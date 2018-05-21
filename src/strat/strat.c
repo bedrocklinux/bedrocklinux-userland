@@ -265,7 +265,7 @@ int break_out_of_chroot(char *reference_dir)
 	/*
 	 * Change the root directory to something that doesn't contain the cwd.
 	 */
-	if (chroot(reference_dir) < -1) {
+	if (chroot(reference_dir) < 0) {
 		return -1;
 	}
 	/*
