@@ -33,24 +33,26 @@ int main(int argc, char *argv[])
 	 * Which stratum do we want to be in?
 	 */
 	char target_stratum[PATH_MAX];
-	target_stratum[PATH_MAX - 1] = '\0';
-	if (getxattr("/proc/self/exe", "user.bedrock.stratum", target_stratum,
-			sizeof(target_stratum) - 1) < 0) {
+	ssize_t len = getxattr("/proc/self/exe", "user.bedrock.stratum",
+		target_stratum, sizeof(target_stratum) - 1);
+	if (len < 0) {
 		fprintf(stderr,
 			"bouncer: unable to determine target stratum\n");
 		return errno;
 	}
+	target_stratum[len] = '\0';
 
 	/*
 	 * Which executable do we want to run?
 	 */
 	char target_path[PATH_MAX];
-	target_path[PATH_MAX - 1] = '\0';
-	if (getxattr("/proc/self/exe", "user.bedrock.localpath", target_path,
-			sizeof(target_path) - 1) < 0) {
+	len = getxattr("/proc/self/exe", "user.bedrock.localpath", target_path,
+		sizeof(target_path) - 1);
+	if (len < 0) {
 		fprintf(stderr, "bouncer: unable to determine target path\n");
 		return errno;
 	}
+	target_path[len] = '\0';
 
 	char *strat = "/bedrock/bin/strat";
 	char *new_argv[argc + 4];
