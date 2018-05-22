@@ -290,6 +290,7 @@ Alias management commands:
 
 Miscellaneous commands:
   update    Update Bedrock Linux system
+  reload    Reload configuration
   version   Query Bedrock Linux version
   report    Generate report
 
@@ -657,6 +658,27 @@ Example:
   <builds latest version of installer locally>
   # brl update --file ./bedrock-linux-0.7.999-amd64.sh --skip-check
   <applies installer's bedrock system files of files as update>
+```
+
+```
+$ brl reload --help
+Usage: brl reload [options]
+
+Apply /bedrock/etc/bedrock.conf configuration changes.  Requires root.
+
+Options:
+  -h, --help         print this message
+
+Example:
+  $ brl which -b startx
+  debian
+  # vim /bedrock/etc/bedrock.conf
+  <pin startx to arch>
+  $ brl which -b startx
+  debian
+  # brl reload
+  $ brl which -b startx
+  arch
 ```
 
 ```
