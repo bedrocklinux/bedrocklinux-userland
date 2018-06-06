@@ -74,7 +74,12 @@
  */
 
 /*
- * TODO: convert some PATH_MAX to something else like PIPE_BUF?
+ * TODO: Instead of CMD_CLEAR use more fine-grain per-line config removal.
+ * Thus way /bedrock/crossfs does not provide false-negative ENOENT during
+ * config update on stratum removal.
+ *
+ * TODO: Look into special casing `.` symlinks, e.g. /usr/bin/X11.
+ * /bedrock/cross/bin/X11/X11/X11/... is a minor annoyance.
  */
 
 #define FUSE_USE_VERSION 32
@@ -795,7 +800,7 @@ static void cfg_clear(void)
  * Every path item should start with a forward slash.
  *
  * Entire line must be expressed within a single call and must fit within
- * PATH_MAX, including trailing null.  Close and sync after each line.
+ * PIPE_BUF, including trailing null.  Close and sync after each line.
  *
  * The filter value is only meaningful in the first submission for a path.
  */
@@ -805,21 +810,21 @@ static int cfg_add(const char *const buf, size_t size)
 	 * Ensure there is a trailing null so that sscanf doesn't overflow if
 	 * we somehow get bad input.
 	 */
-	if (size > (PATH_MAX - 1)) {
+	if (size > (PIPE_BUF - 1)) {
 		return -ENAMETOOLONG;
 	}
-	char nbuf[PATH_MAX];
+	char nbuf[PIPE_BUF];
 	memcpy(nbuf, buf, size);
 	nbuf[size] = '\0';
 
 	/*
 	 * Tokenize
 	 */
-	char buf_add[PATH_MAX];
-	char buf_cpath[PATH_MAX];
-	char buf_filter[PATH_MAX];
-	char buf_stratum[PATH_MAX];
-	char buf_lpath[PATH_MAX];
+	char buf_add[PIPE_BUF];
+	char buf_cpath[PIPE_BUF];
+	char buf_filter[PIPE_BUF];
+	char buf_stratum[PIPE_BUF];
+	char buf_lpath[PIPE_BUF];
 	char newline;
 	if (sscanf(nbuf, "%s %s %s %[^:]:%s%c", buf_add, buf_filter,
 			buf_cpath, buf_stratum, buf_lpath, &newline) != 6) {
