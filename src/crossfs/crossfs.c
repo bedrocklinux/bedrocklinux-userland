@@ -108,7 +108,12 @@
 #define CFG_PATH "/.config-filesystem"
 #define CFG_PATH_LEN strlen("/.config-filesystem")
 
-#define VIRTUAL_STRATUM "virtual"
+/*
+ * By definition, all file paths that do not belong to a specific stratum are
+ * global.  Since virtual file paths don't belong to any given stratum, they
+ * must be global.
+ */
+#define VIRTUAL_STRATUM "global"
 #define VIRTUAL_STRATUM_LEN strlen(VIRTUAL_STRATUM)
 
 #define VIRTUAL_LPATH "/"
