@@ -74,11 +74,11 @@ int check_capsyschroot(void)
 	}
 }
 
-void parse_args(int argc, char *argv[], int *flag_help, int *flag_local,
+void parse_args(int argc, char *argv[], int *flag_help, int *flag_restrict,
 	char **param_stratum, char **param_arg0, char ***param_arglist)
 {
 	*flag_help = 0;
-	*flag_local = 0;
+	*flag_restrict = 0;
 	*param_stratum = NULL;
 	*param_arg0 = NULL;
 	*param_arglist = NULL;
@@ -91,9 +91,9 @@ void parse_args(int argc, char *argv[], int *flag_help, int *flag_local,
 				|| strcmp(argv[0], "--help") == 0)) {
 			*flag_help = 1;
 			return;
-		} else if (argc > 0 && (strcmp(argv[0], "-l") == 0
-				|| strcmp(argv[0], "--local") == 0)) {
-			*flag_local = 1;
+		} else if (argc > 0 && (strcmp(argv[0], "-r") == 0
+				|| strcmp(argv[0], "--restrict") == 0)) {
+			*flag_restrict = 1;
 			argv++;
 			argc--;
 		} else if (argc > 1 && (strcmp(argv[0], "-a") == 0
@@ -124,7 +124,7 @@ void print_help(void)
 		"Usage: strat [options] <stratum> <command>\n"
 		"\n"
 		"Options:\n"
-		"  -l, --local       disable cross-stratum hooks\n"
+		"  -r, --restrict    disable cross-stratum hooks\n"
 		"  -a, --arg0 <ARG0> specify arg0\n"
 		"  -h, --help        print this message\n"
 		"\n"
@@ -134,13 +134,13 @@ void print_help(void)
 		"  Run gentoo's busybox with arg0=\"ls\":\n"
 		"  $ strat --arg0 ls gentoo busybox\n"
 		"  Run arch's makepkg against only arch files:\n"
-		"  $ strat --local arch makepkg\n");
+		"  $ strat --restrict arch makepkg\n");
 }
 
 /*
  * Remove all CROSS_DIR references in specified environment variable.
  */
-int filter_local_envvar(const char *const envvar)
+int restrict_envvar(const char *const envvar)
 {
 	char *val = getenv(envvar);
 	if (val == NULL) {
@@ -176,13 +176,13 @@ int filter_local_envvar(const char *const envvar)
 /*
  * Remove all CROSS_DIR references in a number of variables
  */
-int filter_local_env(void)
+int restrict_env(void)
 {
 	int err = 0;
-	err |= filter_local_envvar("PATH");
-	err |= filter_local_envvar("MANPATH");
-	err |= filter_local_envvar("INFOPATH");
-	err |= filter_local_envvar("XDG_DATA_DIRS");
+	err |= restrict_envvar("PATH");
+	err |= restrict_envvar("MANPATH");
+	err |= restrict_envvar("INFOPATH");
+	err |= restrict_envvar("XDG_DATA_DIRS");
 	return err;
 }
 
@@ -398,11 +398,11 @@ int main(int argc, char *argv[])
 	}
 
 	int flag_help = 0;
-	int flag_local = 0;
+	int flag_restrict = 0;
 	char *param_stratum = NULL;
 	char *param_arg0 = NULL;
 	char **param_arglist = NULL;
-	parse_args(argc, argv, &flag_help, &flag_local, &param_stratum,
+	parse_args(argc, argv, &flag_help, &flag_restrict, &param_stratum,
 		&param_arg0, &param_arglist);
 
 	if (flag_help) {
@@ -410,7 +410,7 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
-	if (flag_local && filter_local_env() < 0) {
+	if (flag_restrict && restrict_env() < 0) {
 		fprintf(stderr, "strat: unable to set local environment\n");
 		return 1;
 	}
