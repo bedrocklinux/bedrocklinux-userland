@@ -22,12 +22,10 @@ Bedrock Linux Concepts
 - Global files: If every stratum only saw its local files, the strata would be
   unable to interact.  Some file paths must appear the same to processes from
   all strata.  These are called "global files".  For example, /run/dbus is a
-  global path.  Thus, a dbus server from one stratum may communicate with a
-  dbus client from another.
+  global path.  Thus, a dbus client from one stratum may communicate with a
+  dbus server from another.
 - Every file path and every process must either be associated with a given
-  stratum or be considered global (and thus belongs to all strata).
-- Pseudo-global files: /boot must be treated specially; it is shared across
-  some strata, but not all.  Thus, it is pseudo-global.
+  stratum or be considered global.
 - Enabled/disabled: To make software from various strata interact properly,
   Bedrock must take steps to integrate them at runtime.  A stratum which is
   integrated with the system is "enabled".  To safely remove or rename a
@@ -60,9 +58,9 @@ Code Base Layout
   build system will automatically fetch these and populate vendor/ accordingly.
   The build system will attempt to automatically get the latest stable version
   and may occasionally fail if an upstream component changes too drastically.
-  This is purposeful, as it will service as a canary indicating developer
-  attention is required and preferable to distributing outdated upstream
-  components which may contain security vulnerabilities.
+  This is purposeful; it will serve as a canary indicating developer attention
+  is required and is preferable to distributing outdated upstream components
+  which may contain security vulnerabilities.
 - vendor/*/.success_fetching_source files indicate that the given vendor
   component's files have been successfully acquired.  This is used to properly
   handle interrupted downloads.
@@ -89,17 +87,18 @@ together.
 - /bedrock/ is locked (see man 2 flock) by various Bedrock processes to
   serialize operations such as enabling/disabling strata.
 - /bedrock/bin/ contains user-facing executables.
-- /bedrock/bin/strat is an executable is used to run executables across strata.
-  Bedrock ensures this is called behind-the-scenes to ensure cross-stratum
-  functionality works transparently in most contexts.
+- /bedrock/bin/strat is an executable which changes context as needed to run
+  executables from other strata.  Bedrock ensures this is called
+  behind-the-scenes to ensure cross-stratum functionality works transparently
+  in most contexts.
 - /bedrock/bin/brl is an executable which provides most user-facing Bedrock
   functionality, including strata management and introspection tools.
 - /bedrock/cross/ is a virtual filesystem (only populated at runtime)
   which provides a view of files from other strata, modified to work
   across strata.  For example, /bedrock/cross/bin/ includes executables that
   internally redirect through /bedrock/bin/strat.  Bedrock ensures various
-  programs look in /bedrock/cross to transparently support cross-stratum
-  coordination.
+  programs automatically look in /bedrock/cross to transparently support
+  cross-stratum coordination.
 - /bedrock/etc/ contains Bedrock configuration and other miscellaneous files.
 - /bedrock/etc/bedrock.conf is an ini-formatted file containing all user-facing
   Bedrock-specific configuration.
@@ -117,6 +116,12 @@ together.
   process of maintaining an "init" alias to the current init-providing stratum.
   This stratum is used internally to ensure the appropriate stratum provides
   the init-related commands such as reboot.
+- /bedrock/run/localtime is a symlink to the appropriate timezone file in
+  /bedrock/cross/zoneinfo/.
+- /bedrock/run/cfg-* are configuration files created at runtime and symlinked
+  into place for various programs to read them.
+- /bedrock/run/inject-* are contents created at runtime and injected into other
+  configuration files.
 - /bedrock/share/ contains various architecture-independent data.  In addition
   to the directories listed below, it contains files used to support
   integration with various pieces of software.  For example, it contains tab
@@ -147,8 +152,8 @@ see if booting another operating system then mounting a Bedrock system's
 partition(s).
 
 - /bedrock exists, as described in "/bedrock Directory" section.
-- All the (pseudo-)global files (such as /etc/passwd and /home and /boot) exist
-  exactly here they are expected to.
+- All the global files (such as /etc/passwd and /home and /boot) exist exactly
+  here they are expected to.
 - Some local files exist in their typical paths, such as /sbin/init and
   /bin/sh.  These are owned by the "bedrock" stratum.  Most if not all are
   symlinks into /bedrock.
@@ -201,7 +206,7 @@ attribute with the name of the stratum that owns a given file.  These include:
 
 This is utilized by the executables in /bedrock/cross/ to determine which file
 should provide the given request.  At the moment there are no plans to make use
-of the fact /etc also provides this, although it may be useful in debugging.
+of the fact /etc also provides this.
 
 The strata roots in /bedrock/strata/ may also have a `user.bedrock.unignored`
 attribute if the given stratum is unignored.
@@ -244,7 +249,7 @@ Usage: strat [options] <stratum> <command>
 Run specified stratum's instance of an executable.
 
 Options:
-  -l, --local       disable cross-stratum hooks
+  -r, --restrict    disable cross-stratum hooks
   -a, --arg0 <ARG0> specify arg0
   -h, --help        print this message
 
@@ -254,7 +259,7 @@ Examples:
   Run gentoo's busybox with arg0="ls":
   $ strat --arg0 ls gentoo busybox
   Run arch's makepkg against only arch files:
-  $ strat --local arch makepkg
+  $ strat --restrict arch makepkg
 ```
 
 ```
@@ -345,7 +350,7 @@ Indicates which stratum provides a given object.
 Options:
   <none>          which stratum provides this process
   -b, --bin       which stratum provides a given executable in $PATH
-  -f, --filepath  which stratum provides a given file path
+  -f, --file      which stratum provides a given file path
   -p, --pid       which stratum provides a given PID
   -x, --xwindow   which stratum provides a given X11 window (requires xprop)
   -h, --help      print this message
@@ -363,7 +368,7 @@ Examples:
   global
   $ brl which -p 1 # which stratum provides PID1/init?
   alpine
-  $ brl which -x # after running click mouse on X11 window
+  $ brl which -x # click mouse on X11 window to query provider
   arch
 ```
 
@@ -379,13 +384,15 @@ distros make changes.  If automated efforts to look them up fail, try looking
 up the information yourself and providing it to `brl fetch` via flags.
 
 Options:
-  -L, --list-distros   list supported distros
+  -L, --list-distros   list distros supported on system CPU architecture
   -R, --list-releases  list releases [distro] provides
   -r, --release        specify desired release
   -m, --mirror         specify desired mirror
   -h, --help           print this message
 
 Examples:
+  $ uname -m
+  x86_64
   $ brl fetch --list-distros | head -n5
   alpine
   arch
@@ -428,7 +435,7 @@ Examples:
 $ brl rename --help
 Usage: brl rename [options] <stratum> <new-name>
 
-Renames stratum.  Requires root.
+Renames stratum.  Requires root.  Disables stratum during rename procedure.
 
 Options:
   -f, --force  perform operation even if stratum-owned processes are detected.
@@ -458,10 +465,10 @@ Examples:
   # strat solus umount /etc
   $ brl status solus
   solus: broken
-  $ sudo brl disable solus
+  # brl disable solus
   $ brl status solus
   solus: disabled
-  $ sudo brl ignore solus
+  # brl ignore solus
   $ brl status solus
   solus: ignored
   $ brl status alpine arch
@@ -480,7 +487,8 @@ Examples:
 $ brl enable --help
 Usage: brl enable [options] <strata>
 
-Makes disabled and broken strata enabled.
+Integrates strata into the system.  May be applied to both to disabled strata
+and broken strata, potentially fixing broken strata.  Requires root.
 
 Options:
   -h, --help   print this message
@@ -508,7 +516,7 @@ Examples:
 $ brl disable --help
 Usage: brl disable [options] <strata>
 
-Disabled strata.
+De-integrates strata from the system.
 
 Options:
   -f, --force  perform operation even if stratum-owned processes are detected.
@@ -523,7 +531,6 @@ Examples:
   $ brl status solus
   disabled
   # brl disable alpine arch centos
-  alpine: disabled
   $ brl status alpine arch centos
   alpine: disabled
   arch: disabled
@@ -654,7 +661,7 @@ Options:
 Example:
   # brl update
   <applies online update from mirror>
-  $ git pull && make SKIPSIGN=true
+  $ cd /path/to/bedrock/source && git pull && make SKIPSIGN=true
   <builds latest version of installer locally>
   # brl update --file ./bedrock-linux-0.7.999-amd64.sh --skip-check
   <applies installer's bedrock system files of files as update>
