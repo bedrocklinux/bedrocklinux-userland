@@ -337,6 +337,14 @@ $(SLASHBR)/libexec/crossfs: $(COMPLETED)/builddir \
 		cp ./crossfs $(SLASHBR)/libexec/crossfs
 crossfs: $(SLASHBR)/libexec/crossfs
 
+$(SLASHBR)/libexec/etcfs: $(COMPLETED)/builddir \
+	$(COMPLETED)/musl \
+	$(COMPLETED)/libfuse
+	cd src/etcfs && \
+		make CC=$(MUSLCC) CFLAGS="$(CFLAGS)" && \
+		cp ./etcfs $(SLASHBR)/libexec/etcfs
+etcfs: $(SLASHBR)/libexec/etcfs
+
 $(SLASHBR)/libexec/manage_tty_lock: $(COMPLETED)/builddir $(COMPLETED)/musl
 	cd src/manage_tty_lock && \
 		$(MAKE) CC=$(MUSLCC) && \
@@ -357,6 +365,7 @@ build/slashbr.tar.gz: \
 	$(COMPLETED)/builddir \
 	$(SLASHBR)/libexec/bouncer \
 	$(SLASHBR)/libexec/crossfs \
+	$(SLASHBR)/libexec/etcfs \
 	$(SLASHBR)/libexec/manage_tty_lock \
 	$(SLASHBR)/bin/strat
 	# ensure permissions
