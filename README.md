@@ -23,6 +23,7 @@ On a Linux system, install the build dependencies:
 - git 1.8 or newer
 - meson 0.38 or newer
 - ninja
+- libtoolize
 - fakeroot
 - make
 - gzip

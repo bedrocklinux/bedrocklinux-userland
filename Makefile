@@ -16,6 +16,7 @@
 # - git 1.8 or newer
 # - meson 0.38 or newer
 # - ninja
+# - libtoolize
 # - fakeroot
 # - make
 # - gzip
@@ -322,6 +323,36 @@ uthash: $(COMPLETED)/uthash
 # Compiled binaries which will go into the output script.  Populates $(SLASHBR)
 #
 
+vendor/libattr/.success_retrieving_source:
+	git clone --depth=1 \
+		-b `git ls-remote --tags 'git://git.savannah.nongnu.org/attr.git' | \
+		awk -F/ '{print $$NF}' | \
+		sed 's/^v//g' | \
+		grep '^[0-9.]*$$' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed 's/^/v/'` 'git://git.savannah.nongnu.org/attr.git' \
+		vendor/libattr
+	touch vendor/libattr/.success_retrieving_source
+$(SLASHBR)/libexec/getfattr: vendor/libattr/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	cd vendor/libattr && \
+		./autogen.sh && \
+		CC=$(MUSLCC) ./configure --enable-static --disable-shared ; \
+		make CC=$(MUSLCC) getfattr && \
+		cp getfattr $(SLASHBR)/libexec/getfattr
+getfattr: $(SLASHBR)/libexec/getfattr
+$(SLASHBR)/libexec/setfattr: vendor/libattr/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	cd vendor/libattr && \
+		./autogen.sh && \
+		CC=$(MUSLCC) ./configure --enable-static --disable-shared ; \
+		make CC=$(MUSLCC) setfattr && \
+		cp setfattr $(SLASHBR)/libexec/setfattr
+setfattr: $(SLASHBR)/libexec/setfattr
+
+$(SLASHBR)/libexec/setcap: $(COMPLETED)/libcap
+	cp $(SUPPORT)/bin/setcap $(SLASHBR)/libexec/setcap
+setcap: $(SLASHBR)/libexec/setcap
+
 $(SLASHBR)/libexec/bouncer: $(COMPLETED)/builddir $(COMPLETED)/musl
 	cd src/bouncer && \
 		$(MAKE) CC=$(MUSLCC) && \
@@ -363,6 +394,9 @@ strat: $(SLASHBR)/bin/strat
 
 build/slashbr.tar.gz: \
 	$(COMPLETED)/builddir \
+	$(SLASHBR)/libexec/getfattr \
+	$(SLASHBR)/libexec/setfattr \
+	$(SLASHBR)/libexec/setcap \
 	$(SLASHBR)/libexec/bouncer \
 	$(SLASHBR)/libexec/crossfs \
 	$(SLASHBR)/libexec/etcfs \
