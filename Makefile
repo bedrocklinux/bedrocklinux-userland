@@ -333,20 +333,20 @@ vendor/libattr/.success_retrieving_source:
 		sed 's/^/v/'` 'git://git.savannah.nongnu.org/attr.git' \
 		vendor/libattr
 	touch vendor/libattr/.success_retrieving_source
-$(SLASHBR)/libexec/getfattr: vendor/libattr/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
+$(COMPLETED)/libattr: vendor/libattr/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	# Sometimes autogen does not take the first time despite returning 0.  Thus, try a few times.
 	cd vendor/libattr && \
 		./autogen.sh && \
 		CC=$(MUSLCC) ./configure --enable-static --disable-shared ; \
-		make CC=$(MUSLCC) getfattr && \
-		cp getfattr $(SLASHBR)/libexec/getfattr
-getfattr: $(SLASHBR)/libexec/getfattr
-$(SLASHBR)/libexec/setfattr: vendor/libattr/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
-	cd vendor/libattr && \
-		./autogen.sh && \
-		CC=$(MUSLCC) ./configure --enable-static --disable-shared ; \
-		make CC=$(MUSLCC) setfattr && \
-		cp setfattr $(SLASHBR)/libexec/setfattr
-setfattr: $(SLASHBR)/libexec/setfattr
+		make clean && \
+		make CC=$(MUSLCC) getfattr setfattr && \
+		cp getfattr $(SLASHBR)/libexec/getfattr && \
+		cp setfattr $(SLASHBR)/libexec/setfattr && \
+	touch $(COMPLETED)/libattr
+$(SLASHBR)/libexec/getfattr: $(COMPLETED)/libattr
+$(SLASHBR)/libexec/setfattr: $(COMPLETED)/libattr
+getfattr: $(COMPLETED)/libattr
+setfattr: $(COMPLETED)/libattr
 
 $(SLASHBR)/libexec/setcap: $(COMPLETED)/libcap
 	cp $(SUPPORT)/bin/setcap $(SLASHBR)/libexec/setcap
