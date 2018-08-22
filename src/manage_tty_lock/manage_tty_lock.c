@@ -25,7 +25,7 @@ void print_help()
 {
 	printf(""
 		"Usage: manage_stty_lock [lock|unlock] [tty]\n"
-		"requires root (or CAP_SYS_ADMIN)\n"
+		"Requires root.\n"
 		"\n"
 		"To lock a terminal, use `lock` as the first argument.  To unlock one, use\n"
 		"`unlock` as the first argument.  The second argument can be utilized to specify\n"

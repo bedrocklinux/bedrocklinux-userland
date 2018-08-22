@@ -2,7 +2,7 @@ Bedrock Linux 0.7 Design
 ========================
 
 This documents the design decisions for Bedrock Linux 0.7.  It is intended to
-provide the Bedrock-specific needed to contribute to this code base.
+provide the Bedrock-specific concepts required to contribute to this code base.
 
 Bedrock Linux Concepts
 ----------------------
@@ -22,8 +22,8 @@ Bedrock Linux Concepts
 - Global files: If every stratum only saw its local files, the strata would be
   unable to interact.  Some file paths must appear the same to processes from
   all strata.  These are called "global files".  For example, /run/dbus is a
-  global path.  Thus, a dbus client from one stratum may communicate with a
-  dbus server from another.
+  global path.  Through this path a dbus client from one stratum may
+  communicate with a dbus server from another.
 - Every file path and every process must either be associated with a given
   stratum or be considered global.
 - Enabled/disabled: To make software from various strata interact properly,
@@ -84,7 +84,7 @@ Every Bedrock Linux system includes a /bedrock directory.  This directory
 includes the "glue" used to make parts of other Linux distributions work
 together.
 
-- /bedrock/ is locked (see man 2 flock) by various Bedrock processes to
+- /bedrock/ is locked (see `man 2 flock`) by various Bedrock processes to
   serialize operations such as enabling/disabling strata.
 - /bedrock/bin/ contains user-facing executables.
 - /bedrock/bin/strat is an executable which changes context as needed to run
@@ -114,10 +114,8 @@ together.
 - /bedrock/run/init is a symlink to the /bedrock/strata/<stratum> directory
   corresponding to the stratum providing PID1.  This is used as part of the
   process of maintaining an "init" alias to the current init-providing stratum.
-  This stratum is used internally to ensure the appropriate stratum provides
-  the init-related commands such as reboot.
-- /bedrock/run/localtime is a symlink to the appropriate timezone file in
-  /bedrock/cross/zoneinfo/.
+  This is used internally to ensure the appropriate stratum provides the
+  init-related commands such as reboot.
 - /bedrock/run/cfg-* are configuration files created at runtime and symlinked
   into place for various programs to read them.
 - /bedrock/run/inject-* are contents created at runtime and injected into other
@@ -418,7 +416,7 @@ Examples:
 $ brl remove --help
 Usage: brl remove [options] <strata>
 
-Removes specified strata.  Requires root.
+Removes specified strata and aliases.  Requires root.
 
 Options:
   -f, --force  perform operation even if stratum-owned processes are detected.

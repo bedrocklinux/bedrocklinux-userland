@@ -51,27 +51,27 @@
 #   over preexisting files in an update, and thus this should not contain
 #   configuration the user may change.
 # - src/default-configs/ contains default configuration files.  These are files
-#   which may be used in a fresh install but should not be applied over
-#   existing files in an update.
+#   which may be used in a fresh install but should not be applied over existing
+#   files in an update.
 # - src/installer/ contains the actual installer script.  The build system will
 #   embed the eventual system files into the installation script.
 # - Other src/ directories correspond to source for binary executables.  These
-#   binaries will be included in the slash-bedrock structure embedded within
-#   the installation script.
+#   binaries will be included in the slash-bedrock structure embedded within the
+#   installation script.
 # - vendor/ (initially absent) will contain upstream build dependencies.  The
-#   build system will automatically fetch these and populate vendor/
-#   accordingly.  The build system will attempt to automatically get the latest
-#   stable version and may occasionally fail if an upstream component changes
-#   too drastically.  This is purposeful, as it will service as a canary
-#   indicating developer attention is required and preferable to distributing
-#   outdated upstream components which may contain security vulnerabilities.
+#   build system will automatically fetch these and populate vendor/ accordingly.
+#   The build system will attempt to automatically get the latest stable version
+#   and may occasionally fail if an upstream component changes too drastically.
+#   This is purposeful; it will serve as a canary indicating developer attention
+#   is required and is preferable to distributing outdated upstream components
+#   which may contain security vulnerabilities.
 # - vendor/*/.success_fetching_source files indicate that the given vendor
-#   component's files have been successfully acquired.  This is used to
-#   properly handle interrupted downloads.
-# - build/ (initially absent) will contain intermediate build output which can
-#   be safely removed.
-# - build/support/ will contain build-time support code and will not directly
-#   end up in the resulting install.
+#   component's files have been successfully acquired.  This is used to properly
+#   handle interrupted downloads.
+# - build/ (initially absent) will contain intermediate build output which can be
+#   safely removed.
+# - build/support/ will contain build-time support code and will not directly end
+#   up in the resulting install.
 # - build/bedrock/ will contain files which eventually end up in the installed
 #   system's /bedrock/ directory.  This will be populated by src/slash-bedrock/
 #   contents and the various src/ binaries.
@@ -156,7 +156,6 @@ remove_vendor_source:
 #
 
 $(COMPLETED)/builddir:
-	mkdir -p $(SUPPORT)
 	mkdir -p $(SUPPORT)/include $(SUPPORT)/lib
 	cp -r src/slash-bedrock/ $(SLASHBR)
 	mkdir -p $(SLASHBR)/bin $(SLASHBR)/etc $(SLASHBR)/libexec
