@@ -12,26 +12,9 @@ See libfuse for details.
 Configuration
 -------------
 
-crossfs creates a virtual `.config-filesystem` file in the root of its mount
-point to handle its configuration.  The expected input format is:
-
-    add [filter] [path] [stratum]:[value-path]\n
-
-For example:
-
-    add bin /pin/bin/sv void:/usr/bin/sv\n
-
-Another example:
-
-    add ini /applications solus:/usr/share/applications\n
-
-Every line should have a trailing newline, as shown above.  Every path item
-should start with a forward slash.  Entire line must be expressed within a
-single call and must fit within PATH_MAX, including trailing null.  Close and
-sync after each line.  The filter value is only meaningful in the first
-submission for a path.
-
-`.config-filesystem` may be read to get the current configuration.
+crossfs creates a virtual `.bedrock-config-filesystem` file in the root of its
+mount point to handle its configuration.  `.bedrock-config-filesystem` may be
+read to get the current configuration and is written to by `brl reload`.
 
 Installation
 ------------

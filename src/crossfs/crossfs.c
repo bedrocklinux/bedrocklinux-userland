@@ -7,16 +7,16 @@
  *
  * Copyright (c) 2014-2018 Daniel Thau <danthau@bedrocklinux.org>
  *
- * This program provides a filesystem which implements cross-stratum file
+ * This program implements a filesystem which provides cross-stratum file
  * access.  It fulfills filesystem requests by forwarding the appropriate
- * stratum's copy of a given file, modifying it as needed.
+ * stratum's copy of a given file, possibly modifying it in transit if needed.
  *
  * This filesystem makes heavy use of the word "path" in different contexts.
  * For conceptual consistency, paths are broken up into four categories:
  *
  * - "ipath", or "incoming path", refers to the file paths incoming from the
- *   processes to this filesystem.  For example, if a process wants to know
- *   about <mount>/foo/bar, /foo/bar is ipath.
+ *   processes' request to this filesystem.  For example, if a process wants to
+ *   know about <mount>/foo/bar, /foo/bar is ipath.
  * - "cpath", or "configured path", is a path the filesystem is configured to
  *   handle.  For example, a cpath may be /bin, indicating the filesystem knows
  *   how to fulfill an ipath on /bin or a subdirectory of /bin.
@@ -49,37 +49,28 @@
  *   to do this very early/late in the function.  Careful not to early return
  *   before unlocking.
  * - File system calls relative to the root or cwd are not thread safe.  Use
- *   fchroot_* wrappers which internally lock.  Filesystem calls relatively to
- *   a file descriptor (e.g. readlinkat()) are thread safe.
+ *   fchroot_* wrappers which internally lock.  Filesystem calls relative to a
+ *   file descriptor (e.g. readlinkat()) are thread safe.
  *
  * Having to lock around chroot() calls is obviously undesirable.  The
  * alternative is to write our own function to walk a path as though it was
  * chrooted, resolving to the ultimate path.  In practice, such attempts were
  * found to be slower than the lock-and-chroot method used here, primarily due
- * to the large number of expensive readlink() system calls.
+ * to the large number of expensive system calls (repeated readlink()).
  *
  * Another obviously undesirable performance hit revolves around repeated work
  * between readdir() and getattr().  readdir() does a lot of work to find the
- * corresponding backing file which is then lost.  Immediately afterwards,
- * getattr() is usually called and has to again find the backing file.  In
- * theory, this information could be cached for a short time for getattr.
- * Linux/FUSE actually provide a caching solution for exactly this called
- * "readdirplus".  However, at the time of writing this feature is broken:
+ * corresponding backing files.  Immediately afterwards, getattr() is usually
+ * called and has to again calculate the same backing file.  In theory, this
+ * information could be cached for a short time for getattr.  Linux/FUSE
+ * actually provide a caching solution for exactly this called "readdirplus".
+ * However, at the time of writing this feature is broken:
  *
  *     https://sourceforge.net/p/fuse/mailman/fuse-devel/thread/878tcgxvp2.fsf@vostro.rath.org/#msg36209107
  *
  * Our own implementation of caching may be useful.  We could cache the getattr
  * metadata in the readdir() loop, and/or we could cache the ipath->cpath
  * calculation.  Cache invalidation may be tricky.
- */
-
-/*
- * TODO: Instead of CMD_CLEAR use more fine-grain per-line config removal.
- * Thus way /bedrock/crossfs does not provide false-negative ENOENT during
- * config update on stratum removal.
- *
- * TODO: Look into special casing `.` symlinks, e.g. /usr/bin/X11.
- * /bedrock/cross/bin/X11/X11/X11/... is a minor annoyance.
  */
 
 #define FUSE_USE_VERSION 32
@@ -98,52 +89,92 @@
 
 #include <uthash.h>
 
+#define ARRAY_LEN(x) (sizeof(x) / sizeof(x[0]))
+#define MIN(x, y) (x < y ? x : y)
+
+/*
+ * The directory containing the roots of the various strata.  References to a
+ * specific stratum's instance of a file go through this directory.
+ */
 #define STRATA_ROOT "/bedrock/strata/"
 #define STRATA_ROOT_LEN strlen(STRATA_ROOT)
 
-#define BOUNCER_PATH "/bedrock/libexec/bouncer"
-#define BOUNCER_PATH_LEN strlen("/bedrock/libexec/bouncer")
-
+/*
+ * Strat runs an executable from given stratum as specified in argument list.
+ * Crossfs injects this into various references to executables to ensure the
+ * appropriate stratum's instance of the executable is utilized in that
+ * context.  This is useful for things such as .desktop files with `Exec=`
+ * references to executables.
+ */
 #define STRAT_PATH "/bedrock/bin/strat"
-#define STRAT_PATH_LEN strlen("/bedrock/bin/strat")
-
-#define CFG_NAME ".config-filesystem"
-#define CFG_NAME_LEN strlen(".config-filesystem")
-
-#define CFG_PATH "/.config-filesystem"
-#define CFG_PATH_LEN strlen("/.config-filesystem")
+#define STRAT_PATH_LEN strlen(STRAT_PATH)
 
 /*
- * By definition, all file paths that do not belong to a specific stratum are
- * global.  Since virtual file paths don't belong to any given stratum, they
- * must be global.
+ * Bouncer, like strat, redirects to the appropriate stratum's instance of an
+ * executable.  It differs from strat in that it determines which executable by
+ * looking at its extended filesystem attributes rather than its arguments.
+ * This is useful for binaries the user will directly execute, as the user
+ * controls the argument list.
  */
-#define VIRTUAL_STRATUM "global"
-#define VIRTUAL_STRATUM_LEN strlen(VIRTUAL_STRATUM)
+#define BOUNCER_PATH "/bedrock/libexec/bouncer"
+#define BOUNCER_PATH_LEN strlen(BOUNCER_PATH)
 
-#define VIRTUAL_LPATH "/"
-#define VIRTUAL_LPATH_LEN strlen(VIRTUAL_LPATH)
-
-#define FONTS_DIR "fonts.dir"
-#define FONTS_DIR_LEN strlen("fonts.dir")
-
-#define FONTS_ALIAS "fonts.alias"
-#define FONTS_ALIAS_LEN strlen("fonts.alias")
-
+/*
+ * Surface the associated stratum and file path for files via xattrs.
+ */
 #define STRATUM_XATTR "user.bedrock.stratum"
 #define STRATUM_XATTR_LEN strlen(STRATUM_XATTR)
 
 #define LPATH_XATTR "user.bedrock.localpath"
 #define LPATH_XATTR_LEN strlen(LPATH_XATTR)
 
+/*
+ * Crossfs may be configured to present a file without being explicitly
+ * configured to also present its parent directory.  It will dynamically create
+ * a virtual directory in these cases.
+ *
+ * By definition, all file paths that do not belong to a specific stratum are
+ * global.  Since virtual file paths don't belong to any given stratum, they
+ * must be global.
+ */
+#define VIRTUAL_STRATUM "global"
+#define VIRTUAL_STRATUM_LEN strlen(VIRTUAL_STRATUM)
+/*
+ * All crossfs files have an associated file path.  While "/" isn't
+ * particularly meaningful here, no other path is obviously better.
+ */
+#define VIRTUAL_LPATH "/"
+#define VIRTUAL_LPATH_LEN strlen(VIRTUAL_LPATH)
+
+/*
+ * When merging font directories, these files require extra attention.
+ */
+#define FONTS_DIR "fonts.dir"
+#define FONTS_DIR_LEN strlen(FONTS_DIR)
+
+#define FONTS_ALIAS "fonts.alias"
+#define FONTS_ALIAS_LEN strlen(FONTS_ALIAS)
+
+/*
+ * The file path used to configure this filesystem.
+ */
+#define CFG_NAME ".bedrock-config-filesystem"
+#define CFG_NAME_LEN strlen(CFG_NAME)
+
+#define CFG_PATH "/.bedrock-config-filesystem"
+#define CFG_PATH_LEN strlen(CFG_PATH)
+
+/*
+ * Headers for content written to CFG_NAME
+ */
+#define CMD_CLEAR "clear"
+#define CMD_CLEAR_LEN strlen(CMD_CLEAR)
+
 #define CMD_ADD "add"
 #define CMD_ADD_LEN strlen(CMD_ADD)
 
-#define CMD_CLEAR "clear\n"
-#define CMD_CLEAR_LEN strlen(CMD_CLEAR)
-
-#define ARRAY_LEN(x) (sizeof(x) / sizeof(x[0]))
-#define MIN(x, y) (x < y ? x : y)
+#define CMD_RM "rm"
+#define CMD_RM_LEN strlen(CMD_RM)
 
 /*
  * Incoming paths are classified into the following categories.
@@ -264,11 +295,12 @@ struct cfg_entry {
 	char *cpath;
 	size_t cpath_len;
 	/*
-	 * Array of filesystem paths to be searched for this cfg_key's backing
-	 * file(s).
+	 * Array of filesystem paths to be searched for this cfg_entry's
+	 * backing file(s).
 	 */
 	struct back_entry *back;
 	size_t back_cnt;
+	size_t back_alloc;
 };
 
 /*
@@ -296,6 +328,7 @@ struct h_kv {
  */
 struct cfg_entry *cfgs = NULL;
 size_t cfg_cnt = 0;
+size_t cfg_alloc = 0;
 
 /*
  * File descriptors referring to directories.  Used as fixed reference points
@@ -462,25 +495,6 @@ static inline char *calc_bpath(struct cfg_entry *cfg, struct back_entry *back,
 }
 
 /*
- * Perform open() with a given chroot()
- */
-static inline int fchroot_open(int root_fd, const char *bpath, int flags)
-{
-	int rv = -EINVAL;
-	pthread_mutex_lock(&root_lock);
-
-	if ((current_root_fd == root_fd)
-		|| (fchdir(root_fd) >= 0 && chroot(".") >= 0)) {
-		current_root_fd = root_fd;
-
-		rv = open(bpath, flags);
-	}
-
-	pthread_mutex_unlock(&root_lock);
-	return rv;
-}
-
-/*
  * Insert a string into a hash table.
  */
 static inline int insert_h_str(struct h_str **strs, char *str, size_t str_len)
@@ -542,6 +556,25 @@ static inline int insert_h_kv(struct h_kv **kvs, char *key, size_t key_len,
 }
 
 /*
+ * Perform open() with a given chroot()
+ */
+static inline int fchroot_open(int root_fd, const char *bpath, int flags)
+{
+	int rv = -EINVAL;
+	pthread_mutex_lock(&root_lock);
+
+	if ((current_root_fd == root_fd)
+		|| (fchdir(root_fd) >= 0 && chroot(".") >= 0)) {
+		current_root_fd = root_fd;
+
+		rv = open(bpath, flags);
+	}
+
+	pthread_mutex_unlock(&root_lock);
+	return rv;
+}
+
+/*
  * Perform stat() with a given chroot()
  */
 static inline int fchroot_stat(int root_fd, const char *bpath, struct stat *buf)
@@ -561,7 +594,7 @@ static inline int fchroot_stat(int root_fd, const char *bpath, struct stat *buf)
 }
 
 /*
- * Perform stat() with a given chroot()
+ * Perform readlink() with a given chroot()
  */
 static inline int fchroot_readlink(int root_fd, const char *bpath, char *buf,
 	size_t size)
@@ -810,33 +843,38 @@ static int cfg_add(const char *const buf, size_t size)
 	 * Ensure there is a trailing null so that sscanf doesn't overflow if
 	 * we somehow get bad input.
 	 */
-	if (size > (PIPE_BUF - 1)) {
+	char nbuf[PIPE_BUF];
+	if (size > sizeof(nbuf) - 1) {
 		return -ENAMETOOLONG;
 	}
-	char nbuf[PIPE_BUF];
 	memcpy(nbuf, buf, size);
 	nbuf[size] = '\0';
 
 	/*
 	 * Tokenize
 	 */
-	char buf_add[PIPE_BUF];
-	char buf_cpath[PIPE_BUF];
+	char buf_cmd[PIPE_BUF];
+	char space1;
 	char buf_filter[PIPE_BUF];
+	char space2;
+	char buf_cpath[PIPE_BUF];
+	char space3;
 	char buf_stratum[PIPE_BUF];
 	char buf_lpath[PIPE_BUF];
 	char newline;
-	if (sscanf(nbuf, "%s %s %s %[^:]:%s%c", buf_add, buf_filter,
-			buf_cpath, buf_stratum, buf_lpath, &newline) != 6) {
+	if (sscanf(nbuf, "%s%c%s%c%s%c%[^:]:%s%c", buf_cmd, &space1,
+			buf_filter, &space2, buf_cpath, &space3,
+			buf_stratum, buf_lpath, &newline) != 9) {
 		return -EINVAL;
 	}
 
 	/*
 	 * Sanity check
 	 */
-	if (strcmp(buf_add, CMD_ADD) != 0 || buf_cpath[0] != '/'
-		|| buf_lpath[0] != '/' || newline != '\n' ||
-		strchr(buf_stratum, '/') != NULL) {
+	if (strcmp(buf_cmd, CMD_ADD) != 0 || buf_cpath[0] != '/'
+		|| buf_lpath[0] != '/' || space1 != ' '
+		|| space2 != ' ' || space3 != ' ' || newline != '\n'
+		|| strchr(buf_stratum, '/') != NULL) {
 		return -EINVAL;
 	}
 
@@ -868,7 +906,7 @@ static int cfg_add(const char *const buf, size_t size)
 	}
 
 	/*
-	 * No preexisting cfg_key, alloc a new one.
+	 * No preexisting cfg_entry, make a new one
 	 */
 	if (cfg == NULL) {
 		char *cpath = malloc(cpath_len + 1);
@@ -877,12 +915,16 @@ static int cfg_add(const char *const buf, size_t size)
 		}
 		memcpy(cpath, buf_cpath, cpath_len + 1);
 
-		cfg = realloc(cfgs, (cfg_cnt + 1) * sizeof(struct cfg_entry));
-		if (cfg == NULL) {
-			free(cpath);
-			return -ENOMEM;
+		if (cfg_alloc < cfg_cnt + 1) {
+			cfg = realloc(cfgs, (cfg_cnt + 1) *
+				sizeof(struct cfg_entry));
+			if (cfg == NULL) {
+				free(cpath);
+				return -ENOMEM;
+			}
+			cfgs = cfg;
+			cfg_alloc = cfg_cnt + 1;
 		}
-		cfgs = cfg;
 
 		cfg = &cfgs[cfg_cnt];
 		cfg->cpath = cpath;
@@ -890,6 +932,7 @@ static int cfg_add(const char *const buf, size_t size)
 		cfg->filter = filter;
 		cfg->back = NULL;
 		cfg->back_cnt = 0;
+		cfg->back_alloc = 0;
 
 		cfg_cnt++;
 	}
@@ -910,7 +953,7 @@ static int cfg_add(const char *const buf, size_t size)
 	}
 
 	/*
-	 * Alloc a new back_entry.
+	 * Make a new back_entry.
 	 */
 	char *lpath = NULL;
 	char *stratum = NULL;
@@ -931,7 +974,7 @@ static int cfg_add(const char *const buf, size_t size)
 	memcpy(stratum, buf_stratum, stratum_len + 1);
 
 	/*
-	 * Find previous root_fd for the given stratum.
+	 * Re-use root_fd for the given stratum, if available.
 	 */
 	for (size_t i = 0; i < cfg_cnt; i++) {
 		for (size_t j = 0; j < cfgs[i].back_cnt; j++) {
@@ -953,13 +996,15 @@ static int cfg_add(const char *const buf, size_t size)
 		goto free_and_abort_enomem;
 	}
 
-	back = realloc(cfg->back, (cfg->back_cnt + 1) *
-		sizeof(struct back_entry));
-	if (back == NULL) {
-		goto free_and_abort_enomem;
+	if (cfg->back_alloc < cfg->back_cnt + 1) {
+		back = realloc(cfg->back, (cfg->back_cnt + 1) *
+			sizeof(struct back_entry));
+		if (back == NULL) {
+			goto free_and_abort_enomem;
+		}
+		cfg->back = back;
+		cfg->back_alloc = cfg->back_cnt + 1;
 	}
-
-	cfg->back = back;
 	back = &cfg->back[cfg->back_cnt];
 
 	back->lpath = lpath;
@@ -969,7 +1014,7 @@ static int cfg_add(const char *const buf, size_t size)
 	back->root_fd = root_fd;
 	cfg->back_cnt++;
 
-	cfg_stat.st_size += strlen(buf);
+	cfg_stat.st_size += strlen(buf) - CMD_ADD_LEN - 1;
 
 	return size;
 
@@ -988,8 +1033,142 @@ free_and_abort_enomem:
 }
 
 /*
- * Dump configuration information.
+ * Parse and apply instruction to rm configuration.  Expected format is:
+ *
+ *     rm [path] [stratum]:[value-path]\n
+ *
+ * For example:
+ *
+ *     rm /pin/bin/sv void:/usr/bin/sv\n
+ *
+ * Another example:
+ *
+ *     rm /applications solus:/usr/share/applications\n
+ *
+ * Every line should have a trailing newline, as shown above.
+ *
+ * Every path item should start with a forward slash.
+ *
+ * Entire line must be expressed within a single call and must fit within
+ * PIPE_BUF, including trailing null.  Close and sync after each line.
+ *
+ * The filter value is only meaningful in the first submission for a path.
  */
+static int cfg_rm(const char *const buf, size_t size)
+{
+	/*
+	 * Ensure there is a trailing null so that sscanf doesn't overflow if
+	 * we somehow get bad input.
+	 */
+	char nbuf[PIPE_BUF];
+	if (size > sizeof(nbuf) - 1) {
+		return -ENAMETOOLONG;
+	}
+	memcpy(nbuf, buf, size);
+	nbuf[size] = '\0';
+
+	/*
+	 * Tokenize
+	 */
+	char buf_cmd[PIPE_BUF];
+	char space1;
+	char buf_filter[PIPE_BUF];
+	char space2;
+	char buf_cpath[PIPE_BUF];
+	char space3;
+	char buf_stratum[PIPE_BUF];
+	char buf_lpath[PIPE_BUF];
+	char newline;
+	if (sscanf(nbuf, "%s%c%s%c%s%c%[^:]:%s%c", buf_cmd, &space1,
+			buf_filter, &space2, buf_cpath, &space3,
+			buf_stratum, buf_lpath, &newline) != 9) {
+		return -EINVAL;
+	}
+
+	/*
+	 * Sanity check
+	 */
+	if (strcmp(buf_cmd, CMD_RM) != 0 || buf_cpath[0] != '/'
+		|| buf_lpath[0] != '/' || space1 != ' '
+		|| space2 != ' ' || space3 != ' ' || newline != '\n'
+		|| strchr(buf_stratum, '/') != NULL) {
+		return -EINVAL;
+	}
+
+	/*
+	 * Find cfg_entry
+	 */
+	struct cfg_entry *cfg = NULL;
+	size_t cpath_len = strlen(buf_cpath);
+	for (size_t i = 0; i < cfg_cnt; i++) {
+		if (pstrcmp(cfgs[i].cpath, cfgs[i].cpath_len, buf_cpath,
+				cpath_len) == 0) {
+			cfg = &cfgs[i];
+			break;
+		}
+	}
+	if (cfg == NULL) {
+		return -EINVAL;
+	}
+
+	/*
+	 * Find back_entry
+	 */
+	struct back_entry *back = NULL;
+	size_t stratum_len = strlen(buf_stratum);
+	size_t lpath_len = strlen(buf_lpath);
+	for (size_t i = 0; i < cfg->back_cnt; i++) {
+		if (pstrcmp(cfg->back[i].stratum, cfg->back[i].stratum_len,
+				buf_stratum, stratum_len) == 0
+			&& pstrcmp(cfg->back[i].lpath, cfg->back[i].lpath_len,
+				buf_lpath, lpath_len) == 0) {
+			back = &cfg->back[i];
+			break;
+		}
+	}
+	if (back == NULL) {
+		return -EINVAL;
+	}
+
+	/*
+	 * Check if root_fd is shared
+	 */
+	int root_fd_cnt = 0;
+	for (size_t i = 0; i < cfg_cnt; i++) {
+		for (size_t j = 0; j < cfgs[i].back_cnt; j++) {
+			if (cfgs[i].back[j].root_fd == back->root_fd) {
+				root_fd_cnt++;
+			}
+		}
+	}
+
+	/*
+	 * Free
+	 */
+	free(back->stratum);
+	free(back->lpath);
+	if (root_fd_cnt == 1) {
+		close(back->root_fd);
+	}
+
+	if (&cfg->back[cfg->back_cnt - 1] != back) {
+		*back = cfg->back[cfg->back_cnt - 1];
+	}
+	cfg->back_cnt--;
+	cfg_stat.st_size -= strlen(buf) - CMD_RM_LEN - 1;
+
+	if (cfg->back_cnt == 0) {
+		free(cfg->cpath);
+		free(cfg->back);
+		if (&cfgs[cfg_cnt - 1] != cfg) {
+			*cfg = cfgs[cfg_cnt - 1];
+		}
+		cfg_cnt--;
+	}
+
+	return size;
+}
+
 static int cfg_read(char *buf, size_t size, off_t offset)
 {
 	if (cfg_cnt == 0) {
@@ -1005,7 +1184,6 @@ static int cfg_read(char *buf, size_t size, off_t offset)
 
 	for (size_t i = 0; i < cfg_cnt; i++) {
 		for (size_t j = 0; j < cfgs[i].back_cnt; j++) {
-			strcat(str, "add ");
 			strcat(str, filter_str[cfgs[i].filter]);
 			strcat(str, " ");
 			strcat(str, cfgs[i].cpath);
@@ -1655,10 +1833,12 @@ static int m_write(const char *ipath, const char *buf, size_t size,
 	} else if (size >= CMD_CLEAR_LEN && memcmp(buf, CMD_CLEAR,
 			CMD_CLEAR_LEN) == 0) {
 		cfg_clear();
-		rv = size;
+		rv = 0;
 	} else if (size >= CMD_ADD_LEN && memcmp(buf, CMD_ADD,
 			CMD_ADD_LEN) == 0) {
 		rv = cfg_add(buf, size);
+	} else if (size >= CMD_RM_LEN && memcmp(buf, CMD_RM, CMD_RM_LEN) == 0) {
+		rv = cfg_rm(buf, size);
 	} else {
 		rv = -EINVAL;
 	}
