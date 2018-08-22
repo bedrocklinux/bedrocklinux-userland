@@ -183,6 +183,12 @@ int restrict_env(void)
 	err |= restrict_envvar("MANPATH");
 	err |= restrict_envvar("INFOPATH");
 	err |= restrict_envvar("XDG_DATA_DIRS");
+	/*
+	 * While an argument could be made to restrict TERMINFO_DIRS, it is
+	 * more likely in practice to confuse users than help.
+	 *
+	 * err |= restrict_envvar("TERMINFO_DIRS");
+	 */
 	return err;
 }
 
@@ -190,7 +196,7 @@ int restrict_env(void)
  * Strata aliases are symlinks in STRATA_ROOT which (eventually) resolve to
  * directories in STRATA_ROOT.  Dereferencing aliases is effectively:
  *
- *     basename $(realpath $alias)
+ *     basename "$(realpath "/bedrock/strata/$alias")"
  */
 int deref_alias(const char *const alias, char *stratum, size_t len)
 {
@@ -207,10 +213,16 @@ int deref_alias(const char *const alias, char *stratum, size_t len)
 		return -1;
 	}
 
-	stratum[len] = '\0';
-	strncpy(stratum, basename(resolved_path), len);
+	if (strncmp(resolved_path, STRATA_ROOT, STRATA_ROOT_LEN) != 0) {
+		return -1;
+	} else if (strchr(resolved_path + STRATA_ROOT_LEN, '/') != NULL) {
+		return -1;
+	} else if (strlen(resolved_path) - STRATA_ROOT_LEN > len - 1) {
+		return -1;
+	}
 
-	return stratum[len] == '\0' ? 0 : -1;
+	strncpy(stratum, resolved_path + STRATA_ROOT_LEN, len);
+	return 0;
 }
 
 int check_config_secure(char *config_path)
@@ -231,8 +243,17 @@ int check_config_secure(char *config_path)
 		/*
 		 * Get stats on file.  If we can't, file doesn't exist.
 		 */
-		if (stat(path, &stbuf) != 0) {
+		if (lstat(path, &stbuf) != 0) {
 			errno = ENOENT;
+			return -1;
+		}
+		/*
+		 * If the file is a symlink, we'd have to check the target
+		 * location is secure as well.  As a lazy shortcut, just
+		 * disallow symlinks.
+		 */
+		if (S_ISLNK(stbuf.st_mode)) {
+			errno = EMLINK;
 			return -1;
 		}
 		/*
@@ -278,7 +299,7 @@ int break_out_of_chroot(char *reference_dir)
 	 * It is technically possible for a directory and its parent directory
 	 * to have the same device number and inode without being the real
 	 * root. For example, this could occur if one bind mounts a directory
-	 * into itself, or using a filesystem (e.g. fuse) which does not use
+	 * into itself or using a filesystem (e.g. fuse) which does not use
 	 * unique inode numbers for every directory.  However, once we've run
 	 * the chdir("/") above, we're past any such possibility with the
 	 * expected Bedrock Linux directory structure.
@@ -293,8 +314,8 @@ int break_out_of_chroot(char *reference_dir)
 		|| stat_cwd.st_dev != stat_parent.st_dev);
 
 	/*
-	 * We're at the absolute root directory, so set the root to where we
-	 * are.
+	 * We're at the absolute root directory.  However, the root directory
+	 * is still back at reference_dir.  Set the new location.
 	 */
 	return chroot(".");
 }
@@ -397,11 +418,11 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	int flag_help = 0;
-	int flag_restrict = 0;
-	char *param_stratum = NULL;
-	char *param_arg0 = NULL;
-	char **param_arglist = NULL;
+	int flag_help;
+	int flag_restrict;
+	char *param_stratum;
+	char *param_arg0;
+	char **param_arglist;
 	parse_args(argc, argv, &flag_help, &flag_restrict, &param_stratum,
 		&param_arg0, &param_arglist);
 
@@ -411,7 +432,8 @@ int main(int argc, char *argv[])
 	}
 
 	if (flag_restrict && restrict_env() < 0) {
-		fprintf(stderr, "strat: unable to set local environment\n");
+		fprintf(stderr,
+			"strat: unable to set restricted environment\n");
 		return 1;
 	}
 
@@ -449,6 +471,15 @@ int main(int argc, char *argv[])
 			"at\n"
 			"    %s\n"
 			"is insecure, refusing to continue.\n",
+			stratum, state_file_path);
+		return 1;
+	} else if (errno == EMLINK) {
+		fprintf(stderr,
+			"strat: the path to the state file for stratum\n"
+			"    %s\n"
+			"at\n"
+			"    %s\n"
+			"contains a symlink, refusing to continue.\n",
 			stratum, state_file_path);
 		return 1;
 	} else if (errno == ENOENT) {

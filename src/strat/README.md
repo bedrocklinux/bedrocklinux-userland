@@ -34,9 +34,9 @@ Some commands require a specific argv[0].  To explicitly set this, use `-a` or
 It is often useful to restrict a given process to only the executables provided
 by its local stratum.  For example, this helps avoid mixing dependencies across
 strata when compiling.  To enforce this for the duration of a given command,
-run with `-l` or `--local`.  For example:
+run with `-r` or `--restrict`.  For example:
 
-    strat --local arch makepkg
+    strat --restrict arch makepkg
 
 Installation
 ------------
