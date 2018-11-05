@@ -1,3 +1,72 @@
-#!/bedrock/libexec/busybox
+#!/bedrock/libexec/busybox sh
+#
+# brl
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# This program manages and provides information about a Bedrock Linux install
+# and its subsystems.
 
-TODO
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl ${color_sub}<command> [arguments]${color_norm}
+
+${color_bedrock}Bedrock Linux${color_norm} system management and introspection.
+
+Common commands:
+  ${color_cmd}strat     ${color_norm}Run specified ${color_term}stratum${color_norm}'s executable
+  ${color_cmd}          ${color_norm}Note: ${color_cmd}\`strat\`${color_norm} is available without the ${color_cmd}\`brl\`${color_norm} prefix
+  ${color_cmd}list      ${color_norm}List ${color_term}strata${color_norm}
+  ${color_cmd}which     ${color_norm}Query which ${color_term}stratum${color_norm} provides object
+
+${color_term}Strata${color_norm} management commands:
+  ${color_cmd}fetch     ${color_norm}${color_term}Fetch${color_norm} new ${color_term}strata${color_norm}
+  ${color_cmd}remove    ${color_norm}Remove ${color_term}strata${color_norm} (or ${color_term}aliases${color_norm})
+  ${color_cmd}rename    ${color_norm}Rename a ${color_term}stratum${color_norm}
+
+${color_term}Strata${color_norm} status management commands:
+  ${color_cmd}status    ${color_norm}Query ${color_term}stratum${color_norm} status
+  ${color_cmd}enable    ${color_norm}${color_term}Enable${color_norm} ${color_term}strata${color_norm}
+  ${color_cmd}disable   ${color_norm}${color_term}Disable${color_norm} ${color_term}strata${color_norm}
+  ${color_cmd}repair    ${color_norm}Repairs ${color_term}broken${color_norm} ${color_term}strata${color_norm}
+
+${color_term}Strata${color_norm} visibility management commands:
+  ${color_cmd}hide      ${color_norm}${color_term}Hide${color_norm} ${color_term}strata${color_norm}
+  ${color_cmd}show      ${color_norm}${color_term}Show${color_norm} ${color_term}strata${color_norm}
+
+${color_term}Alias${color_norm} management commands:
+  ${color_cmd}alias     ${color_norm}Create a ${color_term}stratum${color_norm} ${color_term}alias${color_norm}
+  ${color_cmd}deref     ${color_norm}Dereference ${color_term}stratum${color_norm} ${color_term}aliases${color_norm}
+
+Miscellaneous commands:
+  ${color_cmd}apply     ${color_norm}Apply configuration changes
+  ${color_cmd}update    ${color_norm}Update ${color_bedrock}Bedrock Linux${color_norm} system
+  ${color_cmd}version   ${color_norm}Query ${color_bedrock}Bedrock Linux${color_norm} version
+  ${color_cmd}report    ${color_norm}Generate report
+
+See ${color_cmd}\`brl ${color_sub}<command>${color_cmd} --help\`${color_norm} for further details per command.
+"
+}
+
+case "${1:-}" in
+"-h" | "--help" | "help" | "")
+	print_help
+	exit_success
+	;;
+"strat" | "list" | "which" | "fetch" | "remove" | "rename" | "status" | "enable" | "disable" | "repair" | "hide" | "show" | "alias" | "deref" | "apply" | "update" | "version" | "report")
+	backend="/bedrock/libexec/brl-${1}"
+	shift
+	exec "${backend}" "${@}"
+	abort "Unable to execute \`${backend}\`"
+	;;
+*)
+	abort "Unrecognized brl subcommand.  See \`${0} --help\`"
+	;;
+esac
+
+exit_success

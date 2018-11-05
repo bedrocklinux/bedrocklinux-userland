@@ -1,0 +1,103 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl remove
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Removes strata and aliases.
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl remove ${color_sub}[options] <strata>${color_norm}
+
+Removes specified ${color_term}strata${color_norm} and ${color_term}aliases${color_norm}.  Requires root.
+
+Options:
+  ${color_cmd}-d${color_norm}, ${color_cmd}--disable${color_norm}   disabled enabled strata rather than error
+  ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}      print this message
+
+Examples:
+  ${color_cmd}$ brl list -d | grep '^a'
+  ${color_strat}alpine
+  ${color_strat}arch
+  ${color_rcmd}# brl remove alpine arch
+  ${color_cmd}$ brl list -d | grep '^a'
+  ${color_cmd}$ brl list -e | grep '^c'
+  ${color_strat}crux
+  ${color_rcmd}# brl remove crux
+  ${color_alert}ERROR: \"crux\" is enabled, refusing to remove.  To remove anyways use \`-d\`.
+  ${color_rcmd}# brl remove -d crux
+  ${color_cmd}$ brl list -e | grep '^c'
+${color_norm}"
+}
+
+handle_help "${@:-}"
+min_args "${#}" "1"
+
+require_root
+lock
+
+force_disable=false
+strata=""
+
+OPTL="enabled-strata,enabled-aliases,disabled-strata,disabled-aliases,all-strata,all-aliases,deref,include-hidden"
+OPTO="eEdDaAri"
+eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
+saw_non_positional=false
+
+while [ -n "${1:-}" ]; do
+	case "${1}" in
+	-d | --disable)
+		force_disable=true
+		shift
+		;;
+	--)
+		shift
+		;;
+	-*)
+		if "${saw_non_positional}"; then
+			eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
+			saw_non_positional=false
+		else
+			abort "Unrecognized argument: ${1}"
+		fi
+		;;
+	*)
+		saw_non_positional=true
+		strata="${strata} ${1}"
+		shift
+		;;
+	esac
+done
+
+for stratum in ${strata}; do
+	if ! is_stratum_or_alias "${stratum}"; then
+		abort "No \"${stratum}\" stratum or alias."
+	elif [ "${stratum}" = "init" ]; then
+		abort "Removing init alias is disallowed."
+	elif is_alias "${stratum}"; then
+		rm "/bedrock/strata/${stratum}"
+	elif is_init "${stratum}"; then
+		abort "Cannot remove or disable init stratum while in use.  Reboot and select another stratum to provide init first."
+	elif is_bedrock "${stratum}"; then
+		abort "Removing bedrock stratum is disallowed."
+	elif is_enabled "${stratum}" && ! "${force_disable}"; then
+		abort "\"${stratum}\" is enabled, refusing to remove.  To remove anyways use \`-d\`."
+	else
+		for alias in $(list_aliases); do
+			if [ "$(deref "${alias}")" = "${stratum}" ]; then
+				rm "/bedrock/strata/${alias}"
+			fi
+		done
+
+		disable_stratum "${stratum}"
+		less_lethal_rm_rf "/bedrock/strata/${stratum}"
+	fi
+done
+
+exit_success

@@ -1,0 +1,116 @@
+#!/bedrock/libexec/busybox sh
+#
+# Arch Linux bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_arch_support() {
+	[ "$(uname -m)" = "x86_64" ]
+}
+
+check_experimental() {
+	false
+}
+
+list_releases() {
+	echo "rolling"
+}
+
+list_mirrors() {
+	# All mirrors:
+	# mirror_list_url='https://www.archlinux.org/mirrorlist/all/'
+	# Server-side filtered list of mirrors:
+	mirror_list_url='https://www.archlinux.org/mirrorlist/?country=all&protocol=https&ip_version=4&ip_version=6&use_mirror_status=on'
+	wget -O- "${mirror_list_url}" 2>/dev/null |
+		awk -F "[ $]" ' /^#Server/ {print$3} '
+}
+
+speed_test_url() {
+	echo "core/os/${arch:-}/core.db.tar.gz"
+}
+
+default_release() {
+	echo "rolling"
+}
+
+setup_pacman() {
+	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --init
+	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate archlinux
+
+	if ! grep -q "^Server" "${1}/etc/pacman.d/mirrorlist"; then
+		echo "### Set by Bedrock Linux when acquiring this stratum" >>"${1}/etc/pacman.d/mirrorlist"
+		echo "Server = ${mirror}/\$repo/os/\$arch" >>"$1/etc/pacman.d/mirrorlist"
+	fi
+}
+
+fetch() {
+	step_init 9
+
+	if [ -z "${target_dir:-}" ] || [ -z "${arch:-}" ] || [ -z "${arch2:-}" ]; then
+		abort "Essential variable not set"
+	fi
+
+	step "Determining name"
+	name="${flag_name:-${distro}}"
+	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining release"
+	release="${flag_release:-$(default_release)}"
+	notice "Using ${color_file}${release}${color_norm}"
+
+	step "Determining mirror"
+	mirror="$(pick_mirror "$(speed_test_url)")"
+	echo "$mirror" | grep -q "[$]" && mirror="$(echo "$mirror" | sed 's/[$].*//g')"
+	notice "Using ${color_link}$mirror${color_norm}"
+
+	step "Making directory structure"
+	bootstrap_dir="$target_dir/brl-bootstrap"
+	mkdir -p "$target_dir" "$bootstrap_dir/target-root"
+
+	step "Downloading bootstrap software"
+	url="$(find_link "$mirror/iso/latest/" "^archlinux-bootstrap-[^-]*-${arch}[.]tar[.]gz$")"
+	wget -O "$bootstrap_dir/bootstrap.tar.gz" "$url"
+
+	step "Preparing bootstrap software"
+	(
+		cd "$bootstrap_dir"
+		tar xf bootstrap.tar.gz
+		mv "$bootstrap_dir"/root.*/* "$bootstrap_dir"
+		rmdir "$bootstrap_dir/root."*
+		rm "$bootstrap_dir/bootstrap.tar.gz"
+	)
+
+	step "Running bootstrap software"
+	setup_chroot "$bootstrap_dir"
+	mount --bind "$target_dir" "$bootstrap_dir/target-root"
+	setup_pacman "$bootstrap_dir"
+	#LC_ALL=C chroot "$bootstrap_dir" pacstrap -i "/target-root" base --ignore linux
+	LC_ALL=C chroot "$bootstrap_dir" pacstrap "/target-root" base
+
+	step "Removing temporary bootstrap files"
+	less_lethal_rm_rf "$bootstrap_dir"
+
+	step "Configuring"
+	setup_chroot "$target_dir"
+	setup_pacman "$target_dir"
+	LC_ALL=C chroot "$target_dir" pacman -R --noconfirm linux
+	localegen="$(cfg_value "locale" "localegen")"
+	if [ -n "${localegen:-}" ]; then
+		echo "### Added by Bedrock Linux when acquiring this stratum" >>"$target_dir/etc/locale.gen"
+		echo "$localegen" >>"$target_dir/etc/locale.gen"
+		LC_ALL=C chroot "$target_dir" locale-gen
+	else
+		notice "Could not determine desired locale, skipping setting locale"
+	fi
+	tear_down_chroot "$target_dir"
+
+	notice "Successfully acquired $distro stratum"
+}

@@ -34,43 +34,20 @@
 #define ARRAY_LEN(x) (sizeof(x) / sizeof(x[0]))
 #define MIN(x, y) (x < y ? x : y)
 
-/*
- * Surface the associated stratum and file path for files via xattrs.
- */
 #define STRATUM_XATTR "user.bedrock.stratum"
 #define STRATUM_XATTR_LEN strlen(STRATUM_XATTR)
 
 #define LPATH_XATTR "user.bedrock.localpath"
 #define LPATH_XATTR_LEN strlen(LPATH_XATTR)
 
-/*
- * The directory containing the roots of the various strata.  References to a
- * specific stratum's instance of a file go through this directory.
- */
-#define STRATA_ROOT "/bedrock/strata/"
-#define STRATA_ROOT_LEN strlen(STRATA_ROOT)
-
-/*
- * The file used to configure this filesystem.
- */
 #define CFG_NAME ".bedrock-config-filesystem"
 #define CFG_NAME_LEN strlen(CFG_NAME)
 
-/*
- * Stratum names
- */
-#define GLOBAL "global"
-/* TODO -> bedrock */
-#define BEDROCK "void"
+#define global_root "/proc/1/root/bedrock/strata/bedrock"
 
-/*
- * Headers for content written to CFG_NAME
- */
-#define CMD_ADD_STRATUM "add_stratum"
-#define CMD_ADD_STRATUM_LEN strlen(CMD_ADD_STRATUM)
+#define GLOBAL_STRATUM "bedrock"
 
-#define CMD_RM_STRATUM "rm_stratum"
-#define CMD_RM_STRATUM_LEN strlen(CMD_RM_STRATUM)
+#define ROOTDIR "/"
 
 #define CMD_ADD_GLOBAL "add_global"
 #define CMD_ADD_GLOBAL_LEN strlen(CMD_ADD_GLOBAL)
@@ -112,16 +89,15 @@
  */
 #define FS_IMP_SETUP(path)                                                   \
 	const char *const rpath = (path && path[1]) ? path + 1 : ".";        \
-	int ref_fd = get_ref_fd(path);                                       \
-	if (ref_fd < 0) {                                                    \
-		return -EIO;                                                 \
-	}                                                                    \
 	if (SET_THREAD_EUID(0) < 0) {                                        \
 		return -EPERM;                                               \
 	}                                                                    \
-	if (ref_fd != global_ref_fd &&                                       \
-			apply_override(ref_fd, path, rpath) < 0) {           \
-		return -EIO;                                                 \
+	int ref_fd = get_ref_fd(path);                                       \
+	if (ref_fd < 0) {                                                    \
+		return -EDOM;                                                \
+	}                                                                    \
+	if (apply_override(ref_fd, path, rpath) < 0) {                       \
+		return -ERANGE;                                              \
 	}                                                                    \
 	if (set_caller_permissions() < 0) {                                  \
 		return -EPERM;                                               \
@@ -138,16 +114,6 @@
 		errno = EINVAL;                                              \
 		FS_IMP_RETURN(-1);                                           \
 	}
-
-/*
- * Mapping from a stratum's name to that stratum's local equivalent of the
- * mount point.  This is needed to retain a reference to the filesystem under
- * each stratum's mounted instance of this filesystem.
- */
-struct stratum {
-	char *name;
-	int ref_fd;
-};
 
 /*
  * Override type.
@@ -189,22 +155,14 @@ struct override {
 };
 
 /*
- * The path onto which this filesystem is mounted.
+ * File descriptors to which into filesystem calls will be directed
  */
-static char *mntpt = NULL;
 
 /*
  * File descriptors referring to directories.
  */
 int global_ref_fd = -1;
-int strata_root_fd = -1;
-
-/*
- * Strata
- */
-struct stratum *strata = NULL;
-size_t stratum_cnt = 0;
-size_t stratum_alloc = 0;
+int local_ref_fd = -1;
 
 /*
  * Paths which should be global.
@@ -226,15 +184,20 @@ size_t override_alloc = 0;
 struct stat cfg_stat;
 
 /*
+ * The path onto which this filesystem is mounted.
+ */
+static char *mntpt = NULL;
+
+/*
+ * Local stratum name
+ */
+char local_name[PATH_MAX];
+
+/*
  * Lock around configuration access.  The vast majority of config access is
  * non-conflicting read-only, and thus a read-write lock is preferred.
  */
 pthread_rwlock_t cfg_lock;
-
-/*
- * Lock around applying overrides.
- */
-pthread_mutex_t override_lock;
 
 /*
  * Set the thread's euid, egid, and grouplist to that of the
@@ -306,33 +269,23 @@ static inline int get_ref_fd(const char *const path)
 		}
 	}
 
-	/*
-	 * File is local.  Look up which stratum corresponds to the calling
-	 * process.
-	 */
-	char local_root[PATH_MAX];
-	struct fuse_context *context = fuse_get_context();
-	int s = snprintf(local_root, sizeof(local_root), "/proc/%d/root",
-		context->pid);
-	if (s < 0 || s >= (int)sizeof(local_root)) {
+	return local_ref_fd;
+}
+
+/*
+ * Linux fails to provide system calls which apply to file descriptors and
+ * directly (without following) on symlinks.  For example, neither lgetxattr()
+ * nor fgetxattr() have both of these attributes.  We can use /proc as a work
+ * around to get a path dependent only on a file descriptor which can be fed
+ * into system calls that do not follow symlinks (e.g. lgetxattr).
+ */
+static inline int procpath(const int fd, char *buf, size_t size)
+{
+	int s = snprintf(buf, size, "/proc/self/fd/%d", fd);
+	if (s < 0 || s >= (int)size) {
 		return -1;
 	}
-
-	char stratum[PATH_MAX];
-	ssize_t len = getxattr(local_root, STRATUM_XATTR, stratum,
-		sizeof(stratum) - 1);
-	if (len < 0) {
-		return -1;
-	}
-	stratum[len] = '\0';
-
-	for (size_t i = 0; i < stratum_cnt; i++) {
-		if (strcmp(stratum, strata[i].name) == 0) {
-			return strata[i].ref_fd;
-		}
-	}
-
-	return -1;
+	return 0;
 }
 
 /*
@@ -464,14 +417,15 @@ static inline int apply_override(const int ref_fd, const char *const path,
 	char buf[PATH_MAX];
 	struct stat stbuf;
 
-	pthread_mutex_lock(&override_lock);
+	pthread_rwlock_wrlock(&cfg_lock);
 
 	switch (overrides[i].type) {
 	case TYPE_SYMLINK:
 		if (readlinkat(ref_fd, rpath, buf, sizeof(buf) - 1) >= 0
-			&& strcmp(buf, overrides[i].content) != 0) {
+			&& strcmp(buf, overrides[i].content) == 0) {
 			break;
 		}
+		unlinkat(ref_fd, rpath, 0);
 		unlinkat(ref_fd, rpath, AT_REMOVEDIR);
 		rv = symlinkat(overrides[i].content, ref_fd, rpath);
 		break;
@@ -481,12 +435,13 @@ static inline int apply_override(const int ref_fd, const char *const path,
 			&& S_ISDIR(stbuf.st_mode)) {
 			break;
 		}
+		unlinkat(ref_fd, rpath, 0);
 		unlinkat(ref_fd, rpath, AT_REMOVEDIR);
 		rv = mkdirat(ref_fd, rpath, 0755);
 		break;
 
 	case TYPE_INJECT:
-		if (fstatat(ref_fd, rpath, &stbuf, 0) < 0
+		if (fstatat(ref_fd, rpath, &stbuf, AT_SYMLINK_NOFOLLOW) < 0
 			|| !S_ISREG(stbuf.st_mode)) {
 			break;
 		}
@@ -495,149 +450,8 @@ static inline int apply_override(const int ref_fd, const char *const path,
 		break;
 	}
 
-	pthread_mutex_unlock(&override_lock);
+	pthread_rwlock_unlock(&cfg_lock);
 	return rv;
-}
-
-static int cfg_add_stratum(const char *const buf, const size_t size)
-{
-	/*
-	 * Ensure there is a trailing null so that sscanf doesn't overflow if
-	 * we get bad input.
-	 */
-	char nbuf[PIPE_BUF];
-	if (size > sizeof(nbuf) - 1) {
-		return -ENAMETOOLONG;
-	}
-	memcpy(nbuf, buf, size);
-	nbuf[size] = '\0';
-
-	/*
-	 * Tokenize
-	 */
-	char buf_cmd[PIPE_BUF];
-	char space;
-	char buf_stratum[PIPE_BUF];
-	char newline;
-	if (sscanf(nbuf, "%s%c%s%c", buf_cmd, &space, buf_stratum,
-			&newline) != 4) {
-		return -EINVAL;
-	}
-
-	/*
-	 * Sanity check
-	 */
-	if (strcmp(buf_cmd, CMD_ADD_STRATUM) != 0 || space != ' ' ||
-		newline != '\n' || strchr(buf_stratum, '/') != NULL) {
-		return -EINVAL;
-	}
-
-	/*
-	 * Don't double add.
-	 */
-	for (size_t i = 0; i < stratum_cnt; i++) {
-		if (strcmp(strata[i].name, buf_stratum) == 0) {
-			return -EINVAL;
-		}
-	}
-
-	if (stratum_alloc < stratum_cnt + 1) {
-		struct stratum *new_strata = realloc(strata, (stratum_cnt + 1) *
-			sizeof(struct stratum));
-		if (new_strata == NULL) {
-			return -ENOMEM;
-		}
-		strata = new_strata;
-		stratum_alloc = stratum_cnt + 1;
-	}
-
-	char *stratum = malloc(strlen(buf_stratum) + 1);
-	if (stratum == NULL) {
-		return -ENOMEM;
-	}
-	strcpy(stratum, buf_stratum);
-
-	int stratum_fd = openat(strata_root_fd, stratum, O_DIRECTORY);
-	if (stratum_fd < 0) {
-		free(stratum);
-		return -EINVAL;
-	}
-	int ref_fd = openat(stratum_fd, mntpt + 1, O_DIRECTORY);
-	close(stratum_fd);
-	if (ref_fd < 0) {
-		free(stratum);
-		return -EINVAL;
-	}
-
-	strata[stratum_cnt].name = stratum;
-	strata[stratum_cnt].ref_fd = ref_fd;
-	stratum_cnt++;
-
-	cfg_stat.st_size += strlen("stratum ") + strlen(stratum)
-		+ strlen("\n");
-
-	return size;
-}
-
-static int cfg_rm_stratum(const char *const buf, size_t size)
-{
-	/*
-	 * Ensure there is a trailing null so that sscanf doesn't overflow if
-	 * we get bad input.
-	 */
-	char nbuf[PIPE_BUF];
-	if (size > sizeof(nbuf) - 1) {
-		return -ENAMETOOLONG;
-	}
-	memcpy(nbuf, buf, size);
-	nbuf[size] = '\0';
-
-	/*
-	 * Tokenize
-	 */
-	char buf_cmd[PIPE_BUF];
-	char space;
-	char buf_stratum[PIPE_BUF];
-	char newline;
-	if (sscanf(nbuf, "%s%c%s%c", buf_cmd, &space, buf_stratum,
-			&newline) != 4) {
-		return -EINVAL;
-	}
-
-	/*
-	 * Sanity check
-	 */
-	if (strcmp(buf_cmd, CMD_RM_STRATUM) != 0 || space != ' ' ||
-		newline != '\n' || strchr(buf_stratum, '/') != NULL) {
-		return -EINVAL;
-	}
-
-	/*
-	 * Skipping i=0 as removing the initial stratum is disallowed.
-	 */
-	size_t i;
-	for (i = 1; i < stratum_cnt; i++) {
-		if (strcmp(strata[i].name, buf_stratum) == 0) {
-			break;
-		}
-	}
-	if (i == stratum_cnt) {
-		return size;
-	}
-
-	cfg_stat.st_size += strlen("stratum ") + strlen(strata[i].name)
-		+ strlen("\n");
-
-	free(strata[i].name);
-	close(strata[i].ref_fd);
-	stratum_cnt--;
-
-	if (i != stratum_cnt) {
-		strata[i].name = strata[stratum_cnt].name;
-		strata[i].ref_fd = strata[stratum_cnt].ref_fd;
-	}
-
-	return size;
 }
 
 static int cfg_add_global(const char *const buf, size_t size)
@@ -678,7 +492,7 @@ static int cfg_add_global(const char *const buf, size_t size)
 	 */
 	for (size_t i = 0; i < global_cnt; i++) {
 		if (strcmp(globals[i], buf_global) == 0) {
-			return -EINVAL;
+			return 0;
 		}
 	}
 
@@ -841,23 +655,34 @@ static int cfg_add_override(const char *const buf, size_t size)
 		inject = NULL;
 	}
 
-	for (size_t i = 0; i < override_cnt; i++) {
-		if (strcmp(overrides[i].path, buf_path) != 0) {
-			continue;
-		}
-		if (type != TYPE_INJECT) {
-			goto free_and_abort_enomem;
-		}
-		/* double add inject indicates replace old content with new */
-		for (size_t j = 0; j < stratum_cnt; j++) {
-			(void)uninject(strata[j].ref_fd,
-				overrides[i].path + 1,
+	if (type == TYPE_INJECT) {
+		for (size_t i = 0; i < override_cnt; i++) {
+			if (strcmp(overrides[i].path, buf_path) != 0) {
+				continue;
+			}
+			if (overrides[i].type != type) {
+				continue;
+			}
+			/*
+			 * double add inject indicates replace old content with
+			 * new
+			 */
+			(void)uninject(local_ref_fd, overrides[i].path + 1,
 				overrides[i].inject, overrides[i].inject_len);
+			free(overrides[i].inject);
+			overrides[i].inject = inject;
+			overrides[i].inject_len = inject_len;
+			return 0;
 		}
-		free(overrides[i].inject);
-		overrides[i].inject = inject;
-		overrides[i].inject_len = inject_len;
-		return 0;
+	}
+
+	/*
+	 * Avoid duplicate entries
+	 */
+	for (size_t i = 0; i < override_cnt; i++) {
+		if (strcmp(overrides[i].path, buf_path) == 0) {
+			return 0;
+		}
 	}
 
 	if (override_alloc < override_cnt + 1) {
@@ -955,10 +780,8 @@ static int cfg_rm_override(const char *const buf, size_t size)
 	}
 
 	if (overrides[i].type == TYPE_INJECT) {
-		for (size_t j = 0; j < stratum_cnt; j++) {
-			(void)uninject(strata[j].ref_fd, overrides[i].path + 1,
-				overrides[i].inject, overrides[i].inject_len);
-		}
+		(void)uninject(local_ref_fd, overrides[i].path + 1,
+			overrides[i].inject, overrides[i].inject_len);
 	}
 
 	cfg_stat.st_size -= strlen("override ") +
@@ -982,17 +805,12 @@ static int cfg_rm_override(const char *const buf, size_t size)
 
 static int cfg_read(char *buf, size_t size, off_t offset)
 {
-	char *str = malloc(cfg_stat.st_size);
+	char *str = malloc(cfg_stat.st_size + 1);
 	if (str == NULL) {
 		return -ENOMEM;
 	}
 	memset(str, 0, cfg_stat.st_size);
 
-	for (size_t i = 0; i < stratum_cnt; i++) {
-		strcat(str, "stratum ");
-		strcat(str, strata[i].name);
-		strcat(str, "\n");
-	}
 	for (size_t i = 0; i < global_cnt; i++) {
 		strcat(str, "global ");
 		strcat(str, globals[i]);
@@ -1036,7 +854,11 @@ static int m_access(const char *path, int mask)
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	rv = faccessat(ref_fd, rpath, mask, AT_EACCESS | AT_SYMLINK_NOFOLLOW);
+	/*
+	 * TODO: musl does not currently support AT_SYMLINK_NOFOLLOW on
+	 * faccessat.  Ask them to add support then utilize it, if possible.
+	 */
+	rv = faccessat(ref_fd, rpath, mask, AT_EACCESS);
 
 	FS_IMP_RETURN(rv);
 }
@@ -1065,7 +887,7 @@ static int m_opendir(const char *path, struct fuse_file_info *fi)
 	DISALLOW_ON_CFG(rpath);
 
 	DIR *d;
-	int fd = openat(ref_fd, rpath, O_DIRECTORY | O_RDONLY);
+	int fd = openat(ref_fd, rpath, O_DIRECTORY | O_RDONLY | O_NOFOLLOW);
 	if (fd < 0) {
 		rv = -1;
 	} else if ((d = fdopendir(fd)) == NULL) {
@@ -1233,7 +1055,7 @@ static int m_symlink(const char *symlink_string, const char *path)
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	rv = symlinkat(rpath, ref_fd, symlink_string);
+	rv = symlinkat(symlink_string, ref_fd, rpath);
 
 	FS_IMP_RETURN(rv);
 }
@@ -1272,18 +1094,18 @@ static int m_rmdir(const char *path)
  *   being unsafe, and the usual alternatives like mkstemp don't accept a
  *   target directory.
  * - open()ing with O_TMPFILE, populating, then linkat()ing the new file.  This
- *   will be idea once AT_REPLACE support for linkat() lands, but at the moment
+ *   will be ideal once AT_REPLACE support for linkat() lands, but at the moment
  *   it is not available.  This also bumps the kernel version requirement
  *   substantially.
  */
 static int m_rename(const char *from, const char *to, unsigned int flags)
 {
 	FS_IMP_SETUP(from);
+	int to_ref_fd = get_ref_fd(to);
 	from = (from && from[1]) ? from + 1 : ".";
 	to = (to && to[1]) ? to + 1 : ".";
 	DISALLOW_ON_CFG(from);
 	DISALLOW_ON_CFG(to);
-	int to_ref_fd = get_ref_fd(to);
 
 	rv = -1;
 	int from_fd = -1;
@@ -1291,6 +1113,8 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 	struct stat stbuf;
 	void *from_p = NULL;
 	void *to_p = NULL;
+	char buf[PATH_MAX];
+	ssize_t bytes_read;
 
 	if (flags) {
 		/*
@@ -1300,58 +1124,94 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 		goto free_unlock_and_return;
 	}
 
-	if ((from_fd = openat(ref_fd, from, O_RDONLY) < 0)) {
-		goto free_unlock_and_return;
-	}
-
-	if (fstat(from_fd, &stbuf) < 0) {
-		goto free_unlock_and_return;
-	}
-
-	if ((to_fd = openat(to_ref_fd, to, O_CREAT | O_RDWR,
-				stbuf.st_mode)) < 0) {
-		goto free_unlock_and_return;
-	}
-
 	/*
-	 * If ref_fd's are the same, can use rename().
+	 * Try to renameat() first.  Only if it fails due to EXDEV fall back to
+	 * manually handling the request.
 	 */
-	if (from_fd == to_fd) {
-		rv = renameat(from_fd, from, to_fd, to);
+	rv = renameat(ref_fd, from, to_ref_fd, to);
+	if (rv >= 0 || (rv < 0 && errno != EXDEV)) {
 		goto free_unlock_and_return;
 	}
 
-	if (fallocate(to_fd, 0, 0, stbuf.st_size) < 0) {
+	if (fstatat(ref_fd, from, &stbuf, AT_SYMLINK_NOFOLLOW) < 0) {
 		goto free_unlock_and_return;
 	}
 
-	if ((from_p = mmap(NULL, stbuf.st_size, PROT_READ,
-				MAP_SHARED, from_fd, 0)) == NULL) {
+	switch (stbuf.st_mode & S_IFMT) {
+	case S_IFBLK:
+	case S_IFCHR:
+	case S_IFIFO:
+	case S_IFSOCK:
+		if (mknodat(to_ref_fd, to, stbuf.st_mode, stbuf.st_rdev) < 0) {
+			goto free_unlock_and_return;
+		}
+		break;
+	case S_IFLNK:
+		bytes_read = readlinkat(ref_fd, from, buf, sizeof(buf));
+		if (bytes_read < 0 || (size_t) bytes_read >= sizeof(buf)) {
+			goto free_unlock_and_return;
+		}
+		buf[bytes_read] = '\0';
+		if (symlinkat(buf, to_ref_fd, to) < 0) {
+			goto free_unlock_and_return;
+		}
+		break;
+	case S_IFDIR:
+		if (mkdirat(to_ref_fd, to, stbuf.st_mode) < 0) {
+			goto free_unlock_and_return;
+		}
+		break;
+	case S_IFREG:
+		if ((from_fd = openat(ref_fd, from, O_RDONLY | O_NOFOLLOW)) < 0) {
+			goto free_unlock_and_return;
+		}
+		if ((to_fd = openat(to_ref_fd, to,
+					O_CREAT | O_RDWR | O_NOFOLLOW,
+					stbuf.st_mode)) < 0) {
+			goto free_unlock_and_return;
+		}
+		while ((bytes_read = read(from_fd, buf, sizeof(buf))) > 0) {
+			if (write(to_fd, buf, bytes_read) != bytes_read) {
+				goto free_unlock_and_return;
+			}
+		}
+		if (ftruncate(to_fd, stbuf.st_size) < 0) {
+			goto free_unlock_and_return;
+		}
+		break;
+	}
+
+	if (fchownat(to_ref_fd, to, stbuf.st_uid, stbuf.st_gid,
+			AT_SYMLINK_NOFOLLOW) < 0) {
 		goto free_unlock_and_return;
 	}
 
-	if ((to_p = mmap(NULL, stbuf.st_size, PROT_READ | PROT_WRITE,
-				MAP_SHARED, to_fd, 0)) == NULL) {
+	if (fchmodat(to_ref_fd, to, stbuf.st_mode, AT_SYMLINK_NOFOLLOW) < 0) {
 		goto free_unlock_and_return;
 	}
 
-	memcpy(to_p, from_p, stbuf.st_size);
-	msync(to_p, stbuf.st_size, MS_SYNC);
+	int unlinkflag = 0;
+	if (S_ISDIR(stbuf.st_mode)) {
+		unlinkflag = AT_REMOVEDIR;
+	}
+	if (unlinkat(ref_fd, from, unlinkflag) < 0) {
+		goto free_unlock_and_return;
+	}
 
 	rv = 0;
 
 free_unlock_and_return:
-	if (from_fd >= 0) {
-		close(from_fd);
-	}
-	if (to_fd >= 0) {
-		close(to_fd);
-	}
 	if (from_p != NULL) {
 		munmap(from_p, stbuf.st_size);
 	}
 	if (to_p != NULL) {
 		munmap(to_p, stbuf.st_size);
+	}
+	if (from_fd >= 0) {
+		close(from_fd);
+	}
+	if (to_fd >= 0) {
+		close(to_fd);
 	}
 
 	FS_IMP_RETURN(rv);
@@ -1403,7 +1263,7 @@ static int m_truncate(const char *path, off_t size, struct fuse_file_info *fi)
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_RDWR);
+	int fd = openat(ref_fd, rpath, O_RDWR | O_NOFOLLOW);
 	if (fd < 0) {
 		rv = fd;
 	} else {
@@ -1484,7 +1344,7 @@ static int m_read(const char *path, char *buf, size_t size, off_t offset,
 			errno = EACCES;
 		}
 	} else {
-		int fd = openat(ref_fd, rpath, O_RDONLY);
+		int fd = openat(ref_fd, rpath, O_RDONLY | O_NOFOLLOW);
 		if (fd >= 0) {
 			rv = pread(fd, buf, size, offset);
 			close(fd);
@@ -1510,12 +1370,6 @@ static int m_write(const char *path, const char *buf, size_t size,
 		struct fuse_context *context = fuse_get_context();
 		if (context->uid != 0) {
 			rv = -EACCES;
-		} else if (strncmp(buf, CMD_ADD_STRATUM,
-				CMD_ADD_STRATUM_LEN) == 0) {
-			rv = cfg_add_stratum(buf, size);
-		} else if (strncmp(buf, CMD_RM_STRATUM,
-				CMD_RM_STRATUM_LEN) == 0) {
-			rv = cfg_rm_stratum(buf, size);
 		} else if (strncmp(buf, CMD_ADD_GLOBAL,
 				CMD_ADD_GLOBAL_LEN) == 0) {
 			rv = cfg_add_global(buf, size);
@@ -1533,7 +1387,7 @@ static int m_write(const char *path, const char *buf, size_t size,
 		pthread_rwlock_unlock(&cfg_lock);
 		pthread_rwlock_rdlock(&cfg_lock);
 	} else {
-		int fd = openat(ref_fd, rpath, O_RDONLY);
+		int fd = openat(ref_fd, rpath, O_WRONLY | O_NOFOLLOW);
 		if (fd >= 0) {
 			rv = pwrite(fd, buf, size, offset);
 			close(fd);
@@ -1550,7 +1404,7 @@ static int m_statfs(const char *path, struct statvfs *stbuf)
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_RDWR);
+	int fd = openat(ref_fd, rpath, O_RDWR | O_NOFOLLOW);
 	if (fd >= 0) {
 		rv = fstatvfs(fd, stbuf);
 		close(fd);
@@ -1602,6 +1456,23 @@ static int m_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 	} else {
 		rv = fsync(fi->fh);
 	}
+	/*
+	 * libfuse provides two examples on how to implement this function.
+	 *
+	 * - One example is effectively the same as the implementation above.
+	 *   However, sometimes the implementation above fails because fi->fh
+	 *   is not a valid file descriptor.
+	 *
+	 * - The other example is a stub which fails to do anything.  Per its
+	 *   comments, this is fine - this filesystem call is non-essential.
+	 *
+	 * We'll try our best above, but if that fails fall back to silently
+	 * continuing rather than unproductively interrupting the calling
+	 * program.
+	 */
+	if (rv < 0 && errno == EINVAL) {
+		rv = 0;
+	}
 
 	FS_IMP_RETURN(rv);
 }
@@ -1614,7 +1485,7 @@ static int m_fallocate(const char *path, int mode,
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_RDWR);
+	int fd = openat(ref_fd, rpath, O_RDWR | O_NOFOLLOW);
 	if (fd >= 0) {
 		rv = fallocate(fd, mode, offset, length);
 		close(fd);
@@ -1632,9 +1503,15 @@ static int m_setxattr(const char *path, const char *name, const char *value,
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_RDWR);
+	int fd = openat(ref_fd, rpath, O_RDWR | O_NOFOLLOW);
 	if (fd >= 0) {
-		rv = fsetxattr(fd, name, value, size, flags);
+		char buf[PATH_MAX];
+		if (procpath(fd, buf, sizeof(buf)) < 0) {
+			rv = -1;
+			errno = ENAMETOOLONG;
+		} else {
+			rv = lsetxattr(buf, name, value, size, flags);
+		}
 		close(fd);
 	} else {
 		rv = -1;
@@ -1647,30 +1524,70 @@ static int m_getxattr(const char *path, const char *name, char *value,
 	size_t size)
 {
 	FS_IMP_SETUP(path);
-	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_RDONLY);
-	if (fd < 0) {
-		rv = -1;
-	} else if (strcmp(STRATUM_XATTR, name) == 0 && ref_fd == global_ref_fd) {
+	int fd = -1;
+	if (strcmp(rpath, CFG_NAME) == 0 && strcmp(STRATUM_XATTR, name) == 0) {
 		if (size <= 0) {
-			rv = strlen(GLOBAL);
-		} else if (size < strlen(GLOBAL)) {
+			rv = strlen(GLOBAL_STRATUM);
+		} else if (size < strlen(GLOBAL_STRATUM)) {
 			rv = -1;
 			errno = ERANGE;
 		} else {
-			rv = strlen(GLOBAL);
-			strcpy(value, GLOBAL);
+			rv = strlen(GLOBAL_STRATUM);
+			strcpy(value, GLOBAL_STRATUM);
+		}
+	} else if (strcmp(rpath, CFG_NAME) == 0
+		&& strcmp(LPATH_XATTR, name) == 0) {
+		if (size <= 0) {
+			rv = strlen(ROOTDIR);
+		} else if (size < strlen(ROOTDIR)) {
+			rv = -1;
+			errno = ERANGE;
+		} else {
+			rv = strlen(ROOTDIR);
+			strcpy(value, ROOTDIR);
+		}
+	} else if (strcmp(rpath, CFG_NAME) == 0) {
+		rv = -1;
+		errno = ENODATA;
+	} else if ((fd = openat(ref_fd, rpath, O_RDONLY | O_NOFOLLOW)) < 0) {
+		/*
+		 * Apparently lgetxattr directly on the file path works where
+		 * openat()+fgetxattr/lgetxattr() gets EACCES.  However, we
+		 * can't access the files with the direct path as that would
+		 * just recurse back to this filesystem; this entire design
+		 * revolves around using the file descriptors.
+		 *
+		 * The vast, vast majority of the time this is an issue in
+		 * practice is when GNU ls is called on files in /etc on which
+		 * it does not have read permissions, such as `ls -l /etc`,
+		 * looking for selinux tags.  Since we know what that would
+		 * typically return - ENODATA - we can just return that as an
+		 * ugly hack.
+		 */
+		if (errno == EACCES) {
+			errno = ENODATA;
+		}
+		rv = -1;
+	} else if (strcmp(STRATUM_XATTR, name) == 0 && ref_fd == global_ref_fd) {
+		if (size <= 0) {
+			rv = strlen(GLOBAL_STRATUM);
+		} else if (size < strlen(GLOBAL_STRATUM)) {
+			rv = -1;
+			errno = ERANGE;
+		} else {
+			rv = strlen(GLOBAL_STRATUM);
+			strcpy(value, GLOBAL_STRATUM);
 		}
 	} else if (strcmp(STRATUM_XATTR, name) == 0) {
-		struct fuse_context *context = fuse_get_context();
-		char local_root[PATH_MAX];
-		int s = snprintf(local_root, sizeof(local_root),
-			"/proc/%d/root", context->pid);
-		if (s < 0 || s >= (int)sizeof(local_root)) {
-			rv = -E2BIG;
+		if (size <= 0) {
+			rv = strlen(local_name);
+		} else if (size < strlen(local_name)) {
+			rv = -1;
+			errno = ERANGE;
 		} else {
-			rv = getxattr(local_root, name, value, size);
+			rv = strlen(local_name);
+			strcpy(value, local_name);
 		}
 	} else if (strcmp(LPATH_XATTR, name) == 0) {
 		char lpath[PATH_MAX];
@@ -1688,9 +1605,15 @@ static int m_getxattr(const char *path, const char *name, char *value,
 			strcpy(value, lpath);
 		}
 	} else {
-		rv = fgetxattr(fd, name, value, size);
+		char buf[PATH_MAX];
+		if (procpath(fd, buf, sizeof(buf)) < 0) {
+			rv = -1;
+			errno = ENAMETOOLONG;
+		} else {
+			rv = lgetxattr(buf, name, value, size);
+		}
 	}
-	if (fd < 0) {
+	if (fd >= 0) {
 		close(fd);
 	}
 
@@ -1702,9 +1625,15 @@ static int m_listxattr(const char *path, char *list, size_t size)
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_RDWR);
+	int fd = openat(ref_fd, rpath, O_RDWR | O_NOFOLLOW);
 	if (fd >= 0) {
-		rv = flistxattr(fd, list, size);
+		char buf[PATH_MAX];
+		if (procpath(fd, buf, sizeof(buf)) < 0) {
+			rv = -1;
+			errno = ENAMETOOLONG;
+		} else {
+			rv = llistxattr(buf, list, size);
+		}
 		close(fd);
 	} else {
 		rv = -1;
@@ -1718,9 +1647,15 @@ static int m_removexattr(const char *path, const char *name)
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_RDWR);
+	int fd = openat(ref_fd, rpath, O_RDWR | O_NOFOLLOW);
 	if (fd >= 0) {
-		rv = fremovexattr(fd, name);
+		char buf[PATH_MAX];
+		if (procpath(fd, buf, sizeof(buf)) < 0) {
+			rv = -1;
+			errno = ENAMETOOLONG;
+		} else {
+			rv = lremovexattr(buf, name);
+		}
 		close(fd);
 	} else {
 		rv = -1;
@@ -1796,7 +1731,7 @@ int main(int argc, char *argv[])
 	 * process permissions.
 	 */
 	if (getuid() != 0) {
-		fprintf(stderr, "etcfs error: not running as root.\n");
+		fprintf(stderr, "error: not running as root.\n");
 		return 1;
 	}
 
@@ -1805,43 +1740,51 @@ int main(int argc, char *argv[])
 	 */
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 	if (fuse_opt_parse(&args, NULL, NULL, NULL) < 0) {
-		fprintf(stderr, "etcfs: error parsing arguments.\n");
+		fprintf(stderr, "error: unable to parse arguments.\n");
 		return 1;
 	}
 	struct fuse_cmdline_opts opts;
 	if (fuse_parse_cmdline(&args, &opts) < 0) {
-		fprintf(stderr, "etcfs: error parsing arguments.\n");
+		fprintf(stderr, "error: unable to parse arguments.\n");
 		return 1;
 	}
 	if (opts.mountpoint == NULL) {
-		fprintf(stderr, "etcfs: error no mount point provided.\n");
+		fprintf(stderr, "error: no mount point provided.\n");
 		return 1;
 	}
 
+	/*
+	 * Get local mount point reference before mounting over.
+	 */
 	mntpt = opts.mountpoint;
+	if ((local_ref_fd = open(mntpt, O_DIRECTORY)) < 0) {
+		fprintf(stderr, "error: unable to open local mount point\n");
+		return 1;
+	}
 	/*
-	 * Get reference to mount point before mounting over it so we can
-	 * reference files under it.
+	 * Get global mount point reference
 	 */
-	if ((global_ref_fd = open(opts.mountpoint, O_DIRECTORY)) < 0) {
-		fprintf(stderr, "etcfs: error unable to open mount point\n");
+	int global_root_fd = open(global_root, O_DIRECTORY);
+	const char *const rmntpt = (mntpt && mntpt[1]) ? mntpt + 1 : ".";
+	if ((global_ref_fd = openat(global_root_fd, rmntpt, O_DIRECTORY)) < 0) {
+		fprintf(stderr, "error: unable to open global mount point\n");
+		return 1;
+	}
+	close(global_root_fd);
+
+	/*
+	 * Get local stratum name
+	 */
+	if (lgetxattr("/", STRATUM_XATTR, local_name, sizeof(local_name)) < 0) {
+		fprintf(stderr, "error: unable to determine local stratum\n");
 		return 1;
 	}
 
 	/*
-	 * Get strata root reference
+	 * Initialize mutex
 	 */
-	if ((strata_root_fd = open(STRATA_ROOT, O_DIRECTORY)) < 0) {
-		fprintf(stderr, "etcfs: unable to open \"" STRATA_ROOT "\".\n");
-		return 1;
-	}
-
-	/*
-	 * Initialize mutexes
-	 */
-	if (pthread_rwlock_init(&cfg_lock, NULL) < 0
-		|| pthread_mutex_init(&override_lock, NULL) < 0) {
-		fprintf(stderr, "etcfs: error initializing mutexes\n");
+	if (pthread_rwlock_init(&cfg_lock, NULL) < 0) {
+		fprintf(stderr, "error: initializing mutexes\n");
 		return 1;
 	}
 
@@ -1854,23 +1797,6 @@ int main(int argc, char *argv[])
 	cfg_stat.st_atime = cfg_stat.st_ctime;
 	cfg_stat.st_mode = S_IFREG | 0600;
 	cfg_stat.st_size = 0;
-
-	/*
-	 * Hard code initial stratum.  This is required as otherwise no
-	 * processes would be able to submit new configuration.
-	 */
-	strata = malloc(sizeof(struct stratum) * 1);
-	if (strata == NULL) {
-		fprintf(stderr, "etcfs: error initializing configuration "
-			"(ENOMEM)\n");
-		return 1;
-	}
-	stratum_cnt = 1;
-	stratum_alloc = 1;
-	strata[0].name = BEDROCK;
-	strata[0].ref_fd = open(mntpt, O_DIRECTORY);
-	cfg_stat.st_size += strlen("stratum ") + strlen(strata[0].name)
-		+ strlen("\n");
 
 	/*
 	 * Clear umask

@@ -1,0 +1,115 @@
+#!/bedrock/libexec/busybox sh
+#
+# CRUX bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_arch_support() {
+	[ "$(uname -m)" = "x86_64" ]
+}
+
+# Marked experimental due to a lack of maintainer.  If an active member of the
+# Bedrock Linux community builds adequate trust and offers to maintain it, the
+# experimental tag may be dropped.
+check_experimental() {
+	true
+}
+
+list_mirrors() {
+	mirror_list_url='https://crux.nu/Main/Download'
+	wget -O- "$mirror_list_url" 2>/dev/null |
+		awk '/<table/,/<\/table/' |
+		list_links |
+		grep "^http"
+}
+
+speed_test_url() {
+	echo "latest/ChangeLog"
+}
+
+list_releases() {
+	for mirror in "${flag_mirror:-}" $(list_mirrors); do
+		if wget -O- "$mirror" 2>/dev/null |
+			list_links |
+			grep -e '^crux-[0-9]' -e 'latest' |
+			sed -e 's/^crux-//' -e 's,/$,,'; then
+			break
+		fi
+	done
+}
+
+default_release() {
+	list_releases |
+		sort -n |
+		tail -n1
+}
+
+fetch() {
+	step_init 10
+
+	if [ -z "${target_dir:-}" ] || [ -z "${arch:-}" ] || [ -z "${arch2:-}" ]; then
+		abort "Essential variable not set"
+	fi
+
+	step "Determining name"
+	name="${flag_name:-${distro}}"
+	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining release"
+	release="${flag_release:-$(default_release)}"
+	notice "Using ${color_file}${release}${color_norm}"
+
+	step "Determining mirror"
+	mirror="$(pick_mirror "$(speed_test_url)")"
+	notice "Using ${color_link}$mirror${color_norm}"
+
+	step "Making directory structure"
+	bootstrap_dir="$target_dir/brl-bootstrap"
+	mkdir -p "$target_dir" "$bootstrap_dir/target-root"
+
+	step "Downloading bootstrap software"
+	url="$(find_link "$mirror/crux-$release/iso" "crux-.*.iso")"
+	wget -O "$bootstrap_dir/crux.iso" "$url"
+
+	step "Preparing bootstrap software"
+	mount -t iso9660-t iso9660 -o loop,ro "$bootstrap_dir/crux.iso" "$bootstrap_dir"
+	cat "$bootstrap_dir"/crux/core/pkgutils*.tar.xz | xz -d | tar xf - -O usr/bin/pkgadd >"$target_dir/pkgadd"
+	chmod a+rx "$target_dir/pkgadd"
+	mkdir -p "$target_dir/var/lib/pkg"
+	touch "$target_dir/var/lib/pkg/db"
+
+	step "Running bootstrap software"
+	total="$(find "$bootstrap_dir/crux/core/" -mindepth 1 -maxdepth 1 | wc -l)"
+	for pkg in "$bootstrap_dir"/crux/core/*; do
+		echo "$pkg"
+		# hiding stderr to ignore noise about .py files not being ELF files
+		"$target_dir/pkgadd" -r "$target_dir" "$pkg" 2>/dev/null
+	done | progress_bar "$total"
+
+	step "Removing temporary bootstrap files"
+	less_lethal_rm_rf "$bootstrap_dir"
+	rm "$target_dir/pkgadd"
+
+	step "Configure"
+
+	sed \
+		-e "s/^HOSTNAME=.*/HOSTNAME=$(hostname)/" \
+		-e "s,^TIMEZONE=.*,TIMEZONE=/etc/localtime," \
+		"$target_dir/etc/rc.conf" >"$target_dir/etc/rc.conf-tmp"
+	mv "$target_dir/etc/rc.conf-tmp" "$target_dir/etc/rc.conf"
+
+	# Hack to fix concern around shutdown script running off of bedrock
+	# fuse filesystem.
+	mv "$target_dir/etc/rc.shutdown" "$target_dir/rc.shutdown"
+	ln -s "../rc.shutdown" "$target_dir/etc/rc.shutdown"
+
+	notice "Successfully acquired $distro stratum"
+}

@@ -1,0 +1,186 @@
+#compdef brl
+# zsh tab completion for brl
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+_brl_subcommands() {
+	local -a args
+	args=(
+		"help:Print help message"
+
+		"strat:Run specified stratum's executable"
+		'list:List strata'
+		'which:Query which stratum provides object'
+
+		'fetch:Fetch new strata'
+		'remove:Remove strata (or aliases)'
+		'rename:Rename a stratum'
+
+		'status:Query stratum status'
+		'enable:Enable or fix strata'
+		'disable:Disable strata'
+		'repair:Repairs broken strata'
+
+		'hide:Hide strata'
+		'show:Show strata'
+
+		'alias:Create a stratum alias'
+		'deref:Dereference stratum aliases'
+
+		'update:Update Bedrock Linux system'
+		'reload:Reload configuration'
+		'version:Query Bedrock Linux version'
+		'report:Generate report'
+	)
+	_describe 'brl subcommand' args
+}
+
+# Strip brl then pass to normal zsh completion, which should pick up
+# stand-alone strat completion.
+_brl_strat() {
+	words[1]=() CURRENT=$((CURRENT - 1)) _normal
+}
+
+
+local -a args
+args=(
+	'1:brl subcommand:_brl_subcommands'
+)
+
+# Every subcommand has -h/--help.    However, pass-through logic for strat gets
+# confused if -h is listed in addition to pass-through version.
+if [[ "$CURRENT" -lt 4 ]] && [[ "$words[2]" != "strat" ]]; then
+	args+=('(-h --help)'{-h,--help}'[print help message]')
+fi
+
+case "$words[2]" in
+"strat")
+	args+=('2:brl subcommand:_brl_strat')
+	;;
+"list")
+	args+=('(-e --enabled-strata)'{-e,--enabled-strata}'[list enabled strata]')
+	args+=('(-E --enabled-aliases)'{-E,--enabled-aliases}'[list aliases to enabled strata]')
+	args+=('(-d --disabled-strata)'{-d,--disabled-strata}'[list disabled strata]')
+	args+=('(-D --disabled-aliases)'{-D,--disabled-aliases}'[list aliases to disabled strata]')
+	args+=('(-a --all-strata)'{-a,--all-strata}'[list all strata]')
+	args+=('(-A --all-aliases)'{-A,--all-aliases}'[list all aliases')
+	;;
+"which")
+	if [[ "$CURRENT" -eq 3 ]]; then
+		args+=('(-c --current)'{-c,--current}'[which stratum provides current process]')
+		args+=('(-b --bin)'{-b,--bin}'[which stratum provides a given binary in $PATH]')
+		args+=('(-f --file)'{-f,--file}'[which stratum provides a given file path]')
+		args+=('(-p --pid)'{-p,--pid}'[which stratum provides a given process ID]')
+		args+=('(-x --xwindow)'{-x,--xwindow}'[which stratum provides a given X11 window]')
+	fi
+	case "$words[3]" in
+	"-c"|"--current")
+		;;
+	"-b"|"--bin")
+		_arguments "*:binary:_command_names -e"
+		;;
+	"-f"|"--file")
+		_arguments "*:file:_path_files -f"
+		;;
+	"-p"|"--pid")
+		_arguments "*:pid:($(ls -1 /proc | grep '^[0-9]*$'))"
+		;;
+	"-x"|"--xwindow")
+		;;
+	"-h"|"--help")
+		;;
+	*)
+		_arguments "*:binary:_command_names -e"
+		_arguments "*:file:_path_files -f"
+		_arguments "*:pid:($(ls -1 /proc | grep '^[0-9]*$'))"
+		;;
+	esac
+	;;
+"fetch")
+	if [[ "$CURRENT" -eq 3 ]]; then
+		args+=('(-l --list)'{-l,--list}'[list supported distros]')
+		args+=('(-x --experimental)'{-x,--experimental}'[list experimental distros]')
+	fi
+	args+=('(-R --releases)'{-R,--releases}'[list releases provided by distros]')
+	args+=('-n[specify name]:new stratum name:')
+	args+=('--name[specify name]:new stratum name:')
+	args+=('-r[specify distro release to fetch]:release:')
+	args+=('--release[specify distro release to fetch]:release:')
+	args+=('-m[specify desired mirror]:mirror:')
+	args+=('--mirror[specify desired mirror]:mirror:')
+	args+=('(-e --dont-enable)'{-e,--dont-enable}'[skip enabling newly fetched strata]')
+	args+=('(-s --dont-show)'{-s,--dont-show}'[skip showing newly fetched strata]')
+	args+=("*:distro:($(/bedrock/bin/brl fetch -l))")
+	;;
+"remove")
+	# TODO: do not list disabled strata if `-d` flag is missing
+	args+=("*:aliases and disabled strata:($(/bedrock/bin/brl list -aA | grep -ve "^bedrock\$" -ve "^init\$"))")
+	;;
+"rename")
+	args+=("2:alias or disabled stratum:($(/bedrock/bin/brl list -dD | grep -ve "^bedrock\$" -ve "^init\$")))")
+	args+=("3:new name:")
+	;;
+"status")
+	args+=("*:strata or aliases:($(/bedrock/bin/brl list -aA))")
+	;;
+"enable")
+	args+=("*:strata or aliases:($(/bedrock/bin/brl list -dD))")
+	;;
+"disable")
+	args+=("*:enabled strata or aliases:($(
+		for stratum in $(brl list -eE); do
+			if [ "$(/bedrock/bin/brl deref "$stratum")" = "bedrock" ]; then
+				continue;
+			elif [ "$(/bedrock/bin/brl deref "$stratum")" = "$(/bedrock/bin/brl deref init)" ]; then
+				continue;
+			fi
+			echo "$stratum";
+		done
+	))")
+	;;
+"repair")
+	args+=("*:strata or aliases:($(/bedrock/bin/brl list -aA))")
+	;;
+"hide")
+	args+=('(-a --all)'{-a,--all}'[hide from all subsystems]')
+	args+=('(-b --boot)'{-b,--boot}'[do not automatically enable stratum during boot]')
+	args+=("(-c --cross)"{-c,--cross}"[do not include stratum's files in /bedrock/cross]")
+	args+=("(-i --init)"{-i,--init}"[do not include stratum's init options during boot]")
+	args+=("*:strata or aliases:($(/bedrock/bin/brl list -aA))")
+	;;
+"show")
+	args+=('(-a --all)'{-a,--all}'[show in all subsystems]')
+	args+=('(-b --boot)'{-b,--boot}'[automatically enable stratum during boot]')
+	args+=("(-c --cross)"{-c,--cross}"[include stratum's files in /bedrock/cross]")
+	args+=("(-i --init)"{-i,--init}"[include stratum's init options during boot]")
+	args+=("*:strata or aliases:($(/bedrock/bin/brl list -aAi))")
+	;;
+"alias")
+	args+=("2:stratum:($(/bedrock/bin/brl list -a))")
+	args+=("3:new alias:")
+	;;
+"deref")
+	args+=("*:aliases:($(/bedrock/bin/brl list -A))")
+	;;
+"update")
+	args+=('-m[specify desired mirror]:mirror:')
+	args+=('--mirror[specify desired mirror]:mirror:')
+	args+=('(-s --skip-check'{-s,--skip-check}'[skip cryptographic signature check]')
+	;;
+"apply")
+	;; # no parameters other than -h/--help
+"version")
+	;; # no parameters other than -h/--help
+"report")
+	args+=('(-o --overwrite)'{-o,--overwrite}'[overwrite file at report path]')
+	_arguments "*:report output location:_path_files -f"
+	;;
+esac
+
+_arguments $args
+

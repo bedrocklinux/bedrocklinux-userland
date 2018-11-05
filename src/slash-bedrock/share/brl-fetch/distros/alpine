@@ -1,0 +1,112 @@
+#!/bedrock/libexec/busybox sh
+#
+# Alpine Linux bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_arch_support() {
+	[ "$(uname -m)" = "x86_64" ]
+}
+
+check_experimental() {
+	false
+}
+
+list_mirrors() {
+	mirror_list_url='http://nl.alpinelinux.org/alpine/MIRRORS.txt'
+	wget -O- "$mirror_list_url" 2>/dev/null
+}
+
+speed_test_url() {
+	echo "latest-stable/main/${arch:-}/APKINDEX.tar.gz"
+}
+
+list_releases() {
+	for mirror in "${flag_mirror:-}" $(list_mirrors); do
+		if wget -O- "$mirror" 2>/dev/null |
+			list_links |
+			grep -e '^v[0-9]' -e 'edge' -e 'latest-stable' |
+			sed -e 's/^v//' -e 's,/$,,'; then
+			break
+		fi
+	done
+}
+
+default_release() {
+	echo "latest-stable"
+}
+
+fetch() {
+	step_init 9
+
+	if [ -z "${target_dir:-}" ] || [ -z "${arch:-}" ] || [ -z "${arch2:-}" ]; then
+		abort "Essential variable not set"
+	fi
+
+	step "Determining name"
+	name="${flag_name:-${distro}}"
+	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining release"
+	release="${flag_release:-$(default_release)}"
+	notice "Using ${color_file}${release}${color_norm}"
+
+	step "Determining mirror"
+	mirror="$(pick_mirror "$(speed_test_url)")"
+	notice "Using ${color_link}${mirror}${color_norm}"
+
+	step "Making directory structure"
+	bootstrap_dir="${target_dir}/brl-bootstrap"
+	mkdir -p "${target_dir}/etc/apk/" "${bootstrap_dir}/target-root"
+
+	step "Downloading bootstrap software"
+	url="$(find_link "${mirror}/${release}/main/${arch}/" "^apk-tools-static.*.apk")"
+	wget -O "${bootstrap_dir}/apk-tools-static.apk" "${url}"
+
+	step "Preparing bootstrap software"
+	(
+		cd "${bootstrap_dir}" &&
+			tar xf apk-tools-static.apk -O sbin/apk.static >"${bootstrap_dir}/apk" &&
+			chmod a+rx "${bootstrap_dir}/apk"
+	)
+
+	step "Running bootstrap software"
+	setup_chroot "${bootstrap_dir}"
+	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
+	set +o pipefail
+	yes "" | LC_ALL=C chroot "${bootstrap_dir}" /apk -X "${mirror}/latest-stable/main" -U --allow-untrusted --root "/target-root" --initdb add alpine-base
+	set -o pipefail
+
+	step "Removing temporary bootstrap files"
+	less_lethal_rm_rf "${bootstrap_dir}"
+
+	step "Configuring"
+	setup_chroot "${target_dir}"
+	echo "${mirror}/latest-stable/main" >"${target_dir}/etc/apk/repositories"
+	LC_ALL=C chroot "${target_dir}" rc-update add devfs sysinit
+	LC_ALL=C chroot "${target_dir}" rc-update add dmesg sysinit
+	LC_ALL=C chroot "${target_dir}" rc-update add mdev sysinit
+	LC_ALL=C chroot "${target_dir}" rc-update add hwclock boot
+	LC_ALL=C chroot "${target_dir}" rc-update add modules boot
+	LC_ALL=C chroot "${target_dir}" rc-update add sysctl boot
+	LC_ALL=C chroot "${target_dir}" rc-update add hostname boot
+	LC_ALL=C chroot "${target_dir}" rc-update add bootmisc boot
+	LC_ALL=C chroot "${target_dir}" rc-update add syslog boot
+	LC_ALL=C chroot "${target_dir}" rc-update add mount-ro shutdown
+	LC_ALL=C chroot "${target_dir}" rc-update add killprocs shutdown
+	LC_ALL=C chroot "${target_dir}" rc-update add savecache shutdown
+	if ! grep -q '^wheel:' /etc/group; then
+		addgroup -S wheel 2>/dev/null || true
+	fi
+	tear_down_chroot "${target_dir}"
+
+	notice "Successfully acquired ${distro} stratum"
+}

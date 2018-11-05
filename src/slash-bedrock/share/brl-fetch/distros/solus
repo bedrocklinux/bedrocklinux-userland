@@ -1,0 +1,107 @@
+#!/bedrock/libexec/busybox sh
+#
+# Solus bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_arch_support() {
+	[ "$(uname -m)" = "x86_64" ]
+}
+
+# Marked experimental due to a lack of maintainer.  If an active member of the
+# Bedrock Linux community builds adequate trust and offers to maintain it, the
+# experimental tag may be dropped.
+check_experimental() {
+	true
+}
+
+list_mirrors() {
+	echo 'https://solus-project.com/'
+}
+
+speed_test_url() {
+	echo "image_root/unstable-x86_64.img.sha256sum"
+}
+
+list_releases() {
+	echo "rolling"
+}
+
+default_release() {
+	echo "rolling"
+}
+
+fetch() {
+	step_init 10
+
+	if [ -z "${target_dir:-}" ] || [ -z "${arch:-}" ] || [ -z "${arch2:-}" ]; then
+		abort "Essential variable not set"
+	fi
+
+	step "Determining name"
+	name="${flag_name:-${distro}}"
+	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining release"
+	release="${flag_release:-$(default_release)}"
+	notice "Using ${color_file}${release}${color_norm}"
+
+	step "Determining mirror"
+	mirror="$(pick_mirror "$(speed_test_url)")"
+	notice "Using ${color_link}$mirror${color_norm}"
+
+	step "Making directory structure"
+	bootstrap_dir="$target_dir/brl-bootstrap"
+	mkdir -p "$target_dir" "$bootstrap_dir/target-root"
+
+	step "Downloading bootstrap software"
+	url="$(find_link "$mirror/image_root/" "^main-$arch.img.xz$")"
+	wget -O "$bootstrap_dir/bootstrap.img.xz" "$url"
+
+	step "Extracting"
+	unxz "$bootstrap_dir/bootstrap.img.xz"
+
+	step "Copying files"
+	mount -o loop,ro "$bootstrap_dir/bootstrap.img" "$bootstrap_dir"
+	cp -r "$bootstrap_dir"/* "$target_dir"
+
+	# In theory, the proper way to do this would be to have the bootstrap
+	# filesystem run eopkg to bootstrap the files.  However, this fails for
+	# yet to be debugged reasons, and so we fall back to just using the
+	# bootstrap filesystem directly.
+	#
+	# step "Preparing bootstrap software"
+	# unxz "$bootstrap_dir/bootstrap.img.xz"
+	# mkdir -p "$bootstrap_dir/iso"
+	# mount -o loop,ro "$bootstrap_dir/bootstrap.img" "$bootstrap_dir/iso"
+	# cp -r "$bootstrap_dir/iso"/* "$bootstrap_dir/"
+	#
+	# step "Running bootstrap software"
+	# setup_chroot "$bootstrap_dir"
+	# mount --bind "$target_dir" "$bootstrap_dir/target-root"
+	# mkdir -p "$target_dir/var/run/dbus"
+	# mkdir -p "$target_dir/run/dbus"
+	# ln -s "lib64" "$target_dir/lib"
+	# mkdir -p "$bootstrap_dir/var/run/dbus"
+	# mkdir -p "$bootstrap_dir/run/dbus"
+	# ln -s "lib64" "$bootstrap_dir/lib"
+	# chroot "$bootstrap_dir" dbus-daemon --system
+	# chroot "$bootstrap_dir" eopkg --debug -y -D/target-root rdb >/dev/null 1>&1
+	# chroot "$bootstrap_dir" eopkg -y -D/target-root ar Solus https://packages.solus-project.com/shannon/eopkg-index.xml.xz
+	# chroot "$bootstrap_dir" eopkg -y -D/target-root install -c system.base
+	# # First install doesn't take for some reason, e.g libpython2.7.so.1.0 gets installed to the wrong place.
+	# chroot "$bootstrap_dir" eopkg -y -D/target-root install --reinstall -c system.base
+
+	step "Removing temporary bootstrap files"
+	less_lethal_rm_rf "$bootstrap_dir"
+
+	notice "Successfully acquired $distro stratum"
+}

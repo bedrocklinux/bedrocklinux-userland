@@ -17,7 +17,7 @@ strata.  If one would like to search for a package that provides vim, one could 
 
 However, which instance of apt - Debian's or Ubuntu's - is in use is
 context-dependent, which may not be desired.  To explicitly specify which to
-use, one should use strat.  For example, to search Debian's repositories for vim,
+use one should use strat.  For example, to search Debian's repositories for vim,
 one could run:
 
     strat debian apt search vim

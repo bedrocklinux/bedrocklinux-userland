@@ -133,11 +133,12 @@
  * configured to also present its parent directory.  It will dynamically create
  * a virtual directory in these cases.
  *
- * By definition, all file paths that do not belong to a specific stratum are
- * global.  Since virtual file paths don't belong to any given stratum, they
- * must be global.
+ * This filesystem is typically mounted in the bedrock stratum then shared with
+ * other strata as a global path.  Thus, by definition, anything that isn't
+ * crossed to another stratum is owned by the bedrock stratum, including these
+ * virtual directories.
  */
-#define VIRTUAL_STRATUM "global"
+#define VIRTUAL_STRATUM "bedrock"
 #define VIRTUAL_STRATUM_LEN strlen(VIRTUAL_STRATUM)
 /*
  * All crossfs files have an associated file path.  While "/" isn't
@@ -810,8 +811,10 @@ static void cfg_clear(void)
 	}
 	if (cfgs != NULL) {
 		free(cfgs);
+		cfgs = NULL;
 	}
 	cfg_cnt = 0;
+	cfg_alloc = 0;
 	cfg_stat.st_size = 0;
 }
 
@@ -1014,7 +1017,7 @@ static int cfg_add(const char *const buf, size_t size)
 	back->root_fd = root_fd;
 	cfg->back_cnt++;
 
-	cfg_stat.st_size += strlen(buf) - CMD_ADD_LEN - 1;
+	cfg_stat.st_size += strlen(nbuf) - CMD_ADD_LEN - 1;
 
 	return size;
 
@@ -1155,7 +1158,7 @@ static int cfg_rm(const char *const buf, size_t size)
 		*back = cfg->back[cfg->back_cnt - 1];
 	}
 	cfg->back_cnt--;
-	cfg_stat.st_size -= strlen(buf) - CMD_RM_LEN - 1;
+	cfg_stat.st_size -= strlen(nbuf) - CMD_RM_LEN - 1;
 
 	if (cfg->back_cnt == 0) {
 		free(cfg->cpath);
@@ -1176,7 +1179,7 @@ static int cfg_read(char *buf, size_t size, off_t offset)
 		return 0;
 	}
 
-	char *str = malloc(cfg_stat.st_size);
+	char *str = malloc(cfg_stat.st_size + 1);
 	if (str == NULL) {
 		return -ENOMEM;
 	}
@@ -1833,7 +1836,7 @@ static int m_write(const char *ipath, const char *buf, size_t size,
 	} else if (size >= CMD_CLEAR_LEN && memcmp(buf, CMD_CLEAR,
 			CMD_CLEAR_LEN) == 0) {
 		cfg_clear();
-		rv = 0;
+		rv = size;
 	} else if (size >= CMD_ADD_LEN && memcmp(buf, CMD_ADD,
 			CMD_ADD_LEN) == 0) {
 		rv = cfg_add(buf, size);

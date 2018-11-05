@@ -1,0 +1,146 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl list
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# List strata and aliases.
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl list ${color_sub}[options]${color_norm}
+
+Lists ${color_term}strata${color_norm}.
+
+Options:
+  ${color_sub}<none>${color_norm}                 defaults to ${color_cmd}--enabled${color_norm}
+  ${color_cmd}-e${color_norm},${color_cmd} --enabled-strata   ${color_norm}${color_term}enabled${color_norm} ${color_term}stratum${color_norm}
+  ${color_cmd}-E${color_norm},${color_cmd} --enabled-aliases  ${color_norm}${color_term}aliases${color_norm} to ${color_term}enabled${color_norm} ${color_term}stratum${color_norm}
+  ${color_cmd}-d${color_norm},${color_cmd} --disabled-strata  ${color_norm}${color_term}disabled${color_norm} ${color_term}stratum${color_norm}
+  ${color_cmd}-D${color_norm},${color_cmd} --disabled-aliases ${color_norm}${color_term}aliases${color_norm} to ${color_term}disabled${color_norm} ${color_term}stratum${color_norm}
+  ${color_cmd}-a${color_norm},${color_cmd} --all-strata       ${color_norm}all ${color_term}strata${color_norm}
+  ${color_cmd}-A${color_norm},${color_cmd} --all-aliases      ${color_norm}all ${color_term}aliases${color_norm}
+  ${color_cmd}-r${color_norm},${color_cmd} --deref            ${color_norm}dereference ${color_term}aliases${color_norm}
+  ${color_cmd}-h${color_norm},${color_cmd} --help             ${color_norm}print this message
+  ${color_cmd}-i${color_norm},${color_cmd} --include-hidden   ${color_norm}include ${color_term}hidden strata${color_norm} in list
+
+Examples:
+  ${color_cmd}$ brl list
+  ${color_strat}arch
+  ${color_strat}bedrock
+  ${color_strat}gentoo
+  ${color_strat}void
+  ${color_cmd}$ brl list -Dr
+  ${color_alias}unstable -> sid
+${color_norm}"
+}
+
+handle_help "${@:-}"
+
+list_enabled_strata=false
+list_enabled_aliases=false
+list_disabled_strata=false
+list_disabled_aliases=false
+include_hidden=false
+deref_aliases=false
+
+OPTL="enabled-strata,enabled-aliases,disabled-strata,disabled-aliases,all-strata,all-aliases,deref,include-hidden"
+OPTO="eEdDaAri"
+eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
+saw_non_positional=false
+
+while [ -n "${1:-}" ]; do
+	case "${1}" in
+	-e | --enabled-strata)
+		list_enabled_strata=true
+		shift
+		;;
+	-E | --enabled-aliases)
+		list_enabled_aliases=true
+		shift
+		;;
+	-d | --disabled-strata)
+		list_disabled_strata=true
+		shift
+		;;
+	-D | --disabled-aliases)
+		list_disabled_aliases=true
+		shift
+		;;
+	-a | --all-strata)
+		list_enabled_strata=true
+		list_disabled_strata=true
+		shift
+		;;
+	-A | --all-aliases)
+		list_enabled_aliases=true
+		list_disabled_aliases=true
+		shift
+		;;
+	-r | --deref)
+		deref_aliases=true
+		shift
+		;;
+	-i | --include-hidden)
+		include_hidden=true
+		shift
+		;;
+	--)
+		shift
+		;;
+	-*)
+		if "${saw_non_positional}"; then
+			eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
+			saw_non_positional=false
+		else
+			abort "Unrecognized argument: ${1}"
+		fi
+		;;
+	*)
+		abort "Unrecognized argument: ${1}"
+		;;
+	esac
+done
+
+if ! "${list_enabled_strata}" &&
+	! "${list_enabled_aliases}" &&
+	! "${list_disabled_strata}" &&
+	! "${list_disabled_aliases}"; then
+	list_enabled_strata=true
+fi
+
+(
+	if "${list_enabled_strata}" || "${list_disabled_strata}"; then
+		list_strata
+	fi
+	if "${list_enabled_aliases}" || "${list_disabled_aliases}"; then
+		list_aliases
+	fi
+) | sort | while read -r stratum; do
+	if ! "${include_hidden}" && ! has_attr "/bedrock/strata/$stratum" show_list; then
+		continue
+	elif "${list_enabled_strata}" && is_stratum "${stratum}" && is_enabled "${stratum}"; then
+		printf "${color_strat}%s${color_norm}\\n" "$stratum"
+	elif "${list_disabled_strata}" && is_stratum "${stratum}" && ! is_enabled "${stratum}"; then
+		printf "${color_disabled_strat}%s${color_norm}\\n" "$stratum"
+	elif "${list_enabled_aliases}" && is_alias "${stratum}" && is_enabled "${stratum}"; then
+		if "${deref_aliases}"; then
+			printf "${color_alias}%s${color_glue} -> ${color_strat}%s${color_norm}\\n" "$stratum" "$(deref "$stratum")"
+		else
+			printf "${color_alias}%s${color_norm}\\n" "$stratum"
+		fi
+	elif "${list_disabled_aliases}" && is_alias "${stratum}" && ! is_enabled "${stratum}"; then
+		if "${deref_aliases}"; then
+			printf "${color_alias}%s${color_glue} -> ${color_strat}%s${color_norm}\\n" "$stratum" "$(deref "$stratum")"
+		else
+			printf "${color_alias}%s${color_norm}\\n" "$stratum"
+		fi
+	fi
+done
+
+exit_success

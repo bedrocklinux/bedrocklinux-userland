@@ -22,8 +22,10 @@ On a Linux system, install the build dependencies:
 - gcc 4.9.1 or newer
 - git 1.8 or newer
 - meson 0.38 or newer
-- ninja
-- libtoolize
+- ninja-build
+- libtool
+- autoconf
+- pkg-config
 - fakeroot
 - make
 - gzip
@@ -52,27 +54,11 @@ projects:
 
 This will produce a script such as:
 
-	bedrock-linux-0.7-amd64.sh
+	bedrock-linux-0.7-x86_64.sh
 
 which may be used to install or update a Bedrock Linux system.
 
-Installation Strategies
------------------------
-
-There are two installation strategies:
-
-1. Hijack install.  With this strategy, one first installs another
-   distribution.  Next, the fresh system is converted into a Bedrock Linux
-   system.  Since it can leverage another distribution's user-friendly
-   installation process, this strategy is recommended for most users.
-
-2. Direct install.  This strategy installs Bedrock directly into a folder.
-   This may be preferable for those who were planning on manually partitioning,
-   formatting, setting up a bootloader, et al. themselves.  It is relatively
-   hands-off and recommended only for more advanced users.
-
-Hijack Install
---------------
+Installation
 
 - Install another, traditional Linux distribution.
 	- Select a filesystem which supports extended filesystem attributes.
@@ -91,19 +77,6 @@ Hijack Install
 	- If this fails, you may need to manually look up release and mirror
 	  information for the desired distribution and provide the information
 	  with `--release` and `--mirror` flags.
-
-Direct Install
---------------
-
-- Partition and format disk space as desired, e.g. with `fdisk` or `gparted`.
-	- Select a filesystem which supports extended filesystem attributes.
-- Mount the new filesystem onto `/mnt/bedrock`.
-- Get the `bedrock-linux-<version>-<arch>.sh` script onto the system, either by
-  building it locally or getting a pre-built version from elsewhere.
-- Run the script as root with the `--direct /mnt/bedrock`
-- Follow the prompts.
-- Setup a bootloader of your choice.
-- When ready, reboot into your new Bedrock Linux install.
 
 Basic usage
 -----------
@@ -168,13 +141,13 @@ If you would like a specific instance, you may select it with `strat`:
 	$ # install vlc from ubuntu
 	$ sudo strat ubuntu apt install vlc
 	$ # run default vlc
-	$ vlc /path/to/movie
+	$ vlc /path/to/video
 	$ # run arch's vlc
-	$ strat arch vlc /path/to/movie
+	$ strat arch vlc /path/to/video
 	$ # run debian's vlc
-	$ strat debian vlc /path/to/movie
+	$ strat debian vlc /path/to/video
 	$ # run ubuntu's vlc
-	$ strat ubuntu vlc /path/to/movie
+	$ strat ubuntu vlc /path/to/video
 
 To avoid conflicts, processes from one stratum may see its own stratum's
 instance of a given file.  For example, Debian's `apt` and Ubuntu's `apt` must
@@ -217,8 +190,6 @@ limitations, and other useful information may be found at bedrocklinux.org.
 
 Hacking
 -------
-
-Read DESIGN.md to learn how this code base is expected to work.
 
 To sanity check your work (e.g. before upstream changes to Bedrock Linux),
 install:

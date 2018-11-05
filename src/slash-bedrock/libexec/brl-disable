@@ -1,0 +1,57 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl disable
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# De-integrates strata from the system.
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl disable ${color_sub}[options] <strata>${color_norm}
+
+De-integrates ${color_term}strata${color_norm} from the system.
+
+Options:
+  ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}   print this message
+
+Examples:
+  ${color_cmd}$ brl status solus
+  ${color_strat}solus${color_norm}: ${color_okay}enabled
+  ${color_rcmd}# brl disable solus
+  ${color_cmd}$ brl status solus
+  ${color_norm}disabled
+  ${color_rcmd}# brl disable alpine arch centos
+  ${color_cmd}$ brl status alpine arch centos
+  ${color_strat}alpine${color_norm}: ${color_norm}disabled
+  ${color_strat}arch${color_norm}: ${color_norm}disabled
+  ${color_strat}centos${color_norm}: ${color_norm}disabled
+${color_norm}"
+}
+
+handle_help "${@:-}"
+min_args "${#}" "1"
+
+require_root
+lock
+
+for alias in "${@}"; do
+	if ! is_stratum_or_alias "${alias}"; then
+		abort "No stratum or alias called \"${stratum}\"."
+	elif ! stratum="$(deref "${alias}")"; then
+		abort "Unable to dereference \"${alias}\"."
+	elif is_init "${stratum}"; then
+		abort "Cannot disable init-providing stratum."
+	elif is_bedrock "${stratum}"; then
+		abort "Cannot disable bedrock stratum."
+	else
+		disable_stratum "${stratum}"
+	fi
+done
+
+exit_success

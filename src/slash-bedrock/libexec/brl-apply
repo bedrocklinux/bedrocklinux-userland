@@ -1,0 +1,141 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl apply
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# (re)loads configuration
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl apply ${color_sub}[options]${color_norm}
+
+Apply ${color_file}/bedrock/etc/bedrock.conf${color_norm} configuration changes.  Requires root.
+
+Options:
+  ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}   print this message
+
+Example:
+  ${color_cmd}$ brl which startx
+  ${color_strat}debian
+  ${color_rcmd}# vim /bedrock/etc/bedrock.conf
+  ${color_sub}<pin startx to arch>
+  ${color_cmd}$ brl which startx
+  ${color_strat}debian
+  ${color_rcmd}# brl apply
+  ${color_cmd}$ brl which startx
+  ${color_strat}arch
+${color_norm}"
+}
+
+handle_help "${@:-}"
+
+require_root
+lock
+
+ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/localtime
+
+(
+	echo "TZ=:/etc/localtime"
+	echo "LANG=$(cfg_value "locale" "LANG")"
+	echo "PATH=$(cfg_value "env-vars" "PATH")"
+	echo "MANPATH=$(cfg_value "env-vars" "MANPATH")"
+	echo "INFOPATH=$(cfg_value "env-vars" "INFOPATH")"
+	echo "XDG_DATA_DIRS=$(cfg_value "env-vars" "XDG_DATA_DIRS")"
+	echo "TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
+) >/bedrock/run/environment
+
+(
+	echo "export TZ=:/etc/localtime"
+	echo "export LANG=$(cfg_value "locale" "LANG")"
+	echo "export PATH=$(cfg_value "env-vars" "PATH")"
+	echo "export MANPATH=$(cfg_value "env-vars" "MANPATH")"
+	echo "export INFOPATH=$(cfg_value "env-vars" "INFOPATH")"
+	echo "export XDG_DATA_DIRS=$(cfg_value "env-vars" "XDG_DATA_DIRS")"
+	echo "export TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
+) >/bedrock/run/profile
+
+(
+	echo ". /bedrock/run/profile"
+	echo "export fpath=(/bedrock/share/zsh/completion/ \$fpath /bedrock/cross/zsh-completion/)"
+) >/bedrock/run/zprofile
+
+(
+	echo "set TZ :/etc/localtime"
+	echo "set LANG $(cfg_value "locale" "LANG")"
+	echo "set PATH $(cfg_value "env-vars" "PATH" | sed 's/:/ /g')"
+	echo "set MANPATH $(cfg_value "env-vars" "MANPATH" | sed 's/:/ /g')"
+	echo "set INFOPATH $(cfg_value "env-vars" "INFOPATH" | sed 's/:/ /g')"
+	echo "set XDG_DATA_DIRS $(cfg_value "env-vars" "XDG_DATA_DIRS" | sed 's/:/ /g')"
+	echo "set TERMINFO_DIRS $(cfg_value "env-vars" "TERMINFO_DIRS" | sed 's/:/ /g')"
+) >/bedrock/run/fprofile
+
+(
+	echo "Defaults secure_path=\"$(cfg_value "env-vars" "PATH")\""
+) >/bedrock/run/sudoers
+
+(
+	echo "Section \"Files\""
+	find /bedrock/cross/fonts -mindepth 1 -type d -exec echo "    FontPath \"{}\"" \;
+	echo "EndSection"
+) >/bedrock/run/xorg-fonts
+
+if [ -r /etc/login.defs ] && awk -F'=' -v"path=$(cfg_value "env-vars" "PATH")" '
+	/^[ \t]*ENV_SUPATH[ \t][ \t]*PATH=/ && $2 == path {s=1}
+	/^[ \t]*ENV_PATH[ \t][ \t]*PATH=/ && $2 == path {n=1}
+	END {exit (s+n==2)}' /etc/login.defs; then
+	awk -F'=' -v"path=$(cfg_value "env-vars" "PATH")" '
+	/^[ \t]*ENV_SUPATH[ \t][ \t]*PATH=/ {
+		print "ENV_SUPATH\tPATH="path
+		s=1
+		next
+	}
+	/^[ \t]*ENV_PATH[ \t][ \t]*PATH=/ {
+		print "ENV_PATH\tPATH="path
+		n=1
+		next
+	}
+	1
+	END {
+		if(s == 0) {
+			print "ENV_SUPATH\tPATH="path
+		}
+		if(n == 0) {
+			print "ENV_PATH\tPATH="path
+		}
+	}
+	' /etc/login.defs >/etc/login.defs-new
+	mv /etc/login.defs-new /etc/login.defs
+fi
+
+# Disable fsck
+if [ -r /etc/fstab ] && awk '$1$2$3$4$5$6 !~ "#" && $6 != "" && $6 != 0 {x=1} END {exit !x}' /etc/fstab; then
+	awk '
+		$1$2$3$4$5$6 !~ "#" && $6 != "" && $6 != 0 {
+			$6 = "0"
+		}
+		{
+			print
+		}
+	' /etc/fstab >/etc/fstab-new && mv /etc/fstab-new /etc/fstab
+fi
+
+for stratum in $(list_strata); do
+	if ! is_enabled "$stratum"; then
+		continue
+	fi
+	root="$(stratum_root -e "$stratum")"
+	if ! [ -w "/proc/1/root$root/etc/.bedrock-config-filesystem" ]; then
+		continue
+	fi
+	cfg_etcfs "/proc/1/root$root/etc"
+done
+
+cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
+
+exit_success

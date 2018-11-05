@@ -1,0 +1,13 @@
+# systemd appears to have difficulty stopping FUSE filesystems.
+# Lets stop our own to remove the responsibility from systemd.
+
+[Unit]
+Description=Shutdown Bedrock Linux FUSE filesystems.
+
+[Service]
+RemainAfterExit=yes
+ExecStart=-/bedrock/libexec/busybox true
+ExecStop=-/bedrock/libexec/busybox sh -c '/bedrock/libexec/busybox umount -l /etc /bedrock/strata/*/etc /bedrock/cross /bedrock/strata/*/bedrock/cross'
+
+[Install]
+WantedBy=multi-user.target

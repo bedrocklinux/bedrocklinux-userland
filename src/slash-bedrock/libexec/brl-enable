@@ -1,0 +1,103 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl enable
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Integrates strata into the system.
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl enable ${color_sub}[options] <strata>${color_norm}
+
+Integrates ${color_term}disabled${color_norm} ${color_term}strata${color_norm} into the system.  Requires root.
+
+Options:
+  ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}   print this message
+
+Examples:
+  ${color_cmd}$ brl status solus
+  ${color_strat}solus${color_norm}: disabled
+  ${color_rcmd}# brl enable solus
+  ${color_cmd}$ brl status solus
+  ${color_strat}solus${color_norm}: ${color_okay}enabled
+  ${color_rcmd}# brl enable solus
+  ${color_alert}ERROR: \"solus\" is already enabled.  Consider \`brl repair\` to fix a broken stratum.
+  ${color_rcmd}# brl enable alpine arch centos
+  ${color_cmd}$ brl status alpine arch centos
+  ${color_strat}alpine${color_norm}: ${color_okay}enabled
+  ${color_strat}arch${color_norm}: ${color_okay}enabled
+  ${color_strat}centos${color_norm}: ${color_okay}enabled
+${color_norm}"
+}
+
+handle_help "${@:-}"
+min_args "${#}" "1"
+
+require_root
+lock
+
+enable_stratum() {
+	stratum="${1}"
+	root="$(stratum_root "${stratum}")"
+	br_root="/bedrock/strata/bedrock"
+
+	# Set an attribute on the stratum's root indicating to which stratum it
+	# belongs.  This allows processes to look up their stratum by reading
+	# the attribute off of their root directory.
+	if ! cur_attr="$(get_attr "${root}" "stratum" 2>/dev/null)" || [ "${cur_attr}" != "${stratum}" ]; then
+		set_attr "${root}" "stratum" "${stratum}"
+	fi
+
+	# Ensure the stratum's root directory is a mount point.
+	stinit busybox mount --bind "${root}" "${root}"
+
+	for mnt in $(cfg_values "global" "share"); do
+		stinit busybox mkdir -p "${br_root}${mnt}" "${root}${mnt}"
+		stinit busybox mount --make-rshared "${br_root}${mnt}" 2>/dev/null || true
+		stinit busybox mount --rbind "${br_root}${mnt}" "${root}${mnt}"
+		stinit busybox mount --make-rshared "${root}${mnt}"
+	done
+
+	for mnt in $(cfg_values "global" "bind"); do
+		stinit busybox mkdir -p "${br_root}${mnt}" "${root}${mnt}"
+		stinit busybox mount --make-private "${br_root}${mnt}" 2>/dev/null || true
+		stinit busybox mount --bind "${br_root}${mnt}" "${root}${mnt}"
+		stinit busybox mount --make-private "${root}${mnt}"
+	done
+
+	enforce_symlinks "${stratum}"
+
+	(
+		drop_lock
+		chroot "/proc/1/root${root}" /bedrock/libexec/etcfs -o allow_other "/etc"
+		cfg_etcfs "/proc/1/root${root}/etc"
+	)
+
+	stinit busybox touch "/bedrock/strata/bedrock/bedrock/run/enabled_strata/${1}"
+
+	cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
+
+}
+
+for alias in "${@}"; do
+	if ! is_stratum_or_alias "${alias}"; then
+		abort "No stratum or alias called \"${alias}\"."
+	elif ! stratum="$(deref "${alias}")"; then
+		abort "Unable to dereference \"${alias}\"."
+	elif is_enabled "${stratum}"; then
+		abort "\"${stratum}\" is already enabled.  Consider \`brl repair\` to fix a broken stratum."
+	elif is_bedrock "${stratum}" || is_init "${stratum}"; then
+		abort "Cannot enable bedrock or init-providing stratum, as neither should ever be disabled"
+	else
+		disable_stratum "${stratum}"
+		enable_stratum "${stratum}"
+	fi
+done
+
+exit_success

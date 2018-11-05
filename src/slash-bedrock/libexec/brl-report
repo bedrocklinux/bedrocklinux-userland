@@ -1,0 +1,93 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl report
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2015-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Generates report about system status
+
+. /bedrock/share/common-code
+# Continue if there are errors
+set +eu
+trap '' EXIT
+
+print_help() {
+	printf "
+Usage: ${color_cmd}brl report ${color_sub}[options] <output>${color_norm}
+
+Generates a report about the current ${color_bedrock}Bedrock Linux${color_norm} system for use in debugging
+issues.  Output must be a file path to store the resulting report.
+
+Options:
+  ${color_cmd}-h${color_norm}, ${color_cmd}--help      ${color_norm}print this message
+  ${color_cmd}-o${color_norm}, ${color_cmd}--overwrite ${color_norm}overwrite file at report path
+
+Example:
+  ${color_cmd}$ brl report /tmp/log
+  ${color_cmd}$ cat /tmp/log | xclip
+${color_norm}"
+}
+
+handle_help "${@:-}"
+min_args "${#}" "1"
+
+overwrite="false"
+if [ "${1:-}" = "-o" ] || [ "${1:-}" = "--overwrite" ]; then
+	overwrite="true"
+	shift
+fi
+
+report="${1}"
+shift
+
+if [ -e "${report}" ]; then
+	if "${overwrite}"; then
+		rm -f "${report}"
+	else
+		abort "file exists at \"${report}\" and --overwrite was not specified."
+	fi
+fi
+
+run() {
+	notice "Running ${color_cmd}\`${*}\`${color_norm}"
+	(
+		echo '$ '"${*}"
+		eval "${@}" | sed 's/^/    /'
+		echo ""
+	) >>"${report}" 2>&1 || true
+}
+
+notice "Creating report at ${color_file}\`$report\`${color_norm}."
+echo "Bedrock Linux system report" >>"${report}"
+echo "" >>"${report}"
+
+run "cat /bedrock/etc/bedrock-release"
+run "cat /bedrock/etc/bedrock.conf"
+run "/bedrock/bin/brl list -d enabled disabled aliases"
+run "/bedrock/bin/brl status \$(/bedrock/bin/brl list)"
+run "echo \$PATH"
+run "echo \$MANPATH"
+run "echo \$INFOPATH"
+run "echo \$XDG_DATA_DIRS"
+run "echo \$SHELL"
+run "ls -la /bedrock/strata/"
+run "ls -Rl /bedrock/run/"
+run "grep secure_path /etc/sudoers"
+run "grep \"^\$(whoami):\" /etc/passwd"
+run "grep \"^root:\" /etc/passwd"
+run "cat /etc/hostname"
+run "cat /etc/os-release"
+run "cat /etc/lsb-release"
+run "cat /proc/1/mountinfo"
+run "ps"
+run "cd /proc && for x in *; do echo \"\$x\" | grep -q \"^[0-9]*\$\" && echo \"\$x: \$(/bedrock/bin/brl which -p \"\$x\")\"; done | sort -n"
+run "cat /bedrock/cross/.bedrock-config-filesystem"
+run "cat /proc/1/root/etc/.bedrock-config-filesystem"
+
+notice "Completed creating report at ${color_file}\`$report\`${color_norm}."
+
+exit_success

@@ -1,0 +1,46 @@
+# =======================================
+# Bedrock Linux 0.7.x installers/updaters
+# =======================================
+#
+# Installation
+# ------------
+#
+# To install a Bedrock Linux 0.7.x system, first install and set up a
+# fresh, traditional distro Linux install.  Next download the latest of the
+# files below corresponding to your CPU architecture and execute it as root
+# with a `--hijack` flag, like so:
+#
+#     sh bedrock-linux-<version>-<arch>.sh --hijack
+#
+# Finally, reboot.  Once you are back in the system, explore the `brl` command.
+#
+# Update with internet
+# --------------------
+#
+# Provided you internet access is available, a Bedrock Linux 0.7.x system may
+# be updated by setting this file's URL in as the mirror value in
+# /bedrock/etc/bedrock.conf.  Once that is in place, run as root:
+#
+#     brl update
+#
+# Update without internet
+# -----------------------
+#
+# A Bedrock Linux 0.7.x system may be updated to a newer 0.7.x release by
+# downloading a corresponding file below onto the system and executing it as
+# root with the `--update` flag, like so:
+#
+#     sh bedrock-linux-<version>-<arch>.sh --update
+#
+
+###################
+# Current release #
+###################
+
+# x86_64
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.0beta1/bedrock-linux-0.7.0beta1-x86_64.sh
+
+
+#################
+# Past releases #
+#################

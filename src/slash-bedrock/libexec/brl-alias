@@ -1,0 +1,62 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl alias
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Create stratum aliases.
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl alias ${color_sub}[options] <stratum> <alias>${color_norm}
+
+Creates an ${color_term}alias${color_norm}.  References to this ${color_term}alias${color_norm} can be used in place of the ${color_term}stratum${color_norm}
+name in most contexts.  Requires root.
+
+Options:
+  ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}   print this message
+
+Example:
+  ${color_rcmd}# brl fetch fedora --release 27 --name fedora27
+  ${color_cmd}$ brl list | grep fedora
+  ${color_strat}fedora27
+  ${color_rcmd}# brl alias fedora27 fedora
+  ${color_cmd}$ brl deref fedora
+  ${color_strat}fedora27
+  ${color_cmd}$ brl status fedora
+  ${color_strat}fedora27${color_norm}: ${color_okay}enabled
+  ${color_cmd}$ cat /bedrock/strata/fedora27/etc/fedora-release
+  ${color_norm}Fedora release 27 (Twenty Seven)
+  ${color_cmd}$ cat /bedrock/strata/fedora/etc/fedora-release
+  ${color_norm}Fedora release 27 (Twenty Seven)
+  ${color_cmd}$ strat fedora27 cat /etc/fedora-release
+  ${color_norm}Fedora release 27 (Twenty Seven)
+  ${color_cmd}$ strat fedora cat /etc/fedora-release
+  ${color_norm}Fedora release 27 (Twenty Seven)
+${color_norm}"
+}
+
+handle_help "${@:-}"
+min_args "${#}" "2"
+stratum="${1}"
+alias="${2}"
+
+require_root
+lock
+
+ensure_legal_stratum_name "${alias}"
+
+if ! is_stratum "${stratum}"; then
+	abort "No (non-alias) stratum found called \"${stratum}\".  Refusing to make broken alias."
+elif is_stratum_or_alias "${alias}"; then
+	abort "Pre-existing stratum or alias found called \"${alias}\".  Remove with \`brl remove ${alias}\` first if you wish to change it."
+fi
+
+ln -s "${stratum}" "/bedrock/strata/${alias}"
+
+exit_success

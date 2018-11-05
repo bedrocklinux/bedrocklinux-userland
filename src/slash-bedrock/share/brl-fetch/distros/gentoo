@@ -1,0 +1,105 @@
+#!/bedrock/libexec/busybox sh
+#
+# Gentoo Linux bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_arch_support() {
+	[ "$(uname -m)" = "x86_64" ]
+}
+
+check_experimental() {
+	false
+}
+
+list_mirrors() {
+	mirror_list_url="https://www.gentoo.org/downloads/mirrors/"
+	wget -O- "$mirror_list_url" 2>/dev/null |
+		awk '/Region/,/<footer>/' |
+		list_links |
+		grep "^http"
+}
+
+speed_test_url() {
+	echo "releases/${arch2:-}/autobuilds/latest-stage3.txt"
+}
+
+list_releases() {
+	echo "rolling"
+}
+
+default_release() {
+	echo "rolling"
+}
+
+fetch() {
+	step_init 9
+
+	if [ -z "${target_dir:-}" ] || [ -z "${arch:-}" ] || [ -z "${arch2:-}" ]; then
+		abort "Essential variable not set"
+	fi
+
+	step "Determining name"
+	name="${flag_name:-${distro}}"
+	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining release"
+	release="${flag_release:-$(default_release)}"
+	notice "Using ${color_file}${release}${color_norm}"
+
+	step "Determining mirror"
+	mirror="$(pick_mirror "$(speed_test_url)")"
+	notice "Using ${color_link}$mirror${color_norm}"
+
+	step "Making directory structure"
+	bootstrap_dir="$target_dir/brl-bootstrap"
+	mkdir -p "$target_dir/etc/apk/" "$bootstrap_dir/target-root"
+
+	step "Downloading bootstrap software"
+	url="$(find_link "$mirror/releases/$arch2/autobuilds/current-stage3-$arch2/" "^stage3-$arch2-[^.]*[.]tar[.]xz$")"
+	wget -O "$bootstrap_dir/stage3.tar.xz" "$url"
+
+	step "Preparing bootstrap software"
+	(
+		cd "$bootstrap_dir"
+		xz -d stage3.tar.xz
+		tar xf stage3.tar
+	)
+
+	step "Runing bootstrap software"
+	setup_chroot "$bootstrap_dir"
+	mount --bind "$target_dir" "$bootstrap_dir/target-root"
+	chroot "$bootstrap_dir" sh -c "cd /target-root && tar xpf /stage3.tar --xattrs-include='*.*' --numeric-owner"
+
+	step "Removing temporary bootstrap files"
+	less_lethal_rm_rf "$bootstrap_dir"
+
+	step "Configure"
+
+	setup_chroot "$target_dir"
+	echo "GENTOO_MIRRORS=\"$mirror\"" >>"$target_dir/etc/portage/make.conf"
+
+	mkdir -p "$target_dir/etc/portage/repos.conf"
+	cp "$target_dir/usr/share/portage/config/repos.conf" "$target_dir/etc/portage/repos.conf/gentoo.conf"
+
+	if [ -n "$LANG" ] && [ "$LANG" != "C" ]; then
+		echo "### Added by Bedrock Linux when acquiring this stratum" >>"$target_dir/etc/locale.gen"
+		echo "$LANG UTF-8" >>"$target_dir/etc/locale.gen"
+		LANG=C chroot "$target_dir" locale-gen
+	else
+		notice "Could not determine desired locale, skipping setting locale"
+	fi
+
+	chroot "$target_dir" emerge-webrsync
+	tear_down_chroot "$target_dir"
+
+	notice "Successfully acquired $distro stratum"
+}

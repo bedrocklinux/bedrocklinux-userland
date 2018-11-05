@@ -1,0 +1,753 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl fetch
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Acquires files from various Linux distributions.
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl fetch ${color_sub}[options] [distros]${color_norm}
+
+Acquire files from other Linux distributions for use as new ${color_term}strata${color_norm}.  List
+operations may be run as non-root, but actual fetch operation requires root.
+
+The code to determine mirrors and releases is prone to breaking as upstream
+distros make changes.  If automated efforts to look them up fail, try looking
+up the information yourself and providing it via flags.
+
+Operations:
+  ${color_sub}<none>                  ${color_term}fetch ${color_sub}[distros]
+  ${color_cmd}-L${color_norm},${color_cmd} --list              ${color_norm}list distros regularly tested against \`${color_cmd}brl fetch${color_norm}\`
+  ${color_cmd}-X${color_norm},${color_cmd} --experimental      ${color_norm}list distros with limited \`${color_cmd}brl fetch${color_norm}\` testing
+  ${color_cmd}-R${color_norm},${color_cmd} --releases          ${color_norm}list releases ${color_sub}[distros]${color_norm} provide
+
+Fetch flags:
+  ${color_sub}<none>                  ${color_norm}automatically determine name, release, and mirror
+  ${color_cmd}-n${color_norm},${color_cmd} --name ${color_sub}[name]${color_norm}       ${color_norm}specify desired ${color_term}stratum${color_norm} name
+  ${color_cmd}-r${color_norm},${color_cmd} --release ${color_sub}[release]${color_norm} ${color_norm}specify desired distro release
+  ${color_cmd}-m${color_norm},${color_cmd} --mirror ${color_sub}[mirror]${color_norm}   ${color_norm}specify desired mirror
+  ${color_cmd}-e${color_norm},${color_cmd} --dont-enable       ${color_norm}do not ${color_term}enable${color_norm} newly fetched ${color_term}strata${color_norm}
+  ${color_cmd}-s${color_norm},${color_cmd} --dont-show         ${color_norm}do not ${color_term}show${color_norm} newly fetched ${color_term}strata${color_norm}
+
+Miscellaneous:
+  ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}              print this message
+
+Examples:
+  ${color_cmd}$ uname -m
+  ${color_norm}x86_64
+  ${color_cmd}$ brl fetch --list | head -n5
+  ${color_strat}alpine
+  ${color_strat}arch
+  ${color_strat}centos
+  ${color_strat}debian
+  ${color_strat}fedora
+  ${color_cmd}$ brl fetch --releases arch
+  ${color_norm}rolling
+  ${color_cmd}$ brl fetch --releases debian | grep -ve stable -ve testing
+  ${color_norm}buster
+  ${color_norm}jessie
+  ${color_norm}sid
+  ${color_norm}wheezy
+  ${color_rcmd}# brl fetch centos
+  ${color_sub}<acquires centos with automatically determined release, mirror, and name>
+  ${color_rcmd}# brl fetch -r sid -m http://ftp.us.debian.org/debian/ -n sid debian
+  ${color_sub}<acquires debian with specified release, mirror, and name>
+  ${color_rcmd}# brl fetch alpine arch devuan
+  ${color_sub}<acquires multiple distros in one command>
+${color_norm}"
+}
+
+list_distros() {
+	for distro in /bedrock/share/brl-fetch/distros/*; do
+		. "${distro}"
+		check_experimental && continue
+		check_arch_support || continue
+		basename "${distro}"
+	done
+}
+
+list_experimental() {
+	for distro in /bedrock/share/brl-fetch/distros/*; do
+		. "${distro}"
+		check_experimental || continue
+		check_arch_support || continue
+		basename "${distro}"
+	done
+}
+
+get_width() {
+	width=$( (stty size 2>/dev/null || echo "x 40") | cut -d' ' -f2)
+	if [ "${width}" -gt 80 ]; then
+		width=80
+	fi
+}
+
+progress_bar() {
+	get_width
+	awk -v"total=${1}" -v"width=${width}" '
+		BEGIN {
+			width -= 8
+			bar = ""
+			for (i = 0; i < width; i++) {
+				bar = bar " "
+			}
+			printf "\r[%s] %3d%%", bar, NR * 100 / total
+		}
+		{
+			bar = ""
+			for (i = 0; i < width; i++) {
+				if ((NR / total) >= (i / width)) {
+					bar = bar "\\"
+				} else {
+					bar = bar " "
+				}
+			}
+			printf "\r[%s] %3d%%", bar, NR * 100 / total
+		}
+		END {
+			bar = ""
+			for (i = 0; i < width; i++) {
+				bar = bar "\\"
+			}
+			printf "\r[%s] 100%%\n", bar
+		}
+	' -
+}
+
+progress_unknown() {
+	get_width
+	awk -v"width=${width}" '
+		BEGIN {
+			width -= 8
+			s[0] = "-"; s[1] = "\\"; s[2] = "|"; s[3] = "/"
+			printf "\r["
+			for (i = 0; i < width; i++) {
+				bar = bar " "
+			}
+			printf "\r[%s]  ??%%", bar
+		}
+		{
+			bar = ""
+			for (i = 0; i < width; i++) {
+				if (!(i % 3)) {
+					bar = bar "" s[(NR + i) % 4]
+				} else {
+					bar = bar " "
+				}
+			}
+			printf "\r[%s]  ??%%", bar
+		}
+		END {
+			bar = ""
+			for (i = 0; i < width; i++) {
+				bar = bar "\\"
+			}
+			printf "\r[%s] 100%%\n", bar
+		}
+	' -
+}
+
+pick_mirror() {
+	if [ -n "${flag_mirror:-}" ]; then
+		echo "${flag_mirror}"
+		return
+	fi
+
+	mirrors="$(list_mirrors)"
+	count="$(echo "${mirrors}" | wc -w)"
+	if [ "${count}" -eq 1 ]; then
+		echo "${mirrors}"
+		return
+	fi
+
+	mirror_file="${target_dir}/brl-fetch-mirror"
+	rm -f "${mirror_file}"
+
+	if [ "${count}" -gt 10 ]; then
+		echo "Fast filtering ${count} to top 10" >&2
+		(
+			echo "X"
+			(
+				# shellcheck disable=SC2086
+				/bedrock/libexec/netselect -s 10 -v ${mirrors} | awk '{print$2}' >"${mirror_file}"
+			) 2>&1 | awk '/Running netselect to choose/ {RS="."} !(NR % 5)'
+		) | progress_unknown >&2
+
+		if [ -z "$(cat "${mirror_file}")" ]; then
+			printf "Fast filter failed, falling back to slow method against all ${count} mirrors.\\n" >&2
+			printf "This is known to fail within certain virtualization environments which do not support ICMP.\\n" >&2
+			printf "If this seems unacceptably slow, ${color_cmd}ctrl-c${color_norm} out, ${color_cmd}brl remove${color_norm} the ${color_term}stratum${color_norm}, then look up a good mirror for the distro and ${color_cmd}brl fetch${color_norm} again, this time manually providing mirror with ${color_cmd}-m${color_norm}\\n" >&2
+		else
+			mirrors="$(cat "${mirror_file}")"
+		fi
+		rm "${mirror_file}"
+	fi
+
+	count="$(echo "${mirrors}" | wc -w)"
+	echo "Finding fastest mirror from ${count}" >&2
+	for mirror in ${mirrors}; do
+		echo "mirror ${mirror}"
+		time wget -O- "${mirror}/${1}" >/dev/null
+		echo "result ${?}"
+	done 2>&1 | awk -vout="${mirror_file}" '
+		$1 == "mirror" {
+			mirror=$NF
+		}
+		$1 == "real" {
+			gsub(/[sm]/, "")
+			time = $2 * 60 + $3
+		}
+		$1 == "result" {
+			print "mirror="mirror" time="time" result="$2
+			if ($2 != 0) {
+				next
+			}
+			if (best_time == "" || time < best_time) {
+				best_mirror=mirror
+				best_time=time
+			}
+		}
+		END {
+			print best_mirror > out
+		}
+	' | progress_bar "${count}" >&2
+
+	cat "${mirror_file}"
+	rm "${mirror_file}"
+}
+
+# Filters out everything from stdin except hyperlinks found in href="...".
+# Intended for parsing HTTP index pages.
+list_links() {
+	sed 's/[<> \t\n\r]/\n/g' | awk -F"[\"']" '/^href=/ || /^HREF=/ {print$2}'
+}
+
+# Gets the URL corresponding to a given file at a given http index
+#
+# First argument should be the http index URL.
+# Second argument should be a regular expression to match.
+#
+# Example:
+#     find_link "${mirror}/isos" "-latest.iso$"
+#
+# This is very finicky and easy to break.  This is intended to be utilized in
+# well formatted HTML HTTP index pages.
+#
+find_link() {
+	index="${1}"
+	regex="${2}"
+
+	printf "Looking for file matching: ${color_file}${regex}${color_norm}\\n" >&2
+	printf "at: ${color_link}${index}${color_norm}\\n" >&2
+	path="$(wget -O- "${index}" 2>/dev/null | list_links | grep -- "${regex}" | head -n1)"
+	printf "found: ${color_file}${path}${color_norm}\\n" >&2
+
+	if [ "${path}" != "" ]; then
+		echo "${index}/${path}"
+	fi
+}
+
+download_files() {
+	dir="${1}"
+	shift
+	files="${*}"
+	(
+		cd "${dir}"
+		IFS="
+"
+		for file in ${files}; do
+			wget "${file}" 2>/dev/null
+			echo "${file}"
+		done | progress_bar "$(echo "${files}" | wc -l)"
+	)
+}
+
+setup_chroot() {
+	dir="${1}"
+
+	mkdir -p "${dir}/etc"
+	cp -rpL /etc/resolv.conf "${dir}/etc/resolv.conf"
+	[ -e "${dir}/etc/ssl" ] || cp -rpL /etc/ssl "${dir}/etc/"
+	[ -e "${dir}/etc/passwd" ] || cp -rpL /etc/passwd "${dir}/etc/"
+	[ -e "${dir}/etc/group" ] || cp -rpL /etc/group "${dir}/etc/"
+
+	mount --bind "${dir}" "${dir}"
+
+	mkdir -p "${dir}/proc"
+	mount -t proc /proc "${dir}/proc"
+
+	mkdir -p "${dir}/sys"
+	mount -t sysfs /sys "${dir}/sys"
+
+	mkdir -p "${dir}/dev"
+	mount --bind /dev "${dir}/dev"
+	mount --bind /dev/pts "${dir}/dev/pts"
+
+	mount -t tmpfs shm "${dir}/dev/shm/"
+	chmod 1777 "${dir}/dev/shm/"
+	mkdir -p "${dir}/run"
+
+	mount -t tmpfs run "${dir}/run"
+	chmod 1777 "${dir}/run/"
+}
+
+tear_down_chroot() {
+	dir="${1}"
+
+	cd /
+	kill_chroot_procs "${dir}"
+	umount_r "${dir}"
+}
+
+extract_debs() {
+	(
+		cd "${1}"
+		shift
+		for file in "${@}"; do
+			ar x "${file}"
+			if [ -e "./data.tar.gz" ]; then
+				gunzip "./data.tar.gz"
+			elif [ -e "./data.tar.xz" ]; then
+				unxz "./data.tar.xz"
+			fi
+			tar xf data.tar
+			rm "./debian-binary"
+			rm "./data.tar"
+			rm "./control.tar."*
+			echo "${file}"
+		done | progress_bar "${#}"
+	)
+}
+
+extract_rpms() {
+	dir="${1}"
+	shift
+
+	cat <<EOF >"${dir}/rpm_extractor"
+#!/bin/sh
+# busybox rpm2cpio supports every rpm *except* lzma-compressed ones.  Try
+# rpm2cpio first.  If it works, use it.  Otherwise, we know the rpm is
+# (probably) lzma-compressed, in which we can use the body of the script below.
+#
+# Thanks to Jeff Johnson and Tim Mooney for the rpm arithmetic:
+# https://www.redhat.com/archives/rpm-list/2003-June/msg00367.html
+pkg=\$1
+(
+	if ! rpm2cpio "\$pkg"
+	then
+		leadsize=96
+		o=\`expr \$leadsize + 8\`
+		set \`od -j \$o -N 8 -t u1 \$pkg\`
+		il=\`expr 256 \\* \\( 256 \\* \\( 256 \\* \$2 + \$3 \\) + \$4 \\) + \$5\`
+		dl=\`expr 256 \\* \\( 256 \\* \\( 256 \\* \$6 + \$7 \\) + \$8 \\) + \$9\`
+
+		sigsize=\`expr 8 + 16 \\* \$il + \$dl\`
+		o=\`expr \$o + \$sigsize + \\( 8 - \\( \$sigsize \\% 8 \\) \\) \\% 8 + 8\`
+		set \`od -j \$o -N 8 -t u1 \$pkg\`
+		il=\`expr 256 \\* \\( 256 \\* \\( 256 \\* \$2 + \$3 \\) + \$4 \\) + \$5\`
+		dl=\`expr 256 \\* \\( 256 \\* \\( 256 \\* \$6 + \$7 \\) + \$8 \\) + \$9\`
+
+		hdrsize=\`expr 8 + 16 \\* \$il + \$dl\`
+		o=\`expr \$o + \$hdrsize\`
+
+		dd if="\$pkg" ibs=\$o skip=1 | lzma -d
+	fi
+) | cpio -id
+EOF
+
+	(
+		cd "${dir}"
+		for file in "${@}"; do
+			sh "${dir}/rpm_extractor" "${file}" >/dev/null 2>&1
+			echo "${file}"
+		done | progress_bar "${#}"
+	)
+	rm "${dir}/rpm_extractor"
+}
+
+debdb_to_brldb() {
+	mkdir -p "${2}/depends/" "${2}/provides" "${2}/paths"
+	awk -F"[, ]" -v"dir=${2}" -v"total=$(wc -l <"${1}")" '
+	function brldbpath(type, name) {
+		if (substr(name,1,3) == "lib") {
+			return dir "/" type "/" substr(name, 4, 2)
+		} else {
+			return dir "/" type "/" substr(name, 1, 2)
+		}
+	}
+	$1 == "Package:" && name {
+		file = brldbpath("depends", name)
+		printf "%s", name >> file
+		for (i in depends) {
+			printf " %s", depends[i] >> file
+			delete depends[i]
+		}
+		printf "\n" >> file
+		close(file)
+
+		file = brldbpath("provides", name)
+		print name "\t" name >> file
+		close(file)
+
+		for (i in provides) {
+			file = brldbpath("provides", provides[i])
+			print provides[i] "\t" name >> file
+			close(file)
+			delete provides[i]
+		}
+
+		file = brldbpath("paths", name)
+		for (i in paths) {
+			print name "\t" paths[i] >> file
+			delete paths[i]
+		}
+		close(file)
+	}
+	$1 == "Package:" {
+		name = $2
+	}
+	$1 == "Provides:" {
+		sub(/\|.*$/, "", $0)
+		gsub(/\([^)]*\)/, "", $0)
+		for (i=2; i<=NF; i++) {
+			if ($i) {
+				provides[$i] = $i
+			}
+		}
+	}
+	$1 == "Depends:" || $1 == "Pre-Depends:" {
+		sub(/\|.*$/, "", $0)
+		gsub(/\([^)]*\)/, "", $0)
+		for (i=2; i<=NF; i++) {
+			if ($i) {
+				depends[$i] = $i
+			}
+		}
+	}
+	$1 == "Filename:" {
+		for (i=2; i<=NF; i++) {
+			if ($i) {
+				paths[$i] = $i
+			}
+		}
+	}
+	int(NR * 100 / total) > percent {
+		percent = int(NR * 100 / total)
+		print "x"
+	}
+	' "${1}" | progress_bar 100
+}
+
+rpmdb_to_brldb() {
+	mkdir -p "${2}/depends/" "${2}/provides" "${2}/paths"
+
+	tr -d '\n' <"${1}" |
+		sed -e 's,<,\n<,g' -e 's,>\(.\),>\n\1,g' >"${2}/flattened"
+
+	awk -F"[<> ]" -v"dir=${2}" -v"total=$(wc -l <"${2}/flattened")" -v"arch=${arch}" '
+		function brldbpath(type, name) {
+			if (substr(name,1,3) == "lib") {
+				return dir "/" type "/" substr(name, 4, 2)
+			} else {
+				return dir "/" type "/" substr(name, 1, 2)
+			}
+		}
+		/^<[^\/]/ {
+			path = path ">" $2
+		}
+		/^[^ <]/ && path == ">?xml>metadata>package>name" {
+			name = $0
+		}
+		/^[^ <]/ && path == ">?xml>metadata>package>arch" {
+			pkg_arch = $0
+		}
+		path == ">?xml>metadata>package>format>rpm:requires>rpm:entry" {
+			for (i=1; i <= NF; i++) {
+				if (index($i, "name=\"") == 1) {
+					entry = $i
+					sub(/^name="/, "", entry)
+					sub(/"\/?$/, "", entry)
+					depends[entry] = entry
+					break
+				}
+			}
+		}
+		path == ">?xml>metadata>package>format>rpm:provides>rpm:entry" {
+			for (i=1; i <= NF; i++) {
+				if (index($i, "name=\"") == 1) {
+					entry = $i
+					sub(/^name="/, "", entry)
+					sub(/"\/?$/, "", entry)
+					provides[entry] = entry
+					break
+				}
+			}
+		}
+		/^[^ <]/ && path == ">?xml>metadata>package>format>file" {
+			provides[$0] = $0
+		}
+		path == ">?xml>metadata>package>location" {
+			for (i=1; i <= NF; i++) {
+				if (index($i, "href=\"") == 1) {
+					entry = $i
+					sub(/^href="/, "", entry)
+					sub(/"\/?$/, "", entry)
+					if (entry ~ arch".rpm$" || entry ~ "noarch.rpm$") {
+						paths[entry] = entry
+					}
+					break
+				}
+			}
+		}
+		/\/>$/ {
+			sub(">[^>]*$","",path)
+		}
+		/^<\// {
+			if (path == ">?xml>metadata>package" && name != "" && (pkg_arch == arch || pkg_arch == "noarch")) {
+				file = brldbpath("depends", name)
+				printf "%s", name >> file
+				for (i in depends) {
+					printf " %s", depends[i] >> file
+					delete depends[i]
+				}
+				printf "\n" >> file
+				close(file)
+
+				file = brldbpath("provides", name)
+				print name "\t" name >> file
+				close(file)
+
+				for (i in provides) {
+					file = brldbpath("provides", provides[i])
+					print provides[i] "\t" name >> file
+					close(file)
+					delete provides[i]
+				}
+
+				file = brldbpath("paths", name)
+				for (i in paths) {
+					print name "\t" paths[i] >> file
+					delete paths[i]
+				}
+				close(file)
+
+				pkg_arch=""
+				name=""
+			}
+			sub(">[^>]*$","",path)
+		}
+		int(NR * 100 / total) > percent {
+			percent = int(NR * 100 / total)
+			print "x"
+		}
+	' "${2}/flattened" | progress_bar 100
+}
+
+brldb_calculate_paths_with_deps() {
+	awk -v"dir=${1}" -v"out=${2}" -v"packages=${3}" '
+	function brldbpath(type, name) {
+		if (substr(name,1,3) == "lib") {
+			return dir "/" type "/" substr(name, 4, 2)
+		} else {
+			return dir "/" type "/" substr(name, 1, 2)
+		}
+	}
+	function get_values(type, key, values, only_first) {
+		for (value in values) {
+			delete values[value]
+		}
+		file = brldbpath(type, key)
+		while ((getline < file) > 0) {
+			if ($1 == key) {
+				if (only_first) {
+					close(file)
+					return $2
+				}
+				for (i = 2; i <= NF; i++) {
+					values[$i] = $i
+				}
+				break
+			}
+		}
+		close(file)
+		return
+	}
+	BEGIN {
+		split(packages, to_process_num)
+		for (i in to_process_num) {
+			to_process[to_process_num[i]]
+		}
+		while (length(to_process) > 0) {
+			for (package in to_process) {
+				delete to_process[package]
+				package = get_values("provides", package, "", 1)
+				processed[package] = get_values("paths", package, "", 1)
+
+				get_values("depends", package, depends, 0)
+				depends[package] = package
+
+				new=0
+				for (depend in depends) {
+					provider = get_values("provides", depend, "", 1)
+					if (provider == "") {
+						print "Unable to find provider for \""depend"\"" > "/dev/stderr"
+						exit 1
+					}
+					if (!(provider in processed)) {
+						to_process[provider]
+						new++
+					}
+				}
+			}
+		}
+		for (i in processed) {
+			print processed[i] >> out
+		}
+		close(out)
+	}
+	' | progress_unknown
+}
+
+# Do not set the target directory until we have a stratum name that we know
+# does not overlap with an existing stratum.  Otherwise we might accidentally
+# remove an existing stratum when cleaning up.
+unset target_dir
+
+handle_help "${@:-}"
+min_args "${#}" "1"
+
+export flag_release=""
+export flag_mirror=""
+export flag_name=""
+flag_releases=false
+flag_dont_enable=false
+flag_dont_show=false
+distros=""
+
+OPTL="list,experimental,releases,name:,release:,mirror:,dont-enable,dont-show"
+OPTO="LXRn:r:m:es"
+eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
+saw_non_positional=false
+
+while [ -n "${1:-}" ]; do
+	case "${1}" in
+	-L | --list)
+		list_distros
+		exit_success
+		shift
+		;;
+	-X | --experimental)
+		list_experimental
+		exit_success
+		shift
+		;;
+	-R | --releases)
+		flag_releases=true
+		shift
+		;;
+	-n | --name)
+		flag_name="${2}"
+		shift
+		shift
+		;;
+	-r | --release)
+		flag_release="${2}"
+		shift
+		shift
+		;;
+	-m | --mirror)
+		flag_mirror="${2}"
+		shift
+		shift
+		;;
+	-e | --dont-enable)
+		flag_dont_enable=true
+		shift
+		;;
+	-s | --dont-show)
+		flag_dont_show=true
+		shift
+		;;
+	--)
+		shift
+		;;
+	-*)
+		if "${saw_non_positional}"; then
+			eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
+			saw_non_positional=false
+		else
+			abort "Unrecognized argument: ${1}"
+		fi
+		;;
+	*)
+		saw_non_positional=true
+		distros="${distros} ${1}"
+		shift
+		;;
+	esac
+done
+
+if [ -z "${distros:-}" ]; then
+	abort "no distro specified"
+fi
+
+for distro in ${distros}; do
+	if ! [ -e "/bedrock/share/brl-fetch/distros/${distro}" ]; then
+		abort "Could not find supporting code for \`${distro}\`."
+	fi
+
+	. "/bedrock/share/brl-fetch/distros/${distro}"
+
+	if ! check_arch_support; then
+		abort "\`${distro}\` support not white-listed for this CPU architecture."
+	fi
+
+	unset target_dir
+	if "${flag_releases}"; then
+		list_releases "${distro}" | sort -n
+		continue
+	fi
+
+	export name="${flag_name:-${distro}}"
+	ensure_legal_stratum_name "${name}"
+
+	lock
+	if is_stratum_or_alias "${name}"; then
+		abort "Something already exists at \"/bedrock/strata/${name}\".  Consider either setting a different name with \`brl fetch -n\` or removing the pre-existing stratum/alias with \`brl remove ${name}\`."
+	fi
+	trap 'fetch_abort "Unexpected error occurred."' EXIT
+	target_dir="/bedrock/strata/${name}"
+	mkdir -p "${target_dir}"
+	drop_lock
+
+	# Different distros use different names for the same CPU
+	# architecture.
+	arch="$(uname -m)"
+	if [ "${arch}" = "x86_64" ]; then
+		export arch2="amd64"
+	elif echo "${arch}" | grep -q "i.86"; then
+		export arch2="i386"
+	fi
+
+	cd /
+	fetch
+
+	if ! "${flag_dont_show}"; then
+		notice "${color_term}Showing${color_norm}"
+		/bedrock/libexec/brl-show "${name}"
+	fi
+
+	if ! "${flag_dont_enable}"; then
+		notice "${color_term}Enabling${color_norm}"
+		/bedrock/libexec/brl-enable "${name}"
+	fi
+done
+
+exit_success

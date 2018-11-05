@@ -1,0 +1,123 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl hide
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Marks strata to be hidden.
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl hide ${color_sub}[options] <strata>${color_norm}
+
+${color_term}Hides${color_norm} ${color_term}strata${color_norm} from various ${color_bedrock}Bedrock Linux${color_norm} subsystems.  Requires root.
+
+Options:
+  ${color_sub}<none>${color_norm}       defaults to ${color_cmd}--all${color_norm}
+  ${color_cmd}-a${color_norm},${color_cmd} --all    ${color_norm}${color_term}hide${color_norm} ${color_term}stratum${color_norm} in all available subsystems
+  ${color_cmd}-b${color_norm},${color_cmd} --boot   ${color_norm}do not automatically ${color_term}enable${color_norm} ${color_term}stratum${color_norm} during boot
+  ${color_cmd}-c${color_norm},${color_cmd} --cross  ${color_norm}do not include ${color_term}stratum${color_norm}'s files in ${color_file}/bedrock/cross${color_norm}
+  ${color_cmd}-i${color_norm},${color_cmd} --init   ${color_norm}do not list ${color_term}stratum${color_norm}'s init options during boot
+  ${color_cmd}-l${color_norm},${color_cmd} --list   ${color_norm}do not list with ${color_cmd}\`brl list\`${color_norm} without ${color_cmd}\`-i\`${color_norm} flag.
+  ${color_cmd}-h${color_norm},${color_cmd} --help   ${color_norm}print this message
+
+Examples:
+  ${color_cmd}$ brl list | grep centos
+  ${color_strat}centos
+  ${color_rcmd}# brl hide centos
+  ${color_cmd}$ brl list | grep centos
+${color_norm}"
+}
+
+handle_help "${@:-}"
+min_args "${#}" "1"
+
+hide_boot=false
+hide_cross=false
+hide_init=false
+hide_list=false
+strata=""
+
+OPTL="all,boot,cross,init,list,help"
+OPTO="abcil"
+eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
+saw_non_positional=false
+
+while [ -n "${1:-}" ]; do
+	case "${1}" in
+	-a | --all)
+		hide_boot=true
+		hide_cross=true
+		hide_init=true
+		hide_list=true
+		shift
+		;;
+	-b | --boot)
+		hide_boot=true
+		shift
+		;;
+	-c | --cross)
+		hide_cross=true
+		shift
+		;;
+	-i | --init)
+		hide_init=true
+		shift
+		;;
+	-l | --list)
+		hide_list=true
+		shift
+		;;
+	--)
+		shift
+		;;
+	-*)
+		if "${saw_non_positional}"; then
+			eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
+			saw_non_positional=false
+		else
+			abort "Unrecognized argument: ${1}"
+		fi
+		;;
+	*)
+		saw_non_positional=true
+		strata="${strata} ${1}"
+		shift
+		;;
+	esac
+done
+
+if [ -z "${strata}" ]; then
+	abort "No stratum or alias specified."
+fi
+
+if ! "${hide_boot}" &&
+	! "${hide_cross}" &&
+	! "${hide_init}" &&
+	! "${hide_list}"; then
+	hide_boot=true
+	hide_cross=true
+	hide_init=true
+	hide_list=true
+fi
+
+lock
+
+for stratum in ${strata}; do
+	if ! is_stratum_or_alias "${stratum}"; then
+		abort "No stratum or alias named \"${stratum}\"."
+	elif "${hide_boot}" && is_bedrock "${stratum}"; then
+		abort "Cannot hide bedrock stratum from boot-time enabling.  You may hide it from everything else, however.  See --help for other options."
+	fi
+	"${hide_boot}" && rm_attr "/bedrock/strata/${stratum}" "show_boot"
+	"${hide_cross}" && rm_attr "/bedrock/strata/${stratum}" "show_cross"
+	"${hide_init}" && rm_attr "/bedrock/strata/${stratum}" "show_init"
+	"${hide_list}" && rm_attr "/bedrock/strata/${stratum}" "show_list"
+done
+
+exit_success

@@ -1,0 +1,124 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl show
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Marks strata to be visible
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl show ${color_sub}[options] <strata>${color_norm}
+
+${color_term}Shows${color_norm} ${color_term}strata${color_norm} from various ${color_bedrock}Bedrock Linux${color_norm} subsystems.  Requires root.
+
+Options:
+  ${color_sub}<none>${color_norm}       defaults to ${color_cmd}--all${color_norm}
+  ${color_cmd}-a${color_norm},${color_cmd} --all    ${color_norm}${color_term}show${color_norm} ${color_term}stratum${color_norm} in all available subsystems
+  ${color_cmd}-b${color_norm},${color_cmd} --boot   ${color_norm}automatically ${color_term}enable${color_norm} ${color_term}stratum${color_norm} during boot
+  ${color_cmd}-c${color_norm},${color_cmd} --cross  ${color_norm}include ${color_term}stratum${color_norm}'s files in ${color_file}/bedrock/cross${color_norm}
+  ${color_cmd}-i${color_norm},${color_cmd} --init   ${color_norm}list ${color_term}stratum${color_norm}'s init options during boot
+  ${color_cmd}-l${color_norm},${color_cmd} --list   ${color_norm}list with ${color_cmd}\`brl list\`${color_norm} even without ${color_cmd}\`-i\`${color_norm} flag.
+  ${color_cmd}-h${color_norm},${color_cmd} --help   ${color_norm}print this message
+
+Examples:
+  ${color_cmd}$ brl list | grep centos
+  ${color_strat}centos
+  ${color_rcmd}# brl hide centos
+  ${color_cmd}$ brl list | grep centos
+  ${color_rcmd}# brl show centos
+  ${color_cmd}$ brl list | grep centos
+  ${color_strat}centos
+${color_norm}"
+}
+
+handle_help "${@:-}"
+min_args "${#}" "1"
+
+show_boot=false
+show_cross=false
+show_init=false
+show_list=false
+strata=""
+
+OPTL="all,boot,cross,init,list,help"
+OPTO="abcil"
+eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
+saw_non_positional=false
+
+while [ -n "${1:-}" ]; do
+	case "${1}" in
+	-a | --all)
+		show_boot=true
+		show_cross=true
+		show_init=true
+		show_list=true
+		shift
+		;;
+	-b | --boot)
+		show_boot=true
+		shift
+		;;
+	-c | --cross)
+		show_cross=true
+		shift
+		;;
+	-i | --init)
+		show_init=true
+		shift
+		;;
+	-l | --list)
+		show_list=true
+		shift
+		;;
+	--)
+		shift
+		;;
+	-*)
+		if "${saw_non_positional}"; then
+			eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
+			saw_non_positional=false
+		else
+			abort "Unrecognized argument: ${1}"
+		fi
+		;;
+	*)
+		saw_non_positional=true
+		strata="${strata} ${1}"
+		shift
+		;;
+	esac
+done
+
+if [ -z "${strata}" ]; then
+	abort "No stratum or alias specified."
+fi
+
+if ! "${show_boot}" &&
+	! "${show_cross}" &&
+	! "${show_init}" &&
+	! "${show_list}"; then
+	show_boot=true
+	show_cross=true
+	show_init=true
+	show_list=true
+fi
+
+lock
+
+for stratum in ${strata}; do
+	if ! is_stratum_or_alias "${stratum}"; then
+		abort "no stratum or alias named \"${stratum}\""
+	fi
+	"${show_boot}" && set_attr "/bedrock/strata/${stratum}" "show_boot" ""
+	"${show_cross}" && set_attr "/bedrock/strata/${stratum}" "show_cross" ""
+	"${show_init}" && set_attr "/bedrock/strata/${stratum}" "show_init" ""
+	"${show_list}" && set_attr "/bedrock/strata/${stratum}" "show_list" ""
+done
+
+exit_success

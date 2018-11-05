@@ -1,0 +1,171 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl which
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Indicates which stratum provides a given object
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl which ${color_sub}[option] [identifier]${color_norm}
+
+Indicates which ${color_term}stratum${color_norm} provides a given object.
+
+Options:
+  ${color_sub}<none>          ${color_norm}guess type from identifier
+  ${color_cmd}-c${color_norm}, ${color_cmd}--current   ${color_norm}which ${color_term}stratum${color_norm} provides current process
+  ${color_cmd}-b${color_norm}, ${color_cmd}--bin       ${color_norm}which ${color_term}stratum${color_norm} provides a given binary in \$PATH
+  ${color_cmd}-f${color_norm}, ${color_cmd}--file      ${color_norm}which ${color_term}stratum${color_norm} provides a given file path
+  ${color_cmd}-p${color_norm}, ${color_cmd}--pid       ${color_norm}which ${color_term}stratum${color_norm} provides a given process ID
+  ${color_cmd}-x${color_norm}, ${color_cmd}--xwindow   ${color_norm}which ${color_term}stratum${color_norm} provides a given X11 window (requires xprop)
+  ${color_cmd}-h${color_norm}, ${color_cmd}--help      ${color_norm}print this message
+
+Guessing reasoning for ${color_sub}<blank>${color_norm} based on identifier:
+  blank              current process (${color_cmd}-c${color_norm})
+  all digits         a process' PID (${color_cmd}-p${color_norm})
+  contains no slash  a binary in the ${color_cmd}\$PATH${color_norm} (${color_cmd}-b${color_norm})
+  contains a slash   a relative or absolute file path (${color_cmd}-f${color_norm})
+
+Examples:
+  ${color_cmd}$ brl which ${color_norm}# which ${color_term}stratum${color_norm} provides the current shell?
+  ${color_strat}void
+  ${color_cmd}$ brl which vim ${color_norm}# which ${color_term}stratum${color_norm} provides the ${color_cmd}vim${color_norm} command?
+  ${color_strat}gentoo
+  ${color_cmd}$ brl which ~/.vimrc ${color_norm}# which ${color_term}stratum${color_norm} provides ${color_cmd}~/.vimrc${color_norm}?
+  ${color_strat}global
+  ${color_cmd}$ brl which /etc/os-release ${color_norm}# which ${color_term}stratum${color_norm} provides ${color_file}/etc/os-release${color_file}?
+  ${color_strat}void
+  ${color_cmd}$ brl which /etc/passwd ${color_norm}# which ${color_term}stratum${color_norm} provides ${color_file}/etc/passwd${color_file}?
+  ${color_strat}global
+  ${color_cmd}$ brl which 1 ${color_norm}# which ${color_term}stratum${color_norm} provides PID1/init?
+  ${color_strat}alpine
+  ${color_cmd}$ brl which -x ${color_norm}# click mouse on X11 window to query provider
+  ${color_strat}arch
+${color_norm}"
+}
+
+which_current() {
+	printf "${color_strat}"
+	get_attr "/" "stratum"
+	printf "${color_norm}"
+}
+
+which_bin() {
+	while [ -n "${1:-}" ]; do
+		if busybox which "${1}" >/dev/null 2>&1; then
+			which_file "$(busybox which "${1}")"
+		else
+			abort "\`${1}\` not found in \$PATH"
+		fi
+		shift
+	done
+}
+
+which_file() {
+	while [ -n "${1:-}" ]; do
+		if ! [ -e "${1}" ]; then
+			abort "no file at \`${1}\`"
+		elif has_attr "${1}" "stratum"; then
+			printf "${color_strat}"
+			get_attr "${1}" "stratum"
+			printf "${color_norm}"
+		elif [ "$(stat "${1}" 2>/dev/null | awk 'NR>1')" = "$(/bedrock/bin/strat bedrock /bedrock/libexec/busybox stat "${1}" 2>/dev/null | awk 'NR>1')" ]; then
+			printf "${color_strat}"
+			echo "global"
+			printf "${color_norm}"
+		else
+			which_current
+		fi
+		shift
+	done
+}
+
+which_pid() {
+	while [ -n "${1:-}" ]; do
+		# Pick a mount point visible to the process.
+		mount_number="$(head -n1 "/proc/${1}/mountinfo" | cut -d" " -f1)"
+		# Find where init sees it mounted.
+		init_view="$(grep "^${mount_number} " /proc/1/mountinfo | cut -d' ' -f5 | head -n1)"
+		# Find where the process sees it mounted.
+		stratum_view="$(grep "^${mount_number} " "/proc/${1}/mountinfo" | cut -d' ' -f5 | head -n1)"
+
+		# If the process sees it mounted the same place as init does, then the
+		# process is in the init stratum.
+		if [ "${init_view}" = "${stratum_view}" ]; then
+			# Report the name of the init stratum
+			printf "${color_strat}"
+			deref init
+			printf "${color_norm}"
+		else
+			# Must be in a stratum other than init
+			#
+			# Init will see it mounted at
+			# <empty>/bedrock/stratum/<stratum-name>/something
+			# |       |       |      |              \- from here on out don't care
+			# |       |       |      \- stratum name
+			# |       |       \- third field
+			# |       \- second field
+			# \- first (empty) field
+			#
+			# Thus, the fourth field will be the stratum.  Forward slashes
+			# are not allowed in Linux file names.
+			printf "${color_strat}"
+			echo "${init_view}" | cut -d'/' -f4
+			printf "${color_norm}"
+		fi
+		shift
+	done
+}
+
+which_xwindow() {
+	if busybox which "xprop" >/dev/null 2>&1; then
+		which_pid "$(xprop | awk '/PID/{print$NF;exit}')"
+	else
+		abort "\`xprop\` not found in \$PATH.  Install \`xprop\` to utilize this feature."
+	fi
+}
+
+handle_help "${@:-}"
+
+case "${1:-}" in
+"-c" | "--current" | "")
+	[ -n "${1:-}" ] && shift
+	which_current "${@}"
+	;;
+"-b" | "--bin")
+	shift
+	which_bin "${@}"
+	;;
+"-f" | "--file")
+	shift
+	which_file "${@}"
+	;;
+"-p" | "--pid")
+	shift
+	which_pid "${@}"
+	;;
+"-x" | "--xwindow")
+	shift
+	which_xwindow
+	;;
+*)
+	while [ -n "${1:-}" ]; do
+		if echo "${1}" | grep -q '^[0-9][0-9]*$'; then
+			which_pid "${1}"
+		elif echo "${1}" | grep -q '/'; then
+			which_file "${1}"
+		else
+			which_bin "${1}"
+		fi
+		shift
+	done
+	;;
+esac
+
+exit_success

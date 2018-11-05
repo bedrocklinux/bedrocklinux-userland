@@ -1,0 +1,375 @@
+#!/bedrock/libexec/busybox sh
+#
+# init
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2014-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Bedrock Linux meta-init system
+
+. /bedrock/share/common-code
+# Remove typical runtime sanity checks, as crashing during init is going to
+# just cause difficult to debug headaches for most users.
+set +eu
+trap '' EXIT
+
+fatal_error() {
+	echo ""
+	printf "${color_alert}${*}${color_norm}\\n"
+	echo ""
+	echo "Starting emergency shell"
+	echo "Good luck"
+	echo ""
+	exec sh
+}
+
+setup_term() {
+	# Ensure plymouth is not running, as it will fight with us over control
+	# of the terminal.
+	killall -9 -f plymouthd
+
+	# Plymouth will lock the terminal settings.  This causes the following
+	# commands to fail if not unlocked.
+	/bedrock/libexec/manage_tty_lock unlock
+
+	# Ensure sane terminal settings.  This is probably overkill.
+	stty sane
+	stty cooked
+	reset
+}
+
+ensure_essential_environment() {
+	mount -o remount,rw / 2>&1 | head -n0
+
+	if ! [ -r /proc/mounts ] || ! grep -q "^\\w* /proc proc" /proc/mounts 2>&1 | head -n0; then
+		mkdir -p /proc
+		mount -t proc proc /proc
+	fi
+	if ! grep -q "^\\w* /sys sysfs" /proc/mounts; then
+		mkdir -p /sys
+		mount -t sysfs sysfs /sys
+	fi
+	if ! grep -q "^\\w* /dev devtmpfs" /proc/mounts; then
+		mkdir -p /dev
+		mount -t devtmpfs devtmpfs /dev
+		mdev -s
+	fi
+	if ! grep -q "^\\w* /dev/pts devpts" /proc/mounts; then
+		mkdir -p /dev/pts
+		mount -t devpts devpts /dev/pts
+	fi
+
+	if ! grep -q "\\<fuse\\>" /proc/filesystems; then
+		modprobe fuse
+	fi
+
+	if ! [ -e /dev/fuse ]; then
+		mkdir -p /dev
+		mknod -m 660 /dev/fuse c 10 229
+	fi
+}
+
+complete_hijack() {
+	step_init "6"
+	notice "Completing ${color_term}hijack install${color_norm}"
+	hijacked="$(deref hijacked)"
+
+	step "Moving ${color_strat}${hijacked}${color_norm} files to ${color_file}/bedrock/strata/${hijacked}${color_norm}"
+	mkdir -p "/bedrock/strata/${hijacked}"
+	cd /
+	for item in *; do
+		case "${item}" in
+		"proc" | "sys" | "dev" | "run" | "boot" | bedrock*)
+			continue
+			;;
+		esac
+		mv "${item}" "/bedrock/strata/${hijacked}/${item}"
+	done
+
+	step "Moving ${color_strat}global${color_norm} items to ${color_file}/${color_norm}"
+	for global in $(cfg_values "global" "share") $(cfg_values "global" "bind"); do
+		case "${global}" in
+		"/proc" | "/sys" | "/dev" | "/run" | "/boot" | /bedrock*)
+			continue
+			;;
+		esac
+		if [ -e "/bedrock/strata/${hijacked}${global}" ] ||
+			[ -h "/bedrock/strata/${hijacked}${global}" ]; then
+			mkdir -p "$(dirname "${global}")"
+			mv "/bedrock/strata/${hijacked}${global}" "${global}"
+			mkdir -p "/bedrock/strata/${hijacked}${global}"
+		else
+			mkdir -p "${global}"
+		fi
+	done
+	for global in $(cfg_values "global" "etc"); do
+		mkdir -p "$(dirname "/etc/${global}")"
+		if [ -e "/bedrock/strata/${hijacked}/etc/${global}" ] ||
+			[ -h "/bedrock/strata/${hijacked}/etc/${global}" ]; then
+			mv "/bedrock/strata/${hijacked}/etc/${global}" "/etc/${global}"
+		fi
+	done
+
+	step "Restoring ${color_strat}${hijacked}${color_norm} init(s)"
+	for init in "/bedrock/init-backup/"*; do
+		path="/$(basename "${init}" | sed 's,-,/,g')"
+		mkdir -p "$(dirname "${path}")"
+		mv "${init}" "/bedrock/strata/${hijacked}${path}"
+	done
+	rmdir "/bedrock/init-backup"
+
+	step "Granting ${color_cmd}strat${color_norm} necessary capabilities"
+	/bedrock/libexec/setcap cap_sys_chroot=ep /bedrock/bin/strat
+
+	step "Creating root files and directories"
+	for dir in /bin /dev /lib/systemd /mnt /proc /root /run /sbin /sys /tmp /usr/bin /usr/sbin /var; do
+		mkdir -p "${dir}"
+	done
+	/bedrock/libexec/busybox --install
+	for init in $(cfg_values "init" "paths"); do
+		rm -f "${init}"
+		mkdir -p "$(dirname "${init}")"
+		ln -s /bedrock/libexec/init "${init}"
+	done
+
+	step "Completing ${color_term}hijack install${color_norm}"
+	rm /bedrock/complete-hijack-install
+
+	echo ""
+}
+
+list_init_options() {
+	for stratum in $(list_strata); do
+		if [ "${stratum}" = "bedrock" ]; then
+			continue
+		fi
+		if ! has_attr "/bedrock/strata/${stratum}" "show_init"; then
+			continue
+		fi
+		for cmd in $(cfg_values "init" "paths"); do
+			sproc="/bedrock/strata/${stratum}/proc"
+			mkdir -p "${sproc}" 2>/dev/null || true
+			mount -t proc proc "${sproc}"
+			link="$(chroot "/bedrock/strata/${stratum}" "/proc/1/root/bedrock/libexec/busybox" realpath "${cmd}" 2>/dev/null)" || true
+			path="/bedrock/strata/${stratum}${link}"
+			if [ -n "${link:-}" ] && [ -x "${path}" ]; then
+				echo "${stratum} ${path} ${cmd} ${link}"
+			fi
+			umount "${sproc}"
+		done
+	done | awk '
+	{
+		if (!($2 in cmds)) {
+			cmds[$2] = $0
+			next
+		}
+		split($0, a)
+		if (a[3] == a[4] && $3 != $4) {
+			cmds[$2] = $0
+		}
+	}
+	END {
+		for (i in cmds) {
+			print cmds[i]
+		}
+	}
+	' | sort | uniq
+}
+
+pretty_print_options() {
+	i=0
+	IFS="
+"
+	for option in $(list_init_options); do
+		i=$((i + 1))
+		stratum="$(echo "${option}" | cut -d" " -f1)"
+		path="$(echo "${option}" | cut -d" " -f2)"
+		cmd="$(echo "${option}" | cut -d" " -f3)"
+		link="$(echo "${option}" | cut -d" " -f4)"
+		if [ "${path}" = "${def_path}" ]; then
+			star="${color_glue}*${color_norm}"
+		else
+			star=" "
+		fi
+		if [ "${cmd}" != "${link}" ]; then
+			res="${color_glue} -> ${color_cmd}${link}"
+		else
+			res=""
+		fi
+		printf "${star}${color_sub}%2s${color_norm}. ${color_strat}${stratum}${color_glue}:${color_cmd}${cmd}${res}${color_norm}\\n" "${i}"
+	done
+}
+
+get_init_choice() {
+	echo "Select init number to use for this section" >&2
+	echo "" >&2
+	max="$(list_init_options | wc -l)"
+
+	while true; do
+		pretty_print_options >&2
+
+		printf "\\nInit number: " >&2
+
+		if [ "${init_timeout}" -eq 0 ] && [ -n "${def_path}" ] && [ -x "${def_path}" ]; then
+			selected_num=0
+		elif [ "${init_timeout}" -gt 0 ] && [ -n "${def_path}" ] && [ -x "${def_path}" ]; then
+			printf "(${color_sub}${init_timeout}s${color_norm}): " >&2
+			read -r -t "${init_timeout}" selected_num
+		else
+			read -r selected_num
+		fi
+		if [ -z "${selected_num}" ]; then
+			selected_num=0
+		fi
+		if [ -n "${def_path}" ] && [ -x "${def_path}" ] && [ "${selected_num}" -eq 0 ]; then
+			echo "${def_stratum}:${def_cmd}"
+			return
+		elif echo "${selected_num}" | grep -q "[^0-9]"; then
+			true
+		elif [ "${selected_num}" -gt "${max}" ]; then
+			true
+		elif [ "${selected_num}" -gt 0 ]; then
+			list_init_options | awk -v"n=${selected_num}" 'NR==n {print $1":"$3}'
+			return
+		fi
+		printf "${color_alert}Unrecognized choice, try again.${color_norm}\\n" >&2
+	done
+}
+
+pivot() {
+	# Can only pivot_root with mount points.  Ensure init_stratum root is a mount point.
+	mount --bind "/bedrock/strata/${init_stratum}" "/bedrock/strata/${init_stratum}"
+	# Ensure /bedrock is in the stratum so we can continue to utilize it post pivot
+	mkdir -p "/bedrock/strata/${init_stratum}/bedrock"
+	mount --bind "/bedrock" "/bedrock/strata/${init_stratum}/bedrock"
+
+	# Pivot
+	cd "/bedrock/strata/${init_stratum}"
+	pivot_root "." "bedrock/strata/${init_stratum}"
+	cd /
+	mount --move "/bedrock/strata/${init_stratum}" "/bedrock/strata/bedrock"
+	# `man 8 pivot_root` says to `chroot .` here, but in practice this was
+	# found to make mount points inaccessible, and no problems were found when
+	# skipping this step.
+
+}
+
+preenable() {
+	# Preemptively share key directories that are needed to enable
+	mkdir -p "/bedrock/strata/bedrock/proc"
+	mount --make-shared "/bedrock/strata/bedrock/proc"
+	mkdir -p "/proc"
+	mount --rbind "/bedrock/strata/bedrock/proc" "/proc"
+
+	mkdir -p "/bedrock/strata/bedrock/dev"
+	mount --make-shared "/bedrock/strata/bedrock/dev"
+	mkdir -p "/dev"
+	mount --rbind "/bedrock/strata/bedrock/dev" "/dev"
+
+	mkdir -p "/bedrock/strata/bedrock/sys"
+	mount --make-shared "/bedrock/strata/bedrock/sys"
+	mkdir -p "/sys"
+	mount --rbind "/bedrock/strata/bedrock/sys" "/sys"
+
+	mkdir -p "/bedrock/strata/bedrock/bedrock/run"
+	mount -t tmpfs bedrock_run "/bedrock/strata/bedrock/bedrock/run"
+	chmod go-w "/bedrock/strata/bedrock/bedrock"
+	chmod go-w "/bedrock/strata/bedrock/bedrock/run"
+	mkdir -p "/bedrock/run"
+	mount --rbind "/bedrock/strata/bedrock/bedrock/run" "/bedrock/run"
+
+	ensure_essential_environment
+}
+
+setup_term
+
+clear
+print_logo "$(cat /bedrock/etc/bedrock-release)"
+
+ensure_essential_environment
+
+if [ -e "/bedrock/complete-hijack-install" ]; then
+	complete_hijack
+fi
+
+init_timeout="$(cfg_values "init" "timeout")"
+def_tuple="$(cfg_values "init" "default")"
+if [ -n "${def_tuple}" ]; then
+	def_stratum="$(deref "$(echo "${def_tuple}" | cut -d: -f1)")"
+	def_cmd="$(echo "${def_tuple}" | cut -d: -f2-)"
+	sproc="/bedrock/strata/${def_stratum}/proc"
+	mkdir -p "${sproc}" 2>/dev/null || true
+	mount -t proc proc "${sproc}"
+	def_link="$(chroot "/bedrock/strata/${def_stratum}" "/proc/1/root/bedrock/libexec/busybox" realpath "${def_cmd}" 2>/dev/null)" || true
+	umount "${sproc}"
+	def_path="/bedrock/strata/${def_stratum}${def_link}"
+else
+	def_stratum=""
+	def_cmd=""
+	def_link=""
+	def_path=""
+fi
+
+init_tuple="$(get_init_choice)"
+init_stratum="$(echo "${init_tuple}" | cut -d: -f1)"
+init_cmd="$(echo "${init_tuple}" | cut -d: -f2-)"
+
+echo ""
+step_init "6"
+
+step "Mounting ${color_file}fstab${color_norm}"
+mount -a
+
+step "Pivoting to ${color_strat}${init_stratum}${color_norm}"
+pivot
+
+step "Preparing to enable"
+preenable
+
+step "Enabling ${color_term}strata${color_norm}"
+
+notice "Enabling ${color_strat}bedrock${color_norm}"
+# Cannot brl-enable bedrock or init stratum, and cannot brl-repair disabled
+# strata.  Thus, manually set up minimum required to mark strata as enabled
+# then run brl-repair on bedrock and init strata.
+mkdir -p /bedrock/strata/bedrock/bedrock/run/enabled_strata
+touch /bedrock/strata/bedrock/bedrock/run/enabled_strata/bedrock
+ln -s "/bedrock/strata/${init_stratum}" "/bedrock/strata/bedrock/bedrock/run/init-alias"
+touch "/bedrock/strata/bedrock/bedrock/run/enabled_strata/${init_stratum}"
+
+/bedrock/libexec/brl-repair "bedrock"
+
+notice "Enabling ${color_strat}${init_stratum}${color_norm}"
+/bedrock/libexec/brl-repair "${init_stratum}"
+
+for stratum in $(list_strata); do
+	if is_bedrock "${stratum}" ||
+		is_init "${stratum}" ||
+		! has_attr "/bedrock/strata/${stratum}" "show_boot"; then
+		continue
+	fi
+	notice "Enabling ${color_strat}${stratum}${color_norm}"
+	/bedrock/libexec/brl-enable "${stratum}"
+done
+
+step "Applying configuration"
+/bedrock/libexec/brl-apply
+
+step "Handing control off to ${color_strat}${init_stratum}${color_glue}:${color_cmd}${init_cmd}${color_norm}"
+
+if ! [ -x "${init_cmd}" ]; then
+	fatal_error "Specified (${init_cmd}) is not executable"
+fi
+
+# Shellcheck warns about `exec` usage.  It is explicitly desired here.
+#
+# shellcheck disable=SC2093
+exec "${init_cmd}"
+
+# We should never get here.
+# If exec above succeeds, that takes over.
+# If exec above fails, we get a kernel panic.
+fatal_error "Unable to execute ${init_stratum}:${init_cmd}"

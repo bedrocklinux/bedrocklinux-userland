@@ -15,8 +15,10 @@
 # - gcc 4.9.1 or newer
 # - git 1.8 or newer
 # - meson 0.38 or newer
-# - ninja
-# - libtoolize
+# - ninja-build
+# - libtool
+# - autoconf
+# - pkg-config
 # - fakeroot
 # - make
 # - gzip
@@ -78,7 +80,7 @@
 # - build/completed/ will contain files which indicate various build steps have
 #   been completed.  These are for build steps that may produce many output
 #   files as an alternative to verbosely tracking each individual output file.
-# - Makefile services as the build system.
+# - Makefile service as the build system.
 # - `*.md` files service as documentation.
 #
 # Many dependencies have deep paths which may be awkward to type at a command
@@ -118,9 +120,10 @@
 #
 #     make check
 
-VERSION=0.7.0
+VERSION=0.7.0beta1
 CODENAME=Poki
 ARCH=$(shell uname -m)
+RELEASE=Bedrock Linux $(VERSION) $(CODENAME)
 INSTALLER=bedrock-linux-$(VERSION)-$(ARCH).sh
 
 SRC=$(shell pwd)/src/
@@ -135,6 +138,9 @@ WERROR_FLAGS=-Werror -Wall -Wextra -std=c99 -pedantic
 
 all: $(INSTALLER)
 
+remove_vendor_source:
+	rm -rf ./vendor
+
 clean:
 	rm -rf ./build/
 	rm -f $(INSTALLER)
@@ -147,9 +153,6 @@ clean:
 		$(MAKE) -C "$${dir%Makefile}" clean; \
 	done
 
-remove_vendor_source:
-	rm -rf ./vendor
-
 #
 # The build/ directory structure.  This is a dependency of just about
 # everything.
@@ -158,7 +161,18 @@ remove_vendor_source:
 $(COMPLETED)/builddir:
 	mkdir -p $(SUPPORT)/include $(SUPPORT)/lib
 	cp -r src/slash-bedrock/ $(SLASHBR)
-	mkdir -p $(SLASHBR)/bin $(SLASHBR)/etc $(SLASHBR)/libexec
+	# create bedrock-release
+	echo "$(RELEASE)" > $(SLASHBR)/etc/bedrock-release
+	mv $(SLASHBR)/etc/bedrock.conf $(SLASHBR)/etc/bedrock.conf-$(VERSION)
+	mkdir -p $(SLASHBR)/bin
+	mkdir -p $(SLASHBR)/etc
+	mkdir -p $(SLASHBR)/gnupg-keys
+	mkdir -p $(SLASHBR)/info
+	mkdir -p $(SLASHBR)/libexec
+	mkdir -p $(SLASHBR)/run
+	mkdir -p $(SLASHBR)/share/brl-fetch/distros
+	mkdir -p $(SLASHBR)/strata/bedrock
+	mkdir -p $(SLASHBR)/var
 	mkdir -p $(COMPLETED)
 	touch $(COMPLETED)/builddir
 builddir: $(COMPLETED)/builddir
@@ -322,6 +336,79 @@ uthash: $(COMPLETED)/uthash
 # Compiled binaries which will go into the output script.  Populates $(SLASHBR)
 #
 
+vendor/busybox/.success_retrieving_source:
+	rm -rf vendor/busybox
+	mkdir -p vendor/busybox
+	git clone --depth=1 \
+		-b `git ls-remote --heads 'git://git.busybox.net/busybox' | \
+		awk -F/ '$$NF ~ /stable$$/ {print $$NF}' | \
+		sort -t _ -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1` 'git://git.busybox.net/busybox' \
+		vendor/busybox
+	touch vendor/busybox/.success_retrieving_source
+$(SLASHBR)/libexec/busybox: vendor/busybox/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	# create busybox config helper
+	cd vendor/busybox && \
+		echo '#!/bin/sh' > set_bb_option && \
+		echo 'if grep -q "^$$1=" .config; then' >> set_bb_option && \
+		echo 'sed "s,^$$1=.*,$$1=$$2," .config > .config-new' >> set_bb_option && \
+		echo 'mv .config-new .config' >> set_bb_option && \
+		echo 'elif grep -q "^# $$1 is not set" .config; then' >> set_bb_option && \
+		echo 'sed "s/^# $$1 is not set/$$1=$$2/" .config > .config-new' >> set_bb_option && \
+		echo 'sed "s,^# $$1 is not set,$$1=$$2," .config > .config-new' >> set_bb_option && \
+		echo 'mv .config-new .config' >> set_bb_option && \
+		echo 'else' >> set_bb_option && \
+		echo 'echo "$$1=$$2" >> .config' >> set_bb_option && \
+		echo 'fi' >> set_bb_option && \
+		chmod u+x set_bb_option
+	# start with default config
+	cd vendor/busybox && \
+		$(MAKE) defconfig
+	# disable unused applets
+	cd vendor/busybox && \
+		for applet in $$(grep "^CONFIG_.*=y$$" .config | grep -v "FEATURE" | sed -e 's/^CONFIG_//' -e 's/=.*$$//' | tr '[A-Z_]' '[a-z-]' ); do \
+			if ! grep -rq "\<$$applet\>" $(SRC)/slash-bedrock/; then \
+echo "DISABLING $$applet"; \
+				./set_bb_option "CONFIG_$$(echo "$$applet" | tr '[a-z-]' '[A-Z_]')" "n"; \
+			fi; \
+		done
+	# explicitly enable known desired features
+	cd vendor/busybox && \
+		./set_bb_option "CONFIG_ASH_TEST" "y" && \
+		./set_bb_option "CONFIG_AR" "y" && \
+		./set_bb_option "CONFIG_ASH_BASH_COMPAT" "y" && \
+		./set_bb_option "CONFIG_ASH_CMDCMD" "y" && \
+		./set_bb_option "CONFIG_BUSYBOX_EXEC_PATH" '"/bedrock/libexec/busybox"' && \
+		./set_bb_option "CONFIG_DESKTOP" "y" && \
+		./set_bb_option "CONFIG_FEATURE_AR_CREATE" "y" && \
+		./set_bb_option "CONFIG_FEATURE_AR_LONG_FILENAMES" "y" && \
+		./set_bb_option "CONFIG_FEATURE_PREFER_APPLETS" "y" && \
+		./set_bb_option "CONFIG_FEATURE_SEAMLESS_BZ2" "y" && \
+		./set_bb_option "CONFIG_FEATURE_SEAMLESS_GZ" "y" && \
+		./set_bb_option "CONFIG_FEATURE_SEAMLESS_LZMA" "y" && \
+		./set_bb_option "CONFIG_FEATURE_SEAMLESS_XZ" "y" && \
+		./set_bb_option "CONFIG_FEATURE_SEAMLESS_Z" "y" && \
+		./set_bb_option "CONFIG_FEATURE_SH_STANDALONE" "y" && \
+		./set_bb_option "CONFIG_PIVOT_ROOT" "y" && \
+		./set_bb_option "CONFIG_STATIC" "y" && \
+		./set_bb_option "CONFIG_SYSROOT" "\"\"" && \
+		./set_bb_option "CONFIG_TEST" "y" && \
+		./set_bb_option "CONFIG_TEST1" "y" && \
+		./set_bb_option "CONFIG_VI" "y"
+	# fix various busybox-linux-musl issues
+	cd $(SUPPORT)/include/netinet/ && \
+		awk '{p=1}/^struct ethhdr/,/^}/{print "//"$$0; p=0}p==1' if_ether.h > if_ether.h.new && \
+		mv if_ether.h.new if_ether.h
+	cd $(SUPPORT)/include/linux/ && \
+		echo '' > in.h
+	cd $(SUPPORT)/include/linux/ && \
+		echo '' > in6.h
+	cp $(SUPPORT)/include/linux/if_slip.h $(SUPPORT)/include/net/
+	cd vendor/busybox && \
+		$(MAKE) CC=$(MUSLCC) && \
+		cp busybox $(SLASHBR)/libexec/busybox
+busybox: $(SLASHBR)/libexec/busybox
+
 vendor/libattr/.success_retrieving_source:
 	git clone --depth=1 \
 		-b `git ls-remote --tags 'git://git.savannah.nongnu.org/attr.git' | \
@@ -349,23 +436,51 @@ getfattr: $(COMPLETED)/libattr
 setfattr: $(COMPLETED)/libattr
 
 $(SLASHBR)/libexec/setcap: $(COMPLETED)/libcap
-	cp $(SUPPORT)/bin/setcap $(SLASHBR)/libexec/setcap
+	cp $(SUPPORT)/sbin/setcap $(SLASHBR)/libexec/setcap
 setcap: $(SLASHBR)/libexec/setcap
+
+vendor/netselect/.success_retrieving_source:
+	mkdir -p vendor/netselect
+	git clone --depth=1 'https://github.com/apenwarr/netselect.git' vendor/netselect
+	touch vendor/netselect/.success_retrieving_source
+$(SLASHBR)/libexec/netselect: vendor/netselect/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	# netselect uses non-standard types which musl does not recognize.
+	if ! grep -q '^#include "fix_types.h"' vendor/netselect/netselect.c; then \
+		echo '#define u_char unsigned char' > vendor/netselect/fix_types.h && \
+		echo '#define u_short unsigned short' >> vendor/netselect/fix_types.h && \
+		echo '#define u_long unsigned long' >> vendor/netselect/fix_types.h && \
+		echo '#include "fix_types.h"' > vendor/netselect/netselect_fixed.c && \
+		cat vendor/netselect/netselect.c >> vendor/netselect/netselect_fixed.c && \
+		mv vendor/netselect/netselect_fixed.c vendor/netselect/netselect.c; fi
+	# patch netselect to avoid dropping domain in output
+	# users may prefer the domain to a raw IP, and some services (e.g.
+	# cloudflare) refuse to operate when contacted with raw IP.
+	if grep -q '^\s*if\s*(result.multi)$$' vendor/netselect/netselect.c; then \
+		sed 's/^\s*if\s*(result.multi)$$/if(0)/' \
+			vendor/netselect/netselect.c > vendor/netselect/netselect_fixed.c && \
+		mv vendor/netselect/netselect_fixed.c vendor/netselect/netselect.c; fi
+	cd vendor/netselect/ && \
+		make CC=$(MUSLCC) LDFLAGS='-static' && \
+		cp netselect $(SLASHBR)/libexec/netselect
+netselect: $(SLASHBR)/libexec/netselect
+
+$(SLASHBR)/bin/strat: $(COMPLETED)/builddir $(COMPLETED)/musl $(COMPLETED)/libcap
+	cd src/strat && \
+		$(MAKE) CC=$(MUSLCC) && \
+		cp ./strat $(SLASHBR)/bin/strat
+strat: $(SLASHBR)/bin/strat
+
+$(SLASHBR)/libexec/manage_tty_lock: $(COMPLETED)/builddir $(COMPLETED)/musl
+	cd src/manage_tty_lock && \
+		$(MAKE) CC=$(MUSLCC) && \
+		cp manage_tty_lock $(SLASHBR)/libexec/manage_tty_lock
+manage_tty_lock: $(SLASHBR)/libexec/manage_tty_lock
 
 $(SLASHBR)/libexec/bouncer: $(COMPLETED)/builddir $(COMPLETED)/musl
 	cd src/bouncer && \
 		$(MAKE) CC=$(MUSLCC) && \
 		cp ./bouncer $(SLASHBR)/libexec/bouncer
 bouncer: $(SLASHBR)/libexec/bouncer
-
-$(SLASHBR)/libexec/crossfs: $(COMPLETED)/builddir \
-	$(COMPLETED)/musl \
-	$(COMPLETED)/libfuse \
-	$(COMPLETED)/uthash
-	cd src/crossfs && \
-		make CC=$(MUSLCC) CFLAGS="$(CFLAGS)" && \
-		cp ./crossfs $(SLASHBR)/libexec/crossfs
-crossfs: $(SLASHBR)/libexec/crossfs
 
 $(SLASHBR)/libexec/etcfs: $(COMPLETED)/builddir \
 	$(COMPLETED)/musl \
@@ -375,38 +490,30 @@ $(SLASHBR)/libexec/etcfs: $(COMPLETED)/builddir \
 		cp ./etcfs $(SLASHBR)/libexec/etcfs
 etcfs: $(SLASHBR)/libexec/etcfs
 
-$(SLASHBR)/libexec/manage_tty_lock: $(COMPLETED)/builddir $(COMPLETED)/musl
-	cd src/manage_tty_lock && \
-		$(MAKE) CC=$(MUSLCC) && \
-		cp manage_tty_lock $(SLASHBR)/libexec/manage_tty_lock
-manage_tty_lock: $(SLASHBR)/libexec/manage_tty_lock
-
-$(SLASHBR)/bin/strat: $(COMPLETED)/builddir $(COMPLETED)/musl $(COMPLETED)/libcap
-	cd src/strat && \
-		$(MAKE) CC=$(MUSLCC) && \
-		cp ./strat $(SLASHBR)/bin/strat
-strat: $(SLASHBR)/bin/strat
-
+$(SLASHBR)/libexec/crossfs: $(COMPLETED)/builddir \
+	$(COMPLETED)/musl \
+	$(COMPLETED)/libfuse \
+	$(COMPLETED)/uthash
+	cd src/crossfs && \
+		make CC=$(MUSLCC) CFLAGS="$(CFLAGS)" && \
+		cp ./crossfs $(SLASHBR)/libexec/crossfs
+crossfs: $(SLASHBR)/libexec/crossfs
 #
 # Use populated $(SLASHBR) to create the script
 #
 
-build/slashbr.tar.gz: \
+build/slashbr.tar: \
 	$(COMPLETED)/builddir \
+	$(SLASHBR)/libexec/busybox \
 	$(SLASHBR)/libexec/getfattr \
 	$(SLASHBR)/libexec/setfattr \
 	$(SLASHBR)/libexec/setcap \
-	$(SLASHBR)/libexec/bouncer \
-	$(SLASHBR)/libexec/crossfs \
-	$(SLASHBR)/libexec/etcfs \
+	$(SLASHBR)/libexec/netselect \
+	$(SLASHBR)/bin/strat \
 	$(SLASHBR)/libexec/manage_tty_lock \
-	$(SLASHBR)/bin/strat
-	# ensure permissions
-	find $(SLASHBR) -exec chmod a-s {} \;
-	find $(SLASHBR) -type f -exec chmod 0644 {} \;
-	find $(SLASHBR) -type d -exec chmod 0755 {} \;
-	find $(SLASHBR)/bin/ -type f -exec chmod 0755 {} \;
-	find $(SLASHBR)/libexec/ -type f -exec chmod 0755 {} \;
+	$(SLASHBR)/libexec/bouncer \
+	$(SLASHBR)/libexec/etcfs \
+	$(SLASHBR)/libexec/crossfs
 	# ensure static
 	for bin in $(SLASHBR)/bin/* $(SLASHBR)/libexec/*; do \
 		if ldd "$$bin" >/dev/null 2>&1; then \
@@ -415,29 +522,39 @@ build/slashbr.tar.gz: \
 	done
 	# strip binaries
 	for bin in $(SLASHBR)/bin/* $(SLASHBR)/libexec/*; do \
-		strip "$$bin"; \
+		if [ -r "$$bin" ] && ! [ -h "$$bin" ] && head -c4 "$$bin" | grep -q "ELF"; then \
+			strip "$$bin"; \
+		fi \
 	done
+	# ensure permissions
+	find $(SLASHBR) -exec chmod a-s {} \;
+	find $(SLASHBR) -type d -exec chmod 0755 {} \;
+	find $(SLASHBR) -type f -exec chmod 0644 {} \;
+	find $(SLASHBR)/bin/ -type f -exec chmod 0755 {} \;
+	find $(SLASHBR)/libexec/ -type f -exec chmod 0755 {} \;
+	chmod 700 $(SLASHBR)/gnupg-keys
+	chmod 600 $(SLASHBR)/gnupg-keys/*
 	# create a tarball
-	rm -f build/slashbr.tar
-	cd build/ && fakeroot tar cf slashbr.tar bedrock/
-	gzip -c build/slashbr.tar > build/slashbr.tar.gz-new
-	mv build/slashbr.tar.gz-new build/slashbr.tar.gz
-gziped-tarball: build/slashbr.tar.gz
+	cd build/ && fakeroot tar cf slashbr.tar-new bedrock/
+	cd build/ && mv slashbr.tar-new slashbr.tar
+tarball: build/slashbr.tar
 
-build/unsigned-installer.sh: build/slashbr.tar.gz src/installer/installer.sh
-	cp src/installer/installer.sh build/unsigned-installer.sh-new
-	echo "-----BEGIN bedrock.conf-----" >> build/unsigned-installer.sh-new
-	cat src/default-configs/bedrock.conf >> build/unsigned-installer.sh-new
-	echo "-----END bedrock.conf-----" >> build/unsigned-installer.sh-new
-	echo "-----BEGIN EMBEDDED TARBALL-----" >> build/unsigned-installer.sh-new
-	cat build/slashbr.tar.gz >> build/unsigned-installer.sh-new
-	echo "" >> build/unsigned-installer.sh-new
-	echo "-----END EMBEDDED TARBALL-----" >> build/unsigned-installer.sh-new
+build/unsigned-installer.sh: build/slashbr.tar src/installer/installer.sh src/slash-bedrock/share/common-code
+	( \
+		cat src/installer/installer.sh | awk '/^[.] \/bedrock\/share\/common-code/{exit}1'; \
+		cat src/slash-bedrock/share/common-code | sed 's/BEDROCK-RELEASE/$(RELEASE)/' | grep -v 'pipefail'; \
+		cat src/installer/installer.sh | awk 'x{print}/^[.] \/bedrock\/share\/common-code/{x=1}'; \
+		echo "-----BEGIN TARBALL-----"; \
+		cat build/slashbr.tar | gzip; \
+		echo ""; \
+		echo "-----END TARBALL-----"; \
+	) > build/unsigned-installer.sh-new
 	mv build/unsigned-installer.sh-new build/unsigned-installer.sh
 
 $(INSTALLER): build/unsigned-installer.sh
 	if [ "$(SKIPSIGN)" = true ]; then \
-		cp build/unsigned-installer.sh $(INSTALLER); \
+		cp build/unsigned-installer.sh $(INSTALLER)-new; \
+		mv $(INSTALLER)-new $(INSTALLER); \
 	elif [ -z "$(GPGID)" ]; then \
 		echo 'Either SKIPSIGN or GPGID must be set.'; \
 		echo 'To create an unsigned script, run:'; \
@@ -455,6 +572,7 @@ $(INSTALLER): build/unsigned-installer.sh
 		gpg --output - --armor --detach-sign build/unsigned-installer.sh >> build/signed-installer.sh; \
 		mv build/signed-installer.sh $(INSTALLER); \
 	fi
+	chmod +x $(INSTALLER)
 	@ echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g'
 	@ echo "=== Completed creating $(INSTALLER) ==="
 	@ echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g'
@@ -521,12 +639,17 @@ check:
 	# - indent (GNU)
 	#
 	# check against shellcheck
-	for file in $$(find src/ -type f); do \
-		if grep -q '^#!.*sh$$' "$$file"; then \
-			echo "checking $$file"; \
-			shellcheck -s sh --exclude=SC1008 "$$file" || exit 1; \
-		fi \
-	done
+	#
+	# - SC1008: unrecognized shebang, because shellcheck does not know about
+	#   `#!/bedrock/libexec/busybox sh`
+	# - SC2059: don't use variables in printf format string.  Following
+	#   this recommendation with ANSI color variables did not work for some
+	#   reason.  Excluding the check for the time being.
+	# - SC2039: `[ \< ]` and `[ \> ]` are non-POSIX.  However, they do work
+	#   with busybox.
+	# - SC1090: Can't follow dynamic sources.  That's fine, we know where
+	#   they are and are including them in the list to be checked.
+	shellcheck -x -s sh --exclude="SC1008,SC2059,SC2039,SC1090" $$(for file in $$(find src/ -type f); do if grep -q '^#!.*sh$$' "$$file"; then echo "$$file"; fi; done)
 	# check against cppcheck
 	for file in $$(find src/ -type f -name "*.[ch]"); do \
 		cppcheck --error-exitcode=1 "$$file"; \
