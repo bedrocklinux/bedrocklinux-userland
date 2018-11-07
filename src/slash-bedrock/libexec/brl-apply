@@ -79,11 +79,13 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 	echo "Defaults secure_path=\"$(cfg_value "env-vars" "PATH")\""
 ) >/bedrock/run/sudoers
 
-(
-	echo "Section \"Files\""
-	find /bedrock/cross/fonts -mindepth 1 -type d -exec echo "    FontPath \"{}\"" \;
-	echo "EndSection"
-) >/bedrock/run/xorg-fonts
+if [ -d /bedrock/cross/fonts ]; then
+	(
+		echo "Section \"Files\""
+		find /bedrock/cross/fonts -mindepth 1 -type d -exec echo "    FontPath \"{}\"" \;
+		echo "EndSection"
+	) >/bedrock/run/xorg-fonts
+fi
 
 if [ -r /etc/login.defs ] && awk -F'=' -v"path=$(cfg_value "env-vars" "PATH")" '
 	/^[ \t]*ENV_SUPATH[ \t][ \t]*PATH=/ && $2 == path {s=1}
