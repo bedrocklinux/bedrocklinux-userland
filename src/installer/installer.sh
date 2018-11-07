@@ -193,6 +193,12 @@ hijack() {
 		mv /bedrock/etc/bedrock.conf-new /bedrock/etc/bedrock.conf
 	fi
 
+	notice "Disabling /etc/fstab fscking the root filesystem"
+	if [ -r /etc/fstab ]; then
+		awk '$1 !~ /^#/ && NF >= 6 {$6 = "0"} 1' /etc/fstab > /etc/fstab-new
+		mv /etc/fstab-new /etc/fstab
+	fi
+
 	step "Hijacking init system"
 	mv /sbin/init /bedrock/orig-sbin-init
 	ln -s /bedrock/libexec/init /sbin/init
