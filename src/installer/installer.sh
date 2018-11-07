@@ -115,18 +115,10 @@ hijack() {
 	ensure_legal_stratum_name "${name}"
 	notice "Using ${color_strat}${name}${color_norm} for initial stratum"
 
-	init_cmd=""
-	for cmd in /lib/systemd/systemd /lib/sysvinit/init /sbin/fallback-init /sbin/init /sbin/myinit /sbin/ninit /sbin/openrc-init /sbin/runit-init /sbin/simpleinit /sbin/upstart /usr/lib/systemd/systemd; do
-		if realpath "${cmd}" >/dev/null 2>&1; then
-			init_cmd="${cmd}"
-			break
-		fi
-	done
-	if [ -n "${init_cmd:-}" ]; then
-		notice "Using ${color_strat}${name}${color_glue}:${color_cmd}${init_cmd}${color_norm} default init selection"
-	else
-		abort "Unable to find an init system"
+	if ! [ -r "/sbin/init" ]; then
+		abort "No file detected at /sbin/init.  Unable to hijack init system."
 	fi
+	notice "Using ${color_strat}${name}${color_glue}:${color_cmd}/sbin/init${color_norm} as default init selection"
 
 	localegen=""
 	if [ -r "/etc/locale.gen" ]; then
@@ -185,10 +177,9 @@ hijack() {
 	notice "Configuring ${color_file}bedrock.conf${color_norm}"
 	mv /bedrock/etc/bedrock.conf-* /bedrock/etc/bedrock.conf
 	sha1sum </bedrock/etc/bedrock.conf >/bedrock/var/conf-sha1sum
-	if [ -n "${init_cmd:-}" ]; then
-		awk -v"value=${name}:${init_cmd}" '!/^default =/{print} /^default =/{print "default = "value}' /bedrock/etc/bedrock.conf >/bedrock/etc/bedrock.conf-new
-		mv /bedrock/etc/bedrock.conf-new /bedrock/etc/bedrock.conf
-	fi
+
+	awk -v"value=${name}:/sbin/init" '!/^default =/{print} /^default =/{print "default = "value}' /bedrock/etc/bedrock.conf >/bedrock/etc/bedrock.conf-new
+	mv /bedrock/etc/bedrock.conf-new /bedrock/etc/bedrock.conf
 	if [ -n "${timezone:-}" ]; then
 		awk -v"value=${timezone}" '!/^timezone =/{print} /^timezone =/{print "timezone = "value}' /bedrock/etc/bedrock.conf >/bedrock/etc/bedrock.conf-new
 		mv /bedrock/etc/bedrock.conf-new /bedrock/etc/bedrock.conf
@@ -203,19 +194,10 @@ hijack() {
 	fi
 
 	step "Hijacking init system"
-	init_cmd=""
-	mkdir -p "/bedrock/init-backup"
-	for cmd in /lib/systemd/systemd /lib/sysvinit/init /sbin/fallback-init /sbin/init /sbin/myinit /sbin/ninit /sbin/openrc-init /sbin/runit-init /sbin/simpleinit /sbin/upstart /usr/lib/systemd/systemd; do
-		if [ -e "${cmd}" ] || [ -h "${cmd}" ]; then
-			notice "Hijacking ${color_cmd}${cmd}${color_norm}"
-			name="$(echo "${cmd}" | sed 's,/,-,g' | sed 's,^.,,')"
-			mv "${cmd}" "/bedrock/init-backup/${name}"
-			#ln -s bedrock/libexec/init "${cmd}"
-			ln -s "$(echo "${cmd}" | sed -e 's,^/[^/]*,,' -e 's,/[^/]*,../,g')bedrock/libexec/init" "${cmd}"
-		fi
-	done
-	touch "/bedrock/complete-hijack-install"
+	mv /sbin/init /bedrock/orig-sbin-init
+	ln -s /bedrock/libexec/init /sbin/init
 
+	touch "/bedrock/complete-hijack-install"
 	notice "Reboot to complete installation."
 	notice "After reboot explore the \`brl\` command."
 }

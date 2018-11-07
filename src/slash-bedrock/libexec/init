@@ -113,13 +113,8 @@ complete_hijack() {
 		fi
 	done
 
-	step "Restoring ${color_strat}${hijacked}${color_norm} init(s)"
-	for init in "/bedrock/init-backup/"*; do
-		path="/$(basename "${init}" | sed 's,-,/,g')"
-		mkdir -p "$(dirname "${path}")"
-		mv "${init}" "/bedrock/strata/${hijacked}${path}"
-	done
-	rmdir "/bedrock/init-backup"
+	step "Restoring ${color_strat}${hijacked}${color_norm} /sbin/init"
+	mv /bedrock/orig-sbin-init "/bedrock/strata/${hijacked}/sbin/init"
 
 	step "Granting ${color_cmd}strat${color_norm} necessary capabilities"
 	/bedrock/libexec/setcap cap_sys_chroot=ep /bedrock/bin/strat
