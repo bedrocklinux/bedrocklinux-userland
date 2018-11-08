@@ -141,7 +141,7 @@ hijack() {
 	if [ -r /etc/timezone ] && [ -r "/usr/share/zoneinfo/$(cat /etc/timezone)" ]; then
 		timezone="$(cat /etc/timezone)"
 	elif [ -h /etc/localtime ] && readlink /etc/localtime | grep -q '^/usr/share/zoneinfo/' && [ -r /etc/localtime ]; then
-		timezone="$(readlink /etc/timezone | sed 's,^/usr/share/zoneinfo,,')"
+		timezone="$(readlink /etc/localtime | sed 's,^/usr/share/zoneinfo/,,')"
 	elif grep -q '^TIMEZONE=' /etc/rc.conf; then
 		timezone="$(awk -F[=] '$1 == "TIMEZONE" {print$NF}')"
 	elif [ -r /etc/localtime ]; then
