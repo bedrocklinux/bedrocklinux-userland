@@ -208,7 +208,7 @@ hijack() {
 
 	touch "/bedrock/complete-hijack-install"
 	notice "Reboot to complete installation."
-	notice "After reboot explore the \`brl\` command."
+	notice "After reboot explore the ${color_cmd}brl${color_norm} command."
 }
 
 update() {
