@@ -62,8 +62,11 @@ hijack() {
 	step_init 5
 
 	step "Performing sanity checks"
+	modprobe fuse || true
 	if [ "$(id -u)" != "0" ]; then
 		abort "root required"
+	elif ! grep -q "\\<fuse\\>" /proc/filesystems; then
+		abort "/proc/filesystems does not contain \"fuse\".  FUSE is required for Bedrock Linux to operate.  Install the module fuse kernel module and try again."
 	elif ! [ -e /dev/fuse ]; then
 		abort "/dev/fuse not found.  FUSE is required for Bedrock Linux to operate.  Install the module fuse kernel module and try again."
 	elif [ -e /bedrock/ ]; then
