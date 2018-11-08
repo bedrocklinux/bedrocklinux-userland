@@ -12,7 +12,6 @@
 _strat()
 {
 	cur=${COMP_WORDS[COMP_CWORD]}
-	prev=${COMP_WORDS[COMP_CWORD-1]}
 
 	# stages:
 	# - parsing flags
@@ -71,6 +70,10 @@ _strat()
 		return
 	fi
 
+	# Most of the code base is busybox shell, and thus shellcheck is
+	# configured to assume that is the case.  It does not know this file is
+	# bash.
+	# shellcheck disable=SC2207
 	COMPREPLY=($(compgen -W "$opts" -- "$cur"))
 }
 

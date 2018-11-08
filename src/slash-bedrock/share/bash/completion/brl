@@ -100,6 +100,7 @@ _brl()
 			opts="$opts $(compgen -d -f -- "$cur")"
 			;;
 		"-p"|"--pid")
+			# shellcheck disable=SC2010
 			opts="$opts $(ls -1 /proc | grep '^[0-9*$]')"
 			;;
 		"-x"|"--xwindow")
@@ -108,6 +109,7 @@ _brl()
 			;;
 		*)
 			opts="$opts $(compgen -c -- "$cur")"
+			# shellcheck disable=SC2010
 			opts="$opts $(ls -1 /proc | grep '^[0-9*$]')"
 			compopt -o filenames
 			opts="$opts $(compgen -d -f -- "$cur")"
@@ -212,6 +214,10 @@ _brl()
 		;;
 	esac
 
+	# Most of the code base is busybox shell, and thus shellcheck is
+	# configured to assume that is the case.  It does not know this file is
+	# bash.
+	# shellcheck disable=SC2207
 	COMPREPLY=($(compgen -W "$opts" -- "$cur"))
 }
 

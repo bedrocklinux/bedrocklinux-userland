@@ -44,15 +44,15 @@ extract_tarball() {
 	# - sed:  does not print lines with nulls correctly, but prints line
 	# count correctly.
 
-	lines_total="$(cat ${0} | wc -l)"
-	lines_before="$(sed -n "1,/^-----BEGIN TARBALL-----\$/p" ${0} | wc -l)"
-	lines_after="$(sed -n "/^-----END TARBALL-----\$/,\$p" ${0} | wc -l)"
-	lines_tarball="$(expr "${lines_total}" - "${lines_before}" - "${lines_after}")"
+	lines_total="$(wc -l <"${0}")"
+	lines_before="$(sed -n "1,/^-----BEGIN TARBALL-----\$/p" "${0}" | wc -l)"
+	lines_after="$(sed -n "/^-----END TARBALL-----\$/,\$p" "${0}" | wc -l)"
+	lines_tarball="$((lines_total - lines_before - lines_after))"
 
 	# Since the tarball is a binary, it can end in a non-newline character.
 	# To ensure the END marker is on its own line, a newline is appended to
 	# the tarball.  The `head -c -1` here strips it.
-	tail -n "$(expr "${lines_tarball}" + "${lines_after}")" ${0} | head -n "${lines_tarball}" | head -c -1 | gzip -d
+	tail -n "$((lines_tarball + lines_after))" "${0}" | head -n "${lines_tarball}" | head -c -1 | gzip -d
 }
 
 hijack() {
@@ -198,7 +198,7 @@ hijack() {
 
 	notice "Disabling /etc/fstab fscking the root filesystem"
 	if [ -r /etc/fstab ]; then
-		awk '$1 !~ /^#/ && NF >= 6 {$6 = "0"} 1' /etc/fstab > /etc/fstab-new
+		awk '$1 !~ /^#/ && NF >= 6 {$6 = "0"} 1' /etc/fstab >/etc/fstab-new
 		mv /etc/fstab-new /etc/fstab
 	fi
 
@@ -227,7 +227,7 @@ update() {
 	fi
 
 	step "Determining version change"
-	current_version="$(cat /bedrock/etc/bedrock-release | awk '{print$3}')"
+	current_version="$(awk '{print$3}' </bedrock/etc/bedrock-release)"
 	new_release="$(extract_tarball | tar xO bedrock/etc/bedrock-release)"
 	new_version="$(echo "${new_release}" | awk '{print$3}')"
 
@@ -256,7 +256,7 @@ update() {
 	step "Removing unneeded files"
 	# Remove previously installed files not part of this release
 	extract_tarball | tar t | grep -v bedrock.conf | sort >/bedrock/var/bedrock-files-new
-	diff -d /bedrock/var/bedrock-files-new /bedrock/var/bedrock-files | grep '^>' | cut -d' ' -f2- | tac | while read file; do
+	diff -d /bedrock/var/bedrock-files-new /bedrock/var/bedrock-files | grep '^>' | cut -d' ' -f2- | tac | while read -r file; do
 		if echo "${file}" | grep '/$'; then
 			rmdir "${file}" 2>/dev/null || true
 		else

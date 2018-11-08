@@ -146,7 +146,7 @@ notice "Verifying update"
 sed -n '/^-----BEGIN PGP SIGNATURE-----$/,/^-----END PGP_SIGNATURE-----$/p' "${update_combine}" >"${update_sig}"
 lines_sig="$(wc -l <"${update_sig}")"
 lines_combine="$(wc -l <"${update_combine}")"
-lines_file="$((${lines_combine} - ${lines_sig}))"
+lines_file="$((lines_combine - lines_sig))"
 head -n "${lines_file}" "${update_combine}" >"${update_file}"
 
 if ! "${skip_check}" && ! gpg --homedir "${homedir}" --verify "${update_sig}" "${update_file}"; then
