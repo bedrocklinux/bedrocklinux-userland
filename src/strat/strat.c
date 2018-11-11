@@ -518,7 +518,7 @@ int main(int argc, char *argv[])
 		chdir("/");
 		fprintf(stderr,
 			"strat: warning: unable to set cwd to\n"
-			"    %s\nfor stratum\n    %s\n", cwd, argv[1]);
+			"    %s\nfor stratum\n    %s\n", cwd, stratum);
 		switch (errno) {
 		case EACCES:
 			fprintf(stderr,
