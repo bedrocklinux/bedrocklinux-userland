@@ -26,11 +26,11 @@ list_mirrors() {
 		awk '/id="tier-1-mirrors"/,/<\/ul>/' |
 		awk '-F[<>()]' '{print$3}' |
 		grep "^http" |
-		sed 's, ,/current/musl,'
+		sed 's, ,,'
 }
 
 speed_test_url() {
-	echo "${arch:-}-musl-repodata"
+	echo "current/musl/${arch:-}-musl-repodata"
 }
 
 list_releases() {
@@ -54,14 +54,14 @@ fetch() {
 
 	step "Determining mirror"
 	mirror="$(pick_mirror "$(speed_test_url)")"
-	notice "Using ${color_link}$mirror${color_norm}"
+	notice "Using ${color_link}${mirror}${color_norm}"
 
 	step "Making directory structure"
 	bootstrap_dir="$target_dir/brl-bootstrap"
 	mkdir -p "$target_dir" "$bootstrap_dir/target-root"
 
 	step "Downloading bootstrap software"
-	url="$(find_link "$mirror/../../static/" "^xbps-static-latest[.]${arch}-musl[.]tar[.]xz")"
+	url="$(find_link "${mirror}/static/" "^xbps-static-latest[.]${arch}-musl[.]tar[.]xz")"
 	wget -O "$bootstrap_dir/xbps-static.tar.xz" "$url"
 
 	step "Preparing bootstrap software"
@@ -73,7 +73,7 @@ fetch() {
 	step "Runing bootstrap software"
 	mount --bind "$target_dir" "$bootstrap_dir/target-root"
 	set +o pipefail
-	yes "" | LC_ALL=C XBPS_ARCH="$arch-musl" "$bootstrap_dir/usr/bin/xbps-install" -S -R "$mirror" -r "$target_dir" base-voidstrap
+	yes "" | LC_ALL=C XBPS_ARCH="$arch-musl" "$bootstrap_dir/usr/bin/xbps-install" -S -R "${mirror}/current/musl" -r "$target_dir" base-voidstrap
 	set -o pipefail
 
 	step "Removing temporary bootstrap files"
@@ -81,7 +81,7 @@ fetch() {
 
 	step "Configure"
 	if [ -d "$target_dir/usr/share/xbps.d/" ]; then
-		echo "repository=$mirror" >>"$target_dir/usr/share/xbps.d/00-brl-fetch.conf"
+		echo "repository=${mirror}/current/musl" >>"$target_dir/usr/share/xbps.d/00-brl-fetch.conf"
 	fi
 	# Void's zsh package does not create /etc/zsh/zshenv but it is needed
 	# for various Bedrock hooks

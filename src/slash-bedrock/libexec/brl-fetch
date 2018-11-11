@@ -157,11 +157,48 @@ progress_unknown() {
 }
 
 pick_mirror() {
+	test_file="${1}"
+
+	# If mirror was specified on cmdline, use it.
 	if [ -n "${flag_mirror:-}" ]; then
 		echo "${flag_mirror}"
 		return
 	fi
 
+	# Some distros share mirrors.
+	case "${distro}" in
+		"void") key="void" ;;
+		"void-musl") key="void" ;;
+		*) key="${distro}" ;;
+	esac
+
+	# If bedrock.conf specifies mirror, try it.  If it works, use it.
+	for mirror in $(cfg_value "brl-fetch-mirrors" "${key}"); do
+		if wget -O- "${mirror}/${test_file}" >/dev/null 2>&1; then
+			echo "${mirror}"
+			return
+		fi
+	done
+
+	# Map Bedrock's name for a given distro to the common mirror directory
+	# name.
+	case "${distro}" in
+		"arch") suffix="archlinux" ;;
+		"void") suffix="voidlinux" ;;
+		"void-musl") suffix="voidlinux" ;;
+		*) suffix="${distro}" ;;
+	esac
+
+	# If bedrock.conf specifies mirror prefix, try it.  If it works, use it.
+	for prefix in $(cfg_values "brl-fetch-mirrors" "mirror-prefix"); do
+		echo wget -O- "${prefix}/${suffix}/${test_file}" >&2
+		if wget -O- "${prefix}/${suffix}/${test_file}" >/dev/null 2>&1; then
+			echo "${prefix}/${suffix}"
+			return
+		fi
+	done
+
+	# Find best mirror from list.
 	mirrors="$(list_mirrors)"
 	count="$(echo "${mirrors}" | wc -w)"
 	if [ "${count}" -eq 1 ]; then
@@ -172,6 +209,8 @@ pick_mirror() {
 	mirror_file="${target_dir}/brl-fetch-mirror"
 	rm -f "${mirror_file}"
 
+	# Use netselect to filter the list down to top ten.  This is faster but
+	# less accurate than method used for final ten.
 	if [ "${count}" -gt 10 ]; then
 		echo "Fast filtering ${count} to top 10" >&2
 		(
@@ -192,11 +231,13 @@ pick_mirror() {
 		rm "${mirror_file}"
 	fi
 
+	# Select mirror from remaining possibilities by trying to fetch a file
+	# from each.
 	count="$(echo "${mirrors}" | wc -w)"
 	echo "Finding fastest mirror from ${count}" >&2
 	for mirror in ${mirrors}; do
 		echo "mirror ${mirror}"
-		time wget -O- "${mirror}/${1}" >/dev/null
+		time wget -O- "${mirror}/${test_file}" >/dev/null
 		echo "result ${?}"
 	done 2>&1 | awk -vout="${mirror_file}" '
 		$1 == "mirror" {
