@@ -104,5 +104,9 @@ fetch() {
 	mkdir -p "$target_dir/etc/zsh/"
 	touch "$target_dir/etc/zsh/zshenv"
 
+	if ! grep -q '^kvm:' /etc/group; then
+		addgroup -S kvm
+	fi
+
 	notice "Successfully acquired $distro stratum"
 }

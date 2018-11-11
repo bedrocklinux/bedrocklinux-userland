@@ -82,7 +82,7 @@ fetch() {
 	step "Removing temporary bootstrap files"
 	less_lethal_rm_rf "$bootstrap_dir"
 
-	step "Configure"
+	step "Configuring"
 
 	setup_chroot "$target_dir"
 	echo "GENTOO_MIRRORS=\"$mirror\"" >>"$target_dir/etc/portage/make.conf"
@@ -99,6 +99,14 @@ fetch() {
 	fi
 
 	chroot "$target_dir" emerge-webrsync
+
+	if ! grep -q '^portage:' /etc/group; then
+		addgroup -S portage
+	fi
+	if ! grep -q '^portage:' /etc/passwd; then
+		adduser -h /var/tmp/portage -s /bin/false -G portage -S -D -H portage
+	fi
+
 	tear_down_chroot "$target_dir"
 
 	notice "Successfully acquired $distro stratum"
