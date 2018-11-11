@@ -109,7 +109,7 @@ complete -f -c brl -n '_brl_arg_is 2 fetch' -o 'e' -d 'skip enabling newly fetch
 complete -f -c brl -n '_brl_arg_is 2 fetch' -l 'dont-enable' -d 'skip enabling newly fetched strata'
 complete -f -c brl -n '_brl_arg_is 2 fetch' -o 's' -d 'skip showing newly fetched strata'
 complete -f -c brl -n '_brl_arg_is 2 fetch' -l 'dont-show' -d 'skip showing newly fetched strata'
-complete -f -c brl -n '_brl_arg_is 2 fetch' -a '(/bedrock/bin/brl fetch -l)' -d 'distro'
+complete -f -c brl -n '_brl_arg_is 2 fetch' -a '(/bedrock/bin/brl fetch --list)' -d 'distro'
 
 complete -f -c brl -n '_brl_arg_is 2 remove' -a '(/bedrock/bin/brl list -aA)' -d 'aliases and strata'
 

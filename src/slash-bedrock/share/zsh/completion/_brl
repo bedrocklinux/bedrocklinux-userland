@@ -115,7 +115,7 @@ case "$words[2]" in
 	args+=('--mirror[specify desired mirror]:mirror:')
 	args+=('(-e --dont-enable)'{-e,--dont-enable}'[skip enabling newly fetched strata]')
 	args+=('(-s --dont-show)'{-s,--dont-show}'[skip showing newly fetched strata]')
-	args+=("*:distro:($(/bedrock/bin/brl fetch -l))")
+	args+=("*:distro:($(/bedrock/bin/brl fetch --list))")
 	;;
 "remove")
 	# TODO: do not list disabled strata if `-d` flag is missing
