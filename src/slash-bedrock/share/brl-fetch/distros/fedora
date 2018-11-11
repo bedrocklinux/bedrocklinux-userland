@@ -16,10 +16,6 @@ check_arch_support() {
 	[ "$(uname -m)" = "x86_64" ]
 }
 
-check_experimental() {
-	false
-}
-
 list_mirrors() {
 	mirror_list_url="https://admin.fedoraproject.org/mirrormanager/mirrors/Fedora/$release"
 	wget -O- "$mirror_list_url" 2>/dev/null |

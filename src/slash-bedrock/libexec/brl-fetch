@@ -67,19 +67,21 @@ ${color_norm}"
 list_distros() {
 	for distro in /bedrock/share/brl-fetch/distros/*; do
 		. "${distro}"
-		check_experimental && continue
 		check_arch_support || continue
 		basename "${distro}"
 	done
 }
 
 list_experimental() {
-	for distro in /bedrock/share/brl-fetch/distros/*; do
-		. "${distro}"
-		check_experimental || continue
-		check_arch_support || continue
-		basename "${distro}"
-	done
+	if ls /bedrock/share/brl-fetch/experimental/* >/dev/null 2>&1; then
+		for distro in /bedrock/share/brl-fetch/experimental/*; do
+			. "${distro}"
+			check_arch_support || continue
+			basename "${distro}"
+		done
+	else
+		echo "(No working experimental distros)" >&2
+	fi
 }
 
 get_width() {
@@ -699,11 +701,14 @@ if [ -z "${distros:-}" ]; then
 fi
 
 for distro in ${distros}; do
-	if ! [ -e "/bedrock/share/brl-fetch/distros/${distro}" ]; then
+	if [ -r "/bedrock/share/brl-fetch/distros/${distro}" ]; then
+		. "/bedrock/share/brl-fetch/distros/${distro}"
+	elif [ -r "/bedrock/share/brl-fetch/experimental/${distro}" ]; then
+		. "/bedrock/share/brl-fetch/experimental/${distro}"
+		notice "Acquiring experimental distro.  No one has committed to fixing it if it breaks.  This may or may not work."
+	else
 		abort "Could not find supporting code for \`${distro}\`."
 	fi
-
-	. "/bedrock/share/brl-fetch/distros/${distro}"
 
 	if ! check_arch_support; then
 		abort "\`${distro}\` support not white-listed for this CPU architecture."

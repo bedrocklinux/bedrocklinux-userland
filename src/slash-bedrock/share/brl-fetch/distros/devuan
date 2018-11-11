@@ -18,10 +18,6 @@ check_arch_support() {
 	[ "$(uname -m)" = "x86_64" ]
 }
 
-check_experimental() {
-	false
-}
-
 list_mirrors() {
 	echo 'http://auto.mirror.devuan.org/merged/'
 }

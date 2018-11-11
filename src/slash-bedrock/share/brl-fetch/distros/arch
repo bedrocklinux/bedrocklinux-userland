@@ -16,10 +16,6 @@ check_arch_support() {
 	[ "$(uname -m)" = "x86_64" ]
 }
 
-check_experimental() {
-	false
-}
-
 list_releases() {
 	echo "rolling"
 }

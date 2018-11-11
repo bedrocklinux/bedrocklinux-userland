@@ -18,10 +18,6 @@ check_arch_support() {
 	[ "$(uname -m)" = "x86_64" ]
 }
 
-check_experimental() {
-	false
-}
-
 list_mirrors() {
 	mirror_list_url='https://launchpad.net/ubuntu/+archivemirrors'
 	wget -O- "$mirror_list_url" 2>/dev/null |

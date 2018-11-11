@@ -16,13 +16,6 @@ check_arch_support() {
 	[ "$(uname -m)" = "x86_64" ]
 }
 
-# Marked experimental due to a lack of maintainer.  If an active member of the
-# Bedrock Linux community builds adequate trust and offers to maintain it, the
-# experimental tag may be dropped.
-check_experimental() {
-	true
-}
-
 list_mirrors() {
 	echo 'https://solus-project.com/'
 }
