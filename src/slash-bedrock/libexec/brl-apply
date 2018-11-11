@@ -11,6 +11,10 @@
 # (re)loads configuration
 
 . /bedrock/share/common-code
+# Remove typical runtime sanity checks, as leaving a system half-configured is
+# worse than aborting mid-configure.
+set +eu
+trap '' EXIT
 
 print_help() {
 	printf "Usage: ${color_cmd}brl apply ${color_sub}[options]${color_norm}
