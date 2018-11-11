@@ -59,7 +59,7 @@ hijack() {
 	release="$(extract_tarball | tar xO bedrock/etc/bedrock-release)"
 	print_logo "${release}"
 
-	step_init 5
+	step_init 6
 
 	step "Performing sanity checks"
 	modprobe fuse || true
@@ -153,6 +153,9 @@ hijack() {
 		notice "Unable to automatically determine timezone, continuing without it"
 	fi
 
+	step "Hijacking init system"
+	mv /sbin/init /sbin/init-orig
+
 	step "Extracting ${color_file}/bedrock${color_norm}"
 	extract_tarball | (
 		cd /
@@ -202,13 +205,10 @@ hijack() {
 		mv /etc/fstab-new /etc/fstab
 	fi
 
-	step "Hijacking init system"
-	mv /sbin/init /bedrock/orig-sbin-init
-	ln -s /bedrock/libexec/init /sbin/init
-
+	step "Finalizing"
 	touch "/bedrock/complete-hijack-install"
-	notice "Reboot to complete installation."
-	notice "After reboot explore the ${color_cmd}brl${color_norm} command."
+	notice "Reboot to complete installation"
+	notice "After reboot explore the ${color_cmd}brl${color_norm} command"
 }
 
 update() {
@@ -244,12 +244,18 @@ update() {
 	fi
 
 	step "Running pre-install steps"
-	# Reserved for future use
+
+	# Early Bedrock versions used a symlink at /sbin/init, which was found
+	# to be problematic.  Ensure the userland extraction places a real file
+	# at /sbin/init.
+	if [ -h /bedrock/strata/bedrock/sbin/init ]; then
+		rm -f /bedrock/strata/bedrock/sbin/init
+	fi
 
 	step "Installing new files and updating existing ones"
 	extract_tarball | (
 		cd /
-		tar xf -
+		/bedrock/bin/strat bedrock /bedrock/libexec/busybox tar xf -
 	)
 	/bedrock/libexec/setcap cap_sys_chroot=ep /bedrock/bin/strat
 
@@ -258,9 +264,9 @@ update() {
 	extract_tarball | tar t | grep -v bedrock.conf | sort >/bedrock/var/bedrock-files-new
 	diff -d /bedrock/var/bedrock-files-new /bedrock/var/bedrock-files | grep '^>' | cut -d' ' -f2- | tac | while read -r file; do
 		if echo "${file}" | grep '/$'; then
-			rmdir "${file}" 2>/dev/null || true
+			/bedrock/bin/strat bedrock /bedrock/libexec/busybox rmdir "/${file}" 2>/dev/null || true
 		else
-			rm -f "${file}" 2>/dev/null || true
+			/bedrock/bin/strat bedrock /bedrock/libexec/busybox rm -f "/${file}" 2>/dev/null || true
 		fi
 	done
 	mv /bedrock/var/bedrock-files-new /bedrock/var/bedrock-files
@@ -268,11 +274,12 @@ update() {
 	step "Handling possible bedrock.conf update"
 	# If bedrock.conf did not change since last update, remove new instance
 	new_conf=true
-	if [ "$(sha1sum <"/bedrock/etc/bedrock.conf-${new_version}")" = "$(cat /bedrock/var/conf-sha1sum)" ]; then
-		sha1sum <"/bedrock/etc/bedrock.conf-${new_version}" >/bedrock/var/conf-sha1sum
+	new_sha1sum="$(sha1sum <"/bedrock/etc/bedrock.conf-${new_version}")"
+	if [ "${new_sha1sum}" = "$(cat /bedrock/var/conf-sha1sum)" ]; then
 		rm "/bedrock/etc/bedrock.conf-${new_version}"
 		new_conf=false
 	fi
+	echo "${new_sha1sum}" >/bedrock/var/conf-sha1sum
 
 	step "Running post-install steps"
 	# Reserved for future use

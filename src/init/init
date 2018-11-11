@@ -113,9 +113,6 @@ complete_hijack() {
 		fi
 	done
 
-	step "Restoring ${color_strat}${hijacked}${color_norm} /sbin/init"
-	mv /bedrock/orig-sbin-init "/bedrock/strata/${hijacked}/sbin/init"
-
 	step "Granting ${color_cmd}strat${color_norm} necessary capabilities"
 	/bedrock/libexec/setcap cap_sys_chroot=ep /bedrock/bin/strat
 
@@ -129,6 +126,10 @@ complete_hijack() {
 		mkdir -p "$(dirname "${init}")"
 		ln -s /bedrock/libexec/init "${init}"
 	done
+
+	step "Configuring ${color_file}/sbin/init${color_norm}"
+	mv "/bedrock/strata/${hijacked}/sbin/init" "/sbin/init"
+	mv "/bedrock/strata/${hijacked}/sbin/init-orig" "/bedrock/strata/${hijacked}/sbin/init"
 
 	step "Completing ${color_term}hijack install${color_norm}"
 	rm /bedrock/complete-hijack-install

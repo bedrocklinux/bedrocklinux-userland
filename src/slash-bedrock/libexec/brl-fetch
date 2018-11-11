@@ -167,9 +167,9 @@ pick_mirror() {
 
 	# Some distros share mirrors.
 	case "${distro}" in
-		"void") key="void" ;;
-		"void-musl") key="void" ;;
-		*) key="${distro}" ;;
+	"void") key="void" ;;
+	"void-musl") key="void" ;;
+	*) key="${distro}" ;;
 	esac
 
 	# If bedrock.conf specifies mirror, try it.  If it works, use it.
@@ -183,10 +183,10 @@ pick_mirror() {
 	# Map Bedrock's name for a given distro to the common mirror directory
 	# name.
 	case "${distro}" in
-		"arch") suffix="archlinux" ;;
-		"void") suffix="voidlinux" ;;
-		"void-musl") suffix="voidlinux" ;;
-		*) suffix="${distro}" ;;
+	"arch") suffix="archlinux" ;;
+	"void") suffix="voidlinux" ;;
+	"void-musl") suffix="voidlinux" ;;
+	*) suffix="${distro}" ;;
 	esac
 
 	# If bedrock.conf specifies mirror prefix, try it.  If it works, use it.

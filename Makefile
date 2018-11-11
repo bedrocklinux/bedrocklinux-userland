@@ -174,6 +174,8 @@ $(COMPLETED)/builddir:
 	mkdir -p $(SLASHBR)/strata/bedrock
 	mkdir -p $(SLASHBR)/var
 	mkdir -p $(COMPLETED)
+	mkdir -p build/sbin/
+	cp src/init/init build/sbin/init
 	touch $(COMPLETED)/builddir
 builddir: $(COMPLETED)/builddir
 
@@ -372,7 +374,7 @@ echo "DISABLING $$applet"; \
 				./set_bb_option "CONFIG_$$(echo "$$applet" | tr '[a-z-]' '[A-Z_]')" "n"; \
 			fi; \
 		done
-	# explicitly enable known desired features
+	# explicitly enable known desired and explicitly undesired features
 	cd vendor/busybox && \
 		./set_bb_option "CONFIG_AR" "y" && \
 		./set_bb_option "CONFIG_ASH_BASH_COMPAT" "y" && \
@@ -394,6 +396,7 @@ echo "DISABLING $$applet"; \
 		./set_bb_option "CONFIG_FEATURE_SEAMLESS_XZ" "y" && \
 		./set_bb_option "CONFIG_FEATURE_SEAMLESS_Z" "y" && \
 		./set_bb_option "CONFIG_FEATURE_SH_STANDALONE" "y" && \
+		./set_bb_option "CONFIG_INIT" "n" && \
 		./set_bb_option "CONFIG_INSMOD" "y" && \
 		./set_bb_option "CONFIG_LSMOD" "y" && \
 		./set_bb_option "CONFIG_MODPROBE" "y" && \
@@ -511,7 +514,7 @@ crossfs: $(SLASHBR)/libexec/crossfs
 # Use populated $(SLASHBR) to create the script
 #
 
-build/slashbr.tar: \
+build/userland.tar: \
 	$(COMPLETED)/builddir \
 	$(SLASHBR)/libexec/busybox \
 	$(SLASHBR)/libexec/getfattr \
@@ -543,18 +546,19 @@ build/slashbr.tar: \
 	find $(SLASHBR)/libexec/ -type f -exec chmod 0755 {} \;
 	chmod 700 $(SLASHBR)/gnupg-keys
 	chmod 600 $(SLASHBR)/gnupg-keys/*
+	chmod 755 build/sbin/init
 	# create a tarball
-	cd build/ && fakeroot tar cf slashbr.tar-new bedrock/
-	cd build/ && mv slashbr.tar-new slashbr.tar
-tarball: build/slashbr.tar
+	cd build/ && fakeroot tar cf userland.tar-new bedrock/ sbin/init
+	cd build/ && mv userland.tar-new userland.tar
+tarball: build/userland.tar
 
-build/unsigned-installer.sh: build/slashbr.tar src/installer/installer.sh src/slash-bedrock/share/common-code
+build/unsigned-installer.sh: build/userland.tar src/installer/installer.sh src/slash-bedrock/share/common-code
 	( \
 		cat src/installer/installer.sh | awk '/^[.] \/bedrock\/share\/common-code/{exit}1'; \
 		cat src/slash-bedrock/share/common-code | sed 's/BEDROCK-RELEASE/$(RELEASE)/' | grep -v 'pipefail'; \
 		cat src/installer/installer.sh | awk 'x{print}/^[.] \/bedrock\/share\/common-code/{x=1}'; \
 		echo "-----BEGIN TARBALL-----"; \
-		cat build/slashbr.tar | gzip; \
+		cat build/userland.tar | gzip; \
 		echo ""; \
 		echo "-----END TARBALL-----"; \
 	) > build/unsigned-installer.sh-new
