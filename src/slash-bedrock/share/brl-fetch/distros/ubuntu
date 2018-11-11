@@ -109,7 +109,7 @@ fetch() {
 
 	step "Configure"
 
-	echo "deb http://us.archive.ubuntu.com/ubuntu/ $release-security main" >>"$target_dir/etc/apt/sources.list"
+	echo "deb http://archive.ubuntu.com/ubuntu/ $release-security main" >>"$target_dir/etc/apt/sources.list"
 
 	localegen="$(cfg_value "locale" "localegen")"
 	if [ -n "${localegen:-}" ]; then
