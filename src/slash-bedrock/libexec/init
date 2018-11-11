@@ -123,7 +123,7 @@ complete_hijack() {
 	for dir in /bin /dev /lib/systemd /mnt /proc /root /run /sbin /sys /tmp /usr/bin /usr/sbin /var; do
 		mkdir -p "${dir}"
 	done
-	/bedrock/libexec/busybox --install
+	/bedrock/libexec/busybox --install -s
 	for init in $(cfg_values "init" "paths"); do
 		rm -f "${init}"
 		mkdir -p "$(dirname "${init}")"
