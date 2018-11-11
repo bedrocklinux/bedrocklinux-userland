@@ -374,14 +374,19 @@ echo "DISABLING $$applet"; \
 		done
 	# explicitly enable known desired features
 	cd vendor/busybox && \
-		./set_bb_option "CONFIG_ASH_TEST" "y" && \
 		./set_bb_option "CONFIG_AR" "y" && \
 		./set_bb_option "CONFIG_ASH_BASH_COMPAT" "y" && \
 		./set_bb_option "CONFIG_ASH_CMDCMD" "y" && \
+		./set_bb_option "CONFIG_ASH_TEST" "y" && \
 		./set_bb_option "CONFIG_BUSYBOX_EXEC_PATH" '"/bedrock/libexec/busybox"' && \
+		./set_bb_option "CONFIG_DEPMOD" "y" && \
 		./set_bb_option "CONFIG_DESKTOP" "y" && \
 		./set_bb_option "CONFIG_FEATURE_AR_CREATE" "y" && \
 		./set_bb_option "CONFIG_FEATURE_AR_LONG_FILENAMES" "y" && \
+		./set_bb_option "CONFIG_FEATURE_CHECK_TAINTED_MODULE" "y" && \
+		./set_bb_option "CONFIG_FEATURE_MODPROBE_BLACKLIST" "y" && \
+		./set_bb_option "CONFIG_FEATURE_MODUTILS_ALIAS" "y" && \
+		./set_bb_option "CONFIG_FEATURE_MODUTILS_SYMBOLS" "y" && \
 		./set_bb_option "CONFIG_FEATURE_PREFER_APPLETS" "y" && \
 		./set_bb_option "CONFIG_FEATURE_SEAMLESS_BZ2" "y" && \
 		./set_bb_option "CONFIG_FEATURE_SEAMLESS_GZ" "y" && \
@@ -389,7 +394,11 @@ echo "DISABLING $$applet"; \
 		./set_bb_option "CONFIG_FEATURE_SEAMLESS_XZ" "y" && \
 		./set_bb_option "CONFIG_FEATURE_SEAMLESS_Z" "y" && \
 		./set_bb_option "CONFIG_FEATURE_SH_STANDALONE" "y" && \
+		./set_bb_option "CONFIG_INSMOD" "y" && \
+		./set_bb_option "CONFIG_LSMOD" "y" && \
+		./set_bb_option "CONFIG_MODPROBE" "y" && \
 		./set_bb_option "CONFIG_PIVOT_ROOT" "y" && \
+		./set_bb_option "CONFIG_RMMOD" "y" && \
 		./set_bb_option "CONFIG_STATIC" "y" && \
 		./set_bb_option "CONFIG_SYSROOT" "\"\"" && \
 		./set_bb_option "CONFIG_TEST" "y" && \
