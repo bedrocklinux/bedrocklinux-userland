@@ -1341,6 +1341,16 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 	case FILTER_BIN:
 		if (!S_ISDIR(stbuf->st_mode)) {
 			stbuf->st_size = bouncer_size;
+			/*
+			 * The bouncer needs to permissions to read itself in
+			 * order to check its xattrs to know where to redirect.
+			 *
+			 * Note this is only changing the bouncer's
+			 * permissions, not that of the underlying file, and
+			 * thus is not exposing anything sensitive.  Bouncer is
+			 * world-readable anyways at BOUNCER_PATH.
+			 */
+			stbuf->st_mode |= S_IRUSR | S_IRGRP | S_IROTH;
 		}
 		break;
 
@@ -1572,7 +1582,19 @@ static int m_open(const char *ipath, struct fuse_file_info *fi)
 		if (fd >= 0) {
 			close(fd);
 		}
-		if (fd < 0) {
+		/*
+		 * The bouncer needs to permissions to read itself in order to
+		 * check its xattrs to know where to redirect.
+		 *
+		 * Note this is only changing the bouncer's permissions, not
+		 * that of the underlying file, and thus is not exposing
+		 * anything sensitive.  Bouncer is world-readable anyways at
+		 * BOUNCER_PATH.
+		 */
+		if (cfg->filter == FILTER_BIN && ((fi->flags & 3) == O_RDONLY)
+			&& fd < 0 && errno == EACCES) {
+			rv = 0;
+		} else if (fd < 0) {
 			rv = -errno;
 		} else if ((fi->flags & 3) != O_RDONLY) {
 			rv = -EROFS;

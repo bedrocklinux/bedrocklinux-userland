@@ -287,6 +287,7 @@ update() {
 	notice "Successfully updated to ${new_version}"
 
 	if ver_cmp_first_newer "0.7.0beta3" "${current_version}"; then
+		notice "Updated crossfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
 		notice "Added brl-fetch-mirrors section to bedrock.conf.  This can be used to specify preferred mirrors to use with brl-fetch."
 	fi
 
