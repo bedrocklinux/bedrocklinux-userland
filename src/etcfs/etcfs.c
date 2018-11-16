@@ -894,11 +894,12 @@ static int m_opendir(const char *path, struct fuse_file_info *fi)
 		rv = -1;
 	} else if ((d = fdopendir(fd)) == NULL) {
 		rv = -1;
+		close(fd);
 	} else {
 		rv = 0;
+		close(fd);
 		closedir(d);
 	}
-	close(fd);
 
 	FS_IMP_RETURN(rv);
 }
