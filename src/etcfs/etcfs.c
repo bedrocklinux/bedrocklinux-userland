@@ -1104,8 +1104,8 @@ static int m_rmdir(const char *path)
 static int m_rename(const char *from, const char *to, unsigned int flags)
 {
 	FS_IMP_SETUP(from);
-	int to_ref_fd = get_ref_fd(to);
 	from = (from && from[1]) ? from + 1 : ".";
+	int to_ref_fd = get_ref_fd(to);
 	to = (to && to[1]) ? to + 1 : ".";
 	DISALLOW_ON_CFG(from);
 	DISALLOW_ON_CFG(to);
@@ -1224,10 +1224,10 @@ static int m_link(const char *from, const char *to)
 {
 	FS_IMP_SETUP(from);
 	from = (from && from[1]) ? from + 1 : ".";
+	int to_ref_fd = get_ref_fd(to);
 	to = (to && to[1]) ? to + 1 : ".";
 	DISALLOW_ON_CFG(from);
 	DISALLOW_ON_CFG(to);
-	int to_ref_fd = get_ref_fd(to);
 
 	rv = linkat(ref_fd, from, to_ref_fd, to, 0);
 
