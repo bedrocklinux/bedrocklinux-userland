@@ -373,6 +373,7 @@ enforce_symlinks() {
 			# Non-symlink file exists at symlink location, but
 			# nothing exists at tgt location.  Move file to
 			# tgt then create symlink.
+			mkdir -p "$(dirname "${proc_tgt}")"
 			mv "${proc_link}" "${proc_tgt}"
 			ln -s "${tgt}" "${proc_link}"
 		else
