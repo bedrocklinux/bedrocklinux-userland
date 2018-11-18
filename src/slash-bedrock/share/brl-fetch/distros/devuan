@@ -14,8 +14,12 @@ trap 'fetch_abort "Unexpected error occurred."' EXIT
 
 bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv devuan-keyring"
 
-check_arch_support() {
+check_supported() {
 	[ "$(uname -m)" = "x86_64" ]
+}
+
+check_experimental() {
+	false
 }
 
 list_mirrors() {

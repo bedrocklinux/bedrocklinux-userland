@@ -12,8 +12,14 @@
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
-check_arch_support() {
-	[ "$(uname -m)" = "x86_64" ]
+check_supported() {
+	false
+}
+
+check_experimental() {
+	# Last time this was tested it did not complete fetch.  Not worth
+	# listing even as experimental.
+	false
 }
 
 list_mirrors() {
