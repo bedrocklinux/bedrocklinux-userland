@@ -282,15 +282,38 @@ update() {
 	echo "${new_sha1sum}" >/bedrock/var/conf-sha1sum
 
 	step "Running post-install steps"
-	# Reserved for future use
+
+	if ver_cmp_first_newer "0.7.0beta4" "${current_version}"; then
+		# Busybox utility list was updated in 0.7.0beta3, but their symlinks were not changed.
+		# Ensure new utilities have their symlinks.
+		/bedrock/libexec/busybox --list-full | while read -r applet; do
+			strat bedrock /bedrock/libexec/busybox rm -f "/${applet}"
+		done
+		strat bedrock /bedrock/libexec/busybox --install -s
+	fi
 
 	notice "Successfully updated to ${new_version}"
+	new_crossfs=false
+	new_etcfs=false
 
 	if ver_cmp_first_newer "0.7.0beta3" "${current_version}"; then
-		notice "Updated crossfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
+		new_crossfs=true
 		notice "Added brl-fetch-mirrors section to bedrock.conf.  This can be used to specify preferred mirrors to use with brl-fetch."
 	fi
 
+	if ver_cmp_first_newer "0.7.0beta4" "${current_version}"; then
+		new_crossfs=true
+		new_etcfs=true
+		notice "Added ${color_cmd}brl copy${color_norm}."
+		notice "${color_alert}New, required section added to bedrock.conf.  Merge new config with existing and reboot.${color_norm}"
+	fi
+
+	if "${new_crossfs}"; then
+		notice "Updated crossfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
+	fi
+	if "${new_etcfs}"; then
+		notice "Updated etcfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
+	fi
 	if "${new_conf}"; then
 		notice "New reference configuration created at ${color_file}/bedrock/etc/bedrock.conf-${new_version}${color_norm}."
 		notice "Compare against ${color_file}/bedrock/etc/bedrock.conf${color_norm} and consider merging changes."
