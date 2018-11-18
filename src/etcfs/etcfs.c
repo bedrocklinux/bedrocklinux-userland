@@ -275,7 +275,9 @@ static inline int get_ref_fd(const char *const path)
 /*
  * Linux fails to provide system calls which apply to file descriptors and
  * directly (without following) on symlinks.  For example, neither lgetxattr()
- * nor fgetxattr() have both of these attributes.  We can use /proc as a work
+ * nor fgetxattr() have both of these attributes.
+ *
+ * For a subset of cases where this is needed, we can use /proc as a work
  * around to get a path dependent only on a file descriptor which can be fed
  * into system calls that do not follow symlinks (e.g. lgetxattr).
  */
@@ -1552,20 +1554,30 @@ static int m_getxattr(const char *path, const char *name, char *value,
 		errno = ENODATA;
 	} else if ((fd = openat(ref_fd, rpath, O_RDONLY | O_NOFOLLOW)) < 0) {
 		/*
-		 * Apparently lgetxattr directly on the file path works where
-		 * openat()+fgetxattr/lgetxattr() gets EACCES.  However, we
-		 * can't access the files with the direct path as that would
-		 * just recurse back to this filesystem; this entire design
-		 * revolves around using the file descriptors.
+		 * Linux fails to provide a lgetxattr() equivalent which apply
+		 * to file descriptors and directly (without following) on
+		 * symlinks.  For example, neither lgetxattr() nor fgetxattr()
+		 * have both of these attributes.  We cannot use lgetxattr() as
+		 * that would loop back to us.  This filesystem's entire design
+		 * revolves around using file descriptors as references.
 		 *
-		 * The vast, vast majority of the time this is an issue in
-		 * practice is when GNU ls is called on files in /etc on which
-		 * it does not have read permissions, such as `ls -l /etc`,
-		 * looking for selinux tags.  Since we know what that would
-		 * typically return - ENODATA - we can just return that as an
-		 * ugly hack.
+		 * If we can open the file we can use /proc to get an absolute
+		 * file path to the file.  This is what the procpath() call
+		 * does below.
+		 *
+		 * There are two scenarios where we cannot open then file:
+		 *
+		 * - If the file's permissions disallow it.  For example,
+		 *   /etc/passwd.  This returns EACCES.
+		 * - If it's a bad symlink, such as one that is EINVAL, ELOOP,
+		 *   or ENAMETOOLONG.
+		 *
+		 * Most users do not use xattrs, and thus our best guess in
+		 * these scenarios is that the proper return value is probably
+		 * ENODATA.  Until we have a better solution, use ENODATA.
 		 */
-		if (errno == EACCES) {
+		if (errno == EACCES || errno == EINVAL || errno == ELOOP ||
+			errno == ENAMETOOLONG) {
 			errno = ENODATA;
 		}
 		rv = -1;
