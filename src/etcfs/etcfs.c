@@ -45,7 +45,7 @@
 
 #define global_root "/proc/1/root/bedrock/strata/bedrock"
 
-#define GLOBAL_STRATUM "bedrock"
+#define GLOBAL_STRATUM "global"
 
 #define ROOTDIR "/"
 
