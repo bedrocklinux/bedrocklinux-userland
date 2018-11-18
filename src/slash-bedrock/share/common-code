@@ -968,22 +968,21 @@ cfg_etcfs() {
 			targets[target] = target
 		}
 	}
-	section == "symlinks" && key ~ /^\/etc\// {
-		key = substr(key,5)
-		target = "override symlink "key" "n_values[1]
+	section == "etc-inject" {
+		target = "override inject /"key" "n_values[1]
 		n_targets[++targets_len] = target
 		targets[target] = target
 		while (key ~ "/") {
 			sub("/[^/]*$", "", key)
 			if (key != "") {
-				target = "override directory "key" x"
+				target = "override directory /"key" x"
 				n_targets[++targets_len] = target
 				targets[target] = target
 			}
 		}
 	}
-	section == "etc-inject" {
-		target = "override inject /"key" "n_values[1]
+	section == "etc-symlinks" {
+		target = "override symlink /"key" "n_values[1]
 		n_targets[++targets_len] = target
 		targets[target] = target
 		while (key ~ "/") {
