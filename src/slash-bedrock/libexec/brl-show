@@ -121,4 +121,8 @@ for stratum in ${strata}; do
 	"${show_list}" && set_attr "/bedrock/strata/${stratum}" "show_list" ""
 done
 
+if "${show_cross}"; then
+	cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
+fi
+
 exit_success
