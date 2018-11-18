@@ -135,7 +135,7 @@ for stratum in $(list_strata); do
 	if ! is_enabled "$stratum"; then
 		continue
 	fi
-	root="$(stratum_root -e "$stratum")"
+	root="$(stratum_root --empty "$stratum")"
 	if ! [ -w "/proc/1/root$root/etc/.bedrock-config-filesystem" ]; then
 		continue
 	fi

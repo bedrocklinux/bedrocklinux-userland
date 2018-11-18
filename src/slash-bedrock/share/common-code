@@ -989,7 +989,7 @@ cfg_etcfs() {
 		while (key ~ "/") {
 			sub("/[^/]*$", "", key)
 			if (key != "") {
-				target = "override directory "key" x"
+				target = "override directory /"key" x"
 				n_targets[++targets_len] = target
 				targets[target] = target
 			}
@@ -1004,7 +1004,8 @@ cfg_etcfs() {
 		close(fscfg)
 		for (i = 1; i <= currents_len; i++) {
 			if (!(n_currents[i] in targets)) {
-				print "rm_"n_currents[i] >> fscfg
+				$0=n_currents[i]
+				print "rm_"$1" "$3 >> fscfg
 				fflush(fscfg)
 			}
 		}
@@ -1016,7 +1017,7 @@ cfg_etcfs() {
 		}
 		# double apply injects to ensure they use latest
 		for (i = 1; i <= targets_len; i++) {
-			if (n_targets[i] ~ /add_overwride inject/) {
+			if (n_targets[i] ~ /override inject/) {
 				print "add_"n_targets[i] >> fscfg
 				fflush(fscfg)
 			}
