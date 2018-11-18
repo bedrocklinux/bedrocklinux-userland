@@ -104,8 +104,6 @@ repair_bedrock() {
 	# the attribute off of their root directory.
 	set_attr "${root}/" "stratum" "${stratum}"
 
-	enforce_symlinks "${stratum}"
-
 	mnt="/proc"
 	ensure_mnt "${stratum}" "${mnt}" "proc" "true" "
 		stinit busybox mount -t proc proc \"${root}${mnt}\"
@@ -141,6 +139,8 @@ repair_bedrock() {
 		)
 	"
 
+	enforce_symlinks "${stratum}"
+
 	cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
 }
 
@@ -153,8 +153,6 @@ repair_stratum() {
 	# belongs.  This allows processes to look up their stratum by reading
 	# the attribute off of their root directory.
 	set_attr "${root}/" "stratum" "${stratum}"
-
-	enforce_symlinks "${stratum}"
 
 	for mnt in $(cfg_values "global" "share"); do
 		ensure_mnt "${stratum}" "${mnt}" "" "true" "
@@ -176,6 +174,8 @@ repair_stratum() {
 		cfg_etcfs \"/proc/1/root${root}${mnt}\";
 		)
 	"
+
+	enforce_symlinks "${stratum}"
 
 	cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
 }

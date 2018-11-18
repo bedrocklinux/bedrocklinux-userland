@@ -71,13 +71,13 @@ enable_stratum() {
 		stinit busybox mount --make-private "${root}${mnt}"
 	done
 
-	enforce_symlinks "${stratum}"
-
 	(
 		drop_lock
 		chroot "/proc/1/root${root}" /bedrock/libexec/etcfs -o allow_other "/etc"
 		cfg_etcfs "/proc/1/root${root}/etc"
 	)
+
+	enforce_symlinks "${stratum}"
 
 	stinit busybox touch "/bedrock/strata/bedrock/bedrock/run/enabled_strata/${1}"
 
