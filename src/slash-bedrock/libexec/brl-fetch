@@ -167,20 +167,14 @@ pick_mirror() {
 		return
 	fi
 
+	mirror_file="${target_dir}/brl-fetch-mirror"
+
 	# Some distros share mirrors.
 	case "${distro}" in
 	"void") key="void" ;;
 	"void-musl") key="void" ;;
 	*) key="${distro}" ;;
 	esac
-
-	# If bedrock.conf specifies mirror, try it.  If it works, use it.
-	for mirror in $(cfg_value "brl-fetch-mirrors" "${key}"); do
-		if wget -O- "${mirror}/${test_file}" >/dev/null 2>&1; then
-			echo "${mirror}"
-			return
-		fi
-	done
 
 	# Map Bedrock's name for a given distro to the common mirror directory
 	# name.
@@ -191,14 +185,33 @@ pick_mirror() {
 	*) suffix="${distro}" ;;
 	esac
 
-	# If bedrock.conf specifies mirror prefix, try it.  If it works, use it.
-	for prefix in $(cfg_values "brl-fetch-mirrors" "mirror-prefix"); do
-		echo wget -O- "${prefix}/${suffix}/${test_file}" >&2
-		if wget -O- "${prefix}/${suffix}/${test_file}" >/dev/null 2>&1; then
-			echo "${prefix}/${suffix}"
-			return
-		fi
-	done
+	echo "Checking bedrock.conf [brl-fetch-mirror] items" >&2
+	rm -f "${mirror_file}"
+	(
+		# If bedrock.conf specifies mirror, try it.  If it works, use it.
+		for mirror in $(cfg_value "brl-fetch-mirrors" "${key}"); do
+			echo "X"
+			if wget -O- "${mirror}/${test_file}" >/dev/null 2>&1; then
+				echo "${mirror}" > "${mirror_file}"
+				return
+			fi
+		done
+
+		# If bedrock.conf specifies mirror prefix, try it.  If it works, use it.
+		for prefix in $(cfg_values "brl-fetch-mirrors" "mirror-prefix"); do
+			echo "X"
+			if wget -O- "${prefix}/${suffix}/${test_file}" >/dev/null 2>&1; then
+				echo "${prefix}/${suffix}" > "${mirror_file}"
+				return
+			fi
+		done
+	) | progress_unknown >&2
+
+	if [ -r "${mirror_file}" ]; then
+		cat "${mirror_file}"
+		rm "${mirror_file}"
+		return
+	fi
 
 	# Find best mirror from list.
 	mirrors="$(list_mirrors)"
@@ -207,9 +220,6 @@ pick_mirror() {
 		echo "${mirrors}"
 		return
 	fi
-
-	mirror_file="${target_dir}/brl-fetch-mirror"
-	rm -f "${mirror_file}"
 
 	# Use netselect to filter the list down to top ten.  This is faster but
 	# less accurate than method used for final ten.
