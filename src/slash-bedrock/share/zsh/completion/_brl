@@ -20,6 +20,7 @@ _brl_subcommands() {
 		'fetch:Fetch new strata'
 		'remove:Remove strata (or aliases)'
 		'rename:Rename a stratum'
+		'copy:Copy a stratum'
 
 		'status:Query stratum status'
 		'enable:Enable or fix strata'
@@ -124,6 +125,10 @@ case "$words[2]" in
 "rename")
 	args+=("2:alias or disabled stratum:($(/bedrock/bin/brl list -dD | grep -ve "^bedrock\$" -ve "^init\$")))")
 	args+=("3:new name:")
+	;;
+"copy")
+	args+=("2:stratum:($(/bedrock/bin/brl list -dD))")
+	args+=("3:new stratum:")
 	;;
 "status")
 	args+=("*:strata or aliases:($(/bedrock/bin/brl list -aA))")

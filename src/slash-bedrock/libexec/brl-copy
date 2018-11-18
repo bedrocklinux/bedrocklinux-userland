@@ -1,0 +1,64 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl copy
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Copies strata.
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl copy ${color_sub}[options] <stratum> <new-stratum>${color_norm}
+
+Copies a disabled ${color_term}stratum${color_norm}.  Requires root.
+
+Options:
+  ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}   print this message
+
+Example:
+  ${color_rcmd}# brl fetch ubuntu
+  ${color_cmd}$ brl list | grep ubu
+  ${color_strat}ubuntu
+  ${color_rcmd}# brl disable ubuntu
+  ${color_rcmd}# brl copy ubuntu ubu-lts
+  ${color_cmd}$ brl list -a | grep ubu
+  ${color_strat}ubuntu
+  ${color_strat}ubu-lts
+  ${color_rcmd}# strat ubuntu apt dist-upgrade
+${color_norm}"
+}
+
+handle_help "${@:-}"
+min_args "${#}" "2"
+alias="${1}"
+new_stratum="${2}"
+
+require_root
+lock
+
+ensure_legal_stratum_name "${new_stratum}"
+
+if ! is_stratum_or_alias "${alias}"; then
+	abort "No stratum or alias found called \"${alias}\"."
+elif ! stratum="$(deref "${alias}")"; then
+	abort "Unable to dereference \"${alias}\"."
+elif is_enabled "${stratum}"; then
+	abort "Cannot copy enabled stratum.  Disable first."
+elif is_stratum_or_alias "${new_stratum}"; then
+	abort "Pre-existing stratum or alias found called \"${new_stratum}\".  Remove with \`brl remove ${new_stratum}\` first if you wish to change it."
+fi
+
+cp -a "/bedrock/strata/${stratum}" "/bedrock/strata/${new_stratum}"
+
+for xattr in "show_boot" "show_cross" "show_init" "show_list"; do
+	if has_attr "/bedrock/strata/${stratum}" "${xattr}"; then
+		set_attr "/bedrock/strata/${new_stratum}" "${xattr}" ""
+	fi
+done
+
+exit_success

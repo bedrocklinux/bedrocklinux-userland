@@ -60,9 +60,9 @@ _brl()
 	if [ "$COMP_CWORD" -eq 1 ]; then
 		opts="$opts help strat list which fetch"
 		opts="$opts remove rename status enable"
-		opts="$opts disable reename hide show alias"
-		opts="$opts deref update reload version"
-		opts="$opts report"
+		opts="$opts disable reename copy hide show"
+		opts="$opts alias deref update reload"
+		opts="$opts version report"
 	fi
 
 	case "${COMP_WORDS[1]}" in
@@ -154,6 +154,11 @@ _brl()
 	"rename")
 		if [ "$COMP_CWORD" -eq 2 ]; then
 			opts="$(/bedrock/bin/brl list -dD | grep -ve "^bedrock$" -ve "^init$")"
+		fi
+		;;
+	"copy")
+		if [ "$COMP_CWORD" -eq 2 ]; then
+			opts="$(/bedrock/bin/brl list -dD)"
 		fi
 		;;
 	"status")

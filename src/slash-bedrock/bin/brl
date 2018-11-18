@@ -28,6 +28,7 @@ ${color_term}Strata${color_norm} management commands:
   ${color_cmd}fetch     ${color_norm}${color_term}Fetch${color_norm} new ${color_term}strata${color_norm}
   ${color_cmd}remove    ${color_norm}Remove ${color_term}strata${color_norm} (or ${color_term}aliases${color_norm})
   ${color_cmd}rename    ${color_norm}Rename a ${color_term}stratum${color_norm}
+  ${color_cmd}copy      ${color_norm}Copy a ${color_term}stratum${color_norm}
 
 ${color_term}Strata${color_norm} status management commands:
   ${color_cmd}status    ${color_norm}Query ${color_term}stratum${color_norm} status
@@ -58,7 +59,7 @@ case "${1:-}" in
 	print_help
 	exit_success
 	;;
-"strat" | "list" | "which" | "fetch" | "remove" | "rename" | "status" | "enable" | "disable" | "repair" | "hide" | "show" | "alias" | "deref" | "apply" | "update" | "version" | "report")
+"strat" | "list" | "which" | "fetch" | "remove" | "rename" | "copy" | "status" | "enable" | "disable" | "repair" | "hide" | "show" | "alias" | "deref" | "apply" | "update" | "version" | "report")
 	backend="/bedrock/libexec/brl-${1}"
 	shift
 	exec "${backend}" "${@}"
