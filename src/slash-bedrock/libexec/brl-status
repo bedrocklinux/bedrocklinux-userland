@@ -120,7 +120,7 @@ handle_help "${@:-}"
 if [ -n "${1:-}" ]; then
 	strata="$*"
 else
-	strata="$(list_strata)"
+	strata="$(/bedrock/libexec/brl-list)"
 fi
 
 for stratum in ${strata}; do
