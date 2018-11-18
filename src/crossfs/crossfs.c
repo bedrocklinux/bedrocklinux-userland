@@ -1231,6 +1231,10 @@ static inline int font_merge_kv(struct cfg_entry *cfg, const char *ipath,
 		if (fp == NULL) {
 			continue;
 		}
+		/*
+		 * An open-able file exists.
+		 */
+		rv = 0;
 
 		char line[PATH_MAX];
 		while (fgets(line, sizeof(line), fp) != NULL) {
