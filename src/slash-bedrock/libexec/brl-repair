@@ -245,10 +245,12 @@ for alias in ${strata}; do
 	elif is_bedrock "${stratum}"; then
 		repair_bedrock "${stratum}"
 	else
-		if ! "${retain}"; then
-			disable_stratum "${1}"
+		if "${retain}"; then
+			repair_stratum "${stratum}"
+		else
+			disable_stratum "${stratum}"
+			enable_stratum "${stratum}"
 		fi
-		repair_stratum "${stratum}"
 	fi
 done
 
