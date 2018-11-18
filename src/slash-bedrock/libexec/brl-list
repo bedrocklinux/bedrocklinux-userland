@@ -26,8 +26,9 @@ Options:
   ${color_cmd}-a${color_norm},${color_cmd} --all-strata       ${color_norm}all ${color_term}strata${color_norm}
   ${color_cmd}-A${color_norm},${color_cmd} --all-aliases      ${color_norm}all ${color_term}aliases${color_norm}
   ${color_cmd}-r${color_norm},${color_cmd} --deref            ${color_norm}dereference ${color_term}aliases${color_norm}
-  ${color_cmd}-h${color_norm},${color_cmd} --help             ${color_norm}print this message
   ${color_cmd}-i${color_norm},${color_cmd} --include-hidden   ${color_norm}include ${color_term}hidden strata${color_norm} in list
+  ${color_cmd}-v${color_norm},${color_cmd} --everything       ${color_norm}equivalent to ${color_cmd}-aAir
+  ${color_cmd}-h${color_norm},${color_cmd} --help             ${color_norm}print this message
 
 Examples:
   ${color_cmd}$ brl list
@@ -49,8 +50,8 @@ list_disabled_aliases=false
 include_hidden=false
 deref_aliases=false
 
-OPTL="enabled-strata,enabled-aliases,disabled-strata,disabled-aliases,all-strata,all-aliases,deref,include-hidden"
-OPTO="eEdDaAri"
+OPTL="enabled-strata,enabled-aliases,disabled-strata,disabled-aliases,all-strata,all-aliases,deref,include-hidden,everything"
+OPTO="eEdDaAriv"
 eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
 saw_non_positional=false
 
@@ -87,6 +88,15 @@ while [ -n "${1:-}" ]; do
 		shift
 		;;
 	-i | --include-hidden)
+		include_hidden=true
+		shift
+		;;
+	-v | --everything)
+		list_enabled_strata=true
+		list_disabled_strata=true
+		list_enabled_aliases=true
+		list_disabled_aliases=true
+		deref_aliases=true
 		include_hidden=true
 		shift
 		;;
