@@ -153,7 +153,7 @@ To avoid conflicts, processes from one stratum may see its own stratum's
 instance of a given file.  For example, Debian's `apt` and Ubuntu's `apt` must
 both see their own instance of `/etc/apt/sources.list`.  Other files must be
 shared across strata to ensure they work together, and thus all strata see the
-same file.  For example, `/home`.  Such shared files are referee to as
+same file.  For example, `/home`.  Such shared files are referred to as
 "global".  Which stratum provides a file in a given context can be queried by
 `brl which`:
 

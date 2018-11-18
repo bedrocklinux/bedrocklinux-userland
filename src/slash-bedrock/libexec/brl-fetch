@@ -192,7 +192,7 @@ pick_mirror() {
 		for mirror in $(cfg_value "brl-fetch-mirrors" "${key}"); do
 			echo "X"
 			if wget -O- "${mirror}/${test_file}" >/dev/null 2>&1; then
-				echo "${mirror}" > "${mirror_file}"
+				echo "${mirror}" >"${mirror_file}"
 				return
 			fi
 		done
@@ -201,7 +201,7 @@ pick_mirror() {
 		for prefix in $(cfg_values "brl-fetch-mirrors" "mirror-prefix"); do
 			echo "X"
 			if wget -O- "${prefix}/${suffix}/${test_file}" >/dev/null 2>&1; then
-				echo "${prefix}/${suffix}" > "${mirror_file}"
+				echo "${prefix}/${suffix}" >"${mirror_file}"
 				return
 			fi
 		done

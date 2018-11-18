@@ -19,10 +19,10 @@ Install or update a Bedrock Linux system.
 
 Operations:
   ${color_cmd}--hijack ${color_sub}[name]       ${color_norm}convert current installation to Bedrock Linux.
-                        ${color_alert}This operation is not intended to be reversible!
-                        ${color_norm}Optionally specify initial ${color_term}stratum${color_norm} name.
-  ${color_cmd}--update              ${color_norm}Update current Bedrock Linux system.
-  ${color_cmd}--force-update        ${color_norm}Update current system, ignoring warnings.
+                        ${color_alert}this operation is not intended to be reversible!
+                        ${color_norm}optionally specify initial ${color_term}stratum${color_norm} name.
+  ${color_cmd}--update              ${color_norm}update current Bedrock Linux system.
+  ${color_cmd}--force-update        ${color_norm}update current system, ignoring warnings.
   ${color_cmd}-h${color_norm}, ${color_cmd}--help            ${color_norm}print this message
 ${color_norm}"
 }
