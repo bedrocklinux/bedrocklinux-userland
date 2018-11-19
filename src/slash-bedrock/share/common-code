@@ -346,7 +346,16 @@ stratum_root() {
 }
 
 # Applies /bedrock/etc/berdock.conf symlink requirements to the specified stratum.
+#
+# Use `--force` to indicate that, should a scenario occur which cannot be
+# handled cleanly, remove problematic files.  Otherwise generate a warning.
 enforce_symlinks() {
+	force=false
+	if [ "${1}" = "--force" ]; then
+		force=true
+		shift
+	fi
+
 	stratum="${1}"
 	root="$(stratum_root --empty "${stratum}")"
 
@@ -369,6 +378,13 @@ enforce_symlinks() {
 			# Nothing exists at the symlink location.  Create it.
 			mkdir -p "$(dirname "${proc_link}")"
 			ln -s "${tgt}" "${proc_link}"
+		elif [ -e "${proc_link}" ] && [ -h "${proc_tgt}" ]; then
+			# Non-symlink file exists at symlink location and a
+			# symlink exists at the target location.  Swap them and
+			# ensure the symlink points where we want it to.
+			rm -f "${proc_tgt}"
+			mv "${proc_link}" "${proc_tgt}"
+			ln -s "${tgt}" "${proc_link}"
 		elif [ -e "${proc_link}" ] && ! [ -e "${proc_tgt}" ]; then
 			# Non-symlink file exists at symlink location, but
 			# nothing exists at tgt location.  Move file to
@@ -376,19 +392,21 @@ enforce_symlinks() {
 			mkdir -p "$(dirname "${proc_tgt}")"
 			mv "${proc_link}" "${proc_tgt}"
 			ln -s "${tgt}" "${proc_link}"
-		else
+		elif "${force}" && ! mounts_in_dir "${root}" | grep '.'; then
 			# A file exists both at the desired location and at the
-			# target location.
-			#
-			# The most likely scenario is that this stratum has not
-			# yet had this function run against it.  For example,
-			# maybe it is a newly fetched stratum.  Given this, its
-			# link location is likely populated with something we
-			# don't care about.  Thus, remove it.
-			#
-			# This is not ideal.
+			# target location.  We do not know which of the two the
+			# user wishes to retain.  Since --force was indicated
+			# and we found no mount points to indicate otherwise,
+			# assume this is a newly fetched stratum and we are
+			# free to manipulate its files aggressively.
 			rm -rf "${proc_link}"
 			ln -s "${tgt}" "${proc_link}"
+		else
+			# A file exists both at the desired location and at the
+			# target location.  We do not know which of the two the
+			# user wishes to retain.  Play it safe and just
+			# generate a warning.
+			printf "${color_warn}WARNING: File or directory exists at both \`${proc_link}\` and \`${proc_tgt}\`.  Bedrock Linux expects only one to exist.  Inspect both and determine which you wish to keep, then remove the other, and finally run \`brl repair ${stratum}\` to remedy the situation.\n"
 		fi
 	done
 }

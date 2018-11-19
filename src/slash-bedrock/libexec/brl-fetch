@@ -798,6 +798,9 @@ for distro in ${distros}; do
 	cd /
 	fetch
 
+	notice "${color_term}Preparing symlinks${color_norm}"
+	enforce_symlinks --force "${name}"
+
 	if ! "${flag_dont_show}"; then
 		notice "${color_term}Showing${color_norm}"
 		/bedrock/libexec/brl-show "${name}"
