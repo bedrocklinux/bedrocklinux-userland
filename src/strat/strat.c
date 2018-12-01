@@ -414,7 +414,7 @@ int main(int argc, char *argv[])
 			"strat: wrong cap_sys_chroot capability.\n"
 			"To remedy this, run:\n"
 			"    /bedrock/libexec/setcap cap_sys_chroot=ep "
-			"/path/to/strat\n" "as root.\n");
+			"/bedrock/bin/strat\n" "as root.\n");
 		return 1;
 	}
 
