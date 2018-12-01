@@ -218,9 +218,27 @@ static inline int set_caller_permissions(void)
 	 */
 	gid_t list[64];
 	if ((rv = fuse_getgroups(ARRAY_LEN(list), list)) < 0) {
-		return rv;
-	}
-	if (rv <= (int)ARRAY_LEN(list)) {
+		/*
+		 * fuse_getgroups() is implemented by reading /proc/<pid>/.
+		 * This can fail if the request is not being made by something
+		 * with a /proc-visible pid such as by a kernel process, an
+		 * internal libfuse call, or a process outside of the visible
+		 * PID namespace.
+		 *
+		 * We need to support kernel requests and internal libfuse
+		 * requests, and thus we cannot abort when fuse_getgroups()
+		 * fails.
+		 *
+		 * In this situation, simply continue with an empty group list.
+		 * This minimizes the possibility that someone finds a way to
+		 * abuse fuse_getgroups() failing (we're providing no
+		 * priviledges) while still allowing legitimate requests to
+		 * succeed via UID=0.
+		 */
+		if ((rv = SET_THREAD_GROUPS(0, list)) < 0) {
+			return -errno;
+		}
+	} else if (rv <= (int)ARRAY_LEN(list)) {
 		if ((rv = SET_THREAD_GROUPS(rv, list)) < 0) {
 			return -errno;
 		}
