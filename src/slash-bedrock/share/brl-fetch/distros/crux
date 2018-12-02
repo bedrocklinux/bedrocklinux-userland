@@ -103,7 +103,7 @@ fetch() {
 	less_lethal_rm_rf "$bootstrap_dir"
 	rm "$target_dir/pkgadd"
 
-	step "Configure"
+	step "Configuring"
 
 	sed \
 		-e "s/^HOSTNAME=.*/HOSTNAME=$(hostname)/" \

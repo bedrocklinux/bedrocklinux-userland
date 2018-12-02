@@ -132,7 +132,7 @@ fetch() {
 	step "Removing temporary bootstrap files"
 	less_lethal_rm_rf "${bootstrap_dir}"
 
-	step "Configure"
+	step "Configuring"
 
 	case "$(uname -m)" in
 	"x86_64")

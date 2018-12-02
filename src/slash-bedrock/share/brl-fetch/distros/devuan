@@ -111,7 +111,7 @@ fetch() {
 	step "Removing temporary bootstrap files"
 	less_lethal_rm_rf "${bootstrap_dir}"
 
-	step "Configure"
+	step "Configuring"
 
 	set +o pipefail
 	setup_chroot "${target_dir}"

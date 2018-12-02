@@ -30,7 +30,7 @@ Examples:
   ${color_cmd}$ brl list -e | grep '^c'
   ${color_strat}crux
   ${color_rcmd}# brl remove crux
-  ${color_alert}ERROR: \"crux\" is enabled, refusing to remove.  To remove anyways use \`-d\`.
+  ${color_alert}ERROR: \"crux\" is enabled, refusing to remove.  To disable and remove use \`-d\`.
   ${color_rcmd}# brl remove -d crux
   ${color_cmd}$ brl list -e | grep '^c'
 ${color_norm}"
@@ -87,7 +87,7 @@ for stratum in ${strata}; do
 	elif is_bedrock "${stratum}"; then
 		abort "Removing bedrock stratum is disallowed."
 	elif is_enabled "${stratum}" && ! "${force_disable}"; then
-		abort "\"${stratum}\" is enabled, refusing to remove.  To remove anyways use \`-d\`."
+		abort "\"${stratum}\" is enabled, refusing to remove.  To disable and remove use \`-d\`."
 	else
 		for alias in $(list_aliases); do
 			if [ "$(deref "${alias}")" = "${stratum}" ]; then

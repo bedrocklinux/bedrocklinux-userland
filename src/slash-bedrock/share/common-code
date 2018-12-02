@@ -116,7 +116,7 @@ fetch_abort() {
 You will have to clean up yourself.
 !!! BE CAREFUL !!!
 \`rm\` around mount points may result in accidentally deleting something you wish to keep.
-Consider rebooting remove mount points and kill errant processes first.${color_norm}
+Consider rebooting to remove mount points and kill errant processes first.${color_norm}
 "
 		fi
 	fi
@@ -406,7 +406,7 @@ enforce_symlinks() {
 			# target location.  We do not know which of the two the
 			# user wishes to retain.  Play it safe and just
 			# generate a warning.
-			printf "${color_warn}WARNING: File or directory exists at both \`${proc_link}\` and \`${proc_tgt}\`.  Bedrock Linux expects only one to exist.  Inspect both and determine which you wish to keep, then remove the other, and finally run \`brl repair ${stratum}\` to remedy the situation.\n"
+			printf "${color_warn}WARNING: File or directory exists at both \`${proc_link}\` and \`${proc_tgt}\`.  Bedrock Linux expects only one to exist.  Inspect both and determine which you wish to keep, then remove the other, and finally run \`brl repair ${stratum}\` to remedy the situation.\\n"
 		fi
 	done
 }

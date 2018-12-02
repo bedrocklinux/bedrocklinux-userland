@@ -117,7 +117,7 @@ fetch() {
 	step "Removing temporary bootstrap files"
 	less_lethal_rm_rf "${bootstrap_dir}"
 
-	step "Configure"
+	step "Configuring"
 
 	if [ "${release}" != "sid" ] && [ "${release}" != "unstable" ]; then
 		echo "deb http://security.debian.org/ ${release}/updates main" >>"${target_dir}/etc/apt/sources.list"
