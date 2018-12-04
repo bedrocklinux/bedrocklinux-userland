@@ -606,34 +606,29 @@ less_lethal_rm_rf() {
 	rmdir "${dir}"
 }
 
-# Prints colon-separated information about a given mount point:
+# Prints colon-separated information about stratum's given mount point:
 #
 # - The mount point's filetype, or "missing" if there is no mount point.
-# - "true"/"false" indicating if the mount point is shared
-#
-# Use `--init` to indicate this should be run from the init stratum's point of
-# view.
+# - "true"/"false" indicating if the mount point is global
+# - "true"/"false" indicating if shared (i.e. child mounts will be global)
 mount_details() {
-	if [ "${1:-}" = "--init" ]; then
-		x_realpath="stinit busybox realpath"
-		pid="1"
-		shift
-	else
-		x_realpath="realpath"
-		pid="${$}"
-	fi
+	stratum="${1:-}"
+	mount="${2:-}"
 
-	if ! path="$(${x_realpath} "${1:-}" 2>/dev/null)"; then
-		echo "missing:false"
+	root="$(stratum_root --empty "${stratum}")"
+	br_root="/bedrock/strata/bedrock"
+
+	if ! path="$(stinit busybox realpath "${root}${mount}" 2>/dev/null)"; then
+		echo "missing:false:false"
 		return
 	fi
 
-	mountline="$(awk -v"mnt=${path}" '$5 == mnt' "/proc/${pid}/mountinfo")"
+	# Get filesystem
+	mountline="$(awk -v"mnt=${path}" '$5 == mnt' "/proc/1/mountinfo")"
 	if [ -z "${mountline}" ]; then
-		echo "missing:false"
+		echo "missing:false:false"
 		return
 	fi
-
 	filesystem="$(echo "${mountline}" | awk '{
 		for (i=7; i<NF; i++) {
 			if ($i == "-") {
@@ -643,51 +638,68 @@ mount_details() {
 		}
 	}')"
 
-	shared="$(echo "${mountline}" | awk '{
+	if ! br_path="$(stinit busybox realpath "${br_root}${mount}" 2>/dev/null)"; then
+		echo "${filesystem}:false:false"
+		return
+	fi
+
+	# Get global
+	global=false
+	if is_bedrock "${stratum}"; then
+		global=true
+	elif [ "${mount}" = "/etc" ] && [ "${filesystem}" = "fuse.etcfs" ]; then
+		# /etc is a virtual filesystem that needs to exist per-stratum,
+		# and thus the check below would indicate it is local.
+		# However, the actual filesystem implementation effectively
+		# implements global redirects, and thus it should be considered
+		# global.
+		global=true
+	else
+		path_stat="$(stinit busybox stat "${path}" 2>/dev/null | awk '$1 == "File:" {$2=""} $5 == "Links:" {$6=""}1')"
+		br_path_stat="$(stinit busybox stat "${br_path}" 2>/dev/null | awk '$1 == "File:" {$2=""} $5 == "Links:" {$6=""}1')"
+		if [ "${path_stat}" = "${br_path_stat}" ]; then
+			global=true
+		fi
+	fi
+
+	# Get shared
+	shared_nr="$(echo "${mountline}" | awk '{
 		for (i=7; i<NF; i++) {
 			if ($i ~ "shared:[0-9]"){
-				print "true"
+				substr(/shared:/,"",$i)
+				print $i
 				exit
 			} else if ($i == "-"){
-				print "false"
+				print ""
 				exit
 			}
 		}
 	}')"
-
-	echo "${filesystem}:${shared}"
-	return
-}
-
-# Checks if a given absolute file path is identical from both the given
-# stratum's point of view and the bedrock stratum's point of view.
-check_global() {
-	stratum="${1}"
-	file="${2}"
-
-	if is_bedrock "${stratum}"; then
-		return 0
-	fi
-
-	# /etc is a virtual filesystem that needs to exist per-stratum, and
-	# thus the check below would indicate it is local.  However, the actual
-	# filesystem implementation effectively implements global redirects,
-	# and thus it should be considered global.
-	if [ "${file}" = "/etc" ]; then
-		return 0
-	fi
-
-	if is_init "${stratum}"; then
-		path="${file}"
+	br_mountline="$(awk -v"mnt=${br_path}" '$5 == mnt' "/proc/1/mountinfo")"
+	if [ -z "${br_mountline}" ]; then
+		br_shared_nr=""
 	else
-		path="/bedrock/strata/${stratum}${file}"
+		br_shared_nr="$(echo "${br_mountline}" | awk '{
+			for (i=7; i<NF; i++) {
+				if ($i ~ "shared:[0-9]"){
+					substr(/shared:/,"",$i)
+					print $i
+					exit
+				} else if ($i == "-"){
+					print ""
+					exit
+				}
+			}
+		}')"
 	fi
-	br_path="/bedrock/strata/bedrock${file}"
+	if [ -n "${shared_nr}" ] && [ "${shared_nr}" = "${br_shared_nr}" ]; then
+		shared=true
+	else
+		shared=false
+	fi
 
-	path_stat="$(stinit busybox stat "${path}" 2>/dev/null | awk '$1 == "File:" {$2=""} $5 == "Links:" {$6=""}1')"
-	br_path_stat="$(stinit busybox stat "${br_path}" 2>/dev/null | awk '$1 == "File:" {$2=""} $5 == "Links:" {$6=""}1')"
-
-	[ "${path_stat}" = "${br_path_stat}" ]
+	echo "${filesystem}:${global}:${shared}"
+	return
 }
 
 # Pre-parse bedrock.conf:

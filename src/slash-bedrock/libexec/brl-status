@@ -52,18 +52,19 @@ check_mnt() {
 	tgt_type="${3}"
 	tgt_share="${4}"
 
-	details="$(mount_details --init "${root}${mnt}")"
+	details="$(mount_details "${stratum}" "${mnt}")"
 	type="$(echo "${details}" | cut -d: -f1)"
-	shared="$(echo "${details}" | cut -d: -f2-)"
+	global="$(echo "${details}" | cut -d: -f2)"
+	shared="$(echo "${details}" | cut -d: -f3)"
 
 	if [ "${type}" = "missing" ]; then
 		problem="${problem}  ${color_cmd}${mnt}${color_norm} mount point is ${color_alert}missing${color_norm}\\n"
-	elif [ -n "$tgt_type" ] && [ "${type}" != "${tgt_type}" ]; then
+	elif [ -n "${tgt_type}" ] && [ "${type}" != "${tgt_type}" ]; then
 		problem="${problem}  ${color_cmd}${mnt}${color_norm} is ${type} ${color_alert}rather than${color_norm} ${tgt_type}\\n"
-	elif ! check_global "${stratum}" "${mnt}"; then
+	elif ! "${global}"; then
 		problem="${problem}  ${color_cmd}${mnt}${color_norm} is ${color_alert}local${color_norm}\\n"
 	elif ! "${shared}" && "${tgt_share}"; then
-		problem="${problem}  ${color_cmd}${mnt}${color_norm} is ${color_alert}private${color_norm}\\n"
+		problem="${problem}  ${color_cmd}${mnt}${color_norm} is ${color_alert}bound${color_norm}\\n"
 	elif "${shared}" && ! "${tgt_share}"; then
 		problem="${problem}  ${color_cmd}${mnt}${color_norm} is ${color_alert}shared${color_norm}\\n"
 	fi

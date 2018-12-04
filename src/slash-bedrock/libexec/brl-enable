@@ -93,7 +93,7 @@ for alias in "${@}"; do
 	elif is_enabled "${stratum}"; then
 		abort "\"${stratum}\" is already enabled.  Consider \`brl repair\` to fix a broken stratum."
 	elif is_bedrock "${stratum}" || is_init "${stratum}"; then
-		abort "Cannot enable bedrock or init-providing stratum, as neither should ever be disabled"
+		abort "Cannot enable bedrock or init-providing stratum, as neither should ever be disabled."
 	else
 		disable_stratum "${stratum}"
 		enable_stratum "${stratum}"

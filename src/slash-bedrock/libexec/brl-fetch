@@ -345,6 +345,7 @@ setup_chroot() {
 	mount --bind /dev "${dir}/dev"
 	mount --bind /dev/pts "${dir}/dev/pts"
 
+	mkdir -p "${dir}/dev/shm/"
 	mount -t tmpfs shm "${dir}/dev/shm/"
 	chmod 1777 "${dir}/dev/shm/"
 	mkdir -p "${dir}/run"
