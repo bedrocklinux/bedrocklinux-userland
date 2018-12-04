@@ -144,4 +144,8 @@ done
 
 cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
 
+if [ -w /sys/module/firmware_class/parameters/path ] && [ -d /bedrock/cross/firmware ]; then
+	printf "/bedrock/cross/firmware" >/sys/module/firmware_class/parameters/path
+fi
+
 exit_success
