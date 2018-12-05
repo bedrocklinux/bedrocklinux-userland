@@ -71,7 +71,22 @@ hijack() {
 		abort "/dev/fuse not found.  FUSE is required for Bedrock Linux to operate.  Install the module fuse kernel module and try again."
 	elif [ -e /bedrock/ ]; then
 		abort "/bedrock found.  Bedrock Linux cannot be installed over Bedrock Linux."
+	elif ! type -p sha1sum >/dev/null 2>&1
+		abort "Could not find sha1sum executable."
 	fi
+
+	bb="/true"
+	if ! extract_tarball | tar xO bedrock/libexec/busybox >"${bb}"; then
+		rm -f "${bb}"
+		abort "Unable to write to root filesystem.  Read-only root filesystems are not supported."
+	fi
+	chmod +x "${bb}"
+	if ! "${bb}"; then
+		rm -f "${bb}"
+		abort "Unable to execute reference binary.  Perhaps this installer is intended for a different CPU architecture."
+	fi
+	rm -f "${bb}"
+
 	setf="/bedrock-linux-installer-$$-setfattr"
 	getf="/bedrock-linux-installer-$$-getfattr"
 	extract_tarball | tar xO bedrock/libexec/setfattr >"${setf}"
@@ -142,10 +157,10 @@ hijack() {
 		timezone="$(cat /etc/timezone)"
 	elif [ -h /etc/localtime ] && readlink /etc/localtime | grep -q '^/usr/share/zoneinfo/' && [ -r /etc/localtime ]; then
 		timezone="$(readlink /etc/localtime | sed 's,^/usr/share/zoneinfo/,,')"
-	elif grep -q '^TIMEZONE=' /etc/rc.conf; then
+	elif [ -r /etc/rc.conf ] && grep -q '^TIMEZONE=' /etc/rc.conf; then
 		timezone="$(awk -F[=] '$1 == "TIMEZONE" {print$NF}')"
 	elif [ -r /etc/localtime ]; then
-		timezone="$(find /usr/share/zoneinfo -type f -exec sha1sum {} \; | awk -v"l=$(sha1sum /etc/localtime | cut -d' ' -f1)" '$1 == l {print$NF;exit}' | sed 's,/usr/share/zoneinfo/,,')"
+		timezone="$(find /usr/share/zoneinfo -type f -exec sha1sum {} \; 2>/dev/null | awk -v"l=$(sha1sum /etc/localtime | cut -d' ' -f1)" '$1 == l {print$NF;exit}' | sed 's,/usr/share/zoneinfo/,,')"
 	fi
 	if [ -n "${timezone:-}" ]; then
 		notice "Using ${color_file}${timezone}${color_norm} for timezone"
