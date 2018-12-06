@@ -1439,14 +1439,36 @@ static int m_statfs(const char *path, struct statvfs *stbuf)
 /*
  * flush() is asking us to close the file descriptor to flush everything to
  * disk, *but* this may be called multiple times (multiple file descriptors to
- * same file?), so we can't actually close the file.  We can abuse dup() to get
- * the desired effect.
+ * same file?), and so we can't actually close the file.  We can use dup() to
+ * get the desired effect.
  */
 static int m_flush(const char *path, struct fuse_file_info *fi)
 {
 	FS_IMP_SETUP(path);
 
-	rv = close(dup(fi->fh));
+	int dupped_fd = dup(fi->fh);
+	if (dupped_fd < 0) {
+		/*
+		 * FUSE/libfuse translates file descriptors such that the one
+		 * we receive here is not the same number that was passed in by
+		 * the calling program.  Thus, libfuse *probably* takes
+		 * responsibility for handling bad file descriptors itself; we
+		 * should always get good ones.  Despite this, libfuse has been
+		 * seen passing invalid file descriptors here.
+		 *
+		 * For example, apt (or ldconfig?) has been straced and seen
+		 * opening "/etc/ld.so.cache" and getting fd=3.  When it later
+		 * tries to close(3), this function sees an incoming fd=0.
+		 * However, at that moment /proc/<etcfs-pid>/fd/0 did not
+		 * exist.  Both close(0) and dup(0) return EBADF.
+		 *
+		 * We have no way to handle this situation.  Just ignore it.
+		 * Return success to avoid confusing calling program.
+		 */
+		rv = 0;
+	} else {
+		rv = close(dupped_fd);
+	}
 
 	FS_IMP_RETURN(rv);
 }
@@ -1491,7 +1513,7 @@ static int m_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 	 * continuing rather than unproductively interrupting the calling
 	 * program.
 	 */
-	if (rv < 0 && errno == EINVAL) {
+	if (rv < 0 && (errno == EINVAL || errno == EBADF)) {
 		rv = 0;
 	}
 
