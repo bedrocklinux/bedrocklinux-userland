@@ -1,0 +1,109 @@
+#!/bedrock/libexec/busybox sh
+#
+# OpenWrt bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	false
+}
+
+check_experimental() {
+	# Last attempt to fetch appeared to work, but no one is actively
+	# supporting this fetch code.
+	[ "$(uname -m)" = "x86_64" ]
+}
+
+list_mirrors() {
+	# main mirror
+	echo 'https://downloads.openwrt.org'
+
+	# additional mirrors
+	mirror_list_url='https://openwrt.org/downloads'
+	wget -O- "${mirror_list_url}" 2>/dev/null |
+		awk '/id="mirrors"/,/<\/table>/' |
+		list_links |
+		grep "^http"
+}
+
+speed_test_url() {
+	if [ "$(uname -m)" = "x86_64" ]; then
+		echo "releases/${release}/targets/x86/64/sha256sums"
+	else
+		abort "Unsupported architecture"
+	fi
+}
+
+list_releases() {
+	for mirror in "${flag_mirror:-}" $(list_mirrors); do
+		if wget -O- "${mirror}/releases/" 2>/dev/null |
+			list_links |
+			grep '^[0-9][0-9.]*/$' |
+			sed 's,/$,,'; then
+			break
+		fi
+	done
+}
+
+default_release() {
+	list_releases |
+		sort -n |
+		tail -n1
+}
+
+fetch() {
+	step_init 7
+
+	if [ -z "${target_dir:-}" ] || [ -z "${arch:-}" ] || [ -z "${arch2:-}" ]; then
+		abort "Essential variable not set"
+	fi
+	if [ "${arch}" = "x86_64" ]; then
+		arch3="x86/64"
+		arch4="x86-64"
+	else
+		abort "Unsupported architecture"
+	fi
+
+	step "Determining name"
+	name="${flag_name:-${distro}}"
+	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining release"
+	release="${flag_release:-$(default_release)}"
+	notice "Using ${color_file}${release}${color_norm}"
+
+	step "Determining mirror"
+	mirror="$(pick_mirror "$(speed_test_url)")"
+	notice "Using ${color_link}${mirror}${color_norm}"
+
+	step "Downloading bootstrap software"
+	url="$(find_link "${mirror}/releases/${release}/targets/${arch3}/" "^openwrt-${release}-${arch4}-generic-rootfs.tar.gz$")"
+	wget -O "${target_dir}/rootfs.tar.gz" "${url}"
+
+	step "Running bootstrap software"
+	cp /bedrock/libexec/busybox "${target_dir}/busybox"
+
+	chroot "${target_dir}" /busybox tar xf rootfs.tar.gz
+
+	step "Removing temporary bootstrap files"
+	rm "${target_dir}/busybox"
+	rm "${target_dir}/rootfs.tar.gz"
+
+	step "Configuring"
+	# OpenWrt defaults to /var being a symlink to /tmp.  This makes /var
+	# shared on Bedrock when it should be private.  Disconnect /tmp from /var.
+	if [ -h "${target_dir}/var" ]; then
+		rm "${target_dir}/var"
+	fi
+	mkdir -p "${target_dir}/var/lock"
+
+	notice "Successfully acquired ${distro} stratum"
+}
