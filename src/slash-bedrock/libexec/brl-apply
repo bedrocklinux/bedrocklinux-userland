@@ -94,9 +94,9 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 	echo "set LANG $(cfg_value "locale" "LANG")"
 	echo "set PATH $(cfg_value "env-vars" "PATH" | sed 's/:/ /g')"
 	echo "set MANPATH $(cfg_value "env-vars" "MANPATH" | sed 's/:/ /g')"
-	echo "set INFOPATH $(cfg_value "env-vars" "INFOPATH" | sed 's/:/ /g')"
-	echo "set XDG_DATA_DIRS $(cfg_value "env-vars" "XDG_DATA_DIRS" | sed 's/:/ /g')"
-	echo "set TERMINFO_DIRS $(cfg_value "env-vars" "TERMINFO_DIRS" | sed 's/:/ /g')"
+	echo "set INFOPATH $(cfg_value "env-vars" "INFOPATH")"
+	echo "set XDG_DATA_DIRS $(cfg_value "env-vars" "XDG_DATA_DIRS")"
+	echo "set TERMINFO_DIRS $(cfg_value "env-vars" "TERMINFO_DIRS")"
 ) >/bedrock/run/fprofile
 (
 	echo "Defaults secure_path=\"$(cfg_value "env-vars" "PATH")\""
