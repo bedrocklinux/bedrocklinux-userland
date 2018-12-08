@@ -333,6 +333,12 @@ update() {
 		notice "${color_alert}New, required section added to bedrock.conf.  Merge new config with existing and reboot.${color_norm}"
 	fi
 
+	if ver_cmp_first_newer "0.7.0beta6" "${current_version}"; then
+		new_etcfs=true
+		notice "Reworked ${color_cmd}brl retain${color_norm} options."
+		notice "Made ${color_cmd}brl status${color_norm} more robust.  Many strata may now report as broken.  Reboot to remedy."
+	fi
+
 	if "${new_crossfs}"; then
 		notice "Updated crossfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
 	fi
