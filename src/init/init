@@ -42,12 +42,11 @@ setup_term() {
 }
 
 ensure_essential_environment() {
-	mount -o remount,rw / 2>&1 | head -n0
-
 	if ! [ -r /proc/mounts ] || ! grep -q "^\\w* /proc proc" /proc/mounts 2>&1 | head -n0; then
 		mkdir -p /proc
 		mount -t proc proc /proc
 	fi
+	mount -o remount,rw / 2>&1 | head -n0
 	if ! grep -q "^\\w* /sys sysfs" /proc/mounts; then
 		mkdir -p /sys
 		mount -t sysfs sysfs /sys
