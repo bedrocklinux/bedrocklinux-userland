@@ -398,6 +398,7 @@ echo "DISABLING $$applet"; \
 		./set_bb_option "CONFIG_FEATURE_SH_STANDALONE" "y" && \
 		./set_bb_option "CONFIG_INIT" "n" && \
 		./set_bb_option "CONFIG_INSMOD" "y" && \
+		./set_bb_option "CONFIG_LFS" "y" && \
 		./set_bb_option "CONFIG_LSMOD" "y" && \
 		./set_bb_option "CONFIG_MODPROBE" "y" && \
 		./set_bb_option "CONFIG_PIVOT_ROOT" "y" && \
