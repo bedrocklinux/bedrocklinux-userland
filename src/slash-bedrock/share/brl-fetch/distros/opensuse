@@ -19,7 +19,7 @@ check_supported() {
 check_experimental() {
 	# Last attempt to fetch appeared to work, but no one is actively
 	# supporting this fetch code.
-	true
+	[ "$(uname -m)" = "x86_64" ]
 }
 
 list_mirrors() {
