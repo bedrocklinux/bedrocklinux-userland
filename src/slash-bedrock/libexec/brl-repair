@@ -7,7 +7,6 @@
 #      version 2 as published by the Free Software Foundation.
 #
 # Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
-#
 # Repairs broken strata
 
 . /bedrock/share/common-code
@@ -19,11 +18,12 @@ Repairs broken ${color_term}strata${color_norm}.  Requires root.
 
 Options:
   ${color_sub}<none>${color_norm}         defaults to ${color_cmd}--retain${color_norm}
-  ${color_cmd}-r${color_norm},${color_cmd} --retain   ${color_norm}try to retain existing processes and mount points
-                   ${color_norm}only works on trivially broken strata
+  ${color_cmd}-n${color_norm},${color_cmd} --new      ${color_norm}only add new mounts, do not remove anything
+                   ${color_norm}only fixes trivially broken ${color_term}strata
+  ${color_cmd}-r${color_norm},${color_cmd} --retain   ${color_norm}try to retain as much as possible except problematic mount points
+                   ${color_norm}fixes most ${color_term}strata${color_norm} but risks losing some state
   ${color_cmd}-c${color_norm},${color_cmd} --clear    ${color_norm}clears ${color_term}strata${color_norm} processes and mount points
-                   ${color_norm}more robust than ${color_cmd}--retain${color_norm}, but loses ${color_term}stratum${color_norm} state
-                   ${color_norm}mutually exclusive with ${color_cmd}--retain${color_norm}.
+                   ${color_norm}should fix almost all ${color_term}strata${color_norm} but loses all state
   ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}     print this message
 
 Examples:
@@ -32,15 +32,15 @@ Examples:
   ${color_rcmd}# strat ubuntu umount /proc
   ${color_cmd}$ brl status ubuntu
   ${color_strat}ubuntu${color_norm}: ${color_alert}broken
-  ${color_rcmd}# brl repair ubuntu
+  ${color_rcmd}# brl repair --new ubuntu
   ${color_cmd}$ brl status ubuntu
   ${color_strat}ubuntu${color_norm}: ${color_okay}enabled
   ${color_rcmd}# strat ubuntu sshfs 192.168.1.199:/home/ /etc
   ${color_cmd}$ brl status ubuntu
   ${color_strat}ubuntu${color_norm}: ${color_alert}broken
-  ${color_rcmd}# brl repair ubuntu
-  ${color_alert}ERROR: Cannot repair \"ubuntu\" while retaining its processes and mount points.  If you do not mind losing these, try again with \`--clear\`
-  ${color_rcmd}# brl repair --clear ubuntu
+  ${color_rcmd}# brl repair --new ubuntu
+  ${color_alert}ERROR: Cannot repair \"ubuntu\" with --new strategy due to problematic mount at \"/etc\".
+  ${color_rcmd}# brl repair --retain ubuntu
   ${color_cmd}$ brl status ubuntu
   ${color_strat}ubuntu${color_norm}: ${color_okay}enabled
 ${color_norm}"
@@ -62,6 +62,9 @@ ensure_mnt() {
 
 	# If a non-global mount exists, unmount it.
 	if [ "${type}" != "missing" ] && ! "${global}"; then
+		if [ "${strategy}" == "new" ]; then
+			abort "Cannot repair \"$stratum\" with --new strategy due to problematic mount at \"${mnt}\""
+		fi
 		umount_r --init "${root}${mnt}"
 		type="missing"
 		shared=false
@@ -69,6 +72,9 @@ ensure_mnt() {
 
 	# If a mount exists but it is the incorrect filesystem type, unmount it.
 	if [ "${type}" != "missing" ] && [ -n "$tgt_type" ] && [ "${type}" != "${tgt_type}" ]; then
+		if [ "${strategy}" == "new" ]; then
+			abort "Cannot repair \"$stratum\" with --new strategy due to problematic mount at \"${mnt}\""
+		fi
 		umount_r --init "${root}${mnt}"
 		type="missing"
 		shared=false
@@ -77,6 +83,9 @@ ensure_mnt() {
 	# If a mount point is private but needs to be shared, we need to
 	# re-mount it with shared set on the source.
 	if ! is_bedrock "${stratum}" && ! "${shared}" && "${tgt_share}"; then
+		if [ "${strategy}" == "new" ]; then
+			abort "Cannot repair \"$stratum\" with --new strategy due to problematic mount at \"${mnt}\""
+		fi
 		umount_r --init "${root}${mnt}"
 		type="missing"
 		shared=false
@@ -203,26 +212,26 @@ min_args "${#}" "1"
 require_root
 lock
 
-retain=true
-saw_retain=false
-saw_clear=false
+strategy="retain"
 strata=""
 
-OPTL="retain,clear"
-OPTO="rc"
+OPTL="new,retain,clear"
+OPTO="nrc"
 eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
 saw_non_positional=false
 
 while [ -n "${1:-}" ]; do
 	case "${1}" in
+	-n | --new)
+		strategy="new"
+		shift
+		;;
 	-r | --retain)
-		retain=true
-		saw_retain=true
+		strategy="retain"
 		shift
 		;;
 	-c | --clear)
-		retain=false
-		saw_clear=true
+		strategy="clear"
 		shift
 		;;
 	--)
@@ -244,10 +253,6 @@ while [ -n "${1:-}" ]; do
 	esac
 done
 
-if "${saw_retain}" && "${saw_clear}"; then
-	abort "--retain and --clear are mutually exclusive."
-fi
-
 for alias in ${strata}; do
 	if ! is_stratum_or_alias "${alias}"; then
 		abort "No stratum or alias called \"${alias}\"."
@@ -255,18 +260,18 @@ for alias in ${strata}; do
 		abort "Unable to dereference \"${alias}\"."
 	elif ! is_enabled "${stratum}"; then
 		abort "\`brl repair\` is intended for enabled strata.  Enable disabled strata with \`brl enable\`."
-	elif is_bedrock "${stratum}" && ! "${retain}"; then
+	elif is_bedrock "${stratum}" && [ "${strategy}" = "clear" ]; then
 		abort "Unable to --clear bedrock stratum"
-	elif is_init "${stratum}" && ! "${retain}"; then
+	elif is_init "${stratum}" && [ "${strategy}" = "clear" ]; then
 		abort "Unable to --clear init-providing stratum"
 	elif is_bedrock "${stratum}"; then
 		repair_bedrock "${stratum}"
 	else
-		if "${retain}"; then
-			repair_stratum "${stratum}"
-		else
+		if [ "${strategy}" = "clear" ]; then
 			disable_stratum "${stratum}"
 			enable_stratum "${stratum}"
+		else
+			repair_stratum "${stratum}"
 		fi
 	fi
 done
