@@ -1717,6 +1717,14 @@ static int m_removexattr(const char *path, const char *name)
 	FS_IMP_RETURN(rv);
 }
 
+/*
+ * Linux/FUSE/libfuse implement flock if we do not.
+ * - Our attempt below is sometimes provided an invalid file descriptor even if
+ *   calling process provides a valid one.  This may be a bug in libfuse.  This
+ *   did not replicate when Linux/FUSE/libfuse handled it, and so let them do
+ *   it until the bug is resolved.
+ * - This will be slightly faster than us doing it ourselves.
+ *
 static int m_flock(const char *path, struct fuse_file_info *fi, int op)
 {
 	FS_IMP_SETUP(path);
@@ -1726,6 +1734,7 @@ static int m_flock(const char *path, struct fuse_file_info *fi, int op)
 
 	FS_IMP_RETURN(rv);
 }
+ */
 
 /*
  * Implemented filesystem calls
@@ -1774,7 +1783,12 @@ static struct fuse_operations m_oper = {
 	.listxattr = m_listxattr,
 	.removexattr = m_removexattr,
 	/* .lock = m_lock, TODO */
-	.flock = m_flock,
+	/*
+	 * Linux/FUSE/libfuse implement flock if we do not.
+	 * - This will be slight faster than us doing it ourselves.
+	 * - Our attempt ran into unusual behavior.
+	 * .flock = m_flock,
+	 */
 };
 
 int main(int argc, char *argv[])
