@@ -42,8 +42,31 @@ handle_help "${@:-}"
 require_root
 lock
 
-ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/localtime
+# Configure crossfs.  Items below reference crossfs, and so this should be done
+# early.
+cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
 
+# Configure etcfs for all enabled strata.
+for stratum in $(list_strata); do
+	if ! is_enabled "${stratum}"; then
+		continue
+	fi
+	root="$(stratum_root --empty "${stratum}")"
+	if ! [ -w "/proc/1/root${root}/etc/.bedrock-config-filesystem" ]; then
+		continue
+	fi
+	cfg_etcfs "/proc/1/root${root}/etc"
+done
+
+# Configure /sys
+if [ -w /sys/module/firmware_class/parameters/path ] && [ -d /bedrock/cross/firmware ]; then
+	# Ensure the kernel knows about cross-strata firmware
+	printf "/bedrock/cross/firmware" >/sys/module/firmware_class/parameters/path
+fi
+
+# Populate various /bedrock/run files based on bedrock.conf.  brl-enable/repair
+# ensures these are used where appropriate, e.g. symlinked to from /etc.
+ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/localtime
 (
 	echo "TZ=:/etc/localtime"
 	echo "LANG=$(cfg_value "locale" "LANG")"
@@ -53,7 +76,6 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 	echo "XDG_DATA_DIRS=$(cfg_value "env-vars" "XDG_DATA_DIRS")"
 	echo "TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
 ) >/bedrock/run/environment
-
 (
 	echo "export TZ=:/etc/localtime"
 	echo "export LANG=$(cfg_value "locale" "LANG")"
@@ -63,12 +85,10 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 	echo "export XDG_DATA_DIRS=$(cfg_value "env-vars" "XDG_DATA_DIRS")"
 	echo "export TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
 ) >/bedrock/run/profile
-
 (
 	echo ". /bedrock/run/profile"
 	echo "export fpath=(/bedrock/share/zsh/completion/ \$fpath /bedrock/cross/zsh-completion/)"
 ) >/bedrock/run/zprofile
-
 (
 	echo "set TZ :/etc/localtime"
 	echo "set LANG $(cfg_value "locale" "LANG")"
@@ -78,11 +98,9 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 	echo "set XDG_DATA_DIRS $(cfg_value "env-vars" "XDG_DATA_DIRS" | sed 's/:/ /g')"
 	echo "set TERMINFO_DIRS $(cfg_value "env-vars" "TERMINFO_DIRS" | sed 's/:/ /g')"
 ) >/bedrock/run/fprofile
-
 (
 	echo "Defaults secure_path=\"$(cfg_value "env-vars" "PATH")\""
 ) >/bedrock/run/sudoers
-
 if [ -d /bedrock/cross/fonts ]; then
 	(
 		echo "Section \"Files\""
@@ -91,7 +109,10 @@ if [ -d /bedrock/cross/fonts ]; then
 	) >/bedrock/run/xorg-fonts
 fi
 
+# Configure various global files in-place.
 if [ -r /etc/login.defs ] && awk -F'=' -v"path=$(cfg_value "env-vars" "PATH")" '
+	# Ensure login.defs uses Bedrock $PATH.
+	#
 	/^[ \t]*ENV_SUPATH[ \t][ \t]*PATH=/ && $2 == path {s=1}
 	/^[ \t]*ENV_PATH[ \t][ \t]*PATH=/ && $2 == path {n=1}
 	END {exit (s+n==2)}' /etc/login.defs; then
@@ -118,9 +139,11 @@ if [ -r /etc/login.defs ] && awk -F'=' -v"path=$(cfg_value "env-vars" "PATH")" '
 	' /etc/login.defs >/etc/login.defs-new
 	mv /etc/login.defs-new /etc/login.defs
 fi
-
-# Disable fsck
 if [ -r /etc/fstab ] && awk '$1$2$3$4$5$6 !~ "#" && $6 != "" && $6 != 0 {x=1} END {exit !x}' /etc/fstab; then
+	# Bedrock creates bind mounts referencing the root directory which
+	# confuse various init systems attempts to fsck the root directory.
+	# Thus, disable configuration indicating the root directory should be
+	# fscked.
 	awk '
 		$1$2$3$4$5$6 !~ "#" && $6 != "" && $6 != 0 {
 			$6 = "0"
