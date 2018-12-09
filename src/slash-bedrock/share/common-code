@@ -505,7 +505,7 @@ mounts_in_dir() {
 	fi
 
 	# If the directory does not exist, there cannot be any mount points on/under it.
-	if ! dir="$(${x_realpath} "${1}")"; then
+	if ! dir="$(${x_realpath} "${1}" 2>/dev/null)"; then
 		return
 	fi
 
