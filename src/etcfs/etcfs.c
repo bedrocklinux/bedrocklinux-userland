@@ -17,6 +17,7 @@
 #define _GNU_SOURCE
 
 #include <dirent.h>
+#include <libgen.h>
 #include <errno.h>
 #include <fuse3/fuse.h>
 #include <fuse3/fuse_lowlevel.h>
@@ -69,18 +70,35 @@
  */
 #ifdef SYS_setreuid32
 #define SET_THREAD_EUID(euid) syscall(SYS_setreuid32, -1, euid)
-#else
+#elif defined SYS_setreuid
 #define SET_THREAD_EUID(euid) syscall(SYS_setreuid, -1, euid)
+#else
+#error "SYS_setreuid unavailable on this system"
 #endif
+
 #ifdef SYS_setregid32
 #define SET_THREAD_EGID(egid) syscall(SYS_setregid32, -1, egid)
-#else
+#elif defined SYS_setregid
 #define SET_THREAD_EGID(egid) syscall(SYS_setregid, -1, egid)
+#else
+#error "SYS_setregid unavailable on this system"
 #endif
+
 #ifdef SYS_setgroups32
 #define SET_THREAD_GROUPS(size, gids) syscall(SYS_setgroups32, size, gids)
-#else
+#elif defined SYS_setgroups
 #define SET_THREAD_GROUPS(size, gids) syscall(SYS_setgroups, size, gids)
+#else
+#error "SYS_setgroups unavailable on this system"
+#endif
+
+/*
+ * There does not appear to be a libc wrapper for gettid.
+ */
+#ifdef SYS_gettid
+#define GETTID() syscall(SYS_gettid)
+#else
+#error "SYS_gettid unavailable on this system"
 #endif
 
 /*
@@ -337,7 +355,7 @@ static int inject(int ref_dir, const char *rpath, const char *inject,
 	}
 
 	if (strcmp(rpath, "zsh/zprofile") == 0 && init_len > 0) {
-		char buf[init_len+1];
+		char buf[init_len + 1];
 		read(fd, buf, init_len);
 	}
 
@@ -1047,7 +1065,7 @@ static int m_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 		}
 	} else {
 		rv = -1;
-		errno = -ENOENT;
+		errno = ENOENT;
 	}
 
 	FS_IMP_RETURN(rv);
@@ -1117,22 +1135,19 @@ static int m_rmdir(const char *path)
 }
 
 /*
- * TODO: This overwrites the target location during the transfer, which means
- * an interrupted transfer could leave a corrupt target file, failing to uphold
- * rename() atomic properties.
+ * TODO: This creates a temporary, virtual-filesystem-visible file.  This is
+ * bothersome aesthetically, introduces a minor risk of some other process
+ * manipulating the file, and introduces a risk of leaving a file on-disk if
+ * interrupted.
  *
- * Alternative implementations to resolve this issue include:
+ * The ideal alternative would be to use openat() with O_TMPFILE and linkat()
+ * with AT_REPLACE.  However, at the time of writing O_TMPFILE is only
+ * supported on a subset of filesystems and AT_REPLACE is not upstreamed into
+ * Linux.
  *
- * - Creating a temporary file in the target's directory, transferring into it,
- *   then rename()ing it.  With this pattern, the worst case scenario would be
- *   the creation of a partial duplicate file.  The main difficulty here is
- *   safely creating that temporary file.  tempnam() generates warnings about
- *   being unsafe, and the usual alternatives like mkstemp don't accept a
- *   target directory.
- * - open()ing with O_TMPFILE, populating, then linkat()ing the new file.  This
- *   will be ideal once AT_REPLACE support for linkat() lands, but at the moment
- *   it is not available.  This also bumps the kernel version requirement
- *   substantially.
+ * Once available, we should investigate conditionally utilizing
+ * O_TMPFILE/AT_REPLACE if the option is available on the given system.  If it
+ * is not, we can fall back to the current method below.
  */
 static int m_rename(const char *from, const char *to, unsigned int flags)
 {
@@ -1143,34 +1158,38 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 	DISALLOW_ON_CFG(from);
 	DISALLOW_ON_CFG(to);
 
-	rv = -1;
+	char buf[PATH_MAX];
+	char tmp_path[PATH_MAX];
+	ssize_t bytes_read;
+	ssize_t bytes_written;
 	int from_fd = -1;
 	int to_fd = -1;
-	struct stat stbuf;
-	void *from_p = NULL;
-	void *to_p = NULL;
-	char buf[PATH_MAX];
-	ssize_t bytes_read;
 
 	if (flags) {
 		/*
 		 * TODO: implement flags.
+		 *
+		 * Implementing this would require renameat2() which is
+		 * upstreamed into Linux but, at the time of writing, not yet
+		 * provided by musl.
 		 */
+		rv = -1;
 		errno = EOPNOTSUPP;
-		goto free_unlock_and_return;
+		goto clean_up_and_return;
 	}
 
 	/*
-	 * Try to renameat() first.  Only if it fails due to EXDEV fall back to
+	 * Try to renameat() first.  If it fails due to EXDEV fall back to
 	 * manually handling the request.
 	 */
 	rv = renameat(ref_fd, from, to_ref_fd, to);
 	if (rv >= 0 || (rv < 0 && errno != EXDEV)) {
-		goto free_unlock_and_return;
+		goto clean_up_and_return;
 	}
 
-	if (fstatat(ref_fd, from, &stbuf, AT_SYMLINK_NOFOLLOW) < 0) {
-		goto free_unlock_and_return;
+	struct stat stbuf;
+	if ((rv = fstatat(ref_fd, from, &stbuf, AT_SYMLINK_NOFOLLOW)) < 0) {
+		goto clean_up_and_return;
 	}
 
 	switch (stbuf.st_mode & S_IFMT) {
@@ -1178,78 +1197,109 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 	case S_IFCHR:
 	case S_IFIFO:
 	case S_IFSOCK:
-		if (mknodat(to_ref_fd, to, stbuf.st_mode, stbuf.st_rdev) < 0) {
-			goto free_unlock_and_return;
+		if ((rv = mknodat(to_ref_fd, to, stbuf.st_mode,
+					stbuf.st_rdev)) < 0) {
+			goto clean_up_and_return;
 		}
 		break;
 	case S_IFLNK:
 		bytes_read = readlinkat(ref_fd, from, buf, sizeof(buf));
-		if (bytes_read < 0 || (size_t) bytes_read >= sizeof(buf)) {
-			goto free_unlock_and_return;
+		if (bytes_read < 0) {
+			rv = bytes_read;
+			goto clean_up_and_return;
+		}
+		if ((size_t) bytes_read >= sizeof(buf)) {
+			rv = -1;
+			errno = ENAMETOOLONG;
+			goto clean_up_and_return;
 		}
 		buf[bytes_read] = '\0';
-		if (symlinkat(buf, to_ref_fd, to) < 0) {
-			goto free_unlock_and_return;
+		if ((rv = symlinkat(buf, to_ref_fd, to)) < 0) {
+			goto clean_up_and_return;
 		}
 		break;
 	case S_IFDIR:
-		if (mkdirat(to_ref_fd, to, stbuf.st_mode) < 0) {
-			goto free_unlock_and_return;
+		if ((rv = mkdirat(to_ref_fd, to, stbuf.st_mode)) < 0) {
+			goto clean_up_and_return;
 		}
 		break;
 	case S_IFREG:
-		if ((from_fd = openat(ref_fd, from, O_RDONLY | O_NOFOLLOW)) < 0) {
-			goto free_unlock_and_return;
+		/*
+		 * Get temporary file path to populate to do a
+		 * mount-point-local rename().
+		 */
+		rv = snprintf(tmp_path, sizeof(tmp_path),
+			"./.bedrock-tmpfile-%lu", GETTID());
+		if (rv < 0 || rv >= (int)sizeof(tmp_path)) {
+			rv = -1;
+			errno = ENAMETOOLONG;
+			goto clean_up_and_return;
 		}
-		if ((to_fd = openat(to_ref_fd, to,
+		/*
+		 * Copy into temporary file.
+		 */
+		unlinkat(to_ref_fd, tmp_path, 0);
+		if ((to_fd = openat(to_ref_fd, tmp_path,
 					O_CREAT | O_RDWR | O_NOFOLLOW,
 					stbuf.st_mode)) < 0) {
-			goto free_unlock_and_return;
+			rv = -1;
+			goto clean_up_and_return;
+		}
+		if ((from_fd = openat(ref_fd, from, O_RDONLY | O_NOFOLLOW)) < 0) {
+			rv = -1;
+			goto clean_up_and_return;
+		}
+		if ((rv = ftruncate(to_fd, stbuf.st_size)) < 0) {
+			goto clean_up_and_return;
 		}
 		while ((bytes_read = read(from_fd, buf, sizeof(buf))) > 0) {
-			if (write(to_fd, buf, bytes_read) != bytes_read) {
-				goto free_unlock_and_return;
+			if ((bytes_written = write(to_fd, buf, bytes_read)) < 0) {
+				rv = -1;
+				goto clean_up_and_return;
 			}
 		}
-		if (ftruncate(to_fd, stbuf.st_size) < 0) {
-			goto free_unlock_and_return;
+		close(to_fd);
+		/*
+		 * rename() the temporary file to the target.
+		 */
+		if ((rv = renameat(to_ref_fd, tmp_path, to_ref_fd, to)) < 0) {
+			goto clean_up_and_return;
 		}
 		break;
 	}
 
-	if (fchownat(to_ref_fd, to, stbuf.st_uid, stbuf.st_gid,
-			AT_SYMLINK_NOFOLLOW) < 0) {
-		goto free_unlock_and_return;
+	/*
+	 * Copy metadata
+	 */
+	if ((rv = fchownat(to_ref_fd, to, stbuf.st_uid, stbuf.st_gid,
+				AT_SYMLINK_NOFOLLOW)) < 0) {
+		goto clean_up_and_return;
+	}
+	if ((rv = fchmodat(to_ref_fd, to, stbuf.st_mode,
+				AT_SYMLINK_NOFOLLOW)) < 0) {
+		goto clean_up_and_return;
 	}
 
-	if (fchmodat(to_ref_fd, to, stbuf.st_mode, AT_SYMLINK_NOFOLLOW) < 0) {
-		goto free_unlock_and_return;
-	}
-
+	/*
+	 * Everything should be in place.  Remove original.
+	 */
 	int unlinkflag = 0;
 	if (S_ISDIR(stbuf.st_mode)) {
 		unlinkflag = AT_REMOVEDIR;
 	}
-	if (unlinkat(ref_fd, from, unlinkflag) < 0) {
-		goto free_unlock_and_return;
+	if ((rv = unlinkat(ref_fd, from, unlinkflag)) < 0) {
+		goto clean_up_and_return;
 	}
 
 	rv = 0;
 
-free_unlock_and_return:
-	if (from_p != NULL) {
-		munmap(from_p, stbuf.st_size);
-	}
-	if (to_p != NULL) {
-		munmap(to_p, stbuf.st_size);
-	}
+clean_up_and_return:
 	if (from_fd >= 0) {
 		close(from_fd);
 	}
 	if (to_fd >= 0) {
 		close(to_fd);
 	}
-
 	FS_IMP_RETURN(rv);
 }
 
@@ -1405,7 +1455,8 @@ static int m_write(const char *path, const char *buf, size_t size,
 		pthread_rwlock_wrlock(&cfg_lock);
 		struct fuse_context *context = fuse_get_context();
 		if (context->uid != 0) {
-			rv = -EACCES;
+			rv = -1;
+			errno = EACCES;
 		} else if (strncmp(buf, CMD_ADD_GLOBAL,
 				CMD_ADD_GLOBAL_LEN) == 0) {
 			rv = cfg_add_global(buf, size);
@@ -1418,7 +1469,8 @@ static int m_write(const char *path, const char *buf, size_t size,
 				CMD_RM_OVERRIDE_LEN) == 0) {
 			rv = cfg_rm_override(buf, size);
 		} else {
-			rv = -EINVAL;
+			rv = -1;
+			errno = EINVAL;
 		}
 		pthread_rwlock_unlock(&cfg_lock);
 		pthread_rwlock_rdlock(&cfg_lock);
@@ -1496,6 +1548,20 @@ static int m_release(const char *path, struct fuse_file_info *fi)
 	FS_IMP_SETUP(path);
 
 	rv = close(fi->fh);
+	if (rv < 0 && errno == EBADF) {
+		/*
+		 * FUSE/libfuse translates file descriptors such that the one
+		 * we receive here is not the same number that was passed in by
+		 * the calling program.  Thus, libfuse *probably* takes
+		 * responsibility for handling bad file descriptors itself; we
+		 * should always get good ones.  Despite this, libfuse has been
+		 * seen passing invalid file descriptors here.
+		 *
+		 * We have no way to handle this situation.  Just ignore it.
+		 * Return success to avoid confusing calling program.
+		 */
+		rv = 0;
+	}
 
 	FS_IMP_RETURN(rv);
 }
