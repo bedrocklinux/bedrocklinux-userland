@@ -327,6 +327,21 @@ static int inject(int ref_dir, const char *rpath, const char *inject,
 	size_t init_len = stbuf.st_size;
 
 	/*
+	 * Some package managers sanity check a file was created before writing
+	 * to it.  Issues arise if we inject between those steps, and so only
+	 * inject non-empty files.
+	 */
+	if (init_len == 0) {
+		close(fd);
+		return 0;
+	}
+
+	if (strcmp(rpath, "zsh/zprofile") == 0 && init_len > 0) {
+		char buf[init_len+1];
+		read(fd, buf, init_len);
+	}
+
+	/*
 	 * If the file already contains the target contents, we can skip
 	 * writing to disk.
 	 */
