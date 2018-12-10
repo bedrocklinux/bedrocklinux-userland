@@ -120,7 +120,7 @@ case "$words[2]" in
 	;;
 "remove")
 	# TODO: do not list disabled strata if `-d` flag is missing
-	args+=("*:aliases and disabled strata:($(/bedrock/bin/brl list -aA | grep -ve "^bedrock\$" -ve "^init\$"))")
+	args+=("*:aliases and disabled strata:($(/bedrock/bin/brl list -aAi | grep -ve "^bedrock\$" -ve "^init\$"))")
 	;;
 "rename")
 	args+=("2:alias or disabled stratum:($(/bedrock/bin/brl list -dD | grep -ve "^bedrock\$" -ve "^init\$")))")

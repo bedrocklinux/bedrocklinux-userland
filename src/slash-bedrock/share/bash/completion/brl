@@ -149,7 +149,7 @@ _brl()
 		;;
 	"remove")
 		# TODO: do not list disabled strata if `-d` flag is missing
-		opts="$(/bedrock/bin/brl list -aA | grep -ve "^bedrock\$" -ve "^init\$")"
+		opts="$(/bedrock/bin/brl list -aAi | grep -ve "^bedrock\$" -ve "^init\$")"
 		;;
 	"rename")
 		if [ "$COMP_CWORD" -eq 2 ]; then
