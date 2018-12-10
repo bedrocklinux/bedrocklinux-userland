@@ -1,6 +1,6 @@
 #!/bedrock/libexec/busybox sh
 #
-# Arch Linux bootstrap support
+# Arch Linux ARM bootstrap support
 #
 #      This program is free software; you can redistribute it and/or
 #      modify it under the terms of the GNU General Public License
@@ -14,7 +14,7 @@ trap 'fetch_abort "Unexpected error occurred."' EXIT
 
 check_supported() {
 	case "$(uname -m)" in
-	"x86_64") true ;;
+	"armv7l") true ;;
 	*) false ;;
 	esac
 }
@@ -25,7 +25,7 @@ check_experimental() {
 
 distro_arch_name() {
 	case "$(uname -m)" in
-	"x86_64") echo "x86_64" ;;
+	"armv7l") echo "armv7h" ;;
 	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
 	esac
 }
@@ -35,16 +35,15 @@ list_releases() {
 }
 
 list_mirrors() {
-	# All mirrors:
-	# mirror_list_url='https://www.archlinux.org/mirrorlist/all/'
-	# Server-side filtered list of mirrors:
-	mirror_list_url='https://www.archlinux.org/mirrorlist/?country=all&protocol=https&ip_version=4&ip_version=6&use_mirror_status=on'
+	mirror_list_url='https://archlinuxarm.org/packages/any/pacman-mirrorlist/files/mirrorlist'
 	wget -O- "${mirror_list_url}" 2>/dev/null |
-		awk -F "[ $]" ' /^#Server/ {print$3} '
+		awk '/\<code\>/,/<\/code>/' |
+		sed 's/^# *//' |
+		awk -F "[ $]" '/^Server/{print$3}'
 }
 
 speed_test_url() {
-	echo "core/os/${arch:-}/core.db.tar.gz"
+	echo "${arch}/core/core.db.tar.gz"
 }
 
 default_release() {
@@ -53,7 +52,7 @@ default_release() {
 
 setup_pacman() {
 	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --init
-	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate archlinux
+	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate archlinuxarm
 
 	if ! grep -q "^Server" "${1}/etc/pacman.d/mirrorlist"; then
 		echo "### Set by Bedrock Linux when acquiring this stratum" >>"${1}/etc/pacman.d/mirrorlist"
@@ -90,15 +89,13 @@ fetch() {
 	mkdir -p "${target_dir}" "${bootstrap_dir}/target-root"
 
 	step "Downloading bootstrap software"
-	url="$(find_link "${mirror}/iso/latest/" "^archlinux-bootstrap-[^-]*-${arch}[.]tar[.]gz$")"
+	url="$(find_link "${mirror}/os/" "^ArchLinuxARM-armv7-latest.tar.gz$")"
 	wget -O "${bootstrap_dir}/bootstrap.tar.gz" "${url}"
 
 	step "Preparing bootstrap software"
 	(
 		cd "${bootstrap_dir}"
 		tar xf bootstrap.tar.gz
-		mv "${bootstrap_dir}"/root.*/* "${bootstrap_dir}"
-		rmdir "${bootstrap_dir}/root."*
 		rm "${bootstrap_dir}/bootstrap.tar.gz"
 	)
 
@@ -106,6 +103,7 @@ fetch() {
 	setup_chroot "${bootstrap_dir}"
 	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
 	setup_pacman "${bootstrap_dir}"
+	LC_ALL=C chroot "${bootstrap_dir}" pacman --noconfirm -S extra/arch-install-scripts
 	LC_ALL=C chroot "${bootstrap_dir}" pacstrap "/target-root" base
 
 	step "Removing temporary bootstrap files"
@@ -114,7 +112,6 @@ fetch() {
 	step "Configuring"
 	setup_chroot "${target_dir}"
 	setup_pacman "${target_dir}"
-	LC_ALL=C chroot "${target_dir}" pacman --noconfirm -R linux
 	localegen="$(cfg_value "locale" "localegen")"
 	if [ -n "${localegen:-}" ]; then
 		echo "### Added by Bedrock Linux when acquiring this stratum" >>"${target_dir}/etc/locale.gen"

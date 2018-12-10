@@ -13,23 +13,35 @@
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
 check_supported() {
-	[ "$(uname -m)" = "x86_64" ]
+	case "$(uname -m)" in
+	"x86_64") true ;;
+	"armv7l") true ;;
+	*) false ;;
+	esac
 }
 
 check_experimental() {
 	false
 }
 
+distro_arch_name() {
+	case "$(uname -m)" in
+	"x86_64") echo "amd64" ;;
+	"armv7l") echo "arm" ;;
+	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
+	esac
+}
+
 list_mirrors() {
 	mirror_list_url="https://www.gentoo.org/downloads/mirrors/"
-	wget -O- "$mirror_list_url" 2>/dev/null |
+	wget -O- "${mirror_list_url}" 2>/dev/null |
 		awk '/Region/,/<footer>/' |
 		list_links |
 		grep "^http"
 }
 
 speed_test_url() {
-	echo "releases/${arch2:-}/autobuilds/latest-stage3.txt"
+	echo "releases/${arch:-}/autobuilds/latest-stage3.txt"
 }
 
 list_releases() {
@@ -41,15 +53,19 @@ default_release() {
 }
 
 fetch() {
-	step_init 9
+	step_init 10
 
-	if [ -z "${target_dir:-}" ] || [ -z "${arch:-}" ] || [ -z "${arch2:-}" ]; then
-		abort "Essential variable not set"
+	if [ -z "${target_dir:-}" ]; then
+		fetch_abort "Essential variable not set"
 	fi
 
 	step "Determining name"
 	name="${flag_name:-${distro}}"
 	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining CPU architecture"
+	arch="$(distro_arch_name)"
+	notice "Using ${color_file}${arch}${color_norm}"
 
 	step "Determining release"
 	release="${flag_release:-$(default_release)}"
@@ -57,48 +73,55 @@ fetch() {
 
 	step "Determining mirror"
 	mirror="$(pick_mirror "$(speed_test_url)")"
-	notice "Using ${color_link}$mirror${color_norm}"
+	notice "Using ${color_link}${mirror}${color_norm}"
 
 	step "Making directory structure"
-	bootstrap_dir="$target_dir/brl-bootstrap"
-	mkdir -p "$target_dir/etc/apk/" "$bootstrap_dir/target-root"
+	bootstrap_dir="${target_dir}/brl-bootstrap"
+	mkdir -p "${bootstrap_dir}/target-root"
 
 	step "Downloading bootstrap software"
-	url="$(find_link "$mirror/releases/$arch2/autobuilds/current-stage3-$arch2/" "^stage3-$arch2-[^.]*[.]tar[.]xz$")"
-	wget -O "$bootstrap_dir/stage3.tar.xz" "$url"
+	case "$(uname -m)" in
+	"x86_64")
+		url="$(find_link "${mirror}/releases/amd64/autobuilds/current-stage3-amd64/" "^stage3-amd64-[^.]*[.]tar[.]xz$")"
+		wget -O "${bootstrap_dir}/stage3.tar.xz" "${url}"
+		;;
+	"armv7l")
+		url="$(find_link "${mirror}/releases/arm/autobuilds/current-stage3-armv7a_hardfp/" "^stage3-armv7a_hardfp-[^.]*[.]tar[.]bz2")"
+		wget -O "${bootstrap_dir}/stage3.tar.bz2" "${url}"
+		;;
+	esac
 
 	step "Preparing bootstrap software"
 	(
-		cd "$bootstrap_dir"
-		xz -d stage3.tar.xz
-		tar xf stage3.tar
+		cd "${bootstrap_dir}"
+		tar xf stage3.tar.*
 	)
 
-	step "Runing bootstrap software"
-	setup_chroot "$bootstrap_dir"
-	mount --bind "$target_dir" "$bootstrap_dir/target-root"
-	chroot "$bootstrap_dir" sh -c "cd /target-root && tar xpf /stage3.tar --xattrs-include='*.*' --numeric-owner"
+	step "Running bootstrap software"
+	setup_chroot "${bootstrap_dir}"
+	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
+	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xpf /stage3.tar.* --xattrs-include='*.*' --numeric-owner"
 
 	step "Removing temporary bootstrap files"
-	less_lethal_rm_rf "$bootstrap_dir"
+	less_lethal_rm_rf "${bootstrap_dir}"
 
 	step "Configuring"
 
-	setup_chroot "$target_dir"
-	echo "GENTOO_MIRRORS=\"$mirror\"" >>"$target_dir/etc/portage/make.conf"
+	setup_chroot "${target_dir}"
+	echo "GENTOO_MIRRORS=\"${mirror}\"" >>"${target_dir}/etc/portage/make.conf"
 
-	mkdir -p "$target_dir/etc/portage/repos.conf"
-	cp "$target_dir/usr/share/portage/config/repos.conf" "$target_dir/etc/portage/repos.conf/gentoo.conf"
+	mkdir -p "${target_dir}/etc/portage/repos.conf"
+	cp "${target_dir}/usr/share/portage/config/repos.conf" "${target_dir}/etc/portage/repos.conf/gentoo.conf"
 
-	if [ -n "$LANG" ] && [ "$LANG" != "C" ]; then
-		echo "### Added by Bedrock Linux when acquiring this stratum" >>"$target_dir/etc/locale.gen"
-		echo "$LANG UTF-8" >>"$target_dir/etc/locale.gen"
-		LANG=C chroot "$target_dir" locale-gen
+	if [ -n "${localegen:-}" ]; then
+		echo "### Added by Bedrock Linux when acquiring this stratum" >>"${target_dir}/etc/locale.gen"
+		echo "${localegen}" >>"${target_dir}/etc/locale.gen"
+		LC_ALL=C chroot "${target_dir}" locale-gen
 	else
 		notice "Could not determine desired locale, skipping setting locale"
 	fi
 
-	chroot "$target_dir" emerge-webrsync
+	chroot "${target_dir}" emerge-webrsync
 
 	if ! grep -q '^portage:' /etc/group; then
 		addgroup -S portage
@@ -107,7 +130,7 @@ fetch() {
 		adduser -h /var/tmp/portage -s /bin/false -G portage -S -D -H portage
 	fi
 
-	tear_down_chroot "$target_dir"
+	tear_down_chroot "${target_dir}"
 
-	notice "Successfully acquired $distro stratum"
+	notice "Successfully acquired ${distro} stratum"
 }

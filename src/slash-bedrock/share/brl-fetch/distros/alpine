@@ -13,11 +13,23 @@
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
 check_supported() {
-	[ "$(uname -m)" = "x86_64" ]
+	case "$(uname -m)" in
+	"x86_64") true ;;
+	"armv7l") true ;;
+	*) false ;;
+	esac
 }
 
 check_experimental() {
 	false
+}
+
+distro_arch_name() {
+	case "$(uname -m)" in
+	"x86_64") echo "x86_64" ;;
+	"armv7l") echo "armhf" ;;
+	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
+	esac
 }
 
 list_mirrors() {
@@ -26,7 +38,7 @@ list_mirrors() {
 }
 
 speed_test_url() {
-	echo "latest-stable/main/${arch:-}/APKINDEX.tar.gz"
+	echo "latest-stable/main/${arch}/APKINDEX.tar.gz"
 }
 
 list_releases() {
@@ -45,15 +57,19 @@ default_release() {
 }
 
 fetch() {
-	step_init 9
+	step_init 10
 
-	if [ -z "${target_dir:-}" ] || [ -z "${arch:-}" ] || [ -z "${arch2:-}" ]; then
-		abort "Essential variable not set"
+	if [ -z "${target_dir:-}" ]; then
+		fetch_abort "Essential variable not set"
 	fi
 
 	step "Determining name"
 	name="${flag_name:-${distro}}"
 	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining CPU architecture"
+	arch="$(distro_arch_name)"
+	notice "Using ${color_file}${arch}${color_norm}"
 
 	step "Determining release"
 	release="${flag_release:-$(default_release)}"

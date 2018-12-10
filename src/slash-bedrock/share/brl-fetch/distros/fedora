@@ -13,16 +13,29 @@
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
 check_supported() {
-	[ "$(uname -m)" = "x86_64" ]
+	case "$(uname -m)" in
+	"x86_64") true ;;
+	# arm was broken last time it was tested
+	#"armv7l") true;;
+	*) false ;;
+	esac
 }
 
 check_experimental() {
 	false
 }
 
+distro_arch_name() {
+	case "$(uname -m)" in
+	"x86_64") echo "x86_64" ;;
+	"armv7l") echo "armhfp" ;;
+	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
+	esac
+}
+
 list_mirrors() {
-	mirror_list_url="https://admin.fedoraproject.org/mirrormanager/mirrors/Fedora/$release"
-	wget -O- "$mirror_list_url" 2>/dev/null |
+	mirror_list_url="https://admin.fedoraproject.org/mirrormanager/mirrors/Fedora/${release}"
+	wget -O- "${mirror_list_url}" 2>/dev/null |
 		awk '/<table>/,/<\/table>/' |
 		awk '!/href=/ && !/^ *Fedora Linux *$/ && /[^ ]/ {p=0} /^ *Fedora Linux *$/ {p=1} /href/ && p {print}' |
 		list_links |
@@ -30,12 +43,12 @@ list_mirrors() {
 }
 
 speed_test_url() {
-	echo "releases/$release/Workstation/${arch:-}/os/isolinux/memtest"
+	echo "releases/${release}/Workstation/${arch:-}/os/isolinux/memtest"
 }
 
 list_releases() {
 	for mirror in "${flag_mirror:-}" $(release="rawhide" list_mirrors); do
-		if wget -O- "$mirror/releases/" 2>/dev/null |
+		if wget -O- "${mirror}/releases/" 2>/dev/null |
 			list_links |
 			grep '^[0-9][0-9]*/$' |
 			sed 's,/$,,'; then
@@ -51,7 +64,7 @@ default_release() {
 }
 
 determine_package_manager() {
-	if [ -e "$bootstrap_dir/brldb/depends/dn" ] && grep -q '^dnf\>' "$bootstrap_dir/brldb/depends/dn"; then
+	if [ -e "${bootstrap_dir}/brldb/depends/dn" ] && grep -q '^dnf\>' "${bootstrap_dir}/brldb/depends/dn"; then
 		echo "dnf"
 	else
 		echo "yum"
@@ -59,19 +72,23 @@ determine_package_manager() {
 }
 
 bootstrap_deps() {
-	echo "$package_manager rpm fedora-release filesystem"
+	echo "${package_manager} rpm fedora-release filesystem"
 }
 
 fetch() {
 	step_init 12
 
-	if [ -z "${target_dir:-}" ] || [ -z "${arch:-}" ] || [ -z "${arch2:-}" ]; then
-		abort "Essential variable not set"
+	if [ -z "${target_dir:-}" ]; then
+		fetch_abort "Essential variable not set"
 	fi
 
 	step "Determining name"
 	name="${flag_name:-${distro}}"
 	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining CPU architecture"
+	arch="$(distro_arch_name)"
+	notice "Using ${color_file}${arch}${color_norm}"
 
 	step "Determining release"
 	release="${flag_release:-$(default_release)}"
@@ -79,44 +96,44 @@ fetch() {
 
 	step "Determining mirror"
 	mirror="$(pick_mirror "$(speed_test_url)")"
-	notice "Using ${color_link}$mirror${color_norm}"
+	notice "Using ${color_link}${mirror}${color_norm}"
 
 	step "Making directory structure"
-	bootstrap_dir="$target_dir/brl-bootstrap"
-	mkdir -p "$target_dir" "$bootstrap_dir/target-root"
+	bootstrap_dir="${target_dir}/brl-bootstrap"
+	mkdir -p "${target_dir}" "${bootstrap_dir}/target-root"
 
 	step "Downloading package information database"
-	url="$(find_link "$mirror/releases/$release/Workstation/$arch/os/repodata/" "primary.xml.gz")"
-	wget -O "$bootstrap_dir/primary.xml.gz" "$url"
-	gunzip "$bootstrap_dir/primary.xml.gz"
+	url="$(find_link "${mirror}/releases/${release}/Workstation/${arch}/os/repodata/" "primary.xml.gz")"
+	wget -O "${bootstrap_dir}/primary.xml.gz" "${url}"
+	gunzip "${bootstrap_dir}/primary.xml.gz"
 
 	step "Converting distro package information database to brl format"
-	rpmdb_to_brldb "$bootstrap_dir/primary.xml" "$bootstrap_dir/brldb"
+	rpmdb_to_brldb "${bootstrap_dir}/primary.xml" "${bootstrap_dir}/brldb"
 
 	step "Calculating required bootstrap packages"
 	package_manager="$(determine_package_manager)"
-	brldb_calculate_paths_with_deps "$bootstrap_dir/brldb" "$bootstrap_dir/package_paths" "$(bootstrap_deps)"
+	brldb_calculate_paths_with_deps "${bootstrap_dir}/brldb" "${bootstrap_dir}/package_paths" "$(bootstrap_deps)"
 
 	step "Downloading bootstrap packages"
-	download_files "$bootstrap_dir" "$(awk -v"m=$mirror/releases/$release/Workstation/$arch/os/" '{print m"/"$0}' "$bootstrap_dir/package_paths")"
+	download_files "${bootstrap_dir}" "$(awk -v"m=${mirror}/releases/${release}/Workstation/${arch}/os/" '{print m"/"$0}' "${bootstrap_dir}/package_paths")"
 
 	step "Extracting bootstrap packages"
 	# This round is just to bootstrap the distro's rpm.
 	# Next step we'll use the distro's rpm to install everything properly.
 	# Need to extract filesystem first to ensure symlinks are set up
-	extract_rpms "$bootstrap_dir" "$bootstrap_dir"/filesystem*.rpm "$bootstrap_dir"/*.rpm
+	extract_rpms "${bootstrap_dir}" "${bootstrap_dir}"/filesystem*.rpm "${bootstrap_dir}"/*.rpm
 
 	step "Installing bootstrap packages"
-	setup_chroot "$bootstrap_dir"
-	LC_ALL=C chroot "$bootstrap_dir" rpm -i ./*.rpm 2>&1 | progress_unknown
+	setup_chroot "${bootstrap_dir}"
+	LC_ALL=C chroot "${bootstrap_dir}" rpm -i ./*.rpm 2>&1 | progress_unknown
 
 	step "Running bootstrap software"
-	mount --bind "$target_dir" "$bootstrap_dir/target-root"
-	LC_ALL=C chroot "$bootstrap_dir" rpm -i --root=/target-root --nodeps fedora-release-*.rpm 2>/dev/null || true
-	LC_ALL=C chroot "$bootstrap_dir" "$package_manager" --installroot=/target-root install -y rpm-build "$package_manager" fedora-repos
+	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
+	LC_ALL=C chroot "${bootstrap_dir}" rpm -i --root=/target-root --nodeps fedora-release-*.rpm 2>/dev/null || true
+	LC_ALL=C chroot "${bootstrap_dir}" "${package_manager}" --installroot=/target-root install -y rpm-build "${package_manager}" fedora-repos
 
 	step "Removing temporary bootstrap files"
-	less_lethal_rm_rf "$bootstrap_dir"
+	less_lethal_rm_rf "${bootstrap_dir}"
 
-	notice "Successfully acquired $distro stratum"
+	notice "Successfully acquired ${distro} stratum"
 }

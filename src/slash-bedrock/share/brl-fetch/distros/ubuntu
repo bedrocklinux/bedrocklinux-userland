@@ -15,28 +15,49 @@ trap 'fetch_abort "Unexpected error occurred."' EXIT
 bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv ubuntu-keyring"
 
 check_supported() {
-	[ "$(uname -m)" = "x86_64" ]
+	case "$(uname -m)" in
+	"x86_64") true ;;
+	"armv7l") true ;;
+	*) false ;;
+	esac
 }
 
 check_experimental() {
 	false
 }
 
+distro_arch_name() {
+	case "$(uname -m)" in
+	"x86_64") echo "amd64" ;;
+	"armv7l") echo "armhf" ;;
+	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
+	esac
+}
+
 list_mirrors() {
-	mirror_list_url='https://launchpad.net/ubuntu/+archivemirrors'
-	wget -O- "$mirror_list_url" 2>/dev/null |
-		awk '/mirrors_list/,/<\/div/' |
-		list_links |
-		grep "^http"
+	case "$(uname -m)" in
+	"x86_64")
+		mirror_list_url='https://launchpad.net/ubuntu/+archivemirrors'
+		wget -O- "${mirror_list_url}" 2>/dev/null |
+			awk '/mirrors_list/,/<\/div/' |
+			list_links |
+			grep "^http"
+		;;
+	"armv7l")
+		echo 'http://ports.ubuntu.com/ubuntu-ports/'
+		;;
+	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
+	esac
+
 }
 
 speed_test_url() {
-	echo "dists/$release/Release"
+	echo "dists/${release}/Release"
 }
 
 list_releases() {
 	for mirror in "${flag_mirror:-}" $(list_mirrors); do
-		if wget -O- "$mirror/dists" 2>/dev/null |
+		if wget -O- "${mirror}/dists" 2>/dev/null |
 			list_links |
 			grep '/$' |
 			grep -v -- '-' |
@@ -50,7 +71,7 @@ list_releases() {
 default_release() {
 	release_list_url='http://releases.ubuntu.com/'
 	set +o pipefail
-	wget -O- "$release_list_url" 2>/dev/null |
+	wget -O- "${release_list_url}" 2>/dev/null |
 		list_links |
 		sed 's/ /\n/' |
 		head -n1 |
@@ -59,15 +80,19 @@ default_release() {
 }
 
 fetch() {
-	step_init 12
+	step_init 13
 
-	if [ -z "${target_dir:-}" ] || [ -z "${arch:-}" ] || [ -z "${arch2:-}" ]; then
-		abort "Essential variable not set"
+	if [ -z "${target_dir:-}" ]; then
+		fetch_abort "Essential variable not set"
 	fi
 
 	step "Determining name"
 	name="${flag_name:-${distro}}"
 	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining CPU architecture"
+	arch="$(distro_arch_name)"
+	notice "Using ${color_file}${arch}${color_norm}"
 
 	step "Determining release"
 	release="${flag_release:-$(default_release)}"
@@ -75,44 +100,48 @@ fetch() {
 
 	step "Determining mirror"
 	mirror="$(pick_mirror "$(speed_test_url)")"
-	notice "Using ${color_link}$mirror${color_norm}"
+	notice "Using ${color_link}${mirror}${color_norm}"
 
 	step "Making directory structure"
-	bootstrap_dir="$target_dir/brl-bootstrap"
-	mkdir -p "$target_dir" "$bootstrap_dir/target-root"
+	bootstrap_dir="${target_dir}/brl-bootstrap"
+	mkdir -p "${target_dir}" "${bootstrap_dir}/target-root"
 
 	step "Downloading package information database"
-	wget -O "$bootstrap_dir/Packages.gz" "$mirror/dists/$release/main/binary-$arch2/Packages.gz"
-	gunzip "$bootstrap_dir/Packages.gz"
+	wget -O "${bootstrap_dir}/Packages.gz" "${mirror}/dists/${release}/main/binary-${arch}/Packages.gz"
+	gunzip "${bootstrap_dir}/Packages.gz"
 
 	step "Converting distro package information database to brl format"
-	debdb_to_brldb "$bootstrap_dir/Packages" "$bootstrap_dir/brldb"
+	debdb_to_brldb "${bootstrap_dir}/Packages" "${bootstrap_dir}/brldb"
 
 	step "Calculating required bootstrap packages"
-	brldb_calculate_paths_with_deps "$bootstrap_dir/brldb" "$bootstrap_dir/package_paths" "$bootstrap_deps"
+	brldb_calculate_paths_with_deps "${bootstrap_dir}/brldb" "${bootstrap_dir}/package_paths" "${bootstrap_deps}"
 
 	step "Downloading bootstrap packages"
-	download_files "$bootstrap_dir" "$(awk -v"m=$mirror" '{print m"/"$0}' "$bootstrap_dir/package_paths")"
+	download_files "${bootstrap_dir}" "$(awk -v"m=${mirror}" '{print m"/"$0}' "${bootstrap_dir}/package_paths")"
 
 	step "Extracting bootstrap packages"
-	extract_debs "$bootstrap_dir" "$bootstrap_dir"/*.deb
+	extract_debs "${bootstrap_dir}" "${bootstrap_dir}"/*.deb
 
 	step "Running bootstrap software"
-	setup_chroot "$bootstrap_dir"
-	mount --bind "$target_dir" "$bootstrap_dir/target-root"
+	setup_chroot "${bootstrap_dir}"
+	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
 	set +o pipefail
-	yes "" | LANG=C chroot "$bootstrap_dir" debootstrap --variant=minbase "$release" "/target-root" "$mirror"
+	yes "" | LANG=C chroot "${bootstrap_dir}" debootstrap --variant=minbase "${release}" "/target-root" "${mirror}"
 	set -o pipefail
 
 	step "Removing temporary bootstrap files"
-	less_lethal_rm_rf "$bootstrap_dir"
+	less_lethal_rm_rf "${bootstrap_dir}"
 
 	step "Configure"
 
-	echo "deb http://archive.ubuntu.com/ubuntu/ $release-security main" >>"$target_dir/etc/apt/sources.list"
+	case "$(uname -m)" in
+	"x86_64")
+		echo "deb http://archive.ubuntu.com/ubuntu/ ${release}-security main" >>"${target_dir}/etc/apt/sources.list"
+		;;
+	esac
 
 	set +o pipefail
-	setup_chroot "$target_dir"
+	setup_chroot "${target_dir}"
 	if ! grep -q '^nogroup:' /etc/group; then
 		addgroup -S nogroup
 	fi
@@ -121,14 +150,14 @@ fetch() {
 	fi
 	localegen="$(cfg_value "locale" "localegen")"
 	if [ -n "${localegen:-}" ]; then
-		langpack="language-pack-$(echo "$localegen" | sed 's/^\(..\).*$/\1/')"
-		yes "" | LANG=C chroot "$target_dir" /usr/bin/apt-get update
-		yes "" | LANG=C chroot "$target_dir" /usr/bin/apt-get install "$langpack"
+		langpack="language-pack-$(echo "${localegen}" | sed 's/^\(..\).*$/\1/')"
+		yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get update
+		yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get install "${langpack}"
 	else
 		notice "Could not determine desired locale, skipping setting locale"
 	fi
-	tear_down_chroot "$target_dir"
+	tear_down_chroot "${target_dir}"
 	set -o pipefail
 
-	notice "Successfully acquired $distro stratum"
+	notice "Successfully acquired ${distro} stratum"
 }

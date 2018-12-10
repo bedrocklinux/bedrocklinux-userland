@@ -17,9 +17,21 @@ check_supported() {
 }
 
 check_experimental() {
-	# Last attempt to fetch appeared to work, but no one is actively
-	# supporting this fetch code.
-	[ "$(uname -m)" = "x86_64" ]
+	case "$(uname -m)" in
+	"x86_64") true ;;
+	# The distro's target list is too specific to know what to
+	# fetch.  Couldn't find generic armv7.
+	# "armv7l") true;;
+	*) false ;;
+	esac
+}
+
+distro_arch_name() {
+	case "$(uname -m)" in
+	"x86_64") echo "x86_64" ;;
+	# "armv7l") echo "arm";;
+	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
+	esac
 }
 
 list_mirrors() {
@@ -62,14 +74,8 @@ default_release() {
 fetch() {
 	step_init 7
 
-	if [ -z "${target_dir:-}" ] || [ -z "${arch:-}" ] || [ -z "${arch2:-}" ]; then
-		abort "Essential variable not set"
-	fi
-	if [ "${arch}" = "x86_64" ]; then
-		arch3="x86/64"
-		arch4="x86-64"
-	else
-		abort "Unsupported architecture"
+	if [ -z "${target_dir:-}" ]; then
+		fetch_abort "Essential variable not set"
 	fi
 
 	step "Determining name"
@@ -85,7 +91,12 @@ fetch() {
 	notice "Using ${color_link}${mirror}${color_norm}"
 
 	step "Downloading bootstrap software"
-	url="$(find_link "${mirror}/releases/${release}/targets/${arch3}/" "^openwrt-${release}-${arch4}-generic-rootfs.tar.gz$")"
+
+	case "$(uname -m)" in
+	"x86_64") url="$(find_link "${mirror}/releases/${release}/targets/x86/64/" "^openwrt-${release}-x86-64-generic-rootfs.tar.gz$")" ;;
+	*) false ;;
+	esac
+
 	wget -O "${target_dir}/rootfs.tar.gz" "${url}"
 
 	step "Running bootstrap software"

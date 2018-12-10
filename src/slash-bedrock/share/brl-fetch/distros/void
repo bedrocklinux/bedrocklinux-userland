@@ -13,11 +13,23 @@
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
 check_supported() {
-	[ "$(uname -m)" = "x86_64" ]
+	case "$(uname -m)" in
+	"x86_64") true ;;
+	"armv7l") true ;;
+	*) false ;;
+	esac
 }
 
 check_experimental() {
 	false
+}
+
+distro_arch_name() {
+	case "$(uname -m)" in
+	"x86_64") echo "x86_64" ;;
+	"armv7l") echo "armv7l" ;;
+	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
+	esac
 }
 
 default_release() {
@@ -26,7 +38,7 @@ default_release() {
 
 list_mirrors() {
 	mirror_list_url='https://voidlinux.org/download/'
-	wget -O- "$mirror_list_url" 2>/dev/null |
+	wget -O- "${mirror_list_url}" 2>/dev/null |
 		awk '/id="tier-1-mirrors"/,/<\/ul>/' |
 		awk '-F[<>()]' '{print$3}' |
 		grep "^http" |
@@ -42,15 +54,19 @@ list_releases() {
 }
 
 fetch() {
-	step_init 9
+	step_init 10
 
-	if [ -z "${target_dir:-}" ] || [ -z "${arch:-}" ] || [ -z "${arch2:-}" ]; then
-		abort "Essential variable not set"
+	if [ -z "${target_dir:-}" ]; then
+		fetch_abort "Essential variable not set"
 	fi
 
 	step "Determining name"
 	name="${flag_name:-${distro}}"
 	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining CPU architecture"
+	arch="$(distro_arch_name)"
+	notice "Using ${color_file}${arch}${color_norm}"
 
 	step "Determining release"
 	release="${flag_release:-$(default_release)}"
@@ -61,52 +77,62 @@ fetch() {
 	notice "Using ${color_link}${mirror}${color_norm}"
 
 	step "Making directory structure"
-	bootstrap_dir="$target_dir/brl-bootstrap"
-	mkdir -p "$target_dir" "$bootstrap_dir/target-root"
+	bootstrap_dir="${target_dir}/brl-bootstrap"
+	mkdir -p "${target_dir}" "${bootstrap_dir}/target-root"
 
 	step "Downloading bootstrap software"
-	url="$(find_link "${mirror}/static/" "^xbps-static-latest[.]${arch}-musl[.]tar[.]xz")"
-	wget -O "$bootstrap_dir/xbps-static.tar.xz" "$url"
+	case "$(uname -m)" in
+	"x86_64")
+		url="$(find_link "${mirror}/static/" "^xbps-static-latest[.]${arch}-musl[.]tar[.]xz")"
+		;;
+	"armv7l")
+		url="$(find_link "${mirror}/static/" "^xbps-static-latest[.]armv6l-musl[.]tar[.]xz")"
+		;;
+	*) false ;;
+	esac
+	wget -O "${bootstrap_dir}/xbps-static.tar.xz" "${url}"
 
 	step "Preparing bootstrap software"
 	(
-		cd "$bootstrap_dir"
+		cd "${bootstrap_dir}"
 		tar xf xbps-static.tar.xz
 	)
 
 	step "Runing bootstrap software"
-	mount --bind "$target_dir" "$bootstrap_dir/target-root"
+	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
 	set +o pipefail
-	yes "" | LC_ALL=C XBPS_ARCH="$arch" "$bootstrap_dir/usr/bin/xbps-install" -S -R "${mirror}/current" -r "$target_dir" base-voidstrap
+	yes "" | LC_ALL=C XBPS_ARCH="${arch}" "${bootstrap_dir}/usr/bin/xbps-install" -S -R "${mirror}/current" -r "${target_dir}" base-voidstrap
 	set -o pipefail
 
 	step "Removing temporary bootstrap files"
-	less_lethal_rm_rf "$bootstrap_dir"
+	less_lethal_rm_rf "${bootstrap_dir}"
 
-	step "Configure"
-	if [ -e "$target_dir/etc/default/libc-locales" ]; then
+	step "Configuring"
+	if [ -e "${target_dir}/etc/default/libc-locales" ]; then
 		localegen="$(cfg_value "locale" "localegen")"
 		if [ -n "${localegen:-}" ]; then
-			echo "### Added by Bedrock Linux when acquiring this stratum" >>"$target_dir/etc/default/libc-locales"
-			echo "$localegen" >>"$target_dir/etc/default/libc-locales"
-			setup_chroot "$target_dir"
-			LANG=C chroot "$target_dir" /usr/bin/xbps-reconfigure -f glibc-locales
-			tear_down_chroot "$target_dir"
+			echo "### Added by Bedrock Linux when acquiring this stratum" >>"${target_dir}/etc/default/libc-locales"
+			echo "${localegen}" >>"${target_dir}/etc/default/libc-locales"
+			setup_chroot "${target_dir}"
+			LANG=C chroot "${target_dir}" /usr/bin/xbps-reconfigure -f glibc-locales
+			tear_down_chroot "${target_dir}"
 		else
 			notice "Could not determine desired locale, skipping setting locale"
 		fi
 	fi
-	if [ -d "$target_dir/usr/share/xbps.d/" ]; then
-		echo "repository=${mirror}/current" >>"$target_dir/usr/share/xbps.d/00-brl-fetch.conf"
+	if [ -d "${target_dir}/usr/share/xbps.d/" ]; then
+		echo "repository=${mirror}/current" >>"${target_dir}/usr/share/xbps.d/00-brl-fetch.conf"
 	fi
 	# Void's zsh package does not create /etc/zsh/zshenv but it is needed
 	# for various Bedrock hooks
-	mkdir -p "$target_dir/etc/zsh/"
-	touch "$target_dir/etc/zsh/zshenv"
+	if ! [ -e "${target_dir}/etc/zsh/zshenv" ]; then
+		mkdir -p "${target_dir}/etc/zsh/"
+		echo "# File created by Bedrock Linux during stratum fetch" >"${target_dir}/etc/zsh/zshenv"
+	fi
 
 	if ! grep -q '^kvm:' /etc/group; then
 		addgroup -S kvm
 	fi
 
-	notice "Successfully acquired $distro stratum"
+	notice "Successfully acquired ${distro} stratum"
 }

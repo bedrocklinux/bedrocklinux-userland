@@ -507,6 +507,7 @@ rpmdb_to_brldb() {
 	tr -d '\n' <"${1}" |
 		sed -e 's,<,\n<,g' -e 's,>\(.\),>\n\1,g' >"${2}/flattened"
 
+	arch="$(distro_arch_name)"
 	awk -F"[<> ]" -v"dir=${2}" -v"total=$(wc -l <"${2}/flattened")" -v"arch=${arch}" '
 		function brldbpath(type, name) {
 			if (substr(name,1,3) == "lib") {
@@ -786,15 +787,6 @@ for distro in ${distros}; do
 	target_dir="/bedrock/strata/${name}"
 	mkdir -p "${target_dir}"
 	drop_lock
-
-	# Different distros use different names for the same CPU
-	# architecture.
-	arch="$(uname -m)"
-	if [ "${arch}" = "x86_64" ]; then
-		export arch2="amd64"
-	elif echo "${arch}" | grep -q "i.86"; then
-		export arch2="i386"
-	fi
 
 	cd /
 	fetch

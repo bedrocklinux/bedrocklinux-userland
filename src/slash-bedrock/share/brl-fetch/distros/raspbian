@@ -1,6 +1,6 @@
 #!/bedrock/libexec/busybox sh
 #
-# Devuan bootstrap support
+# Raspbian bootstrap support
 #
 #      This program is free software; you can redistribute it and/or
 #      modify it under the terms of the GNU General Public License
@@ -12,11 +12,10 @@
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
-bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv devuan-keyring"
+bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv raspbian-archive-keyring"
 
 check_supported() {
 	case "$(uname -m)" in
-	"x86_64") true ;;
 	"armv7l") true ;;
 	*) false ;;
 	esac
@@ -28,14 +27,19 @@ check_experimental() {
 
 distro_arch_name() {
 	case "$(uname -m)" in
-	"x86_64") echo "amd64" ;;
 	"armv7l") echo "armhf" ;;
 	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
 	esac
 }
 
 list_mirrors() {
-	echo 'http://auto.mirror.devuan.org/merged/'
+	mirror_list_url='https://www.raspbian.org/RaspbianMirrors'
+	wget -O- "${mirror_list_url}" 2>/dev/null |
+		awk '/Raspbian Repository Mirrors/,/<\/div/' |
+		sed 's/([a-z|]*http[a-z|]*)/http/' |
+		grep '>http://.*<' |
+		sed 's,.*>http://,http://,' |
+		sed 's,<.*$,,'
 }
 
 speed_test_url() {
@@ -45,9 +49,10 @@ speed_test_url() {
 list_releases() {
 	for mirror in "${flag_mirror:-}" $(list_mirrors); do
 		if wget -O- "${mirror}/dists" 2>/dev/null |
-			list_links | grep '/$' |
+			list_links |
+			grep '/$' |
 			grep -v -- '-' |
-			grep -ve '[.]' -ve '^/' |
+			grep -ve '[.]' -ve '^/' -ve 'experimental' |
 			sed 's,/$,,g'; then
 			break
 		fi
@@ -59,7 +64,7 @@ default_release() {
 }
 
 fetch() {
-	step_init 13
+	step_init 14
 
 	if [ -z "${target_dir:-}" ]; then
 		fetch_abort "Essential variable not set"
@@ -111,7 +116,7 @@ fetch() {
 	step "Removing temporary bootstrap files"
 	less_lethal_rm_rf "${bootstrap_dir}"
 
-	step "Configure"
+	step "Configuring"
 
 	set +o pipefail
 	setup_chroot "${target_dir}"
@@ -126,9 +131,5 @@ fetch() {
 	tear_down_chroot "${target_dir}"
 	set -o pipefail
 
-	if [ "${release}" != "ceres" ] && [ "${release}" != "unstable" ]; then
-		echo "deb http://packages.devuan.org/merged ${release}-security main" >>"${target_dir}/etc/apt/sources.list"
-	fi
-
-	notice "Successfully acquired ${distro} stratum"
+	step "Successfully acquired ${distro} stratum"
 }

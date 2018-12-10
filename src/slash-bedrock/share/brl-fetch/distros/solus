@@ -17,9 +17,15 @@ check_supported() {
 }
 
 check_experimental() {
-	# Last time this was tested it did not complete fetch.  Not worth
-	# listing even as experimental.
+	# Last time this was tested it did not complete fetch.
 	false
+}
+
+distro_arch_name() {
+	case "$(uname -m)" in
+	"x86_64") echo "x86_64" ;;
+	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
+	esac
 }
 
 list_mirrors() {
@@ -39,15 +45,19 @@ default_release() {
 }
 
 fetch() {
-	step_init 10
+	step_init 11
 
-	if [ -z "${target_dir:-}" ] || [ -z "${arch:-}" ] || [ -z "${arch2:-}" ]; then
-		abort "Essential variable not set"
+	if [ -z "${target_dir:-}" ]; then
+		fetch_abort "Essential variable not set"
 	fi
 
 	step "Determining name"
 	name="${flag_name:-${distro}}"
 	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining CPU architecture"
+	arch="$(distro_arch_name)"
+	notice "Using ${color_file}${arch}${color_norm}"
 
 	step "Determining release"
 	release="${flag_release:-$(default_release)}"
