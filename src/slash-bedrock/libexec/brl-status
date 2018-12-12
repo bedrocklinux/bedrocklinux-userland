@@ -75,6 +75,20 @@ check_links() {
 	for link in $(cfg_keys "symlinks"); do
 		target="$(cfg_values "symlinks" "${link}")"
 		actual="$(stinit busybox readlink "${root}${link}")" || true
+		# hard code /etc/mtab to support effectively equivalent variations of /proc/mounts
+		if [ "${link}" = "/etc/mtab" ] && [ "${actual}" = "/proc/mounts" ]; then
+			continue
+		fi
+		if [ "${link}" = "/etc/mtab" ] && [ "${actual}" = "../proc/mounts" ]; then
+			continue
+		fi
+		if [ "${link}" = "/etc/mtab" ] && [ "${actual}" = "/proc/self/mounts" ]; then
+			continue
+		fi
+		if [ "${link}" = "/etc/mtab" ] && [ "${actual}" = "../proc/self/mounts" ]; then
+			continue
+		fi
+
 		if [ "${target}" != "${actual}" ]; then
 			problem="${problem}  ${color_file}${link}${color_norm} is ${color_alert}not a symlink${color_norm} to ${color_file}${target}${color_norm}\\n"
 		fi
