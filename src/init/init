@@ -29,13 +29,14 @@ fatal_error() {
 setup_term() {
 	# Ensure plymouth is not running, as it will fight with us over control
 	# of the terminal.
-	killall -9 -f plymouthd
+	killall -9 -f plymouthd 2>/dev/null
 
 	# Plymouth will lock the terminal settings.  This causes the following
 	# commands to fail if not unlocked.
 	/bedrock/libexec/manage_tty_lock unlock
 
 	# Ensure sane terminal settings.  This is probably overkill.
+	reset
 	stty sane
 	stty cooked
 	reset
@@ -112,27 +113,25 @@ complete_hijack() {
 		fi
 	done
 
-	step "Granting ${color_cmd}strat${color_norm} necessary capabilities"
-	/bedrock/libexec/setcap cap_sys_chroot=ep /bedrock/bin/strat
-
 	step "Creating root files and directories"
-	for dir in /bin /dev /lib/systemd /mnt /proc /root /run /sbin /sys /tmp /usr/bin /usr/sbin /var; do
+	for dir in /bin /dev /etc /lib/systemd /mnt /proc /root /run /sbin /sys /tmp /usr/bin /usr/sbin /var; do
 		mkdir -p "${dir}"
 	done
+	ln -s ../bedrock/etc/bedrock-release /etc/bedrock-release
+	ln -s ../bedrock/etc/os-release /etc/os-release
 	/bedrock/libexec/busybox --install -s
-	for init in $(cfg_values "init" "paths"); do
-		rm -f "${init}"
-		mkdir -p "$(dirname "${init}")"
-		ln -s /bedrock/libexec/init "${init}"
-	done
-
-	step "Configuring ${color_file}/sbin/init${color_norm}"
 	mv "/bedrock/strata/${hijacked}/sbin/init" "/sbin/init"
-	for init in /sbin/init /lib/systemd/systemd /usr/lib/systemd/systemd; do
-		if [ -e "/bedrock/strata/${hijacked}${init}-bedrock-backup" ]; then
-			mv "/bedrock/strata/${hijacked}${init}-bedrock-backup" "/bedrock/strata/${hijacked}${init}"
+
+	step "Restoring ${color_term}hijacked${color_norm} init systems"
+	prefix="/bedrock/strata/${hijacked}"
+	for init in /bin/init /sbin/init /usr/bin/init /usr/sbin/init /lib/systemd/systemd /usr/lib/systemd/systemd; do
+		if [ -h "${prefix}${init}-bedrock-backup" ] || [ -e "${prefix}${init}-bedrock-backup" ]; then
+			mv "${prefix}${init}-bedrock-backup" "${prefix}${init}"
 		fi
 	done
+
+	step "Granting ${color_cmd}strat${color_norm} necessary capabilities"
+	/bedrock/libexec/setcap cap_sys_chroot=ep /bedrock/bin/strat
 
 	step "Completing ${color_term}hijack install${color_norm}"
 	rm /bedrock/complete-hijack-install
@@ -283,12 +282,10 @@ preenable() {
 	ensure_essential_environment
 }
 
+ensure_essential_environment
 setup_term
-
 clear
 print_logo "$(cat /bedrock/etc/bedrock-release)"
-
-ensure_essential_environment
 
 if [ -e "/bedrock/complete-hijack-install" ]; then
 	complete_hijack

@@ -71,7 +71,7 @@ hijack() {
 		abort "/dev/fuse not found.  FUSE is required for Bedrock Linux to operate.  Install the module fuse kernel module and try again."
 	elif [ -e /bedrock/ ]; then
 		abort "/bedrock found.  Bedrock Linux cannot be installed over Bedrock Linux."
-	elif ! type -p sha1sum >/dev/null 2>&1; then
+	elif ! type sha1sum >/dev/null 2>&1; then
 		abort "Could not find sha1sum executable."
 	fi
 
@@ -175,8 +175,8 @@ hijack() {
 	# Some initrds assume init is systemd if they find systemd on disk and
 	# do not respect the Bedrock meta-init at /sbin/init.  Thus we need to
 	# hide the systemd executables.
-	for init in /sbin/init /lib/systemd/systemd /usr/lib/systemd/systemd; do
-		if [ -e "${init}" ]; then
+	for init in /sbin/init /usr/bin/init /usr/sbin/init /lib/systemd/systemd /usr/lib/systemd/systemd; do
+		if [ -h "${init}" ] || [ -e "${init}" ]; then
 			mv "${init}" "${init}-bedrock-backup"
 		fi
 	done
@@ -224,7 +224,7 @@ hijack() {
 		mv /bedrock/etc/bedrock.conf-new /bedrock/etc/bedrock.conf
 	fi
 
-	notice "Disabling /etc/fstab fscking the root filesystem"
+	notice "Configuring ${color_file}/etc/fstab${color_norm}"
 	if [ -r /etc/fstab ]; then
 		awk '$1 !~ /^#/ && NF >= 6 {$6 = "0"} 1' /etc/fstab >/etc/fstab-new
 		mv /etc/fstab-new /etc/fstab

@@ -163,6 +163,13 @@ $(COMPLETED)/builddir:
 	cp -r src/slash-bedrock/ $(SLASHBR)
 	# create bedrock-release
 	echo "$(RELEASE)" > $(SLASHBR)/etc/bedrock-release
+	# create os-release
+	sed -e "s,^VERSION=.*,VERISON=\"$(VERSION) ($(CODENAME))\"," \
+		-e "s,^VERSION_ID=.*,VERSION_ID=\"$(VERSION)\"," \
+		-e "s,^PRETTY_NAME=.*,PRETTY_NAME\"$(RELEASE)\"," \
+		$(SLASHBR)/etc/os-release > $(SLASHBR)/etc/os-release-new
+	mv $(SLASHBR)/etc/os-release-new $(SLASHBR)/etc/os-release
+	# create release-specific bedrock.conf
 	mv $(SLASHBR)/etc/bedrock.conf $(SLASHBR)/etc/bedrock.conf-$(VERSION)
 	mkdir -p $(SLASHBR)/bin
 	mkdir -p $(SLASHBR)/etc
