@@ -171,4 +171,13 @@ if [ -w /sys/module/firmware_class/parameters/path ] && [ -d /bedrock/cross/firm
 	printf "/bedrock/cross/firmware" >/sys/module/firmware_class/parameters/path
 fi
 
+for stratum in $(/bedrock/bin/brl list -ei); do
+	root="$(stratum_root --empty "${stratum}")"
+	seconfig="/proc/1/root${root}/etc/selinux/config"
+	if grep -q '^SELINUX=enforcing' "${seconfig}" 2>/dev/null || grep -q '^SELINUX=permissive' "${seconfig}" 2>/dev/null; then
+		sed 's/^SELINUX=/SELINUX=disabled/' "${seconfig}" >"${seconfig}-"
+		mv "${seconfig}-" "${seconfig}"
+	fi
+done
+
 exit_success
