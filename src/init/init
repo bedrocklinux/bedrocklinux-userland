@@ -128,7 +128,11 @@ complete_hijack() {
 
 	step "Configuring ${color_file}/sbin/init${color_norm}"
 	mv "/bedrock/strata/${hijacked}/sbin/init" "/sbin/init"
-	mv "/bedrock/strata/${hijacked}/sbin/init-orig" "/bedrock/strata/${hijacked}/sbin/init"
+	for init in /sbin/init /lib/systemd/systemd /usr/lib/systemd/systemd; do
+		if [ -e "/bedrock/strata/${hijacked}${init}-bedrock-backup" ]; then
+			mv "/bedrock/strata/${hijacked}${init}-bedrock-backup" "/bedrock/strata/${hijacked}${init}"
+		fi
+	done
 
 	step "Completing ${color_term}hijack install${color_norm}"
 	rm /bedrock/complete-hijack-install
