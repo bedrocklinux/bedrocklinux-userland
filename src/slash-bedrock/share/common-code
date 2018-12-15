@@ -870,8 +870,17 @@ cfg_crossfs() {
 				strata[n_values[i]] = n_values[i]
 			}
 		}
-		# add remaining strata
+		# init stratum should be highest unspecified priority
+		if ("init" in aliases && !(aliases["init"] in strata)) {
+			stratum=aliases["init"]
+			n_strata[++strata_len] = stratum
+			strata[stratum] = stratum
+		}
+		# rest of strata except bedrock
 		for (stratum in unordered_strata) {
+			if (stratum == "bedrock") {
+				continue
+			}
 			if (!(stratum in strata)) {
 				if (stratum in aliases) {
 					stratum = aliases[stratum]
@@ -879,6 +888,11 @@ cfg_crossfs() {
 				n_strata[++strata_len] = stratum
 				strata[stratum] = stratum
 			}
+		}
+		# if not specified, bedrock stratum should be at end
+		if (!("bedrock" in strata)) {
+			n_strata[++strata_len] = "bedrock"
+			strata["bedrock"] = "bedrock"
 		}
 	}
 	# build target list
