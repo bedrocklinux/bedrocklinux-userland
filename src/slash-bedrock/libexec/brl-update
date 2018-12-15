@@ -74,7 +74,7 @@ done
 require_root
 lock
 
-if ! "${skip_check}" && ! type -p gpg >/dev/null 2>&1; then
+if ! "${skip_check}" && ! type gpg >/dev/null 2>&1; then
 	abort "gpg required for cryptographic signature verification.  Either install it or use -s flag to disable check."
 fi
 
@@ -92,7 +92,8 @@ newest_update_url=""
 found_valid_mirror=false
 for update_list_url in ${mirrors}; do
 	rm -rf /bedrock/var/releases
-	if ! wget -O- "${update_list_url}" >/bedrock/var/releases; then
+	if ! wget -O- "${update_list_url}" >/bedrock/var/releases 2>/bedrock/run/tmp; then
+		cat /bedrock/run/tmp
 		notice "${update_list_url} fetch failed, trying next mirror"
 		continue
 	fi
@@ -130,7 +131,8 @@ update_combine="/bedrock/var/bedrock-linux-${version}-${arch}.sh-combine"
 update_file="/bedrock/var/bedrock-linux-${version}-${arch}.sh"
 update_sig="/bedrock/var/bedrock-linux-${version}-${arch}.sh.asc"
 rm -f "${update_combine}" "${update_file}" "${update_sig}"
-if ! wget -O- "${newest_update_url}" >"${update_combine}" 2>/dev/null; then
+if ! wget -O- "${newest_update_url}" >"${update_combine}" 2>/bedrock/run/tmp; then
+	cat /bedrock/run/tmp
 	rm -f "${update_combine}"
 	abort "Unable to download update."
 fi
@@ -140,7 +142,10 @@ homedir="/bedrock/var/gnupg"
 rm -rf "${homedir}"
 mkdir -p "${homedir}"
 chmod go-rwx "${homedir}"
-gpg --homedir "${homedir}" --import /bedrock/gnupg-keys/*
+if ! gpg --homedir "${homedir}" --import /bedrock/gnupg-keys/* 2>/bedrock/run/tmp; then
+	cat /bedrock/run/tmp
+	abort "Unable to prepare gpg."
+fi
 
 notice "Verifying update"
 sed -n '/^-----BEGIN PGP SIGNATURE-----$/,/^-----END PGP_SIGNATURE-----$/p' "${update_combine}" >"${update_sig}"
@@ -149,7 +154,8 @@ lines_combine="$(wc -l <"${update_combine}")"
 lines_file="$((lines_combine - lines_sig))"
 head -n "${lines_file}" "${update_combine}" >"${update_file}"
 
-if ! "${skip_check}" && ! gpg --homedir "${homedir}" --verify "${update_sig}" "${update_file}"; then
+if ! "${skip_check}" && ! gpg --homedir "${homedir}" --verify "${update_sig}" "${update_file}" 2>/bedrock/run/tmp; then
+	cat /bedrock/run/tmp
 	rm -rf "${homedir}" "${update_combine}" "${update_file}" "${update_sig}"
 	abort "Signature verification failed."
 fi
