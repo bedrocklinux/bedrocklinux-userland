@@ -16,13 +16,13 @@ _brl_unused_all() {
 	used=("$@")
 
 	for i in "${used[@]}"; do
-		for j in $tgts; do
-			if [ "$i" = "$j" ]; then
-				return;
+		for j in ${tgts}; do
+			if [ "${i}" = "${j}" ]; then
+				return
 			fi
 		done
 	done
-	echo "$tgts"
+	echo "${tgts}"
 }
 
 # If any of the $1 have been not been used, include it as a possibility
@@ -31,38 +31,37 @@ _brl_unused_any() {
 	shift
 	used=("$@")
 
-	for i in $tgts; do
+	for i in ${tgts}; do
 		saw=false
 		for j in "${used[@]}"; do
-			if [ "$i" = "$j" ]; then
+			if [ "${i}" = "${j}" ]; then
 				saw=true
 				break
 			fi
 		done
-		if ! "$saw"; then
-			echo "$i"
+		if ! "${saw}"; then
+			echo "${i}"
 		fi
 	done
 }
 
-_brl()
-{
+_brl() {
 	cur=${COMP_WORDS[COMP_CWORD]}
-	prev=${COMP_WORDS[COMP_CWORD-1]}
+	prev=${COMP_WORDS[COMP_CWORD - 1]}
 
 	opts=""
 
 	# Every subcommand has -h/--help.
-	if [ "$COMP_CWORD" -lt 3 ]; then
+	if [ "${COMP_CWORD}" -lt 3 ]; then
 		opts="-h --help"
 	fi
 
-	if [ "$COMP_CWORD" -eq 1 ]; then
-		opts="$opts help strat list which fetch"
-		opts="$opts remove rename status enable"
-		opts="$opts disable reename copy hide show"
-		opts="$opts alias deref update reload"
-		opts="$opts version report"
+	if [ "${COMP_CWORD}" -eq 1 ]; then
+		opts="${opts} help strat list which fetch"
+		opts="${opts} remove rename status enable"
+		opts="${opts} disable reename copy hide show"
+		opts="${opts} alias deref update reload"
+		opts="${opts} version report"
 	fi
 
 	case "${COMP_WORDS[1]}" in
@@ -71,93 +70,92 @@ _brl()
 		return
 		;;
 	"list")
-		opts="$opts $(_brl_unused_all "-e --enabled-strata" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-E --enabled-aliases" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-d --disabled-strata" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-D --disabled-aliases" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-a --all-strata" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-A --all-aliases" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-r --deref" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-h --help" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-i --include-hidden" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-e --enabled-strata" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-E --enabled-aliases" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-d --disabled-strata" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-D --disabled-aliases" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-a --all-strata" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-A --all-aliases" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-r --deref" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-h --help" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-i --include-hidden" "${COMP_WORDS[@]}")"
 		;;
 	"which")
-		if [ "$COMP_CWORD" -eq 2 ]; then
-			opts="$opts $(_brl_unused_all "-c --current" "${COMP_WORDS[@]}")"
-			opts="$opts $(_brl_unused_all "-b --bin" "${COMP_WORDS[@]}")"
-			opts="$opts $(_brl_unused_all "-f --file" "${COMP_WORDS[@]}")"
-			opts="$opts $(_brl_unused_all "-p --pid" "${COMP_WORDS[@]}")"
-			opts="$opts $(_brl_unused_all "-x --xwindow" "${COMP_WORDS[@]}")"
+		if [ "${COMP_CWORD}" -eq 2 ]; then
+			opts="${opts} $(_brl_unused_all "-c --current" "${COMP_WORDS[@]}")"
+			opts="${opts} $(_brl_unused_all "-b --bin" "${COMP_WORDS[@]}")"
+			opts="${opts} $(_brl_unused_all "-f --file" "${COMP_WORDS[@]}")"
+			opts="${opts} $(_brl_unused_all "-p --pid" "${COMP_WORDS[@]}")"
+			opts="${opts} $(_brl_unused_all "-x --xwindow" "${COMP_WORDS[@]}")"
 		fi
 		case "${COMP_WORDS[2]}" in
-		"-c"|"--current")
+		"-c" | "--current") ;;
+
+		"-b" | "--bin")
+			opts="${opts} $(compgen -c -- "${cur}")"
 			;;
-		"-b"|"--bin")
-			opts="$opts $(compgen -c -- "$cur")"
-			;;
-		"-f"|"--file")
+		"-f" | "--file")
 			compopt -o filenames
-			opts="$opts $(compgen -d -f -- "$cur")"
+			opts="${opts} $(compgen -d -f -- "${cur}")"
 			;;
-		"-p"|"--pid")
-			# shellcheck disable=SC2010
-			opts="$opts $(ls -1 /proc | grep '^[0-9*$]')"
+		"-p" | "--pid")
+			opts="${opts} $(/bedrock/libexec/busybox ps -opid)"
 			;;
-		"-x"|"--xwindow")
-			;;
-		"-h"|"--help")
-			;;
+		"-x" | "--xwindow") ;;
+
+		"-h" | "--help") ;;
+
 		*)
-			opts="$opts $(compgen -c -- "$cur")"
-			# shellcheck disable=SC2010
-			opts="$opts $(ls -1 /proc | grep '^[0-9*$]')"
+			opts="${opts} $(compgen -c -- "${cur}")"
+			opts="${opts} $(/bedrock/libexec/busybox ps -opid)"
 			compopt -o filenames
-			opts="$opts $(compgen -d -f -- "$cur")"
+			opts="${opts} $(compgen -d -f -- "${cur}")"
+			;;
 		esac
 		;;
 	"fetch")
 		# no completion for these flags
-		case "$prev" in
-			"-n"|"--name")
-				return
-				;;
-			"-r"|"--release")
-				return
-				;;
-			"-m"|"--mirror")
-				return
-				;;
-			"-l"|"--list")
-				return
-				;;
-			"-x"|"--experimental")
-				return
-				;;
-			*)
+		case "${prev}" in
+		"-n" | "--name")
+			return
+			;;
+		"-r" | "--release")
+			return
+			;;
+		"-m" | "--mirror")
+			return
+			;;
+		"-l" | "--list")
+			return
+			;;
+		"-x" | "--experimental")
+			return
+			;;
+		*) ;;
 		esac
-		if [ "$COMP_CWORD" -eq 2 ]; then
-			opts="$opts $(_brl_unused_all "-l --list" "${COMP_WORDS[@]}")"
-			opts="$opts $(_brl_unused_all "-x --experimental" "${COMP_WORDS[@]}")"
+		if [ "${COMP_CWORD}" -eq 2 ]; then
+			opts="${opts} $(_brl_unused_all "-l --list" "${COMP_WORDS[@]}")"
+			opts="${opts} $(_brl_unused_all "-x --experimental" "${COMP_WORDS[@]}")"
 		fi
-		opts="$opts $(_brl_unused_all "-R --releases" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-n --name" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-r --release" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-m --mirror" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-e --dont-enable" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-s --dont-show" "${COMP_WORDS[@]}")"
-		opts="$opts $(/bedrock/bin/brl fetch --list)"
+		opts="${opts} $(_brl_unused_all "-R --releases" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-n --name" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-r --release" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-m --mirror" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-e --dont-enable" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-s --dont-show" "${COMP_WORDS[@]}")"
+		opts="${opts} $(/bedrock/bin/brl fetch --list)"
 		;;
 	"remove")
 		# TODO: do not list disabled strata if `-d` flag is missing
 		opts="$(/bedrock/bin/brl list -aAi | grep -ve "^bedrock\$" -ve "^init\$")"
 		;;
 	"rename")
-		if [ "$COMP_CWORD" -eq 2 ]; then
+		if [ "${COMP_CWORD}" -eq 2 ]; then
 			opts="$(/bedrock/bin/brl list -dD | grep -ve "^bedrock$" -ve "^init$")"
 		fi
 		;;
 	"copy")
-		if [ "$COMP_CWORD" -eq 2 ]; then
+		if [ "${COMP_CWORD}" -eq 2 ]; then
 			opts="$(/bedrock/bin/brl list -dD)"
 		fi
 		;;
@@ -169,61 +167,59 @@ _brl()
 		;;
 	"disable")
 		for stratum in $(brl list -eE); do
-			if [ "$(/bedrock/bin/brl deref "$stratum")" = "bedrock" ]; then
+			if [ "$(/bedrock/bin/brl deref "${stratum}")" = "bedrock" ]; then
 				continue
-			elif [ "$(/bedrock/bin/brl deref "$stratum")" = "$(/bedrock/bin/brl deref init)" ]; then
+			elif [ "$(/bedrock/bin/brl deref "${stratum}")" = "$(/bedrock/bin/brl deref init)" ]; then
 				continue
 			fi
-			opts="$opts $stratum"
+			opts="${opts} ${stratum}"
 		done
 		;;
 	"repair")
 		opts="$(/bedrock/bin/brl list -aA)"
 		;;
 	"hide")
-		opts="$opts $(_brl_unused_all "-a --all" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-b --boot" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-c --cross" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-i --init" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-a --all" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-b --boot" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-c --cross" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-i --init" "${COMP_WORDS[@]}")"
 		opts="$(/bedrock/bin/brl list -aA)"
 		;;
 	"show")
-		opts="$opts $(_brl_unused_all "-a --all" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-b --boot" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-c --cross" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-i --init" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-a --all" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-b --boot" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-c --cross" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-i --init" "${COMP_WORDS[@]}")"
 		opts="$(/bedrock/bin/brl list -aAi)"
 		;;
 	"alias")
-		if [ "$COMP_CWORD" -eq 2 ]; then
+		if [ "${COMP_CWORD}" -eq 2 ]; then
 			opts="$(/bedrock/bin/brl list -a)"
 		fi
 		;;
 	"deref")
-		if [ "$COMP_CWORD" -eq 2 ]; then
+		if [ "${COMP_CWORD}" -eq 2 ]; then
 			opts="$(/bedrock/bin/brl list -A)"
 		fi
 		;;
 	"update")
-		opts="$opts $(_brl_unused_all "-m --mirror" "${COMP_WORDS[@]}")"
-		opts="$opts $(_brl_unused_all "-s --skip-check" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-m --mirror" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-s --skip-check" "${COMP_WORDS[@]}")"
 		;;
-	"apply")
-		;; # no parameters other than -h/--help
-	"version")
-		;; # no parameters other than -h/--help
+	"apply") ;;
+		# no parameters other than -h/--help
+	"version") ;;
+		# no parameters other than -h/--help
 	"report")
-		opts="$opts $(_brl_unused_all "-o --overwrite" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-o --overwrite" "${COMP_WORDS[@]}")"
 		compopt -o filenames
-		opts="$opts $(compgen -d -f -- "$cur")"
+		opts="${opts} $(compgen -d -f -- "${cur}")"
 		;;
 	esac
 
-	# Most of the code base is busybox shell, and thus shellcheck is
-	# configured to assume that is the case.  It does not know this file is
-	# bash.
+	# Explicitly desire splitting here.
 	# shellcheck disable=SC2207
-	COMPREPLY=($(compgen -W "$opts" -- "$cur"))
+	COMPREPLY=($(compgen -W "${opts}" -- "${cur}"))
 }
 
 complete -F _brl brl

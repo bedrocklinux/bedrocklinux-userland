@@ -47,7 +47,8 @@ _brl_strat() {
 	words[1]=() CURRENT=$((CURRENT - 1)) _normal
 }
 
-
+# zsh-ism: this file is effectively a function.
+# shellcheck disable=SC2168
 local -a args
 args=(
 	'1:brl subcommand:_brl_subcommands'
@@ -55,11 +56,14 @@ args=(
 
 # Every subcommand has -h/--help.    However, pass-through logic for strat gets
 # confused if -h is listed in addition to pass-through version.
-if [[ "$CURRENT" -lt 4 ]] && [[ "$words[2]" != "strat" ]]; then
+#
+# zsh-ism: ${words} is auto-populated by the shell
+# shellcheck disable=SC2154
+if [[ "${CURRENT}" -lt 4 ]] && [[ "${words[2]}" != "strat" ]]; then
 	args+=('(-h --help)'{-h,--help}'[print help message]')
 fi
 
-case "$words[2]" in
+case "${words[2]}" in
 "strat")
 	args+=('2:brl subcommand:_brl_strat')
 	;;
@@ -72,14 +76,14 @@ case "$words[2]" in
 	args+=('(-A --all-aliases)'{-A,--all-aliases}'[list all aliases')
 	;;
 "which")
-	if [[ "$CURRENT" -eq 3 ]]; then
+	if [[ "${CURRENT}" -eq 3 ]]; then
 		args+=('(-c --current)'{-c,--current}'[which stratum provides current process]')
-		args+=('(-b --bin)'{-b,--bin}'[which stratum provides a given binary in $PATH]')
+		args+=('(-b --bin)'{-b,--bin}'[which stratum provides a given binary in PATH]')
 		args+=('(-f --file)'{-f,--file}'[which stratum provides a given file path]')
 		args+=('(-p --pid)'{-p,--pid}'[which stratum provides a given process ID]')
 		args+=('(-x --xwindow)'{-x,--xwindow}'[which stratum provides a given X11 window]')
 	fi
-	case "$words[3]" in
+	case "${words[3]}" in
 	"-c"|"--current")
 		;;
 	"-b"|"--bin")
@@ -89,7 +93,7 @@ case "$words[2]" in
 		_arguments "*:file:_path_files -f"
 		;;
 	"-p"|"--pid")
-		_arguments "*:pid:($(ls -1 /proc | grep '^[0-9]*$'))"
+		_arguments "*:pid:($(/bedrock/libexec/busybox ps -opid))"
 		;;
 	"-x"|"--xwindow")
 		;;
@@ -98,12 +102,12 @@ case "$words[2]" in
 	*)
 		_arguments "*:binary:_command_names -e"
 		_arguments "*:file:_path_files -f"
-		_arguments "*:pid:($(ls -1 /proc | grep '^[0-9]*$'))"
+		_arguments "*:pid:($(/bedrock/libexec/busybox ps -opid))"
 		;;
 	esac
 	;;
 "fetch")
-	if [[ "$CURRENT" -eq 3 ]]; then
+	if [[ "${CURRENT}" -eq 3 ]]; then
 		args+=('(-l --list)'{-l,--list}'[list supported distros]')
 		args+=('(-x --experimental)'{-x,--experimental}'[list experimental distros]')
 	fi
@@ -123,7 +127,7 @@ case "$words[2]" in
 	args+=("*:aliases and disabled strata:($(/bedrock/bin/brl list -aAi | grep -ve "^bedrock\$" -ve "^init\$"))")
 	;;
 "rename")
-	args+=("2:alias or disabled stratum:($(/bedrock/bin/brl list -dD | grep -ve "^bedrock\$" -ve "^init\$")))")
+	args+=("2:alias or disabled stratum:($(/bedrock/bin/brl list -dD | grep -ve "^bedrock\$" -ve "^init\$"))")
 	args+=("3:new name:")
 	;;
 "copy")
@@ -139,12 +143,12 @@ case "$words[2]" in
 "disable")
 	args+=("*:enabled strata or aliases:($(
 		for stratum in $(brl list -eE); do
-			if [ "$(/bedrock/bin/brl deref "$stratum")" = "bedrock" ]; then
+			if [ "$(/bedrock/bin/brl deref "${stratum}")" = "bedrock" ]; then
 				continue;
-			elif [ "$(/bedrock/bin/brl deref "$stratum")" = "$(/bedrock/bin/brl deref init)" ]; then
+			elif [ "$(/bedrock/bin/brl deref "${stratum}")" = "$(/bedrock/bin/brl deref init)" ]; then
 				continue;
 			fi
-			echo "$stratum";
+			echo "${stratum}";
 		done
 	))")
 	;;
@@ -187,5 +191,6 @@ case "$words[2]" in
 	;;
 esac
 
-_arguments $args
-
+# zsh-ism: we want it to expand here
+# shellcheck disable=SC2128,SC2086
+_arguments ${args}

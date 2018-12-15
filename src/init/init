@@ -202,7 +202,7 @@ pretty_print_options() {
 }
 
 get_init_choice() {
-	echo "Select init number to use for this section" >&2
+	echo "Select init number to use for this session" >&2
 	echo "" >&2
 	max="$(list_init_options | wc -l)"
 

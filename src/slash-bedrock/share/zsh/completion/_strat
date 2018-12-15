@@ -8,17 +8,21 @@
 # Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
 #
 
-# List items in the $PATH local that aren't in /bedrock/cross.  That is, those
+# List items in the PATH local that aren't in /bedrock/cross.  That is, those
 # local to the given stratum.
 _strat_local_cmds() {
 	local -a prefix
-	prefix="/bedrock/strata/$words[${#words}-1]"
+	# zsh-ism: ${words} is auto-populated by the shell
+	# shellcheck disable=SC2154
+	prefix="/bedrock/strata/${words[${#words}-1]}"
 
+	# zsh-ism
+	# shellcheck disable=SC2154
 	for dir in ${(@s/:/)PATH}
 	do
-		if ! [[ "$dir" =~ "^/bedrock/cross/" ]]
+		if ! [[ "${dir}" =~ "^/bedrock/cross/" ]]
 		then
-			_arguments "*:command:_files -W $prefix$dir"
+			_arguments "*:command:_files -W ${prefix}${dir}"
 		fi
 	done
 }
@@ -29,6 +33,8 @@ _strat_local_params() {
 	words[1]=() CURRENT=$((CURRENT - 1)) _normal
 }
 
+# zsh-ism: this file is effectively a function.
+# shellcheck disable=SC2168
 local -a args
 args=(
 	# Flags
@@ -44,4 +50,6 @@ args=(
 	'*::parameters:_strat_local_params'
 )
 
-_arguments $args
+# zsh-ism: we want it to expand here
+# shellcheck disable=SC2128,SC2086
+_arguments ${args}

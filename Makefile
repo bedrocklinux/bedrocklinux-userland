@@ -612,9 +612,15 @@ format:
 	#
 	# style shell scripts
 	for file in $$(find src/ -type f); do \
-		if grep -q '^#!.*sh$$' "$$file"; then \
+		if head -n1 "$$file" | grep -q '^#!.*busybox sh$$'; then \
 			shfmt -p -w "$$file"; \
-		fi \
+		fi; \
+		if head -n1 "$$file" | grep -q '^#!.*bash$$'; then \
+			shfmt -ln bash -w "$$file"; \
+		fi; \
+		if head -n1 "$$file" | grep -q -e '^#!.*zsh$$' -e '^#compdef' "$$file"; then \
+			shfmt -ln bash -w "$$file"; \
+		fi; \
 	done
 	# style C code
 	for file in $$(find src/ -type f -name "*.[ch]"); do \
@@ -670,10 +676,24 @@ check:
 	#   with busybox.
 	# - SC1090: Can't follow dynamic sources.  That's fine, we know where
 	#   they are and are including them in the list to be checked.
-	shellcheck -x -s sh --exclude="SC1008,SC2059,SC2039,SC1090" $$(for file in $$(find src/ -type f); do if grep -q '^#!.*sh$$' "$$file"; then echo "$$file"; fi; done)
+	for file in $$(find src/ -type f); do \
+		if head -n1 "$$file" | grep -q '^#!.*busybox sh$$'; then \
+			echo "checking shell file $$file"; \
+			shellcheck -x -s sh --exclude="SC1008,SC2059,SC2039,SC1090" "$$file" || exit 1; \
+			! cat "$$file" | shfmt -p -d | grep '.' || exit 1; \
+		elif head -n1 "$$file" | grep -q '^#!.*bash$$'; then \
+			echo "checking bash file $$file"; \
+			shellcheck -x -s bash --exclude="SC1008,SC2059,SC2039,SC1090" "$$file" || exit 1; \
+			! cat "$$file" | shfmt -ln bash -d | grep '.' || exit 1; \
+		elif head -n1 "$$file" | grep -q -e '^#!.*zsh$$' -e '^#compdef' "$$file"; then \
+			echo "checking zsh file $$file"; \
+			shellcheck -x -s bash --exclude="SC1008,SC2059,SC2039,SC1090" "$$file" || exit 1; \
+			! cat "$$file" | shfmt -ln bash -d | grep '.' || exit 1; \
+		fi; \
+	done
 	# check against cppcheck
 	for file in $$(find src/ -type f -name "*.[ch]"); do \
-		cppcheck --error-exitcode=1 "$$file"; \
+		cppcheck --error-exitcode=1 "$$file" || exit 1; \
 	done
 	# check against various compiler warnings
 	for compiler in clang gcc tcc; do \
@@ -681,13 +701,6 @@ check:
 			$(MAKE) -C "$${dir%Makefile}" clean || exit 1; \
 			$(MAKE) -C "$${dir%Makefile}" CC=$$compiler CFLAGS="$(WERROR_FLAGS)" || exit 1; \
 		done \
-	done
-	# check shell scripts formatting
-	for file in $$(find src/ -type f); do \
-		if grep -q '^#!.*sh$$' "$$file"; then \
-			echo "checking formatting of $$file"; \
-			! cat "$$file" | shfmt -p -d | grep '.' || exit 1; \
-		fi \
 	done
 	# check C code formatting
 	for file in $$(find src/ -type f -name "*.[ch]"); do \

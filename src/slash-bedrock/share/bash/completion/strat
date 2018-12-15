@@ -9,8 +9,7 @@
 # Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
 #
 
-_strat()
-{
+_strat() {
 	cur=${COMP_WORDS[COMP_CWORD]}
 
 	# stages:
@@ -24,57 +23,54 @@ _strat()
 	saw_arg0_arg=0
 	saw_stratum=0
 	saw_command=0
-	for (( i=1; i < COMP_CWORD; i++ )); do
+	for ((i = 1; i < COMP_CWORD; i++)); do
 		case "${COMP_WORDS[i]}" in
-		"-h"|"--help")
-			saw_help=$i;;
-		"-l"|"--local")
-			saw_local=$i;;
-		"-a"|"--arg0")
-			saw_arg0=$i
-			[[ "$COMP_CWORD" -gt $((i+1)) ]] && saw_arg0_arg=$((++i));;
+		"-h" | "--help")
+			saw_help=${i}
+			;;
+		"-l" | "--local")
+			saw_local=${i}
+			;;
+		"-a" | "--arg0")
+			saw_arg0=${i}
+			[[ "${COMP_CWORD}" -gt $((i + 1)) ]] && saw_arg0_arg=$((++i))
+			;;
 		*)
-			if [[ "$saw_stratum" -eq 0 ]]
-			then
-				saw_stratum=$i
+			if [[ "${saw_stratum}" -eq 0 ]]; then
+				saw_stratum=${i}
 			else
-				saw_command=$i
+				saw_command=${i}
 				break
 			fi
+			;;
 		esac
 	done
 
 	opts=""
 
-	if [[ "$saw_arg0" -gt 0 ]] && [[ "$saw_arg0_arg" -eq 0 ]]
-	then
+	if [[ "${saw_arg0}" -gt 0 ]] && [[ "${saw_arg0_arg}" -eq 0 ]]; then
 		# no completion for arg0
 		return
-	elif [[ "$saw_stratum" -eq 0 ]]
-	then
-		opts="$opts $(/bedrock/bin/brl list)"
-		[ "$saw_help" -eq 0 ] && opts="$opts -h --help"
-		[ "$saw_local" -eq 0 ] && opts="$opts -l --local"
-		[ "$saw_arg0" -eq 0 ] && opts="$opts -a --arg0"
-	elif [[ "$saw_command" -eq 0 ]]
-	then
+	elif [[ "${saw_stratum}" -eq 0 ]]; then
+		opts="${opts} $(/bedrock/bin/brl list)"
+		[ "${saw_help}" -eq 0 ] && opts="${opts} -h --help"
+		[ "${saw_local}" -eq 0 ] && opts="${opts} -l --local"
+		[ "${saw_arg0}" -eq 0 ] && opts="${opts} -a --arg0"
+	elif [[ "${saw_command}" -eq 0 ]]; then
 		prefix="/bedrock/strata/${COMP_WORDS[saw_stratum]}"
-		for dir in ${PATH//:/ }
-		do
-			if ! echo "$dir" | grep -q "^/bedrock/cross/"; then
-				opts="$opts $(/bedrock/libexec/busybox ls -1 "$prefix$dir" 2>/dev/null)"
+		for dir in ${PATH//:/ }; do
+			if ! echo "${dir}" | grep -q "^/bedrock/cross/"; then
+				opts="${opts} $(/bedrock/libexec/busybox ls -1 "${prefix}${dir}" 2>/dev/null)"
 			fi
 		done
 	else
-		_command_offset "$saw_command"
+		_command_offset "${saw_command}"
 		return
 	fi
 
-	# Most of the code base is busybox shell, and thus shellcheck is
-	# configured to assume that is the case.  It does not know this file is
-	# bash.
+	# Explicitly desire splitting here.
 	# shellcheck disable=SC2207
-	COMPREPLY=($(compgen -W "$opts" -- "$cur"))
+	COMPREPLY=($(compgen -W "${opts}" -- "${cur}"))
 }
 
 complete -F _strat strat
