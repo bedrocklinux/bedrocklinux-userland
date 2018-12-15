@@ -411,6 +411,32 @@ enforce_symlinks() {
 	done
 }
 
+enforce_shells() {
+	for stratum in $(/bedrock/bin/brl list); do
+		root="$(stratum_root --empty "${stratum}")"
+		shells="/proc/1/root${root}/etc/shells"
+		if [ -r "${shells}" ]; then
+			cat "/proc/1/root/${root}/etc/shells"
+		fi
+	done | awk -F/ '/^\// {print "/bedrock/cross/bin/"$NF}' |
+		sort | uniq >/bedrock/run/shells
+
+	for stratum in $(/bedrock/bin/brl list); do
+		root="$(stratum_root --empty "${stratum}")"
+		shells="/proc/1/root${root}/etc/shells"
+		if ! [ -r "${shells}" ] || [ "$(awk '/^\/bedrock\/cross\/bin\//' "${shells}")" != "$(cat /bedrock/run/shells)" ]; then
+			(
+				if [ -r "${shells}" ]; then
+					cat "${shells}"
+				fi
+				cat /bedrock/run/shells
+			) | sort | uniq >"${shells}-"
+			mv "${shells}-" "${shells}"
+		fi
+	done
+	rm -f /bedrock/run/shells
+}
+
 # Run executable in /bedrock/libexec with init stratum.
 #
 # Requires the init stratum to be enabled, which is typically true in a

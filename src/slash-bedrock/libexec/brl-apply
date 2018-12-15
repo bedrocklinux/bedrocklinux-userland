@@ -165,8 +165,6 @@ for stratum in $(list_strata); do
 	cfg_etcfs "/proc/1/root$root/etc"
 done
 
-cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
-
 if [ -w /sys/module/firmware_class/parameters/path ] && [ -d /bedrock/cross/firmware ]; then
 	printf "/bedrock/cross/firmware" >/sys/module/firmware_class/parameters/path
 fi
@@ -179,5 +177,46 @@ for stratum in $(/bedrock/bin/brl list -ei); do
 		mv "${seconfig}-" "${seconfig}"
 	fi
 done
+
+need_shell_change=false
+while read -r line; do
+	shell="$(echo "${line}" | awk -F":" '{print$7}')"
+	subline="$(echo "${line}" | awk -F":" -vOFS=":" '{$7="";print}')"
+	name="$(basename "${shell}")"
+	crosspath="/bedrock/cross/bin/$(basename "${shell}")"
+
+	if echo "${shell}" | grep -q '^/bedrock/cross/'; then
+		true
+	elif ! [ -x "${crosspath}" ]; then
+		true
+	else
+		need_shell_change=true
+		break
+	fi
+done </etc/passwd
+if "${need_shell_change}"; then
+	cp -a /etc/passwd /etc/passwd-
+	while read -r line; do
+		shell="$(echo "${line}" | awk -F":" '{print$7}')"
+		subline="$(echo "${line}" | awk -F":" -vOFS=":" '{$7="";print}')"
+		name="$(basename "${shell}")"
+		crosspath="/bedrock/cross/bin/$(basename "${shell}")"
+
+		if echo "${shell}" | grep -q '^/bedrock/cross/'; then
+			echo "${line}"
+		elif ! [ -x "${crosspath}" ]; then
+			echo "${line}"
+		else
+			echo "${subline}/bedrock/cross/bin/${name}"
+		fi
+	done </etc/passwd >/etc/passwd-
+	if [ "$(cat /etc/passwd)" != "$(cat /etc/passwd-)" ] &&
+		[ "$(wc -l /etc/passwd | cut -d' ' -f1)" = "$(wc -l /etc/passwd- | cut -d' ' -f1)" ]; then
+		mv /etc/passwd- /etc/passwd
+		enforce_shells
+	else
+		rm /etc/passwd-
+	fi
+fi
 
 exit_success

@@ -81,6 +81,8 @@ enable_stratum() {
 
 	stinit busybox touch "/bedrock/strata/bedrock/bedrock/run/enabled_strata/${1}"
 
+	enforce_shells
+
 	cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
 
 }
