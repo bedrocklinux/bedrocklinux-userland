@@ -24,8 +24,10 @@ up the information yourself and providing it via flags.
 
 Operations:
   ${color_sub}<none>                  ${color_term}fetch ${color_sub}[distros]
-  ${color_cmd}-L${color_norm},${color_cmd} --list              ${color_norm}list distros regularly tested against \`${color_cmd}brl fetch${color_norm}\`
-  ${color_cmd}-X${color_norm},${color_cmd} --experimental      ${color_norm}list distros with limited \`${color_cmd}brl fetch${color_norm}\` testing
+  ${color_cmd}-L${color_norm},${color_cmd} --list              ${color_norm}list distros ${color_cmd}brl fetch${color_norm} knows how to fetch
+                          ${color_norm}these are regularly tested and supported
+  ${color_cmd}-X${color_norm},${color_cmd} --experimental      ${color_norm}list distros ${color_cmd}brl fetch${color_norm} might be able to fetch
+                          ${color_norm}these are unsupported and may break
   ${color_cmd}-R${color_norm},${color_cmd} --releases          ${color_norm}list releases ${color_sub}[distros]${color_norm} provide
 
 Fetch flags:
