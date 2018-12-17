@@ -44,18 +44,20 @@ if ! is_stratum_or_alias "${stratum}"; then
 elif is_stratum_or_alias "${new_name}"; then
 	abort "Pre-existing stratum or alias found called \"${new_name}\".  Remove with \`brl remove ${stratum}\` first."
 elif [ "${stratum}" = "init" ]; then
-	abort "Removing init alias is disallowed."
+	abort "Renaming init alias is disallowed."
 elif is_bedrock "${stratum}"; then
 	abort "Renaming bedrock stratum is disallowed."
 elif is_init "${stratum}"; then
 	abort "Renaming init-providing stratum is disallowed."
-elif is_enabled "${stratum}"; then
+elif is_stratum "${stratum}" && is_enabled "${stratum}"; then
 	abort "\"${stratum}\" is enabled.  Disable with \`brl disable ${stratum}\` first."
 fi
 
 ensure_legal_stratum_name "${new_name}"
 
-disable_stratum "${stratum}"
+if is_stratum "${stratum}"; then
+	disable_stratum "${stratum}"
+fi
 mv "/bedrock/strata/${stratum}" "/bedrock/strata/${new_name}"
 
 exit_success
