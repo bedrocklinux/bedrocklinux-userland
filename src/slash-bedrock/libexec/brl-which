@@ -75,6 +75,10 @@ which_file() {
 			printf "${color_strat}"
 			get_attr "${1}" "stratum"
 			printf "${color_norm}"
+		elif realpath "${1}" | grep -q '^/bedrock/strata/.'; then
+			printf "${color_strat}"
+			realpath "${1}" | cut -d/ -f4
+			printf "${color_norm}"
 		elif [ "$(stat "${1}" 2>/dev/null | awk 'NR>1')" = "$(/bedrock/bin/strat bedrock /bedrock/libexec/busybox stat "${1}" 2>/dev/null | awk 'NR>1')" ]; then
 			printf "${color_strat}"
 			echo "global"
