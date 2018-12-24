@@ -73,6 +73,7 @@ enable_stratum() {
 
 	(
 		drop_lock
+		mkdir -p "/proc/1/root${root}/etc"
 		chroot "/proc/1/root${root}" /bedrock/libexec/etcfs -o allow_other "/etc"
 		cfg_etcfs "/proc/1/root${root}/etc"
 	)

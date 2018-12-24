@@ -96,6 +96,7 @@ ensure_mnt() {
 	# we share the subtree with Bedrock's mount.
 	if ! is_bedrock "${stratum}" && "${tgt_share}"; then
 		if ! stinit busybox mount --make-rshared "${br_root}${mnt}" 2>/dev/null; then
+			stinit busybox mkdir -p "${br_root}${mnt}"
 			stinit busybox mount --bind "${br_root}${mnt}" "${br_root}${mnt}"
 			stinit busybox mount --make-rshared "${br_root}${mnt}"
 		fi
@@ -139,6 +140,7 @@ repair_bedrock() {
 	ensure_mnt "${stratum}" "${mnt}" "fuse.etcfs" "false" "
 		(
 		drop_lock;
+		mkdir -p \"/proc/1/root${root}${mnt}\";
 		chroot \"/proc/1/root${root}\" /bedrock/libexec/etcfs -o allow_other \"${mnt}\";
 		cfg_etcfs \"/proc/1/root${root}${mnt}\";
 		)
@@ -161,6 +163,7 @@ repair_bedrock() {
 	ensure_mnt "${stratum}" "${mnt}" "fuse.crossfs" "false" "
 		(
 		drop_lock;
+		mkdir -p \"/proc/1/root${root}${mnt}\";
 		chroot \"/proc/1/root${root}\" /bedrock/libexec/crossfs -o allow_other \"${mnt}\";
 		)
 	"
@@ -196,6 +199,7 @@ repair_stratum() {
 	ensure_mnt "${stratum}" "${mnt}" "fuse.etcfs" "false" "
 		(
 		drop_lock;
+		mkdir -p \"/proc/1/root${root}${mnt}\";
 		chroot \"/proc/1/root${root}\" /bedrock/libexec/etcfs -o allow_other \"${mnt}\";
 		cfg_etcfs \"/proc/1/root${root}${mnt}\";
 		)
