@@ -154,17 +154,6 @@ if [ -r /etc/fstab ] && awk '$1$2$3$4$5$6 !~ "#" && $6 != "" && $6 != 0 {x=1} EN
 	' /etc/fstab >/etc/fstab-new && mv /etc/fstab-new /etc/fstab
 fi
 
-for stratum in $(list_strata); do
-	if ! is_enabled "$stratum"; then
-		continue
-	fi
-	root="$(stratum_root --empty "$stratum")"
-	if ! [ -w "/proc/1/root$root/etc/.bedrock-config-filesystem" ]; then
-		continue
-	fi
-	cfg_etcfs "/proc/1/root$root/etc"
-done
-
 if [ -w /sys/module/firmware_class/parameters/path ] && [ -d /bedrock/cross/firmware ]; then
 	printf "/bedrock/cross/firmware" >/sys/module/firmware_class/parameters/path
 fi
