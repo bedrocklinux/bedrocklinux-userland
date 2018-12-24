@@ -402,6 +402,13 @@ enforce_symlinks() {
 			# free to manipulate its files aggressively.
 			rm -rf "${proc_link}"
 			ln -s "${tgt}" "${proc_link}"
+		elif [ "${link}" = "/var/lib/dbus/machine-id" ]; then
+			# Both /var/lib/dbus/machine-id and the symlink target
+			# /etc/machine-id exist.  This occurs relatively often,
+			# such as when hand creating a stratum.  Rather than
+			# nag end-users, pick which to use ourselves.
+			rm -f "${proc_link}"
+			ln -s "${tgt}" "${proc_link}"
 		else
 			# A file exists both at the desired location and at the
 			# target location.  We do not know which of the two the
