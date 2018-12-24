@@ -242,19 +242,25 @@ const char *const filter_str[] = {
 };
 
 const char *const ini_exec_str[] = {
-	"TryExec=",
-	"ExecStart=",
-	"ExecStop=",
-	"ExecReload=",
 	"Exec=",
+	"ExecReload=",
+	"ExecStart=",
+	"ExecStartPost=",
+	"ExecStartPre=",
+	"ExecStop=",
+	"ExecStopPost=",
+	"TryExec=",
 };
 
 const size_t ini_exec_len[] = {
-	8,
-	10,
-	9,
-	11,
 	5,
+	11,
+	10,
+	14,
+	13,
+	9,
+	13,
+	8,
 };
 
 /*
