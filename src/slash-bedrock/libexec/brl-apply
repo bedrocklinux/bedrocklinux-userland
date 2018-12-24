@@ -40,23 +40,25 @@ ${color_norm}"
 handle_help "${@:-}"
 
 require_root
+
+if [ "${1:-}" != "--skip-repair" ]; then
+	# Repair strata to apply stratum-status changing configuration
+	/bedrock/libexec/brl-repair "bedrock"
+	/bedrock/libexec/brl-repair "init"
+	for stratum in $(list_strata); do
+		is_bedrock "${stratum}" && continue
+		is_init "${stratum}" && continue
+		is_enabled "${stratum}" || continue
+		/bedrock/libexec/brl-repair "${stratum}"
+	done
+fi
+
+# lock after brl-repair above, as it locks
 lock
 
 # Configure crossfs.  Items below reference crossfs, and so this should be done
 # early.
 cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
-
-# Configure etcfs for all enabled strata.
-for stratum in $(list_strata); do
-	if ! is_enabled "${stratum}"; then
-		continue
-	fi
-	root="$(stratum_root --empty "${stratum}")"
-	if ! [ -w "/proc/1/root${root}/etc/.bedrock-config-filesystem" ]; then
-		continue
-	fi
-	cfg_etcfs "/proc/1/root${root}/etc"
-done
 
 # Configure /sys
 if [ -w /sys/module/firmware_class/parameters/path ] && [ -d /bedrock/cross/firmware ]; then

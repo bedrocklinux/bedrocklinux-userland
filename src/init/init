@@ -354,7 +354,7 @@ for stratum in $(list_strata); do
 done
 
 step "Applying configuration"
-/bedrock/libexec/brl-apply
+/bedrock/libexec/brl-apply --skip-repair
 
 step "Handing control off to ${color_strat}${init_stratum}${color_glue}:${color_cmd}${init_cmd}${color_norm}"
 
