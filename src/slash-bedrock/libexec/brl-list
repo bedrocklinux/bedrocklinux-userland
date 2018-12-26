@@ -27,6 +27,7 @@ Options:
   ${color_cmd}-A${color_norm},${color_cmd} --all-aliases      ${color_norm}all ${color_term}aliases${color_norm}
   ${color_cmd}-r${color_norm},${color_cmd} --deref            ${color_norm}dereference ${color_term}aliases${color_norm}
   ${color_cmd}-i${color_norm},${color_cmd} --include-hidden   ${color_norm}include ${color_term}hidden strata${color_norm} in list
+                         may require pairing with ${color_cmd}-E${color_norm} or ${color_cmd}-a${color_norm}
   ${color_cmd}-v${color_norm},${color_cmd} --everything       ${color_norm}equivalent to ${color_cmd}-aAir
   ${color_cmd}-h${color_norm},${color_cmd} --help             ${color_norm}print this message
 
