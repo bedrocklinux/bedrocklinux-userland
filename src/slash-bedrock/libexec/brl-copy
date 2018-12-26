@@ -53,6 +53,9 @@ elif is_stratum_or_alias "${new_stratum}"; then
 	abort "Pre-existing stratum or alias found called \"${new_stratum}\".  Remove with \`brl remove ${new_stratum}\` first if you wish to change it."
 fi
 
+if is_stratum "${stratum}"; then
+	disable_stratum "${stratum}"
+fi
 cp -a "/bedrock/strata/${stratum}" "/bedrock/strata/${new_stratum}"
 
 for xattr in "show_boot" "show_cross" "show_init" "show_list"; do
