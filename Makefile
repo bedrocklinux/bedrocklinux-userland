@@ -120,7 +120,7 @@
 #
 #     make check
 
-VERSION=0.7.0
+VERSION=0.7.1
 CODENAME=Poki
 ARCH=$(shell uname -m)
 RELEASE=Bedrock Linux $(VERSION) $(CODENAME)
