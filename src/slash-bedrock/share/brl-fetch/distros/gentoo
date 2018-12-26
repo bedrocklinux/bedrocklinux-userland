@@ -113,6 +113,7 @@ fetch() {
 	mkdir -p "${target_dir}/etc/portage/repos.conf"
 	cp "${target_dir}/usr/share/portage/config/repos.conf" "${target_dir}/etc/portage/repos.conf/gentoo.conf"
 
+	localegen="$(cfg_value "locale" "localegen")"
 	if [ -n "${localegen:-}" ]; then
 		echo "### Added by Bedrock Linux when acquiring this stratum" >>"${target_dir}/etc/locale.gen"
 		echo "${localegen}" >>"${target_dir}/etc/locale.gen"
