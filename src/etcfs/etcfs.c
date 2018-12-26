@@ -105,8 +105,16 @@
  * The bulk of this program consists of filesystem calls which share a fair bit
  * of structure.
  */
+
+/*
+ * Set up permissions, rpath/ref_fd, override, and lock.
+ *
+ * Assumes path is populated.  If it is null, error out.
+ */
 #define FS_IMP_SETUP(path)                                                   \
-	const char *const rpath = (path && path[1]) ? path + 1 : ".";        \
+	if (path == NULL) {                                                  \
+		return -EINVAL;                                              \
+	}                                                                    \
 	if (SET_THREAD_EUID(0) < 0) {                                        \
 		return -EPERM;                                               \
 	}                                                                    \
@@ -114,6 +122,7 @@
 	if (ref_fd < 0) {                                                    \
 		return -EDOM;                                                \
 	}                                                                    \
+	const char *const rpath = (path && path[1]) ? path + 1 : ".";        \
 	if (apply_override(ref_fd, path, rpath) < 0) {                       \
 		return -ERANGE;                                              \
 	}                                                                    \
@@ -123,10 +132,34 @@
 	pthread_rwlock_rdlock(&cfg_lock);                                    \
 	int rv;
 
+/*
+ * Set up permissions and lock.
+ *
+ * If fd is -1, assume reference to CFG_NAME and skip operation.
+ */
+#define FS_IMP_SETUP_FD(fd)                                                  \
+	if (fd == -1) {                                                      \
+		return 0;                                                    \
+	}                                                                    \
+	if (SET_THREAD_EUID(0) < 0) {                                        \
+		return -EPERM;                                               \
+	}                                                                    \
+	if (set_caller_permissions() < 0) {                                  \
+		return -EPERM;                                               \
+	}                                                                    \
+	pthread_rwlock_rdlock(&cfg_lock);                                    \
+	int rv;
+
+/*
+ * Unlock and translate rv/errno from UNIX format to FUSE format.
+ */
 #define FS_IMP_RETURN(rv)                                                    \
 	pthread_rwlock_unlock(&cfg_lock);                                    \
 	return rv >= 0 ? rv : -errno
 
+/*
+ * Operation is disallowed on CFG_NAME.  Error out if requested.
+ */
 #define DISALLOW_ON_CFG(rpath)                                               \
 	if (strcmp(rpath, CFG_NAME) == 0) {                                  \
 		errno = EINVAL;                                              \
@@ -352,11 +385,6 @@ static int inject(int ref_dir, const char *rpath, const char *inject,
 	if (init_len == 0) {
 		close(fd);
 		return 0;
-	}
-
-	if (strcmp(rpath, "zsh/zprofile") == 0 && init_len > 0) {
-		char buf[init_len + 1];
-		read(fd, buf, init_len);
 	}
 
 	/*
@@ -885,6 +913,35 @@ static int cfg_read(char *buf, size_t size, off_t offset)
 	return rv;
 }
 
+static void *m_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
+{
+	(void)conn;
+
+	/*
+	 * Do not allow requests to be interrupted.
+	 */
+	cfg->intr = 0;
+
+	/*
+	 * Honor provided st_ino field in getattr() and fill_dir().
+	 */
+	cfg->use_ino = 1;
+
+	/*
+	 * Always populate path.
+	 */
+	cfg->nullpath_ok = 0;
+
+	/*
+	 * Pick up changes from lower filesystem immediately.
+	 */
+	cfg->entry_timeout = 0;
+	cfg->attr_timeout = 0;
+	cfg->negative_timeout = 0;
+
+	return NULL;
+}
+
 static int m_getattr(const char *path, struct stat *stbuf,
 	struct fuse_file_info *fi)
 {
@@ -932,6 +989,11 @@ static int m_readlink(const char *path, char *buf, size_t size)
 	FS_IMP_RETURN(rv);
 }
 
+/*
+ * Ideally we should track the DIR so we can closedir() it in m_releasedir().
+ * However, libfuse's expectation to do so require ugly casting.  For the time
+ * being, just close the DIR here and assume releasedir() succeeds.
+ */
 static int m_opendir(const char *path, struct fuse_file_info *fi)
 {
 	(void)fi;
@@ -1071,17 +1133,17 @@ static int m_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 	FS_IMP_RETURN(rv);
 }
 
+
+/*
+ * Ideally we should track the DIR in m_opendir() so we can closedir() here.
+ * However, libfuse's expectation to do so require ugly casting.  For the time
+ * being, just close the DIR in m_opendir() and assume this succeeds.
+ */
 static int m_releasedir(const char *path, struct fuse_file_info *fi)
 {
 	(void)fi;
 
-	FS_IMP_SETUP(path);
-	(void)ref_fd;
-	DISALLOW_ON_CFG(rpath);
-
-	rv = 0;
-
-	FS_IMP_RETURN(rv);
+	return 0;
 }
 
 static int m_mknod(const char *path, mode_t mode, dev_t rdev)
@@ -1152,10 +1214,11 @@ static int m_rmdir(const char *path)
 static int m_rename(const char *from, const char *to, unsigned int flags)
 {
 	FS_IMP_SETUP(from);
-	from = (from && from[1]) ? from + 1 : ".";
+	from = rpath;
+	DISALLOW_ON_CFG(from);
+
 	int to_ref_fd = get_ref_fd(to);
 	to = (to && to[1]) ? to + 1 : ".";
-	DISALLOW_ON_CFG(from);
 	DISALLOW_ON_CFG(to);
 
 	char buf[PATH_MAX];
@@ -1306,10 +1369,11 @@ clean_up_and_return:
 static int m_link(const char *from, const char *to)
 {
 	FS_IMP_SETUP(from);
-	from = (from && from[1]) ? from + 1 : ".";
+	from = rpath;
+	DISALLOW_ON_CFG(from);
+
 	int to_ref_fd = get_ref_fd(to);
 	to = (to && to[1]) ? to + 1 : ".";
-	DISALLOW_ON_CFG(from);
 	DISALLOW_ON_CFG(to);
 
 	rv = linkat(ref_fd, from, to_ref_fd, to, 0);
@@ -1395,6 +1459,7 @@ static int m_open(const char *path, struct fuse_file_info *fi)
 
 	if (strcmp(rpath, CFG_NAME) == 0) {
 		struct fuse_context *context = fuse_get_context();
+		fi->fh = -1;
 		if (context->uid != 0) {
 			rv = -1;
 			errno = EACCES;
@@ -1405,9 +1470,10 @@ static int m_open(const char *path, struct fuse_file_info *fi)
 		int fd = openat(ref_fd, rpath, fi->flags);
 		if (fd < 0) {
 			rv = -1;
+			fi->fh = -1;
 		} else {
 			rv = 0;
-			close(fd);
+			fi->fh = fd;
 		}
 	}
 
@@ -1512,31 +1578,9 @@ static int m_statfs(const char *path, struct statvfs *stbuf)
  */
 static int m_flush(const char *path, struct fuse_file_info *fi)
 {
-	FS_IMP_SETUP(path);
+	FS_IMP_SETUP_FD(fi->fh);
 
-	int dupped_fd = dup(fi->fh);
-	if (dupped_fd < 0) {
-		/*
-		 * FUSE/libfuse translates file descriptors such that the one
-		 * we receive here is not the same number that was passed in by
-		 * the calling program.  Thus, libfuse *probably* takes
-		 * responsibility for handling bad file descriptors itself; we
-		 * should always get good ones.  Despite this, libfuse has been
-		 * seen passing invalid file descriptors here.
-		 *
-		 * For example, apt (or ldconfig?) has been straced and seen
-		 * opening "/etc/ld.so.cache" and getting fd=3.  When it later
-		 * tries to close(3), this function sees an incoming fd=0.
-		 * However, at that moment /proc/<etcfs-pid>/fd/0 did not
-		 * exist.  Both close(0) and dup(0) return EBADF.
-		 *
-		 * We have no way to handle this situation.  Just ignore it.
-		 * Return success to avoid confusing calling program.
-		 */
-		rv = 0;
-	} else {
-		rv = close(dupped_fd);
-	}
+	rv = close(dup(fi->fh));
 
 	FS_IMP_RETURN(rv);
 }
@@ -1546,23 +1590,9 @@ static int m_flush(const char *path, struct fuse_file_info *fi)
  */
 static int m_release(const char *path, struct fuse_file_info *fi)
 {
-	FS_IMP_SETUP(path);
+	FS_IMP_SETUP_FD(fi->fh);
 
 	rv = close(fi->fh);
-	if (rv < 0 && errno == EBADF) {
-		/*
-		 * FUSE/libfuse translates file descriptors such that the one
-		 * we receive here is not the same number that was passed in by
-		 * the calling program.  Thus, libfuse *probably* takes
-		 * responsibility for handling bad file descriptors itself; we
-		 * should always get good ones.  Despite this, libfuse has been
-		 * seen passing invalid file descriptors here.
-		 *
-		 * We have no way to handle this situation.  Just ignore it.
-		 * Return success to avoid confusing calling program.
-		 */
-		rv = 0;
-	}
 
 	FS_IMP_RETURN(rv);
 }
@@ -1573,30 +1603,12 @@ static int m_release(const char *path, struct fuse_file_info *fi)
  */
 static int m_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 {
-	FS_IMP_SETUP(path);
-	DISALLOW_ON_CFG(rpath);
+	FS_IMP_SETUP_FD(fi->fh);
 
 	if (datasync) {
 		rv = fdatasync(fi->fh);
 	} else {
 		rv = fsync(fi->fh);
-	}
-	/*
-	 * libfuse provides two examples on how to implement this function.
-	 *
-	 * - One example is effectively the same as the implementation above.
-	 *   However, sometimes the implementation above fails because fi->fh
-	 *   is not a valid file descriptor.
-	 *
-	 * - The other example is a stub which fails to do anything.  Per its
-	 *   comments, this is fine - this filesystem call is non-essential.
-	 *
-	 * We'll try our best above, but if that fails fall back to silently
-	 * continuing rather than unproductively interrupting the calling
-	 * program.
-	 */
-	if (rv < 0 && (errno == EINVAL || errno == EBADF)) {
-		rv = 0;
 	}
 
 	FS_IMP_RETURN(rv);
@@ -1799,24 +1811,14 @@ static int m_removexattr(const char *path, const char *name)
 	FS_IMP_RETURN(rv);
 }
 
-/*
- * Linux/FUSE/libfuse implement flock if we do not.
- * - Our attempt below is sometimes provided an invalid file descriptor even if
- *   calling process provides a valid one.  This may be a bug in libfuse.  This
- *   did not replicate when Linux/FUSE/libfuse handled it, and so let them do
- *   it until the bug is resolved.
- * - This will be slightly faster than us doing it ourselves.
- *
 static int m_flock(const char *path, struct fuse_file_info *fi, int op)
 {
-	FS_IMP_SETUP(path);
-	DISALLOW_ON_CFG(rpath);
+	FS_IMP_SETUP_FD(fi->fh);
 
 	rv = flock(fi->fh, op);
 
 	FS_IMP_RETURN(rv);
 }
- */
 
 /*
  * Implemented filesystem calls
@@ -1831,7 +1833,7 @@ static int m_flock(const char *path, struct fuse_file_info *fi, int op)
  *
  */
 static struct fuse_operations m_oper = {
-	/* .init = m_init, */
+	.init = m_init,
 	.getattr = m_getattr,
 	.access = m_access,
 	.readlink = m_readlink,
@@ -1865,12 +1867,7 @@ static struct fuse_operations m_oper = {
 	.listxattr = m_listxattr,
 	.removexattr = m_removexattr,
 	/* .lock = m_lock, TODO */
-	/*
-	 * Linux/FUSE/libfuse implement flock if we do not.
-	 * - This will be slight faster than us doing it ourselves.
-	 * - Our attempt ran into unusual behavior.
-	 * .flock = m_flock,
-	 */
+	.flock = m_flock,
 };
 
 int main(int argc, char *argv[])
