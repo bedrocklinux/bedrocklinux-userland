@@ -35,6 +35,7 @@ distro_arch_name() {
 }
 
 list_mirrors() {
+	arch="$(distro_arch_name)"
 	mirror_list_url='https://www.debian.org/mirror/list'
 	wget -O- "${mirror_list_url}" 2>/dev/null |
 		awk '/Primary Debian mirror sites/,/<\/div/' |
