@@ -230,6 +230,17 @@ hijack() {
 		mv /etc/fstab-new /etc/fstab
 	fi
 
+	if [ -r /boot/grub/grub.cfg ] && \
+		grep -q 'vt.handoff' /boot/grub/grub.cfg && \
+		grep -q 'splash' /boot/grub/grub.cfg && \
+		type grub-mkconfig >/dev/null 2>&1; then
+
+		notice "Configuring bootloader"
+		sed 's/splash//g' /etc/default/grub > /etc/default/grub-new
+		mv /etc/default/grub-new /etc/default/grub
+		grub-mkconfig -o /boot/grub/grub.cfg
+	fi
+
 	step "Finalizing"
 	touch "/bedrock/complete-hijack-install"
 	notice "Reboot to complete installation"
