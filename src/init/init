@@ -71,6 +71,13 @@ ensure_essential_environment() {
 		mkdir -p /dev
 		mknod -m 660 /dev/fuse c 10 229
 	fi
+
+	# Systemd seems confused when an initrd-systemd launches Bedrock's init
+	# which launches userland-systemd.  Kill /run/systemd to break the
+	# relationship so systemd thinks it is starting fresh.
+	if [ -d /run/systemd ]; then
+		rm -r /run/systemd
+	fi
 }
 
 complete_hijack() {
