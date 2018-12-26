@@ -365,7 +365,7 @@ static inline int procpath(const int fd, char *buf, size_t size)
 static int inject(int ref_dir, const char *rpath, const char *inject,
 	const size_t inject_len)
 {
-	int fd = openat(ref_dir, rpath, O_RDWR);
+	int fd = openat(ref_dir, rpath, O_RDWR | O_APPEND);
 	if (fd < 0) {
 		return -1;
 	}
@@ -410,10 +410,9 @@ static int inject(int ref_dir, const char *rpath, const char *inject,
 		munmap(content, init_len);
 	}
 
-	if (lseek(fd, init_len, SEEK_SET) < 0) {
-		close(fd);
-		return -1;
-	}
+	/*
+	 * File lacks what intended content.  Append content.
+	 */
 	if (write(fd, inject, inject_len) < 0) {
 		close(fd);
 		return -1;
