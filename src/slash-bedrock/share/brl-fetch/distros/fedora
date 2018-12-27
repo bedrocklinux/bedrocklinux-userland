@@ -76,7 +76,7 @@ bootstrap_deps() {
 }
 
 fetch() {
-	step_init 12
+	step_init 13
 
 	if [ -z "${target_dir:-}" ]; then
 		fetch_abort "Essential variable not set"
