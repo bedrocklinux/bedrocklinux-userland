@@ -78,6 +78,16 @@ ensure_essential_environment() {
 	if [ -d /run/systemd ]; then
 		rm -r /run/systemd
 	fi
+
+	# Some networking software make /etc/resolv.conf into a symlink.  Other
+	# networking software seems confused by this.  This can cause problems
+	# when switching init-providing strata (and thus their networking
+	# stacks) during a reboot.  To avoid this, remove /etc/resolv.conf
+	# symlinks here.  Network software should re-recreate this file as
+	# needed.
+	if [ -h /etc/resolv.conf ]; then
+		rm /etc/resolv.conf
+	fi
 }
 
 complete_hijack() {
