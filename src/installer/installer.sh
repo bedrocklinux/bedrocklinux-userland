@@ -70,7 +70,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		abort "Warning not copied exactly."
 	fi
 
-	release="$(extract_tarball | tar xO bedrock/etc/bedrock-release)"
+	release="$(extract_tarball | tar xOf - bedrock/etc/bedrock-release)"
 	print_logo "${release}"
 
 	step_init 6
@@ -96,7 +96,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	fi
 
 	bb="/true"
-	if ! extract_tarball | tar xO bedrock/libexec/busybox >"${bb}"; then
+	if ! extract_tarball | tar xOf - bedrock/libexec/busybox >"${bb}"; then
 		rm -f "${bb}"
 		abort "Unable to write to root filesystem.  Read-only root filesystems are not supported."
 	fi
@@ -109,8 +109,8 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 
 	setf="/bedrock-linux-installer-$$-setfattr"
 	getf="/bedrock-linux-installer-$$-getfattr"
-	extract_tarball | tar xO bedrock/libexec/setfattr >"${setf}"
-	extract_tarball | tar xO bedrock/libexec/getfattr >"${getf}"
+	extract_tarball | tar xOf - bedrock/libexec/setfattr >"${setf}"
+	extract_tarball | tar xOf - bedrock/libexec/getfattr >"${getf}"
 	chmod +x "${setf}"
 	chmod +x "${getf}"
 	if ! "${setf}" -n 'user.bedrock.test' -v 'x' "${getf}"; then
@@ -208,7 +208,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		cd /
 		tar xf -
 	)
-	extract_tarball | tar t | grep -v bedrock.conf | sort >/bedrock/var/bedrock-files
+	extract_tarball | tar tf - | grep -v bedrock.conf | sort >/bedrock/var/bedrock-files
 
 	step "Configuring"
 
@@ -286,7 +286,7 @@ update() {
 
 	step "Determining version change"
 	current_version="$(awk '{print$3}' </bedrock/etc/bedrock-release)"
-	new_release="$(extract_tarball | tar xO bedrock/etc/bedrock-release)"
+	new_release="$(extract_tarball | tar xOf - bedrock/etc/bedrock-release)"
 	new_version="$(echo "${new_release}" | awk '{print$3}')"
 
 	if ! ${force} && ! ver_cmp_first_newer "${new_version}" "${current_version}"; then
@@ -319,7 +319,7 @@ update() {
 
 	step "Removing unneeded files"
 	# Remove previously installed files not part of this release
-	extract_tarball | tar t | grep -v bedrock.conf | sort >/bedrock/var/bedrock-files-new
+	extract_tarball | tar tf - | grep -v bedrock.conf | sort >/bedrock/var/bedrock-files-new
 	diff -d /bedrock/var/bedrock-files-new /bedrock/var/bedrock-files | grep '^>' | cut -d' ' -f2- | tac | while read -r file; do
 		if echo "${file}" | grep '/$'; then
 			/bedrock/bin/strat bedrock /bedrock/libexec/busybox rmdir "/${file}" 2>/dev/null || true
