@@ -26,10 +26,10 @@ print_logo() {
 	#
 	# shellcheck disable=SC1117
 	cat <<EOF
-__          __             __      
-\ \_________\ \____________\ \___  
- \  _ \  _\ _  \  _\ __ \ __\   /  
-  \___/\__/\__/ \_\ \___/\__/\_\_\ 
+__          __             __
+\ \_________\ \____________\ \___
+ \  _ \  _\ _  \  _\ __ \ __\   /
+  \___/\__/\__/ \_\ \___/\__/\_\_\
 EOF
 	if [ -n "${1:-}" ]; then
 		printf "%35s\\n" "${1}"
@@ -195,9 +195,23 @@ min_args() {
 }
 
 # Aborts if not running as root.
+## KREYREN: Replaced with KULUS codeblock -> Avoids fatal if root is required
 require_root() {
-	if ! [ "$(id -u)" -eq "0" ]; then
-		abort "Operation requires root."
+		if [[ $UID == 0 ]]; then
+			echo "something" 2&> /dev/null
+			#No need to bother with "wow you are roooot!!"
+
+			elif [[ -x "$(command -v sudo)" ]]; then
+				echo -e "Failed to aquire root permission, trying using sudo."
+				sudo $0 "$@"
+				exit 1
+
+				#TODO: Add sudo alternatives
+
+			elif [[ ! -x "$(command -v sudo)" ]]; then
+				echo -e "Failed to aquire root permission, trying using 'su -c command'."
+				su -c "$0 $@"
+				exit 1
 	fi
 }
 
