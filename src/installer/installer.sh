@@ -19,7 +19,7 @@ Install or update a Bedrock Linux system.
 
 Operations:
   ${color_cmd}--hijack ${color_sub}[name]       ${color_norm}convert current installation to Bedrock Linux.
-                        ${color_alert}this operation is not intended to be reversible!
+                        ${color_priority}this operation is not intended to be reversible!${color_norm}
                         ${color_norm}optionally specify initial ${color_term}stratum${color_norm} name.
   ${color_cmd}--update              ${color_norm}update current Bedrock Linux system.
   ${color_cmd}--force-update        ${color_norm}update current system, ignoring warnings.
@@ -58,6 +58,20 @@ extract_tarball() {
 hijack() {
 	release="$(extract_tarball | tar xO bedrock/etc/bedrock-release)"
 	print_logo "${release}"
+
+	printf "\
+${color_priority}* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *${color_norm}
+${color_priority}*${color_alert} YOU ARE ABOUT TO CONVERT YOUR EXISTING LINUX INSTALL INTO A   ${color_priority}*${color_norm}
+${color_priority}*${color_alert} BEDROCK LINUX INSTALL! THIS IS NOT INTENDED TO BE REVERSIBLE! ${color_priority}*${color_norm}
+${color_priority}* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *${color_norm}
+
+Please type \"Not reversible!\" without quotes at the prompt to continue:
+> "
+	read -r line
+	echo ""
+	if [ "${line}" != "Not reversible!" ]; then
+		abort "Warning not copied exactly."
+	fi
 
 	step_init 6
 

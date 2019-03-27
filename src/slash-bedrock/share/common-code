@@ -1120,22 +1120,23 @@ elif [ -r /bedrock/etc/bedrock.conf ] &&
 fi
 
 if "${brl_color}"; then
-	export color_alert='\033[0;31m'          # red
-	export color_warn='\033[0;93m'           # bright yellow
-	export color_okay='\033[0;32m'           # green
-	export color_strat='\033[0;36m'          # cyan
-	export color_disabled_strat='\033[0;34m' # bold blue
-	export color_alias='\033[0;93m'          # bright yellow
-	export color_sub='\033[0;93m'            # bright yellow
-	export color_file='\033[0;32m'           # green
-	export color_cmd='\033[0;32m'            # green
-	export color_rcmd='\033[0;31m'           # red
-	export color_bedrock='\033[0;32m'        # green
-	export color_logo='\033[1;37m'           # bold white
-	export color_glue='\033[1;37m'           # bold white
-	export color_link='\033[0;94m'           # bright blue
-	export color_term='\033[0;35m'           # magenta
-	export color_misc='\033[0;32m'           # green
+	export color_alert='\033[0;91m'             # light red
+	export color_priority='\033[1;37m\033[101m' # white on red
+	export color_warn='\033[0;93m'              # bright yellow
+	export color_okay='\033[0;32m'              # green
+	export color_strat='\033[0;36m'             # cyan
+	export color_disabled_strat='\033[0;34m'    # bold blue
+	export color_alias='\033[0;93m'             # bright yellow
+	export color_sub='\033[0;93m'               # bright yellow
+	export color_file='\033[0;32m'              # green
+	export color_cmd='\033[0;32m'               # green
+	export color_rcmd='\033[0;31m'              # red
+	export color_bedrock='\033[0;32m'           # green
+	export color_logo='\033[1;37m'              # bold white
+	export color_glue='\033[1;37m'              # bold white
+	export color_link='\033[0;94m'              # bright blue
+	export color_term='\033[0;35m'              # magenta
+	export color_misc='\033[0;32m'              # green
 	export color_norm='\033[0m'
 else
 	export color_alert=''
