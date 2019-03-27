@@ -183,6 +183,7 @@ int restrict_env(void)
 	err |= restrict_envvar("MANPATH");
 	err |= restrict_envvar("INFOPATH");
 	err |= restrict_envvar("XDG_DATA_DIRS");
+	err |= setenv("SHELL", "/bin/sh", 1);
 	/*
 	 * While an argument could be made to restrict TERMINFO_DIRS, it is
 	 * more likely in practice to confuse users than help.
