@@ -132,6 +132,9 @@ fetch() {
 	if ! grep -q '^man:' /etc/group; then
 		addgroup -S man
 	fi
+	if ! grep -q '^staff:' /etc/group; then
+		addgroup -S staff
+	fi
 	if ! grep -q '^_apt:' /etc/passwd; then
 		adduser -h /nonexistent -s /bin/false -G nogroup -S -D -H _apt
 	fi
