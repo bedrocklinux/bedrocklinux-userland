@@ -128,6 +128,11 @@
 #define LPATH_XATTR "user.bedrock.localpath"
 #define LPATH_XATTR_LEN strlen(LPATH_XATTR)
 
+#define RESTRICT_XATTR "user.bedrock.restrict"
+#define RESTRICT_XATTR_LEN strlen(RESTRICT_XATTR)
+#define RESTRICT "restrict"
+#define RESTRICT_LEN strlen(RESTRICT)
+
 /*
  * Crossfs may be configured to present a file without being explicitly
  * configured to also present its parent directory.  It will dynamically create
@@ -214,6 +219,10 @@ enum filter {
 	 */
 	FILTER_BIN,
 	/*
+	 * Files are expected to be executables.  Return BOUNCER_PATH with restrict set.
+	 */
+	FILTER_BIN_RESTRICT,
+	/*
 	 * Files are expected to be in ini-format.
 	 *
 	 * Wrap [Try]Exec[Start|Stop|Reload]= ini key-value pairs with strat.
@@ -236,6 +245,7 @@ enum filter {
 
 const char *const filter_str[] = {
 	"bin",
+	"bin-restrict",
 	"ini",
 	"font",
 	"pass",
@@ -1349,6 +1359,7 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 
 	switch (cfg->filter) {
 	case FILTER_BIN:
+	case FILTER_BIN_RESTRICT:
 		if (!S_ISDIR(stbuf->st_mode)) {
 			stbuf->st_size = bouncer_size;
 			/*
@@ -1601,7 +1612,9 @@ static int m_open(const char *ipath, struct fuse_file_info *fi)
 		 * anything sensitive.  Bouncer is world-readable anyways at
 		 * BOUNCER_PATH.
 		 */
-		if (cfg->filter == FILTER_BIN && ((fi->flags & 3) == O_RDONLY)
+		if ((cfg->filter == FILTER_BIN
+				|| cfg->filter == FILTER_BIN_RESTRICT)
+			&& ((fi->flags & 3) == O_RDONLY)
 			&& fd < 0 && errno == EACCES) {
 			rv = 0;
 		} else if (fd < 0) {
@@ -1659,6 +1672,7 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 
 	switch (cfg->filter) {
 	case FILTER_BIN:
+	case FILTER_BIN_RESTRICT:
 		;
 		int fd = fchroot_open(init_root_fd, BOUNCER_PATH, O_RDONLY);
 		if (fd < 0) {
@@ -1916,6 +1930,12 @@ static int m_getxattr(const char *ipath, const char *name, char *value,
 				target = bpath;
 				target_len = strlen(bpath);
 			}
+		} else if (pstrcmp(name, name_len, RESTRICT_XATTR,
+				RESTRICT_XATTR_LEN) == 0 &&
+			cfg->filter == FILTER_BIN_RESTRICT) {
+			rv = 0;
+			target = RESTRICT;
+			target_len = RESTRICT_LEN;
 		} else {
 			rv = -ENOTSUP;
 		}

@@ -54,18 +54,50 @@ int main(int argc, char *argv[])
 	}
 	target_path[len] = '\0';
 
+	/*
+	 * Do we want to restrict the process to its own stratum?
+	 */
+	int restrict_flag = 0;
+	char target_restrict[PATH_MAX];
+	len = getxattr("/proc/self/exe", "user.bedrock.restrict",
+		target_restrict, sizeof(target_restrict) - 1);
+	if (len >= 0) {
+		restrict_flag = 1;
+	}
+
 	char *strat = "/bedrock/bin/strat";
-	char *new_argv[argc + 4];
+	/*
+	 * Example:
+	 *
+	 * incoming: apt install foo bar baz -- (argc does not count NULL)
+	 *            \   \      \   \   \___________________________________________________
+	 *             \   \      \   \___________________________________________________   \
+	 *              \   \      \___________________________________________________   \   \
+	 *               \   \__________________________________________________       \   \   \
+	 *                \___________________                                  \       \   \   \
+	 *                                    \                                  \       \   \   \
+	 * outgoing: /bedrock/bin/strat --arg0 apt --restrict debian /usr/bin/apt install foo bar baz NULL
+	 *           /bedrock/bin/strat --arg0 apt --restrict debian /usr/bin/apt install foo bar baz NULL
+	 *            \                  \          \          \      \                                \
+	 *             \- 1               \- 2       \- 3       \- 4   \- 5                             \- 6
+	 *
+	 * Potentially need 6 more than argc.
+	 */
+	char *new_argv[argc + 6];
 
 	new_argv[0] = strat;
 	new_argv[1] = "--arg0";
 	new_argv[2] = argv[0];
-	new_argv[3] = target_stratum;
-	new_argv[4] = target_path;
-	for (int i = 1; i < argc; i++) {
-		new_argv[i + 4] = argv[i];
+	if (restrict_flag) {
+		new_argv[3] = "--restrict";
 	}
-	new_argv[argc + 4] = NULL;
+	new_argv[3 + restrict_flag] = target_stratum;
+	new_argv[4 + restrict_flag] = target_path;
+	/* start at 1 to skip argv[0] which was already consumed above */
+	for (int i = 1; i < argc; i++) {
+		new_argv[i + 4 + restrict_flag] = argv[i];
+	}
+	new_argv[argc + 4 + restrict_flag] = NULL;
 
 	execv(strat, new_argv);
 

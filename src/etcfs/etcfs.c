@@ -826,7 +826,7 @@ static int cfg_add_override(const char *const buf, size_t size)
 	overrides[override_cnt].content_len = strlen(content);
 	overrides[override_cnt].inject = inject;
 	overrides[override_cnt].inject_len = inject_len;
-	overrides[override_cnt].time = 0;
+	overrides[override_cnt].last_override = 0;
 	override_cnt++;
 
 	cfg_stat.st_size += strlen("override ") + strlen(o_type_str[type]) +
