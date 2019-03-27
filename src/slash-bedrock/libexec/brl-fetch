@@ -278,8 +278,13 @@ pick_mirror() {
 		}
 	' | progress_bar "${count}" >&2
 
-	cat "${mirror_file}"
-	rm "${mirror_file}"
+	if [ -r "${mirror_file}" ] && [ -n "$(cat "${mirror_file}")" ]; then
+		cat "${mirror_file}"
+		rm "${mirror_file}"
+		return
+	else
+		abort "Unable to automatically find a valid mirror.  Manually specify mirror with \`--mirror\`."
+	fi
 }
 
 # Filters out everything from stdin except hyperlinks found in href="...".
@@ -306,6 +311,9 @@ find_link() {
 	printf "Looking for file matching: ${color_file}${regex}${color_norm}\\n" >&2
 	printf "at: ${color_link}${index}${color_norm}\\n" >&2
 	path="$(wget -O- "${index}" 2>/dev/null | list_links | grep -- "${regex}" | head -n1)"
+	if ! echo "${path}" | grep -q '[^[:space:]]'; then
+		echo "Unable to find file.  Try manually specifying a known good mirror with \`--mirror\`."
+	fi
 	printf "found: ${color_file}${path}${color_norm}\\n" >&2
 
 	if [ "${path}" != "" ]; then
