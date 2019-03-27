@@ -1,3 +1,18 @@
+# 0.7.2
+
+- Made `makepkg` and similar programs restricted by default via new
+  `[cross-bin-restrict]` configuration.
+- Add snap and flatpak items to bedrock.conf
+- Added delay between etcfs overrides, which fixes `xbps-install` updating
+  etcfs-override files such as /etc/environment.
+- Added confirmation prompt to installer when hijacking.
+- Added sanity checks to installer for WSL and LVM global directories.
+- `strat` now sets SHELL=/bin/sh when restricted, as crossfs SHELL entries do
+  not work when restricted.
+- Improved various error messages.
+- Added experimental brl-fetch support for Clear Linux, Slackware, and Solus.
+- Various minor fixes.
+
 # 0.7.1
 
 - Fixed various issues with init/initrd system for some distros.

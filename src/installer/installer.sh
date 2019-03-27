@@ -370,6 +370,11 @@ update() {
 		notice "Made ${color_cmd}brl status${color_norm} more robust.  Many strata may now report as broken.  Reboot to remedy."
 	fi
 
+	if ver_cmp_first_newer "0.7.2" "${current_version}"; then
+		new_etcfs=true
+		new_crossfs=true
+	fi
+
 	if "${new_crossfs}"; then
 		notice "Updated crossfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
 	fi
