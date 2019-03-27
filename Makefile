@@ -557,6 +557,9 @@ build/userland.tar: \
 	chmod 700 $(SLASHBR)/gnupg-keys
 	chmod 600 $(SLASHBR)/gnupg-keys/*
 	chmod 755 build/sbin/init
+	# create symlinks
+	ln -s /bedrock/run/init-alias $(SLASHBR)/strata/init
+	ln -s ../bin/strat $(SLASHBR)/libexec/brl-strat
 	# create a tarball
 	cd build/ && fakeroot tar cf userland.tar-new bedrock/ sbin/init
 	cd build/ && mv userland.tar-new userland.tar
