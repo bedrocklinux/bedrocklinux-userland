@@ -496,7 +496,8 @@ kill_chroot_procs() {
 	# ensure it is dead with SIGKILL.  Again, try multiple times just in
 	# case new processes spawn.
 	if "${sent_sigterm}"; then
-		sleep 0.25
+		# sleep for a quarter second
+		usleep 250000
 		for _ in $(seq 1 5); do
 			for pid in $(ps -A -o pid); do
 				root="$(${x_readlink} "/proc/${pid}/root")" || continue

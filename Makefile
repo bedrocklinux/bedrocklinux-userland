@@ -415,6 +415,7 @@ echo "DISABLING $$applet"; \
 		./set_bb_option "CONFIG_SYSROOT" "\"\"" && \
 		./set_bb_option "CONFIG_TEST" "y" && \
 		./set_bb_option "CONFIG_TEST1" "y" && \
+		./set_bb_option "CONFIG_USLEEP" "y" && \
 		./set_bb_option "CONFIG_VI" "y"
 	# fix various busybox-linux-musl issues
 	cd $(SUPPORT)/include/netinet/ && \
