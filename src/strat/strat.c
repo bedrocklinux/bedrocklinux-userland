@@ -413,9 +413,9 @@ int main(int argc, char *argv[])
 	if (check_capsyschroot() < 0) {
 		fprintf(stderr,
 			"strat: wrong cap_sys_chroot capability.\n"
-			"To remedy this, run:\n"
-			"    /bedrock/libexec/setcap cap_sys_chroot=ep "
-			"/bedrock/bin/strat\n" "as root.\n");
+			"This may occur when using ptrace across stratum boundaries such as with\n"
+			"`strace` or `gdb`.  To remedy this install strace/gdb/etc from same stratum\n"
+			"as the traced program and use `strat` to specify appropriate strace/gdb/etc.\n");
 		return 1;
 	}
 
