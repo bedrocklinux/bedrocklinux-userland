@@ -1,0 +1,148 @@
+#!/bedrock/libexec/busybox sh
+#
+# Clear Linux bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+# TODO: figure out pack system to speed up bootstrap fetching
+
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+# os-core-update provides swupd, but appears to be missing some dependencies.
+bootstrap_deps="os-core os-core-update openssh-server curl"
+
+check_supported() {
+	false
+}
+
+check_experimental() {
+	case "$(uname -m)" in
+	"x86_64") true ;;
+	*) false ;;
+	esac
+}
+
+distro_arch_name() {
+	case "$(uname -m)" in
+	"x86_64") echo "x86_64" ;;
+	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
+	esac
+}
+
+list_mirrors() {
+	echo "https://cdn.download.clearlinux.org/"
+}
+
+speed_test_url() {
+	echo "1/Manifest.MoM.tar"
+}
+
+list_releases() {
+	echo "rolling"
+}
+
+default_release() {
+	echo "rolling"
+}
+
+fetch() {
+	step_init 11
+
+	if [ -z "${target_dir:-}" ]; then
+		fetch_abort "Essential variable not set"
+	fi
+
+	step "Determining name"
+	name="${flag_name:-${distro}}"
+	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining CPU architecture"
+	arch="$(distro_arch_name)"
+	notice "Using ${color_file}${arch}${color_norm}"
+
+	step "Determining release"
+	release="${flag_release:-$(default_release)}"
+	notice "Using ${color_file}${release}${color_norm}"
+
+	step "Determining mirror"
+	mirror="$(pick_mirror "$(speed_test_url)")"
+	notice "Using ${color_link}${mirror}${color_norm}"
+
+	step "Making directory structure"
+	bootstrap_dir="${target_dir}/brl-bootstrap"
+	mkdir -p "${target_dir}" "${bootstrap_dir}/target-root"
+
+	step "Downloading bootstrap software"
+	update="$(wget -O- "${mirror}/current/latest")"
+	notice "Using update ${update}"
+
+	dep_count="$(echo "${bootstrap_deps}" | wc -w)"
+	total="$((dep_count * 2 + 1))"
+	(
+		wget -O "${bootstrap_dir}/Manifest.MoM" "${mirror}/update/${update}/Manifest.MoM" >/dev/ull 2>&1
+		echo "x"
+		mkdir -p "${bootstrap_dir}/staged/"
+		for bundle in ${bootstrap_deps}; do
+			update="$(awk -v"bundle=${bundle}" '$0 ~ /^M/ && $4 == bundle {print $3; exit}' "${bootstrap_dir}/Manifest.MoM")"
+			wget -O "${bootstrap_dir}/Manifest.${bundle}" "${mirror}/update/${update}/Manifest.${bundle}" >/dev/ull 2>&1
+			echo "x"
+			wget -O "${bootstrap_dir}/pack-${bundle}-from-0.tar" "${mirror}/update/${update}/pack-${bundle}-from-0.tar" >/dev/ull 2>&1
+			echo "x"
+		done
+
+		exit_success
+	) | progress_bar "${total}"
+
+	total="${dep_count}"
+	step "Extracting bootstrap packages (1/2)"
+	for tarball in "${bootstrap_dir}/pack"*.tar; do
+		tar xf "${tarball}" -C "${bootstrap_dir}"
+		echo "x"
+	done | progress_bar "${total}"
+	rm "${bootstrap_dir}/Manifest.MoM"
+	step "Extracting bootstrap packages (2/2)"
+	total="$(awk 'NF==4' "${bootstrap_dir}/Manifest."* | wc -l)"
+	awk 'NF==4' "${bootstrap_dir}/Manifest."* | while read -r line; do
+		type="$(echo "${line}" | cut -d"	" -f1)"
+		if echo "${type}" | grep -q '^[DFL]'; then
+			hash="$(echo "${line}" | cut -d"	" -f2)"
+			path="$(echo "${line}" | cut -d"	" -f4-)"
+			dest="${bootstrap_dir}/${path}"
+			mkdir -p "$(dirname "${dest}")"
+			cp -a "${bootstrap_dir}/staged/${hash}" "${dest}"
+		fi
+		echo "x"
+	done | progress_bar "${total}"
+
+	step "Installing bootstrap packages"
+	setup_chroot "${bootstrap_dir}"
+	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
+	LC_ALL=C chroot "${bootstrap_dir}" swupd verify --install --path "/target-root" --no-scripts --manifest latest
+	# expansion is desired
+	# shellcheck disable=SC2086
+	LC_ALL=C chroot "${bootstrap_dir}" swupd bundle-add --path "/target-root" --no-scripts ${bootstrap_deps}
+
+	step "Removing temporary bootstrap files"
+	less_lethal_rm_rf "${bootstrap_dir}"
+
+	step "Configuring"
+	# Setup certs
+	LC_ALL=C chroot "${target_dir}" clrtrust generate
+	mkdir -p "${target_dir}/etc/ssl"
+	ln -s /var/cache/ca-certs/anchors "${target_dir}/etc/ssl/certs"
+	# Clear Linux does not populate various /etc files on which Bedrock
+	# depends, even if their corresponding package is installed.  Create
+	# them.
+	echo "# File created by Bedrock Linux during stratum fetch" >"${target_dir}/etc/profile"
+	if ! [ -e "${target_dir}/etc/zshenv" ]; then
+		mkdir -p "${target_dir}/etc/zsh/"
+		echo "# File created by Bedrock Linux during stratum fetch" >"${target_dir}/etc/zshenv"
+	fi
+
+}

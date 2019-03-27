@@ -1,0 +1,138 @@
+#!/bedrock/libexec/busybox sh
+#
+# Alpine Linux bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	false
+}
+
+check_experimental() {
+	case "$(uname -m)" in
+	"x86_64") true ;;
+	*) false ;;
+	esac
+}
+
+distro_arch_name() {
+	case "$(uname -m)" in
+	"x86_64") echo "x86_64" ;;
+	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
+	esac
+}
+
+list_mirrors() {
+	mirror_list_url='https://mirrors.slackware.com/mirrorlist/'
+	wget -O- "${mirror_list_url}" 2>/dev/null |
+		sed 's/[<> \t\n\r]/\n/g' |
+		awk -F"[=>]" '/^href=/ || /^HREF=/ {print$2}' |
+		grep "^http"
+}
+
+speed_test_url() {
+	echo "/slackware64-current/CHECKSUMS.md5"
+}
+
+list_releases() {
+	for mirror in "${flag_mirror:-}" $(list_mirrors); do
+		if wget -O- "$mirror" 2>/dev/null |
+			list_links |
+			grep -e '^slackware64-[0-9]' |
+			sed -e 's/^slackware64-//' -e 's,/$,,'; then
+			break
+		fi
+	done
+}
+
+default_release() {
+	list_releases | sort -nr | head -n1
+}
+
+fetch() {
+	step_init 9
+
+	if [ -z "${target_dir:-}" ]; then
+		fetch_abort "Essential variable not set"
+	fi
+
+	step "Determining name"
+	name="${flag_name:-${distro}}"
+	notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining CPU architecture"
+	arch="$(distro_arch_name)"
+	notice "Using ${color_file}${arch}${color_norm}"
+
+	step "Determining release"
+	release="${flag_release:-$(default_release)}"
+	notice "Using ${color_file}${release}${color_norm}"
+
+	step "Determining mirror"
+	mirror="$(pick_mirror "$(speed_test_url)")"
+	notice "Using ${color_link}${mirror}${color_norm}"
+
+	step "Making directory structure"
+	bootstrap_dir="${target_dir}/brl-bootstrap"
+	mkdir -p "${target_dir}" "${bootstrap_dir}/target-root"
+
+	step "Downloading bootstrap packages"
+	apkgs="$(
+		wget -O- "${mirror}/slackware64-${release}/slackware64/a" 2>/dev/null |
+			list_links |
+			grep "[.]txz$" |
+			grep -ve "^grub-"
+	)"
+	lpkgs="$(
+		wget -O- "${mirror}/slackware64-${release}/slackware64/l" 2>/dev/null |
+			list_links |
+			grep "[.]txz$" |
+			grep -ve "^grub-"
+	)"
+
+	total="$(echo "${apkgs} ${lpkgs}" | wc -w)"
+	(
+		for pkg in ${apkgs}; do
+			wget "${mirror}/slackware64-${release}/slackware64/a/${pkg}" -O "${bootstrap_dir}/${pkg}" >/dev/null 2>&1
+			echo "x"
+		done
+		for pkg in ${lpkgs}; do
+			wget "${mirror}/slackware64-${release}/slackware64/l/${pkg}" -O "${bootstrap_dir}/${pkg}" >/dev/null 2>&1
+			echo "x"
+		done
+	) | progress_bar "${total}"
+
+	step "Extracting bootstrap packages"
+	cp /bedrock/libexec/busybox "${bootstrap_dir}/busybox"
+	for pkg in ${apkgs} ${lpkgs}; do
+		# unxz can refuse to operate if it does not recognize the file extension.  Using cat to work around this.
+		# shellcheck disable=SC2002
+		cat "${bootstrap_dir}/${pkg}" | unxz | tar x -C "${bootstrap_dir}"
+		if [ -s "${bootstrap_dir}/install/doinst.sh" ]; then
+			chroot "${bootstrap_dir}" /busybox sh install/doinst.sh 2>/dev/null || true
+		fi
+		rm -rf "${bootstrap_dir}/install"
+		echo "x"
+	done | progress_bar "${total}"
+
+	step "Running bootstrap software"
+	setup_chroot "${bootstrap_dir}"
+	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
+	for pkg in ${apkgs} ${lpkgs}; do
+		LC_ALL=C chroot "${bootstrap_dir}" /sbin/installpkg --root "/target-root" "${pkg}" >/dev/null 2>&1
+		echo "x"
+	done | progress_bar "${total}"
+
+	step "Removing temporary bootstrap files"
+	less_lethal_rm_rf "${bootstrap_dir}"
+
+	notice "Successfully acquired ${distro} stratum"
+}

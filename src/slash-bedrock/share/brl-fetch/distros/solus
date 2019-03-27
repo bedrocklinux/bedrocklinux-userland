@@ -17,8 +17,10 @@ check_supported() {
 }
 
 check_experimental() {
-	# Last time this was tested it did not complete fetch.
-	false
+	case "$(uname -m)" in
+	"x86_64") true ;;
+	*) false ;;
+	esac
 }
 
 distro_arch_name() {
@@ -29,11 +31,13 @@ distro_arch_name() {
 }
 
 list_mirrors() {
-	echo 'https://solus-project.com/'
+	# Could not find list of mirrors.  This was the default mirror found on
+	# a fresh install.
+	echo "https://mirrors.rit.edu/solus/"
 }
 
 speed_test_url() {
-	echo "image_root/unstable-x86_64.img.sha256sum"
+	echo "packages/shannon/eopkg-index.xml.xz"
 }
 
 list_releases() {
@@ -45,7 +49,7 @@ default_release() {
 }
 
 fetch() {
-	step_init 11
+	step_init 12
 
 	if [ -z "${target_dir:-}" ]; then
 		fetch_abort "Essential variable not set"
@@ -71,46 +75,141 @@ fetch() {
 	bootstrap_dir="$target_dir/brl-bootstrap"
 	mkdir -p "$target_dir" "$bootstrap_dir/target-root"
 
-	step "Downloading bootstrap software"
-	url="$(find_link "$mirror/image_root/" "^main-$arch.img.xz$")"
-	wget -O "$bootstrap_dir/bootstrap.img.xz" "$url"
+	step "Downloading package information database"
+	wget "${mirror}/packages/shannon/eopkg-index.xml.xz" -O "${bootstrap_dir}/eopkg-index.xml.xz"
+	unxz "${bootstrap_dir}/eopkg-index.xml.xz"
 
-	step "Extracting"
-	unxz "$bootstrap_dir/bootstrap.img.xz"
+	step "Converting distro package information database to brl format"
+	eopkgdb_to_brldb "${bootstrap_dir}/eopkg-index.xml" "${bootstrap_dir}/brldb"
 
-	step "Copying files"
-	mount -o loop,ro "$bootstrap_dir/bootstrap.img" "$bootstrap_dir"
-	cp -r "$bootstrap_dir"/* "$target_dir"
+	step "Calculating required bootstrap packages"
+	bootstrap_deps="$(cat "${bootstrap_dir}/brldb/required")"
+	brldb_calculate_paths_with_deps "${bootstrap_dir}/brldb" "${bootstrap_dir}/package_paths" "${bootstrap_deps}"
 
-	# In theory, the proper way to do this would be to have the bootstrap
-	# filesystem run eopkg to bootstrap the files.  However, this fails for
-	# yet to be debugged reasons, and so we fall back to just using the
-	# bootstrap filesystem directly.
-	#
-	# step "Preparing bootstrap software"
-	# unxz "$bootstrap_dir/bootstrap.img.xz"
-	# mkdir -p "$bootstrap_dir/iso"
-	# mount -o loop,ro "$bootstrap_dir/bootstrap.img" "$bootstrap_dir/iso"
-	# cp -r "$bootstrap_dir/iso"/* "$bootstrap_dir/"
-	#
-	# step "Running bootstrap software"
-	# setup_chroot "$bootstrap_dir"
-	# mount --bind "$target_dir" "$bootstrap_dir/target-root"
-	# mkdir -p "$target_dir/var/run/dbus"
-	# mkdir -p "$target_dir/run/dbus"
-	# ln -s "lib64" "$target_dir/lib"
-	# mkdir -p "$bootstrap_dir/var/run/dbus"
-	# mkdir -p "$bootstrap_dir/run/dbus"
-	# ln -s "lib64" "$bootstrap_dir/lib"
-	# chroot "$bootstrap_dir" dbus-daemon --system
-	# chroot "$bootstrap_dir" eopkg --debug -y -D/target-root rdb >/dev/null 1>&1
-	# chroot "$bootstrap_dir" eopkg -y -D/target-root ar Solus https://packages.solus-project.com/shannon/eopkg-index.xml.xz
-	# chroot "$bootstrap_dir" eopkg -y -D/target-root install -c system.base
-	# # First install doesn't take for some reason, e.g libpython2.7.so.1.0 gets installed to the wrong place.
-	# chroot "$bootstrap_dir" eopkg -y -D/target-root install --reinstall -c system.base
+	step "Downloading bootstrap packages"
+	download_files "${bootstrap_dir}" "$(awk -v"m=${mirror}" '{print m"/packages/shannon/"$0}' "${bootstrap_dir}/package_paths")"
+
+	step "Extracting bootstrap packages"
+	(
+		cd "${bootstrap_dir}"
+		total="$(echo baselayout-*.eopkg ./*.eopkg | wc -w)"
+		for pkg in baselayout-*.eopkg *.eopkg; do
+			unzip -qo "${pkg}"
+			tar xf "install.tar.xz"
+			echo "x"
+		done | progress_bar "${total}"
+	)
+
+	step "Running bootstrap software"
+	setup_chroot "${bootstrap_dir}"
+	(
+		# eopkg errors when installing baselayout, presumably due to
+		# missing assumed files.
+		cd "${bootstrap_dir}"
+		unzip -qo "baselayout-"*.eopkg
+		tar xf "install.tar.xz" -C "${target_dir}"
+	)
+
+	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
+	mkdir -p "${bootstrap_dir}/run/dbus"
+	chroot "${bootstrap_dir}" dbus-daemon --system
+	chroot "${bootstrap_dir}" eopkg --debug -y -D/target-root rdb
+	chroot "${bootstrap_dir}" eopkg -y -D/target-root ar Solus "${mirror}/packages/shannon/eopkg-index.xml.xz"
+	chroot "${bootstrap_dir}" eopkg -y -D/target-root install -c system.base
+
+	# perl is an unlisted required package.  Installing vim runs /usr/bin/c_rehash which requires perl.
+	chroot "${bootstrap_dir}" eopkg -y -D/target-root install perl
+	# Installing fontcache rename()s from /etc to /usr, which EXDEVs.
+	if [ -e "${target_dir}/etc/fonts" ]; then
+		mv "${target_dir}/etc/fonts" "${target_dir}/usr/share/fonts"
+	fi
+	ln -s "../usr/share/fonts" "${target_dir}/etc/fonts"
+	chroot "${bootstrap_dir}" eopkg -y -D/target-root install fontconfig
+	# The post-fontcache /etc/fonts symlink is absolute, which confuses
+	# `brl status`.  `brl status` should probably be updated to handle
+	# this, but for now we can hack around it by making /etc/fonts
+	# relative.
+	rm "${target_dir}/etc/fonts"
+	ln -s "../usr/share/fonts" "${target_dir}/etc/fonts"
 
 	step "Removing temporary bootstrap files"
-	less_lethal_rm_rf "$bootstrap_dir"
+	less_lethal_rm_rf "${bootstrap_dir}"
 
 	notice "Successfully acquired $distro stratum"
+}
+
+eopkgdb_to_brldb() {
+	mkdir -p "${2}/depends/" "${2}/provides" "${2}/paths"
+
+	tr -d '\n' <"${1}" |
+		sed -e 's,<,\n<,g' -e 's,>\(.\),>\n\1,g' >"${2}/flattened"
+
+	arch="$(distro_arch_name)"
+	awk -F"[<> ]" -v"dir=${2}" -v"total=$(wc -l <"${2}/flattened")" -v"arch=${arch}" '
+		function brldbpath(type, name) {
+			if (substr(name,1,3) == "lib") {
+				return dir "/" type "/" substr(name, 4, 2)
+			} else {
+				return dir "/" type "/" substr(name, 1, 2)
+			}
+		}
+		/<!\[CDATA\[/ {
+			skip=1
+		}
+		/\]\]>/ {
+			skip=0
+			next
+		}
+		skip {
+			next
+		}
+		name && uri {
+			file = brldbpath("depends", name)
+			printf "%s", name >> file
+			for (i in depends) {
+				printf " %s", depends[i] >> file
+				delete depends[i]
+			}
+			printf "\n" >> file
+			close(file)
+
+			file = brldbpath("provides", name)
+			print name "\t" name >> file
+			close(file)
+
+			file = brldbpath("paths", name)
+			print name "\t" uri >> file
+			close(file)
+
+			name = ""
+			uri = ""
+		}
+		/^<[^\/]/ && !/\/>$/ {
+			path = path ">" $2
+			next
+		}
+		/^<\// {
+			sub(">[^>]*$","",path)
+			next
+		}
+		path == ">PISI>Package>Name" {
+			name = $0
+			next
+		}
+		path == ">PISI>Package>RuntimeDependencies>Dependency" {
+			depends[$0] = $0
+			next
+		}
+		path == ">PISI>Package>PackageURI" {
+			uri = $0
+			next
+		}
+		path == ">PISI>Package>PartOf" && name && $0 == "system.base" {
+			print name >> dir "/required"
+		}
+		int(NR * 100 / total) > percent {
+			percent = int(NR * 100 / total)
+			print "x"
+		}
+	' "${2}/flattened" | progress_bar 100
 }
