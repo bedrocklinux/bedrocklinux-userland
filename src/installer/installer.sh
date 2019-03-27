@@ -65,14 +65,20 @@ hijack() {
 	modprobe fuse || true
 	if [ "$(id -u)" != "0" ]; then
 		abort "root required"
+	elif [ -r /proc/sys/kernel/osrelease ] && grep -qi 'microsoft' /proc/sys/kernel/osrelease; then
+		abort "Windows Subsystem for Linux does not support the required features for Bedrock Linux."
 	elif ! grep -q "\\<fuse\\>" /proc/filesystems; then
 		abort "/proc/filesystems does not contain \"fuse\".  FUSE is required for Bedrock Linux to operate.  Install the module fuse kernel module and try again."
 	elif ! [ -e /dev/fuse ]; then
 		abort "/dev/fuse not found.  FUSE is required for Bedrock Linux to operate.  Install the module fuse kernel module and try again."
 	elif [ -e /bedrock/ ]; then
-		abort "/bedrock found.  Bedrock Linux cannot be installed over Bedrock Linux."
+		abort "/bedrock found.  Cannot hijack Bedrock Linux."
 	elif ! type sha1sum >/dev/null 2>&1; then
-		abort "Could not find sha1sum executable."
+		abort "Could not find sha1sum executable.  Install it then try again."
+	elif grep '/dev/mapper.* /home ' /proc/mounts; then
+		abort "Bedrock is currently unable to support LVM /home mount points."
+	elif grep '/dev/mapper.* /root ' /proc/mounts; then
+		abort "Bedrock is currently unable to support LVM /root mount points."
 	fi
 
 	bb="/true"
@@ -96,12 +102,12 @@ hijack() {
 	if ! "${setf}" -n 'user.bedrock.test' -v 'x' "${getf}"; then
 		rm "${setf}"
 		rm "${getf}"
-		abort "Unable to set xattr.  Ensure filesystem supports extended filesystem attributes."
+		abort "Unable to set xattr.  Bedrock Linux only works with filesystems which support extended filesystem attributes (\"xattrs\")."
 	fi
 	if [ "$("${getf}" --only-values --absolute-names -n "user.bedrock.test" "${getf}")" != "x" ]; then
 		rm "${setf}"
 		rm "${getf}"
-		abort "Unable to get xattr.  Ensure filesystem supports extended filesystem attributes."
+		abort "Unable to get xattr.  Bedrock Linux only works with filesystems which support extended filesystem attributes (\"xattrs\")."
 	fi
 	rm "${setf}"
 	rm "${getf}"
