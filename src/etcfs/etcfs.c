@@ -138,9 +138,7 @@
  * If fd is -1, assume reference to CFG_NAME and skip operation.
  */
 #define FS_IMP_SETUP_FD(fd)                                                  \
-	if (fd == -1) {                                                      \
-		return 0;                                                    \
-	}                                                                    \
+	(void)fd;                                                            \
 	if (SET_THREAD_EUID(0) < 0) {                                        \
 		return -EPERM;                                               \
 	}                                                                    \
@@ -203,6 +201,10 @@ struct override {
 	 */
 	char *inject;
 	size_t inject_len;
+	/*
+	 * The last timestamp the override was last (re)applied.
+	 */
+	time_t last_override;
 };
 
 /*
@@ -497,6 +499,22 @@ static inline int apply_override(const int ref_fd, const char *const path,
 	char buf[PATH_MAX];
 	struct stat stbuf;
 
+	/*
+	 * Do not re-apply the same override twice in close succession, as that
+	 * can confuse some software.
+	 *
+	 * For example, xbps-install calls:
+	 *
+	 *     unlink(path)
+	 *     openat(AT_FDCWD, path, ...O_CREAT...)
+	 *     unlink(path)
+	 *     openat(AT_FDCWD, path, ...O_CREAT...)
+	 *
+	 * then gives up after the second openat() fails due to
+	 * the previously existing file.
+	 */
+	time_t now;
+
 	pthread_rwlock_wrlock(&cfg_lock);
 
 	switch (overrides[i].type) {
@@ -505,6 +523,11 @@ static inline int apply_override(const int ref_fd, const char *const path,
 			&& strcmp(buf, overrides[i].content) == 0) {
 			break;
 		}
+		now = time(NULL);
+		if ((now - overrides[i].last_override) <= 1) {
+			break;
+		}
+		overrides[i].last_override = now;
 		unlinkat(ref_fd, rpath, 0);
 		unlinkat(ref_fd, rpath, AT_REMOVEDIR);
 		rv = symlinkat(overrides[i].content, ref_fd, rpath);
@@ -515,6 +538,11 @@ static inline int apply_override(const int ref_fd, const char *const path,
 			&& S_ISDIR(stbuf.st_mode)) {
 			break;
 		}
+		now = time(NULL);
+		if ((now - overrides[i].last_override) <= 1) {
+			break;
+		}
+		overrides[i].last_override = now;
 		unlinkat(ref_fd, rpath, 0);
 		unlinkat(ref_fd, rpath, AT_REMOVEDIR);
 		rv = mkdirat(ref_fd, rpath, 0755);
@@ -525,6 +553,11 @@ static inline int apply_override(const int ref_fd, const char *const path,
 			|| !S_ISREG(stbuf.st_mode)) {
 			break;
 		}
+		now = time(NULL);
+		if ((now - overrides[i].last_override) <= 1) {
+			break;
+		}
+		overrides[i].last_override = now;
 		rv = inject(ref_fd, rpath, overrides[i].inject,
 			overrides[i].inject_len);
 		break;
@@ -793,6 +826,7 @@ static int cfg_add_override(const char *const buf, size_t size)
 	overrides[override_cnt].content_len = strlen(content);
 	overrides[override_cnt].inject = inject;
 	overrides[override_cnt].inject_len = inject_len;
+	overrides[override_cnt].time = 0;
 	override_cnt++;
 
 	cfg_stat.st_size += strlen("override ") + strlen(o_type_str[type]) +
@@ -1132,7 +1166,6 @@ static int m_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 	FS_IMP_RETURN(rv);
 }
 
-
 /*
  * Ideally we should track the DIR in m_opendir() so we can closedir() here.
  * However, libfuse's expectation to do so require ugly casting.  For the time
@@ -1141,6 +1174,7 @@ static int m_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 static int m_releasedir(const char *path, struct fuse_file_info *fi)
 {
 	(void)fi;
+	(void)path;
 
 	return 0;
 }
@@ -1577,6 +1611,8 @@ static int m_statfs(const char *path, struct statvfs *stbuf)
  */
 static int m_flush(const char *path, struct fuse_file_info *fi)
 {
+	(void)path;
+
 	FS_IMP_SETUP_FD(fi->fh);
 
 	rv = close(dup(fi->fh));
@@ -1589,6 +1625,8 @@ static int m_flush(const char *path, struct fuse_file_info *fi)
  */
 static int m_release(const char *path, struct fuse_file_info *fi)
 {
+	(void)path;
+
 	FS_IMP_SETUP_FD(fi->fh);
 
 	rv = close(fi->fh);
@@ -1602,6 +1640,8 @@ static int m_release(const char *path, struct fuse_file_info *fi)
  */
 static int m_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 {
+	(void)path;
+
 	FS_IMP_SETUP_FD(fi->fh);
 
 	if (datasync) {
@@ -1812,6 +1852,8 @@ static int m_removexattr(const char *path, const char *name)
 
 static int m_flock(const char *path, struct fuse_file_info *fi, int op)
 {
+	(void)path;
+
 	FS_IMP_SETUP_FD(fi->fh);
 
 	rv = flock(fi->fh, op);
