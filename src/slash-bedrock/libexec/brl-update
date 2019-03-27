@@ -75,7 +75,7 @@ require_root
 lock
 
 if ! "${skip_check}" && ! type gpg >/dev/null 2>&1; then
-	abort "gpg required for cryptographic signature verification.  Either install it or use -s flag to disable check."
+	abort "\`gpg\` required for cryptographic signature verification.  Either install it (often in \`gnupg\` package) or use \`--skip-check\` flag to disable check."
 fi
 
 if [ -n "${mirror}" ]; then

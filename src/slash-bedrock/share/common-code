@@ -414,7 +414,7 @@ enforce_symlinks() {
 			# target location.  We do not know which of the two the
 			# user wishes to retain.  Play it safe and just
 			# generate a warning.
-			printf "${color_warn}WARNING: File or directory exists at both \`${proc_link}\` and \`${proc_tgt}\`.  Bedrock Linux expects only one to exist.  Inspect both and determine which you wish to keep, then remove the other, and finally run \`brl repair ${stratum}\` to remedy the situation.\\n"
+			printf "${color_warn}WARNING: File or directory exists at both \`${proc_link}\` and \`${proc_tgt}\`.  Bedrock Linux expects only one to exist.  Inspect both and determine which you wish to keep, then remove the other, and finally run \`brl repair ${stratum}\` to remedy the situation.${color_norm}\\n"
 		fi
 	done
 }

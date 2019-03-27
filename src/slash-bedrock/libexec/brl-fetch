@@ -779,7 +779,7 @@ for distro in ${distros}; do
 	. "/bedrock/share/brl-fetch/distros/${distro}"
 
 	if ! check_supported; then
-		notice "Fetch code for \`${distro}\` not supported on current architecture.  This may or may not work."
+		notice "The fetch code for \`${distro}\` is not supported on current architecture.  This may or may not work."
 	fi
 
 	unset target_dir
@@ -793,7 +793,7 @@ for distro in ${distros}; do
 
 	lock
 	if is_stratum_or_alias "${name}"; then
-		abort "Something already exists at \"/bedrock/strata/${name}\".  Consider either setting a different name with \`brl fetch -n\` or removing the pre-existing stratum/alias with \`brl remove ${name}\`."
+		abort "Something already exists at \"/bedrock/strata/${name}\".  Consider either setting a different name with \`brl fetch -n <new-name> <other fields>\` or removing the pre-existing stratum/alias with \`brl remove \"${name}\"\`."
 	fi
 	trap 'fetch_abort "Unexpected error occurred."' EXIT
 	target_dir="/bedrock/strata/${name}"

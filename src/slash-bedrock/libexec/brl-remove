@@ -18,7 +18,7 @@ print_help() {
 Removes specified ${color_term}strata${color_norm} and ${color_term}aliases${color_norm}.  Requires root.
 
 Options:
-  ${color_cmd}-d${color_norm}, ${color_cmd}--disable${color_norm}   disabled enabled strata rather than error
+  ${color_cmd}-d${color_norm}, ${color_cmd}--disable${color_norm}   disable then remove enabled strata rather than abort
   ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}      print this message
 
 Examples:
