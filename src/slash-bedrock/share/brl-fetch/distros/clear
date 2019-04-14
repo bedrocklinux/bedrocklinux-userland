@@ -9,13 +9,11 @@
 # Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
-# TODO: figure out pack system to speed up bootstrap fetching
-
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
-# os-core-update provides swupd, but appears to be missing some dependencies.
-bootstrap_deps="os-core os-core-update openssh-server curl"
+# provides the package manager swupd.
+bootstrap_deps="os-core-update"
 
 check_supported() {
 	false
@@ -52,7 +50,7 @@ default_release() {
 }
 
 fetch() {
-	step_init 11
+	step_init 12
 
 	if [ -z "${target_dir:-}" ]; then
 		fetch_abort "Essential variable not set"
@@ -78,35 +76,48 @@ fetch() {
 	bootstrap_dir="${target_dir}/brl-bootstrap"
 	mkdir -p "${target_dir}" "${bootstrap_dir}/target-root"
 
-	step "Downloading bootstrap software"
+	step "Calculating required bootstrap packages"
 	update="$(wget -O- "${mirror}/current/latest")"
 	notice "Using update ${update}"
-
-	dep_count="$(echo "${bootstrap_deps}" | wc -w)"
-	total="$((dep_count * 2 + 1))"
-	(
-		wget -O "${bootstrap_dir}/Manifest.MoM" "${mirror}/update/${update}/Manifest.MoM" >/dev/ull 2>&1
-		echo "x"
-		mkdir -p "${bootstrap_dir}/staged/"
-		for bundle in ${bootstrap_deps}; do
+	wget -O "${bootstrap_dir}/Manifest.MoM" "${mirror}/update/${update}/Manifest.MoM" >/dev/null 2>&1
+	loop=true
+	NL="
+"
+	required_bundles="${bootstrap_deps}"
+	while "${loop}"; do
+		loop=false
+		for bundle in ${required_bundles}; do
+			if [ -e "${bootstrap_dir}/Manifest.${bundle}" ]; then
+				continue
+			fi
+			loop=true
 			update="$(awk -v"bundle=${bundle}" '$0 ~ /^M/ && $4 == bundle {print $3; exit}' "${bootstrap_dir}/Manifest.MoM")"
-			wget -O "${bootstrap_dir}/Manifest.${bundle}" "${mirror}/update/${update}/Manifest.${bundle}" >/dev/ull 2>&1
-			echo "x"
-			wget -O "${bootstrap_dir}/pack-${bundle}-from-0.tar" "${mirror}/update/${update}/pack-${bundle}-from-0.tar" >/dev/ull 2>&1
+			wget -O "${bootstrap_dir}/Manifest.${bundle}" "${mirror}/update/${update}/Manifest.${bundle}" >/dev/null 2>&1
+			required_bundles="${required_bundles}${NL}$(awk '$1 == "includes:" {print $2}' "${bootstrap_dir}/Manifest.${bundle}")"
+			echo "${required_bundles}" | sort | uniq | grep "." >"${bootstrap_dir}/required_bundles"
 			echo "x"
 		done
+	done | progress_unknown
+	required_bundles="$(cat "${bootstrap_dir}/required_bundles")"
+	notice "Bundles required to bootstrap swupd: $(echo "${required_bundles}" | tr '\n' ' ')"
 
-		exit_success
-	) | progress_bar "${total}"
+	step "Downloading bootstrap software"
+	total="$(echo "${required_bundles}" | wc -w)"
+	mkdir -p "${bootstrap_dir}/staged/"
+	for bundle in ${required_bundles}; do
+		update="$(awk -v"bundle=${bundle}" '$0 ~ /^M/ && $4 == bundle {print $3; exit}' "${bootstrap_dir}/Manifest.MoM")"
+		wget -O "${bootstrap_dir}/pack-${bundle}-from-0.tar" "${mirror}/update/${update}/pack-${bundle}-from-0.tar" >/dev/null 2>&1
+		echo "x"
+	done | progress_bar "${total}"
 
-	total="${dep_count}"
 	step "Extracting bootstrap packages (1/2)"
 	for tarball in "${bootstrap_dir}/pack"*.tar; do
 		tar xf "${tarball}" -C "${bootstrap_dir}"
 		echo "x"
 	done | progress_bar "${total}"
-	rm "${bootstrap_dir}/Manifest.MoM"
+
 	step "Extracting bootstrap packages (2/2)"
+	rm "${bootstrap_dir}/Manifest.MoM"
 	total="$(awk 'NF==4' "${bootstrap_dir}/Manifest."* | wc -l)"
 	awk 'NF==4' "${bootstrap_dir}/Manifest."* | while read -r line; do
 		type="$(echo "${line}" | cut -d"	" -f1)"
@@ -144,5 +155,4 @@ fetch() {
 		mkdir -p "${target_dir}/etc/zsh/"
 		echo "# File created by Bedrock Linux during stratum fetch" >"${target_dir}/etc/zshenv"
 	fi
-
 }
