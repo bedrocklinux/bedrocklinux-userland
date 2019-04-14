@@ -56,9 +56,6 @@ extract_tarball() {
 }
 
 hijack() {
-	release="$(extract_tarball | tar xO bedrock/etc/bedrock-release)"
-	print_logo "${release}"
-
 	printf "\
 ${color_priority}* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *${color_norm}
 ${color_priority}*${color_alert} YOU ARE ABOUT TO CONVERT YOUR EXISTING LINUX INSTALL INTO A   ${color_priority}*${color_norm}
@@ -72,6 +69,9 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	if [ "${line}" != "Not reversible!" ]; then
 		abort "Warning not copied exactly."
 	fi
+
+	release="$(extract_tarball | tar xO bedrock/etc/bedrock-release)"
+	print_logo "${release}"
 
 	step_init 6
 
@@ -266,7 +266,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	step "Finalizing"
 	touch "/bedrock/complete-hijack-install"
 	notice "Reboot to complete installation"
-	notice "After reboot explore the ${color_cmd}brl${color_norm} command"
+	notice "After reboot explore the ${color_cmd}brl${color_norm} command."
 }
 
 update() {
