@@ -160,9 +160,11 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 
 	localegen=""
 	if [ -r "/etc/locale.gen" ]; then
-		localegen="$(awk '/^[^#]/{print;exit}' /etc/locale.gen)"
+		localegen="$(awk '/^[^#]/{printf "%s, ", $0}' /etc/locale.gen | sed 's/, $//')"
 	fi
-	if [ -n "${localegen:-}" ]; then
+	if [ -n "${localegen:-}" ] && echo "${localegen}" | grep -q ","; then
+		notice "Discovered multiple locale.gen lines"
+	elif [ -n "${localegen:-}" ]; then
 		notice "Using ${color_file}${localegen}${color_norm} for ${color_file}locale.gen${color_norm} language"
 	else
 		notice "Unable to determine locale.gen language, continuing without it"
@@ -236,7 +238,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		mv /bedrock/etc/bedrock.conf-new /bedrock/etc/bedrock.conf
 	fi
 	if [ -n "${localegen:-}" ]; then
-		awk -v"value=${localegen}" '!/^localegen =/{print} /^localegen =/{print "localegen = "value}' /bedrock/etc/bedrock.conf >/bedrock/etc/bedrock.conf-new
+		awk -v"values=${localegen}" '!/^localegen =/{print} /^localegen =/{print "localegen = "values}' /bedrock/etc/bedrock.conf >/bedrock/etc/bedrock.conf-new
 		mv /bedrock/etc/bedrock.conf-new /bedrock/etc/bedrock.conf
 	fi
 	if [ -n "${LANG:-}" ]; then

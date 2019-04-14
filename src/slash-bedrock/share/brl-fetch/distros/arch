@@ -115,7 +115,7 @@ fetch() {
 	setup_chroot "${target_dir}"
 	setup_pacman "${target_dir}"
 	LC_ALL=C chroot "${target_dir}" pacman --noconfirm -R linux
-	localegen="$(cfg_value "locale" "localegen")"
+	localegen="$(cfg_values "locale" "localegen")"
 	if [ -n "${localegen:-}" ]; then
 		echo "### Added by Bedrock Linux when acquiring this stratum" >>"${target_dir}/etc/locale.gen"
 		echo "${localegen}" >>"${target_dir}/etc/locale.gen"

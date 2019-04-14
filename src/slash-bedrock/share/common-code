@@ -825,7 +825,8 @@ cfg_values() {
 		values_string = substr($0, index($0, "=")+1)
 		values_len = split(values_string, values, ",")
 		for (i = 1; i <= values_len; i++) {
-			gsub(/[ \t\r]*/, "", values[i])
+			sub(/^[ \t\r]*/, "", values[i])
+			sub(/[ \t\r]*$/, "", values[i])
 			print values[i]
 		}
 	}'

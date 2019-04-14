@@ -109,7 +109,7 @@ fetch() {
 
 	step "Configuring"
 	if [ -e "${target_dir}/etc/default/libc-locales" ]; then
-		localegen="$(cfg_value "locale" "localegen")"
+		localegen="$(cfg_values "locale" "localegen")"
 		if [ -n "${localegen:-}" ]; then
 			echo "### Added by Bedrock Linux when acquiring this stratum" >>"${target_dir}/etc/default/libc-locales"
 			echo "${localegen}" >>"${target_dir}/etc/default/libc-locales"
