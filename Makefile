@@ -371,6 +371,7 @@ $(SLASHBR)/libexec/busybox: vendor/busybox/.success_retrieving_source $(COMPLETE
 		echo 'fi' >> set_bb_option && \
 		chmod u+x set_bb_option
 	# start with default config
+	rm -f vendor/busybox/.config
 	cd vendor/busybox && \
 		$(MAKE) defconfig
 	# disable unused applets
@@ -383,11 +384,11 @@ echo "DISABLING $$applet"; \
 		done
 	# explicitly enable known desired and explicitly undesired features
 	cd vendor/busybox && \
-		./set_bb_option "CONFIG_AR" "y" && \
 		./set_bb_option "CONFIG_ASH_BASH_COMPAT" "y" && \
 		./set_bb_option "CONFIG_ASH_CMDCMD" "y" && \
 		./set_bb_option "CONFIG_ASH_TEST" "y" && \
 		./set_bb_option "CONFIG_BUSYBOX_EXEC_PATH" '"/bedrock/libexec/busybox"' && \
+		./set_bb_option "CONFIG_DATE" "y" && \
 		./set_bb_option "CONFIG_DEPMOD" "y" && \
 		./set_bb_option "CONFIG_DESKTOP" "y" && \
 		./set_bb_option "CONFIG_FEATURE_AR_CREATE" "y" && \
@@ -417,7 +418,6 @@ echo "DISABLING $$applet"; \
 		./set_bb_option "CONFIG_SYSROOT" "\"\"" && \
 		./set_bb_option "CONFIG_TEST" "y" && \
 		./set_bb_option "CONFIG_TEST1" "y" && \
-		./set_bb_option "CONFIG_USLEEP" "y" && \
 		./set_bb_option "CONFIG_VI" "y"
 	# fix various busybox-linux-musl issues
 	cd $(SUPPORT)/include/netinet/ && \
