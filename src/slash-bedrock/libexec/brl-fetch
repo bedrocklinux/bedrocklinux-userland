@@ -251,6 +251,9 @@ pick_mirror() {
 	# Select mirror from remaining possibilities by trying to fetch a file
 	# from each.
 	count="$(echo "${mirrors}" | wc -w)"
+	if [ "${count}" -eq 0 ]; then
+		abort "Unable to automatically find a valid mirror.  Manually specify mirror with \`--mirror\`."
+	fi
 	echo "Finding fastest mirror from ${count}" >&2
 	for mirror in ${mirrors}; do
 		echo "mirror ${mirror}"
