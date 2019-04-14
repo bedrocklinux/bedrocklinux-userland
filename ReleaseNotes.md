@@ -1,3 +1,21 @@
+# 0.7.3
+
+- Added "current" to list of Slackware releases.
+- Added code to handle users providing brl-fetch an Arch Linux mirror with
+  unquoted/escaped shell variables.
+- Added cross pixmap support.
+- Added resolvconf support.
+- Added support for multiple localegen lines.
+- Added warning when default init does not exist.
+- Fixed `strat -r ... zsh` escaping restriction via sourcing zprofile.
+- Fixed fetch handling of Clear Linux.
+- Fixed reboot handling after hijacking systems with PID1 provided by SysV init.
+- Generalized brl-fetch user/group handling.
+- Implemented work-around for Chromium/Electron/et al TZ bug.
+- Improved hijack distro name detection to handle MX Linux. (Note other issues
+  with Bedrock Linux/MX Linux compatibility are known at this time.)
+- Various minor UI tweaks.
+
 # 0.7.2
 
 - Made `makepkg` and similar programs restricted by default via new
