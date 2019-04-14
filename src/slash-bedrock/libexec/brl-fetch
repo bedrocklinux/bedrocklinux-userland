@@ -34,7 +34,8 @@ Fetch flags:
   ${color_sub}<none>                  ${color_norm}automatically determine name, release, and mirror
   ${color_cmd}-n${color_norm},${color_cmd} --name ${color_sub}[name]${color_norm}       ${color_norm}specify desired ${color_term}stratum${color_norm} name
   ${color_cmd}-r${color_norm},${color_cmd} --release ${color_sub}[release]${color_norm} ${color_norm}specify desired distro release
-  ${color_cmd}-m${color_norm},${color_cmd} --mirror ${color_sub}[mirror]${color_norm}   ${color_norm}specify desired mirror
+  ${color_cmd}-m${color_norm},${color_cmd} --mirror ${color_sub}[mirror]${color_norm}   ${color_norm}specify desired package repository mirror
+                          (may or may not differ from ISO/installer mirror)
   ${color_cmd}-e${color_norm},${color_cmd} --dont-enable       ${color_norm}do not ${color_term}enable${color_norm} newly fetched ${color_term}strata${color_norm}
   ${color_cmd}-s${color_norm},${color_cmd} --dont-show         ${color_norm}do not ${color_term}show${color_norm} newly fetched ${color_term}strata${color_norm}
 
