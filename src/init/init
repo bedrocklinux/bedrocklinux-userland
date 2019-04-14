@@ -315,16 +315,23 @@ fi
 
 init_timeout="$(cfg_values "init" "timeout")"
 def_tuple="$(cfg_values "init" "default")"
-if [ -n "${def_tuple}" ]; then
-	def_stratum="$(deref "$(echo "${def_tuple}" | cut -d: -f1)")"
-	def_cmd="$(echo "${def_tuple}" | cut -d: -f2-)"
+def_stratum="$(deref "$(echo "${def_tuple}" | cut -d: -f1)")"
+def_cmd="$(echo "${def_tuple}" | cut -d: -f2-)"
+def_path=""
+if [ -n "${def_tuple}" ] && [ -d "/bedrock/strata/${def_stratum}" ]; then
 	sproc="/bedrock/strata/${def_stratum}/proc"
 	mkdir -p "${sproc}" 2>/dev/null || true
 	mount -t proc proc "${sproc}"
-	def_link="$(chroot "/bedrock/strata/${def_stratum}" "/proc/1/root/bedrock/libexec/busybox" realpath "${def_cmd}" 2>/dev/null)" || true
+	if def_link="$(chroot "/bedrock/strata/${def_stratum}" "/proc/1/root/bedrock/libexec/busybox" realpath "${def_cmd}" 2>/dev/null)"; then
+		def_path="/bedrock/strata/${def_stratum}${def_link}"
+	fi
 	umount "${sproc}"
-	def_path="/bedrock/strata/${def_stratum}${def_link}"
-else
+fi
+if [ -n "${def_tuple}" ] && [ -z "${def_path:-}" ]; then
+	notice "${color_warn}WARNING: ${color_file}/bedrock/etc/bedrock.conf [init]/default ${color_warn}value does not describe a valid stratum:init pair.${color_norm}"
+fi
+if [ -z "${def_path:-}" ]; then
+	init_timeout="-1"
 	def_stratum=""
 	def_cmd=""
 	def_link=""
