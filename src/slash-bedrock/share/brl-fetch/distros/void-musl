@@ -118,9 +118,5 @@ fetch() {
 		echo "# File created by Bedrock Linux during stratum fetch" >"${target_dir}/etc/zsh/zshenv"
 	fi
 
-	if ! grep -q '^kvm:' /etc/group; then
-		addgroup -S kvm
-	fi
-
 	notice "Successfully acquired ${distro} stratum"
 }

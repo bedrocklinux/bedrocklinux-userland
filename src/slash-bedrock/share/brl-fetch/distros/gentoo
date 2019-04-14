@@ -119,16 +119,7 @@ fetch() {
 	else
 		notice "Could not determine desired locale, skipping setting locale"
 	fi
-
 	chroot "${target_dir}" emerge-webrsync
-
-	if ! grep -q '^portage:' /etc/group; then
-		addgroup -S portage
-	fi
-	if ! grep -q '^portage:' /etc/passwd; then
-		adduser -h /var/tmp/portage -s /bin/false -G portage -S -D -H portage
-	fi
-
 	tear_down_chroot "${target_dir}"
 
 	notice "Successfully acquired ${distro} stratum"

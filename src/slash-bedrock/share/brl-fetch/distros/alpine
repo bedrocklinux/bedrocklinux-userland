@@ -120,16 +120,6 @@ fetch() {
 	LC_ALL=C chroot "${target_dir}" rc-update add killprocs shutdown
 	LC_ALL=C chroot "${target_dir}" rc-update add savecache shutdown
 
-	if ! grep -q '^wheel:' /etc/group; then
-		addgroup -S wheel
-	fi
-	if ! grep -q '^uucp:' /etc/group; then
-		addgroup -S uucp
-	fi
-	if ! grep -q '^netdev:' /etc/group; then
-		addgroup -S netdev
-	fi
-
 	tear_down_chroot "${target_dir}"
 
 	notice "Successfully acquired ${distro} stratum"

@@ -133,38 +133,19 @@ fetch() {
 	less_lethal_rm_rf "${bootstrap_dir}"
 
 	step "Configuring"
-
+	if grep -q "\<main\>" "${target_dir}/etc/apt/sources.list" && ! grep -q "\<universe\>" "${target_dir}/etc/apt/sources.list"; then
+		sed 's/\<main\>/main universe/' "${target_dir}/etc/apt/sources.list" > "${target_dir}/etc/apt/sources.list-new"
+		mv "${target_dir}/etc/apt/sources.list-new" "${target_dir}/etc/apt/sources.list"
+	fi
 	case "$(uname -m)" in
 	"x86_64")
-		echo "deb http://archive.ubuntu.com/ubuntu/ ${release}-security main" >>"${target_dir}/etc/apt/sources.list"
+		echo "deb http://archive.ubuntu.com/ubuntu/ ${release}-security main universe" >>"${target_dir}/etc/apt/sources.list"
 		;;
 	esac
-
 	set +o pipefail
 	setup_chroot "${target_dir}"
-	if ! grep -q '^nogroup:' /etc/group; then
-		addgroup -S nogroup
-	fi
-	if ! grep -q '^man:' /etc/group; then
-		addgroup -S man
-	fi
-	if ! grep -q '^staff:' /etc/group; then
-		addgroup -S staff
-	fi
-	if ! grep -q '^_apt:' /etc/passwd; then
-		adduser -h /nonexistent -s /bin/false -G nogroup -S -D -H _apt
-	fi
-	if ! grep -q '^man:' /etc/passwd; then
-		adduser -h /var/cache/man/ -s /usr/sbin/nologin -G man -S -D -H man
-	fi
-	localegen="$(cfg_value "locale" "localegen")"
-	if [ -n "${localegen:-}" ]; then
-		langpack="language-pack-$(echo "${localegen}" | sed 's/^\(..\).*$/\1/')"
-		yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get update
-		yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get install "${langpack}"
-	else
-		notice "Could not determine desired locale, skipping setting locale"
-	fi
+	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get update
+	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get install locales-all
 	tear_down_chroot "${target_dir}"
 	set -o pipefail
 

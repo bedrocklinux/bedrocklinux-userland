@@ -374,6 +374,47 @@ tear_down_chroot() {
 	umount_r "${dir}"
 }
 
+import_users_and_groups() {
+	passwd_file="${1}"
+	group_file="${2}"
+
+	if [ -r "${group_file}" ]; then
+		while read -r line; do
+			group="$(echo "${line}" | awk -F: '{print$1}')"
+			if ! awk -F: -v"group=${group}" '$1 == group {exit 1}' /etc/group; then
+				continue
+			fi
+
+			gid="$(echo "${line}" | awk -F: '{print$3}')"
+			if awk -F: -v"gid=${gid}" '$3 == gid {exit 1}' /etc/group; then
+				addgroup -g "${gid}" -S "${group}"
+			else
+				addgroup -S "${group}"
+			fi
+		done <"${group_file}"
+	fi
+
+	if [ -r "${passwd_file}" ]; then
+		while read -r line; do
+			user="$(echo "${line}" | awk -F: '{print$1}')"
+			if ! awk -F: -v"user=${user}" '$1 == user {exit 1}' /etc/passwd; then
+				continue
+			fi
+
+			uid="$(echo "${line}" | awk -F: '{print$3}')"
+			gid="$(echo "${line}" | awk -F: '{print$4}')"
+			gecos="$(echo "${line}" | awk -F: '{print$5}')"
+			home="$(echo "${line}" | awk -F: '{print$6}')"
+			shell="/bedrock/cross/bin/$(basename "$(echo "${line}" | awk -F: '{print$7}')")"
+			if awk -F: -v"uid=${uid}" '$3 == uid {exit 1}' /etc/passwd; then
+				adduser -h "${home}" -g "${gecos}" -s "${shell}" -S -D -H -u "${uid}" "${user}"
+			else
+				adduser -h "${home}" -g "${gecos}" -s "${shell}" -S -D -H "${user}"
+			fi
+		done <"${passwd_file}"
+	fi
+}
+
 extract_debs() {
 	(
 		cd "${1}"
@@ -803,7 +844,10 @@ for distro in ${distros}; do
 	cd /
 	fetch
 
-	notice "${color_term}Preparing symlinks${color_norm}"
+	notice "Importing users and groups"
+	import_users_and_groups "${target_dir}/etc/passwd" "${target_dir}/etc/group"
+
+	notice "Preparing symlinks"
 	enforce_symlinks --force "${name}"
 
 	if ! "${flag_dont_show}"; then

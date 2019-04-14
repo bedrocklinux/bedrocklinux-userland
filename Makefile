@@ -406,6 +406,8 @@ echo "DISABLING $$applet"; \
 		./set_bb_option "CONFIG_INIT" "n" && \
 		./set_bb_option "CONFIG_INSMOD" "y" && \
 		./set_bb_option "CONFIG_KILLALL" "y" && \
+		./set_bb_option "CONFIG_LAST_ID" "65535" && \
+		./set_bb_option "CONFIG_LAST_SYSTEM_ID" "65535" && \
 		./set_bb_option "CONFIG_LFS" "y" && \
 		./set_bb_option "CONFIG_LSMOD" "y" && \
 		./set_bb_option "CONFIG_MODPROBE" "y" && \
