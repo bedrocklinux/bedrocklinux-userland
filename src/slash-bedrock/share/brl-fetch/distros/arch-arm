@@ -81,7 +81,13 @@ fetch() {
 
 	step "Determining mirror"
 	mirror="$(pick_mirror "$(speed_test_url)")"
+	# arch mirrors are typically formatted including $variables.  Strip
+	# those - we'll populate them and append ourselves.
 	echo "${mirror}" | grep -q "[$]" && mirror="$(echo "${mirror}" | sed 's/[$].*//g')"
+	# Some users call brl-fetch without escaping/quoting the aforementioned
+	# variables.  Since they are not populated shell variables, they end up
+	# being empty strings.  Detect this and handle it as well.
+	echo "${mirror}" | grep -q '//os//\?$' && mirror="$(echo "${mirror}" | sed 's,//os//\?$,,g')"
 	notice "Using ${color_link}${mirror}${color_norm}"
 
 	step "Making directory structure"
