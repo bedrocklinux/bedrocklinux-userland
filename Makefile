@@ -556,6 +556,7 @@ build/userland.tar: \
 	find $(SLASHBR)/libexec/ -type f -exec chmod 0755 {} \;
 	chmod 700 $(SLASHBR)/gnupg-keys
 	chmod 600 $(SLASHBR)/gnupg-keys/*
+	chmod 755 $(SLASHBR)/share/resolvconf/00bedrock
 	chmod 755 build/sbin/init
 	# create symlinks
 	ln -s /bedrock/run/init-alias $(SLASHBR)/strata/init
