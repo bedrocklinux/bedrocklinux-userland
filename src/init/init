@@ -300,6 +300,10 @@ preenable() {
 	ensure_essential_environment
 }
 
+if [ "${$}" -ne 1 ]; then
+	exec "/sbin/init-bedrock-backup" "${@}"
+fi
+
 ensure_essential_environment
 setup_term
 clear
@@ -383,7 +387,7 @@ fi
 # Shellcheck warns about `exec` usage.  It is explicitly desired here.
 #
 # shellcheck disable=SC2093
-exec "${init_cmd}"
+exec "${init_cmd}" "${@}"
 
 # We should never get here.
 # If exec above succeeds, that takes over.
