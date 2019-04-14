@@ -99,6 +99,7 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 	echo "TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
 ) >/bedrock/run/environment
 (
+	echo '[ -n "${BEDROCK_RESTRICT:-}" ] && return'
 	echo "unset TZ"
 	echo "export LANG=$(cfg_value "locale" "LANG")"
 	echo "export PATH=$(cfg_value "env-vars" "PATH")"
@@ -108,10 +109,12 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 	echo "export TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
 ) >/bedrock/run/profile
 (
+	echo '[ -n "${BEDROCK_RESTRICT:-}" ] && return'
 	echo ". /bedrock/run/profile"
 	echo "export fpath=(/bedrock/share/zsh/completion/ \$fpath /bedrock/cross/zsh-completion/)"
 ) >/bedrock/run/zprofile
 (
+	echo '[ -n "$BEDROCK_RESTRICT" ]; and exit 0'
 	echo "set -e TZ"
 	echo "set LANG $(cfg_value "locale" "LANG")"
 	echo "set PATH $(cfg_value "env-vars" "PATH" | sed 's/:/ /g')"

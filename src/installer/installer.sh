@@ -350,6 +350,9 @@ update() {
 		strat bedrock /bedrock/libexec/busybox --install -s
 	fi
 
+	notice "Applying runtime changes"
+	/bedrock/bin/brl apply
+
 	notice "Successfully updated to ${new_version}"
 	new_crossfs=false
 	new_etcfs=false

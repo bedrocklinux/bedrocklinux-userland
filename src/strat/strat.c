@@ -174,7 +174,8 @@ int restrict_envvar(const char *const envvar)
 }
 
 /*
- * Remove all CROSS_DIR references in a number of variables
+ * Various environment variable tweaks to minimize automatic cross-stratum
+ * access.
  */
 int restrict_env(void)
 {
@@ -184,6 +185,7 @@ int restrict_env(void)
 	err |= restrict_envvar("INFOPATH");
 	err |= restrict_envvar("XDG_DATA_DIRS");
 	err |= setenv("SHELL", "/bin/sh", 1);
+	err |= setenv("BEDROCK_RESTRICT", "1", 1);
 	/*
 	 * While an argument could be made to restrict TERMINFO_DIRS, it is
 	 * more likely in practice to confuse users than help.
