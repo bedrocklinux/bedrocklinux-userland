@@ -48,13 +48,14 @@ list_releases() {
 			list_links |
 			grep -e '^slackware64-[0-9]' |
 			sed -e 's/^slackware64-//' -e 's,/$,,'; then
+			echo "current"
 			break
 		fi
 	done
 }
 
 default_release() {
-	list_releases | sort -nr | head -n1
+	list_releases | grep -ve "current" | sort -nr | head -n1
 }
 
 fetch() {
