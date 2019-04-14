@@ -68,9 +68,29 @@ fi
 
 # Populate various /bedrock/run files based on bedrock.conf.  brl-enable/repair
 # ensures these are used where appropriate, e.g. symlinked to from /etc.
+#
+# Timezone information should not be read from /usr/share/zoneinfo because:
+# - It is a local file and different strata could have differing values, which
+# would result in subtle time issues which would be difficult for users to
+# detect or debug.  Using /bedrock/cross ensures a consistent timezone value
+# across all strata.
+# - Some strata may not have a locale zoneinfo database, which means they must
+# look into /bedrock/cross.
+#
+# We cannot use TZ=:/etc/localtime or TZ=:/bedrock/cross/zoneinfo/<timezone>
+# because of a bug in chromium and the many programs which build off of
+# chromium:
+# https://bugs.chromium.org/p/chromium/issues/detail?id=811403
+# https://github.com/signalapp/Signal-Desktop/issues/3085
+# https://github.com/ValveSoftware/steam-for-linux/issues/5612
+# https://chromium-review.googlesource.com/c/chromium/deps/icu/+/1006219/
+#
+# By ensuring TZ is unset, all tested software including chromium, glibc, and
+# musl, fall back to /etc/localtime, which is symlinked (eventually) to
+# /bedrock/cross.
 ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/localtime
 (
-	echo "TZ=:/etc/localtime"
+	echo "unset TZ"
 	echo "LANG=$(cfg_value "locale" "LANG")"
 	echo "PATH=$(cfg_value "env-vars" "PATH")"
 	echo "MANPATH=$(cfg_value "env-vars" "MANPATH")"
@@ -79,7 +99,7 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 	echo "TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
 ) >/bedrock/run/environment
 (
-	echo "export TZ=:/etc/localtime"
+	echo "unset TZ"
 	echo "export LANG=$(cfg_value "locale" "LANG")"
 	echo "export PATH=$(cfg_value "env-vars" "PATH")"
 	echo "export MANPATH=$(cfg_value "env-vars" "MANPATH")"
@@ -92,7 +112,7 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 	echo "export fpath=(/bedrock/share/zsh/completion/ \$fpath /bedrock/cross/zsh-completion/)"
 ) >/bedrock/run/zprofile
 (
-	echo "set TZ :/etc/localtime"
+	echo "set -e TZ"
 	echo "set LANG $(cfg_value "locale" "LANG")"
 	echo "set PATH $(cfg_value "env-vars" "PATH" | sed 's/:/ /g')"
 	echo "set MANPATH $(cfg_value "env-vars" "MANPATH" | sed 's/:/ /g')"
