@@ -131,10 +131,10 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	name=""
 	if [ -n "${1:-}" ]; then
 		name="${1}"
-	elif grep -q '^ID=' /etc/os-release 2>/dev/null; then
-		name="$(. /etc/os-release && echo "${ID}")"
 	elif grep -q '^DISTRIB_ID=' /etc/lsb-release 2>/dev/null; then
 		name="$(awk -F= '$1 == "DISTRIB_ID" {print tolower($2)}' /etc/lsb-release)"
+	elif grep -q '^ID=' /etc/os-release 2>/dev/null; then
+		name="$(. /etc/os-release && echo "${ID}")"
 	else
 		for file in /etc/*; do
 			if [ "${file}" = "os-release" ]; then
