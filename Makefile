@@ -384,6 +384,7 @@ echo "DISABLING $$applet"; \
 		done
 	# explicitly enable known desired and explicitly undesired features
 	cd vendor/busybox && \
+		./set_bb_option "CONFIG_AR" "y" && \
 		./set_bb_option "CONFIG_ASH_BASH_COMPAT" "y" && \
 		./set_bb_option "CONFIG_ASH_CMDCMD" "y" && \
 		./set_bb_option "CONFIG_ASH_TEST" "y" && \
