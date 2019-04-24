@@ -69,13 +69,34 @@ list_releases() {
 }
 
 default_release() {
-	release_list_url='http://releases.ubuntu.com/'
+	# cdimage is (1) updated to include the latest stable release, (2) does
+	# not include any unstable releases, and (3) has a relatively stable
+	# format that is relatively unlikely to update in a way that breaks
+	# parsing.
+	release_list_url='http://cdimage.ubuntu.com/releases/'
 	set +o pipefail
-	wget -O- "${release_list_url}" 2>/dev/null |
+	num="$(wget -O- "${release_list_url}" 2>/dev/null 2>/dev/null |
 		list_links |
-		sed 's/ /\n/' |
-		head -n1 |
-		sed 's,/,,g'
+		sed 's,/,,g' |
+		grep '[0-9.]' |
+		sort -rn |
+		head -n1)"
+
+	codenames="$(wget -O- "http://archive.ubuntu.com/ubuntu/dists" 2>/dev/null 2>/dev/null |
+		list_links |
+		grep '/$' |
+		grep -v -- '-' |
+		grep -ve '[.]' -ve '^/' |
+		sed 's,/$,,g')"
+
+	for codename in ${codenames}; do
+		if ! wget -O- "http://archive.ubuntu.com/ubuntu/dists/${codename}/Release" 2>/dev/null |
+			awk -v"n=${num}" '$1 == "Version:" && $2 == n {exit 1}'; then
+			echo "${codename}"
+			set +o pipefail
+			return
+		fi
+	done
 	set -o pipefail
 }
 
