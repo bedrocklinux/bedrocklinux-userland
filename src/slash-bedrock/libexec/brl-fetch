@@ -291,6 +291,20 @@ pick_mirror() {
 	fi
 }
 
+pick_release() {
+	# If release was specified on cmdline, use it.
+	if [ -n "${flag_release:-}" ]; then
+		echo "${flag_release}"
+		return
+	fi
+
+	release="$(default_release)"
+	if [ -z "${release}" ]; then
+		abort "Unable to automatically find a valid release.  Manually specify release with \`--release\`."
+	fi
+	echo "${release}"
+}
+
 # Filters out everything from stdin except hyperlinks found in href="...".
 # Intended for parsing HTTP index pages.
 list_links() {

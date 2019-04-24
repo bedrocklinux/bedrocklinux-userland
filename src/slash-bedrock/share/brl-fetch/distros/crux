@@ -69,7 +69,7 @@ fetch() {
 	notice "Using ${color_strat}${name}${color_norm}"
 
 	step "Determining release"
-	release="${flag_release:-$(default_release)}"
+	release="$(pick_release)"
 	notice "Using ${color_file}${release}${color_norm}"
 
 	step "Determining mirror"
