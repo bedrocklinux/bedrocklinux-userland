@@ -110,6 +110,7 @@ fetch() {
 	LC_ALL=C chroot "${target_dir}" rc-update add devfs sysinit
 	LC_ALL=C chroot "${target_dir}" rc-update add dmesg sysinit
 	LC_ALL=C chroot "${target_dir}" rc-update add mdev sysinit
+	LC_ALL=C chroot "${target_dir}" rc-update add networking sysinit
 	LC_ALL=C chroot "${target_dir}" rc-update add hwclock boot
 	LC_ALL=C chroot "${target_dir}" rc-update add modules boot
 	LC_ALL=C chroot "${target_dir}" rc-update add sysctl boot
@@ -123,4 +124,6 @@ fetch() {
 	tear_down_chroot "${target_dir}"
 
 	notice "Successfully acquired ${distro} stratum"
+	notice "Setup /bedrock/strata/${name}/etc/network/interfaces to use networking with ${name}'s init"
+	notice "Ensure ${name} has root user's login shell available locally to use networking with ${name}'s init"
 }
