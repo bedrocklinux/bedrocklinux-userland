@@ -62,6 +62,10 @@ ensure_essential_environment() {
 		mkdir -p /dev/pts
 		mount -t devpts devpts /dev/pts
 	fi
+	if ! grep -q "^\\w* /run tmpfs" /proc/mounts; then
+		mkdir -p /run
+		mount -t tmpfs tmpfs /run
+	fi
 
 	if ! grep -q "\\<fuse\\>" /proc/filesystems; then
 		modprobe fuse
