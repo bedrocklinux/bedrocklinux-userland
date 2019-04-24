@@ -65,10 +65,29 @@ if [ -w /sys/module/firmware_class/parameters/path ] && [ -d /bedrock/cross/firm
 	printf "/bedrock/cross/firmware" >/sys/module/firmware_class/parameters/path
 fi
 
-# Populate various /bedrock/run files based on bedrock.conf.  brl-enable/repair
-# ensures these are used where appropriate, e.g. symlinked to from /etc.
-#
-# Timezone information should not be read from /usr/share/zoneinfo because:
+# Specify commands which should automatically be restricted in an easily parsed
+# format for strat.
+mkdir -p /bedrock/run/restricted_cmds/
+for cmd in $(cfg_values "restriction" "restrict"); do
+	touch "/bedrock/run/restricted_cmds/${cmd}"
+done
+if echo /bedrock/run/restricted_cmds/* >/dev/null 2>&1; then
+	for file in /bedrock/run/restricted_cmds/*; do
+		found=false
+		for cmd in $(cfg_values "restriction" "restrict"); do
+			if [ "$(basename "${file}")" = "${cmd}" ]; then
+				found=true
+				break
+			fi
+		done
+		if ! "${found}"; then
+			rm "${file}"
+		fi
+	done
+fi
+
+# Various fields below manage the timezone.  Timezone information should not be
+# read from /usr/share/zoneinfo because:
 # - It is a local file and different strata could have differing values, which
 # would result in subtle time issues which would be difficult for users to
 # detect or debug.  Using /bedrock/cross ensures a consistent timezone value

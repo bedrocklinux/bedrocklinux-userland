@@ -27,6 +27,8 @@
 
 #define STATE_DIR "/bedrock/run/enabled_strata/"
 #define STATE_DIR_LEN strlen(STATE_DIR)
+#define RESTRICTED_CMD_DIR "/bedrock/run/restricted_cmds/"
+#define RESTRICTED_CMD_DIR_LEN strlen(RESTRICTED_CMD_DIR)
 #define STRATA_ROOT "/bedrock/strata/"
 #define STRATA_ROOT_LEN strlen(STRATA_ROOT)
 #define CROSS_DIR "/bedrock/cross/"
@@ -75,10 +77,12 @@ int check_capsyschroot(void)
 }
 
 void parse_args(int argc, char *argv[], int *flag_help, int *flag_restrict,
-	char **param_stratum, char **param_arg0, char ***param_arglist)
+	int *flag_unrestrict, char **param_stratum, char **param_arg0,
+	char ***param_arglist)
 {
 	*flag_help = 0;
 	*flag_restrict = 0;
+	*flag_unrestrict = 0;
 	*param_stratum = NULL;
 	*param_arg0 = NULL;
 	*param_arglist = NULL;
@@ -94,6 +98,11 @@ void parse_args(int argc, char *argv[], int *flag_help, int *flag_restrict,
 		} else if (argc > 0 && (strcmp(argv[0], "-r") == 0
 				|| strcmp(argv[0], "--restrict") == 0)) {
 			*flag_restrict = 1;
+			argv++;
+			argc--;
+		} else if (argc > 0 && (strcmp(argv[0], "-u") == 0
+				|| strcmp(argv[0], "--unrestrict") == 0)) {
+			*flag_unrestrict = 1;
 			argv++;
 			argc--;
 		} else if (argc > 1 && (strcmp(argv[0], "-a") == 0
@@ -125,6 +134,7 @@ void print_help(void)
 		"\n"
 		"Options:\n"
 		"  -r, --restrict    disable cross-stratum hooks\n"
+		"  -u, --unrestrict  do not disable cross-stratum hooks\n"
 		"  -a, --arg0 <ARG0> specify arg0\n"
 		"  -h, --help        print this message\n"
 		"\n"
@@ -133,66 +143,12 @@ void print_help(void)
 		"  $ strat centos ls\n"
 		"  Run gentoo's busybox with arg0=\"ls\":\n"
 		"  $ strat --arg0 ls gentoo busybox\n"
-		"  Run arch's makepkg against only arch files:\n"
-		"  $ strat --restrict arch makepkg\n");
-}
-
-/*
- * Remove all CROSS_DIR references in specified environment variable.
- */
-int restrict_envvar(const char *const envvar)
-{
-	char *val = getenv(envvar);
-	if (val == NULL) {
-		return 0;
-	}
-
-	char new_val[strlen(val) + 1];
-	new_val[0] = '\0';
-
-	char *start;
-	char *end;
-	for (start = val, end = strchr(start, ':'); end != NULL;
-		start = end + 1, end = strchr(start, ':')) {
-		if (strncmp(start, CROSS_DIR, CROSS_DIR_LEN) == 0) {
-			continue;
-		}
-		if (new_val[0] != '\0') {
-			strcat(new_val, ":");
-		}
-		strncat(new_val, start, end - start);
-		new_val[end - val] = '\0';
-	}
-	if (start != NULL && strncmp(start, CROSS_DIR, CROSS_DIR_LEN) != 0) {
-		if (new_val[0] != '\0') {
-			strcat(new_val, ":");
-		}
-		strcat(new_val, start);
-	}
-
-	return setenv(envvar, new_val, 1);
-}
-
-/*
- * Various environment variable tweaks to minimize automatic cross-stratum
- * access.
- */
-int restrict_env(void)
-{
-	int err = 0;
-	err |= restrict_envvar("PATH");
-	err |= restrict_envvar("MANPATH");
-	err |= restrict_envvar("INFOPATH");
-	err |= restrict_envvar("XDG_DATA_DIRS");
-	err |= setenv("SHELL", "/bin/sh", 1);
-	err |= setenv("BEDROCK_RESTRICT", "1", 1);
-	/*
-	 * While an argument could be made to restrict TERMINFO_DIRS, it is
-	 * more likely in practice to confuse users than help.
-	 *
-	 * err |= restrict_envvar("TERMINFO_DIRS");
-	 */
-	return err;
+		"  By default make is unrestricted.\n"
+		"  Run debian's make restricted to only debian's files:\n"
+		"  $ strat -r debian make\n"
+		"  By default makepkg is restricted.\n"
+		"  Run arch's makepkg without restricting it to arch's files:\n"
+		"  $ strat -u arch makepkg\n");
 }
 
 /*
@@ -277,6 +233,85 @@ int check_config_secure(char *config_path)
 	}
 
 	return 0;
+}
+
+/*
+ * Remove all CROSS_DIR references in specified environment variable.
+ */
+int restrict_envvar(const char *const envvar)
+{
+	char *val = getenv(envvar);
+	if (val == NULL) {
+		return 0;
+	}
+
+	char new_val[strlen(val) + 1];
+	new_val[0] = '\0';
+
+	char *start;
+	char *end;
+	for (start = val, end = strchr(start, ':'); end != NULL;
+		start = end + 1, end = strchr(start, ':')) {
+		if (strncmp(start, CROSS_DIR, CROSS_DIR_LEN) == 0) {
+			continue;
+		}
+		if (new_val[0] != '\0') {
+			strcat(new_val, ":");
+		}
+		strncat(new_val, start, end - start);
+		new_val[end - val] = '\0';
+	}
+	if (start != NULL && strncmp(start, CROSS_DIR, CROSS_DIR_LEN) != 0) {
+		if (new_val[0] != '\0') {
+			strcat(new_val, ":");
+		}
+		strcat(new_val, start);
+	}
+
+	return setenv(envvar, new_val, 1);
+}
+
+/*
+ * Various environment variable tweaks to minimize automatic cross-stratum
+ * access.
+ */
+int restrict_env(void)
+{
+	int err = 0;
+	err |= restrict_envvar("PATH");
+	err |= restrict_envvar("MANPATH");
+	err |= restrict_envvar("INFOPATH");
+	err |= restrict_envvar("XDG_DATA_DIRS");
+	err |= setenv("SHELL", "/bin/sh", 1);
+	err |= setenv("BEDROCK_RESTRICT", "1", 1);
+	/*
+	 * While an argument could be made to restrict TERMINFO_DIRS, it is
+	 * more likely in practice to confuse users than help.
+	 *
+	 * err |= restrict_envvar("TERMINFO_DIRS");
+	 */
+	return err;
+}
+
+int check_cmd_restricted(char *file)
+{
+	if (file == NULL || file[0] == '\0') {
+		return 0;
+	}
+
+	char *cmd;
+	if ((cmd = strrchr(file, '/')) != NULL) {
+		cmd++;
+	} else {
+		cmd = file;
+	}
+
+	int cmd_len = strlen(cmd);
+	char path[RESTRICTED_CMD_DIR_LEN + cmd_len + 1];
+	strcpy(path, RESTRICTED_CMD_DIR);
+	strcat(path, cmd);
+
+	return check_config_secure(path) >= 0;
 }
 
 int break_out_of_chroot(char *reference_dir)
@@ -423,18 +458,25 @@ int main(int argc, char *argv[])
 
 	int flag_help;
 	int flag_restrict;
+	int flag_unrestrict;
 	char *param_stratum;
 	char *param_arg0;
 	char **param_arglist;
-	parse_args(argc, argv, &flag_help, &flag_restrict, &param_stratum,
-		&param_arg0, &param_arglist);
+	parse_args(argc, argv, &flag_help, &flag_restrict, &flag_unrestrict,
+		&param_stratum, &param_arg0, &param_arglist);
 
 	if (flag_help) {
 		print_help();
 		return 0;
 	}
 
-	if (flag_restrict && restrict_env() < 0) {
+	if (flag_unrestrict) {
+		/* flag_unrestrict overrides else-branched restriction code */
+	} else if (flag_restrict && restrict_env() < 0) {
+		fprintf(stderr,
+			"strat: unable to set restricted environment\n");
+		return 1;
+	} else if (check_cmd_restricted(param_arglist[0]) && restrict_env() < 0) {
 		fprintf(stderr,
 			"strat: unable to set restricted environment\n");
 		return 1;
