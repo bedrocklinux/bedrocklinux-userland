@@ -883,6 +883,10 @@ cfg_values() {
 cfg_crossfs() {
 	mount="${1}"
 
+	# For the purposes here, treat local alias as a stratum.  We do not
+	# want to dereference it, but rather pass it directly to crossfs.  It
+	# will dereference it at runtime.
+
 	strata=""
 	for stratum in $(list_strata); do
 		if is_enabled "${stratum}" && has_attr "/bedrock/strata/${stratum}" "show_cross"; then
@@ -892,6 +896,9 @@ cfg_crossfs() {
 
 	aliases=""
 	for alias in $(list_aliases); do
+		if [ "${alias}" = "local" ]; then
+			continue
+		fi
 		if ! stratum="$(deref "${alias}")"; then
 			continue
 		fi
@@ -993,7 +1000,7 @@ cfg_crossfs() {
 			if (stratum in aliases) {
 				stratum = aliases[stratum]
 			}
-			if (!(stratum in strata)) {
+			if (!(stratum in strata) && stratum != "local") {
 				continue
 			}
 

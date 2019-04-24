@@ -107,7 +107,6 @@
 # - cppcheck
 # - clang
 # - gcc
-# - tcc
 # - scan-build (usually distributed with clang)
 # - shfmt (https://github.com/mvdan/sh)
 # - indent (GNU)
@@ -562,8 +561,9 @@ build/userland.tar: \
 	chmod 755 $(SLASHBR)/share/resolvconf/00bedrock
 	chmod 755 build/sbin/init
 	# create symlinks
-	ln -s /bedrock/run/init-alias $(SLASHBR)/strata/init
 	ln -s ../bin/strat $(SLASHBR)/libexec/brl-strat
+	ln -s /bedrock/run/init-alias $(SLASHBR)/strata/init
+	ln -s ../cross/.local-alias $(SLASHBR)/strata/local
 	# create a tarball
 	cd build/ && fakeroot tar cf userland.tar-new bedrock/ sbin/init
 	cd build/ && mv userland.tar-new userland.tar
@@ -669,7 +669,6 @@ check:
 	# - cppcheck
 	# - clang
 	# - gcc
-	# - tcc
 	# - scan-build (usually distributed with clang)
 	# - shfmt (https://github.com/mvdan/sh)
 	# - indent (GNU)
@@ -705,7 +704,7 @@ check:
 		cppcheck --error-exitcode=1 "$$file" || exit 1; \
 	done
 	# check against various compiler warnings
-	for compiler in clang gcc tcc; do \
+	for compiler in clang gcc; do \
 		for dir in src/*/Makefile; do \
 			$(MAKE) -C "$${dir%Makefile}" clean || exit 1; \
 			$(MAKE) -C "$${dir%Makefile}" CC=$$compiler CFLAGS="$(WERROR_FLAGS)" || exit 1; \

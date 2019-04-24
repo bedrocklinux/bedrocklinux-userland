@@ -159,6 +159,12 @@ repair_bedrock() {
 		stinit busybox mount --bind \"${root}\" \"${root}${root}\"
 	"
 
+	# crossfs below depends on init stratum having stratum xattr set
+	init="$(/bedrock/bin/brl deref init)"
+	if ! init_attr="$(get_attr "/proc/1/root" "stratum" 2>/dev/null)" || [ "${init_attr}" != "${init}" ]; then
+		set_attr "/proc/1/root" "stratum" "${init}"
+	fi
+
 	mnt="/bedrock/cross"
 	ensure_mnt "${stratum}" "${mnt}" "fuse.crossfs" "false" "
 		(

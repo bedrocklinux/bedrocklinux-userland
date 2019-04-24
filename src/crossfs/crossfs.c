@@ -171,6 +171,21 @@
 #define CFG_PATH_LEN strlen(CFG_PATH)
 
 /*
+ * Symlink to stratum root, used for local alias.
+ */
+#define LOCAL_ALIAS_NAME ".local-alias"
+#define LOCAL_ALIAS_NAME_LEN strlen(LOCAL_ALIAS_NAME)
+
+#define LOCAL_ALIAS_PATH "/.local-alias"
+#define LOCAL_ALIAS_PATH_LEN strlen(LOCAL_ALIAS_PATH)
+
+/*
+ * local alias
+ */
+#define LOCAL "local"
+#define LOCAL_LEN strlen(LOCAL)
+
+/*
  * Headers for content written to CFG_NAME
  */
 #define CMD_CLEAR "clear"
@@ -181,6 +196,31 @@
 
 #define CMD_RM "rm"
 #define CMD_RM_LEN strlen(CMD_RM)
+
+#define FS_IMP_SETUP(lock_type)                                              \
+	int rv;                                                              \
+	set_caller_fsid();                                                   \
+	if ((rv = set_local_stratum()) < 0) {                                \
+		return rv;                                                   \
+	}                                                                    \
+	if (lock_type == CFG_RDLOCK) {                                       \
+		pthread_rwlock_rdlock(&cfg_lock);                            \
+	} else {                                                             \
+		pthread_rwlock_wrlock(&cfg_lock);                            \
+	}
+
+#define FS_IMP_RETURN(rv)                                                    \
+	pthread_rwlock_unlock(&cfg_lock);                                    \
+	close(local_stratum.root_fd);                                        \
+	return rv;
+
+/*
+ * Indicates whether the given critical section needs to be exclusive.
+ */
+enum cfg_lock_type {
+	CFG_WRLOCK,
+	CFG_RDLOCK,
+};
 
 /*
  * Incoming paths are classified into the following categories.
@@ -202,6 +242,10 @@ enum ipath_class {
 	 * Refers to this filesystem's configuration interface.
 	 */
 	CLASS_CFG,
+	/*
+	 * Refers to symlink pointing to calling process stratum root.
+	 */
+	CLASS_LOCAL,
 	/*
 	 * Does not refer to any expected file path.
 	 */
@@ -273,6 +317,19 @@ const size_t ini_exec_len[] = {
 	8,
 };
 
+struct stratum {
+	/*
+	 * stratum name
+	 */
+	char *name;
+	size_t name_len;
+	/*
+	 * A file descriptor relating to the corresponding stratum's root
+	 * directory.
+	 */
+	int root_fd;
+};
+
 /*
  * Each back_entry represents a file or directory which may fulfill a given
  * cfg_entry file.
@@ -284,15 +341,16 @@ struct back_entry {
 	char *lpath;
 	size_t lpath_len;
 	/*
-	 * The corresponding stratum.
+	 * The corresponding stratum/alias.  Run through deref() before
+	 * consumption.
 	 */
-	char *stratum;
-	size_t stratum_len;
+	struct stratum alias;
 	/*
-	 * A file descriptor relating to the corresponding stratum's root
-	 * directory.
+	 * Boolean indicating if this back_entry uses the local alias.  If so,
+	 * deref() forwards calls to the local stratum rather than this
+	 * struct's alias field.
 	 */
-	int root_fd;
+	int local;
 };
 
 /*
@@ -348,6 +406,12 @@ size_t cfg_cnt = 0;
 size_t cfg_alloc = 0;
 
 /*
+ * Per-thread information about calling process' stratum.
+ */
+static __thread char local_stratum_name[PATH_MAX];
+static __thread struct stratum local_stratum;
+
+/*
  * File descriptors referring to directories.  Used as fixed reference points
  * while chroot()'ing around.
  */
@@ -366,6 +430,7 @@ pthread_mutex_t root_lock;
  */
 struct stat vdir_stat;
 struct stat cfg_stat;
+struct stat local_stat;
 off_t bouncer_size;
 
 /*
@@ -449,6 +514,18 @@ static inline int pstrcmp(const char *const a, const size_t a_len,
 }
 
 /*
+ * Dereference a back_entry's alias.
+ */
+static inline struct stratum *deref(struct back_entry *back)
+{
+	if (back->local) {
+		return &local_stratum;
+	} else {
+		return &back->alias;
+	}
+}
+
+/*
  * Classify an incoming file path into one of ipath_class.
  */
 static inline enum ipath_class classify_ipath(const char *ipath,
@@ -480,6 +557,11 @@ static inline enum ipath_class classify_ipath(const char *ipath,
 
 	if (pstrcmp(ipath, ipath_len, CFG_PATH, CFG_PATH_LEN) == 0) {
 		return CLASS_CFG;
+	}
+
+	if (pstrcmp(ipath, ipath_len, LOCAL_ALIAS_PATH,
+			LOCAL_ALIAS_PATH_LEN) == 0) {
+		return CLASS_LOCAL;
 	}
 
 	return CLASS_ENOENT;
@@ -706,7 +788,7 @@ static inline int stat_first_bpath(struct cfg_entry *cfg, const char *ipath,
 			continue;
 		}
 
-		rv = fchroot_stat(cfg->back[i].root_fd, bpath, stbuf);
+		rv = fchroot_stat(deref(&cfg->back[i])->root_fd, bpath, stbuf);
 		if (rv >= 0 || errno != ENOENT) {
 			break;
 		}
@@ -730,7 +812,8 @@ static inline int open_first_bpath(struct cfg_entry *entry, const char *ipath,
 			continue;
 		}
 
-		rv = fchroot_open(entry->back[i].root_fd, bpath, flags);
+		rv = fchroot_open(deref(&entry->back[i])->root_fd, bpath,
+			flags);
 		if (rv >= 0 || errno != ENOENT) {
 			break;
 		}
@@ -755,7 +838,8 @@ static inline int loc_first_bpath(struct cfg_entry *cfg,
 		}
 
 		char c;
-		rv = fchroot_readlink(cfg->back[i].root_fd, bpath, &c, 1);
+		rv = fchroot_readlink(deref(&cfg->back[i])->root_fd, bpath, &c,
+			1);
 		if (rv >= 0 || errno != ENOENT) {
 			*back = &cfg->back[i];
 			obpath[PATH_MAX - 1] = '\0';
@@ -786,7 +870,8 @@ static inline int filldir_all_bpath(struct cfg_entry *cfg, const char *ipath,
 			continue;
 		}
 
-		rv |= fchroot_filldir(cfg->back[i].root_fd, bpath, files);
+		rv |= fchroot_filldir(deref(&cfg->back[i])->root_fd, bpath,
+			files);
 	}
 	return rv;
 }
@@ -819,8 +904,10 @@ static void cfg_clear(void)
 	for (size_t i = 0; i < cfg_cnt; i++) {
 		for (size_t j = 0; j < cfgs[i].back_cnt; j++) {
 			free(cfgs[i].back[j].lpath);
-			free(cfgs[i].back[j].stratum);
-			close(cfgs[i].back[j].root_fd);
+			free(cfgs[i].back[j].alias.name);
+			if (!cfgs[i].back[j].local) {
+				close(cfgs[i].back[j].alias.root_fd);
+			}
 		}
 		free(cfgs[i].cpath);
 		free(cfgs[i].back);
@@ -963,8 +1050,9 @@ static int cfg_add(const char *const buf, size_t size)
 	size_t stratum_len = strlen(buf_stratum);
 	size_t lpath_len = strlen(buf_lpath);
 	for (size_t i = 0; i < cfg->back_cnt; i++) {
-		if (pstrcmp(cfg->back[i].stratum, cfg->back[i].stratum_len,
-				buf_stratum, stratum_len) == 0
+		if (pstrcmp(cfg->back[i].alias.name,
+				cfg->back[i].alias.name_len, buf_stratum,
+				stratum_len) == 0
 			&& pstrcmp(cfg->back[i].lpath, cfg->back[i].lpath_len,
 				buf_lpath, lpath_len) == 0) {
 			return size;
@@ -992,26 +1080,33 @@ static int cfg_add(const char *const buf, size_t size)
 	}
 	memcpy(stratum, buf_stratum, stratum_len + 1);
 
+	int local = pstrcmp(stratum, stratum_len, LOCAL, LOCAL_LEN) == 0;
+
 	/*
 	 * Re-use root_fd for the given stratum, if available.
 	 */
 	for (size_t i = 0; i < cfg_cnt; i++) {
 		for (size_t j = 0; j < cfgs[i].back_cnt; j++) {
-			if (pstrcmp(cfgs[i].back[j].stratum,
-					cfgs[i].back[j].stratum_len, stratum,
+			if (pstrcmp(cfgs[i].back[j].alias.name,
+					cfgs[i].back[j].alias.name_len, stratum,
 					stratum_len) == 0) {
-				root_fd = cfgs[i].back[j].root_fd;
+				root_fd = cfgs[i].back[j].alias.root_fd;
+				break;
 			}
 		}
 	}
 	/*
-	 * No previous one exists, open a new one.
+	 * No previous one exists and we are not local alias (which ignores
+	 * .root_fd), open a new one.
+	 *
+	 * If local alias, keep it -1 to ensure a bug elsewhere does not
+	 * accidentally close a desired file descriptor.
 	 */
-	if (root_fd < 0) {
+	if (!local && root_fd < 0) {
 		root_fd = fchroot_open(strata_root_fd, stratum, O_DIRECTORY);
 		new_fd = 1;
 	}
-	if (root_fd < 0) {
+	if (!local && root_fd < 0) {
 		goto free_and_abort_enomem;
 	}
 
@@ -1028,9 +1123,10 @@ static int cfg_add(const char *const buf, size_t size)
 
 	back->lpath = lpath;
 	back->lpath_len = lpath_len;
-	back->stratum = stratum;
-	back->stratum_len = stratum_len;
-	back->root_fd = root_fd;
+	back->alias.name = stratum;
+	back->alias.name_len = stratum_len;
+	back->alias.root_fd = root_fd;
+	back->local = local;
 	cfg->back_cnt++;
 
 	cfg_stat.st_size += strlen(nbuf) - CMD_ADD_LEN - 1;
@@ -1137,8 +1233,9 @@ static int cfg_rm(const char *const buf, size_t size)
 	size_t stratum_len = strlen(buf_stratum);
 	size_t lpath_len = strlen(buf_lpath);
 	for (size_t i = 0; i < cfg->back_cnt; i++) {
-		if (pstrcmp(cfg->back[i].stratum, cfg->back[i].stratum_len,
-				buf_stratum, stratum_len) == 0
+		if (pstrcmp(cfg->back[i].alias.name,
+				cfg->back[i].alias.name_len, buf_stratum,
+				stratum_len) == 0
 			&& pstrcmp(cfg->back[i].lpath, cfg->back[i].lpath_len,
 				buf_lpath, lpath_len) == 0) {
 			back = &cfg->back[i];
@@ -1155,7 +1252,8 @@ static int cfg_rm(const char *const buf, size_t size)
 	int root_fd_cnt = 0;
 	for (size_t i = 0; i < cfg_cnt; i++) {
 		for (size_t j = 0; j < cfgs[i].back_cnt; j++) {
-			if (cfgs[i].back[j].root_fd == back->root_fd) {
+			if (cfgs[i].back[j].alias.root_fd ==
+				back->alias.root_fd) {
 				root_fd_cnt++;
 			}
 		}
@@ -1164,10 +1262,10 @@ static int cfg_rm(const char *const buf, size_t size)
 	/*
 	 * Free
 	 */
-	free(back->stratum);
+	free(back->alias.name);
 	free(back->lpath);
-	if (root_fd_cnt == 1) {
-		close(back->root_fd);
+	if (!back->local && root_fd_cnt == 1) {
+		close(back->alias.root_fd);
 	}
 
 	if (&cfg->back[cfg->back_cnt - 1] != back) {
@@ -1207,7 +1305,7 @@ static int cfg_read(char *buf, size_t size, off_t offset)
 			strcat(str, " ");
 			strcat(str, cfgs[i].cpath);
 			strcat(str, " ");
-			strcat(str, cfgs[i].back[j].stratum);
+			strcat(str, cfgs[i].back[j].alias.name);
 			strcat(str, ":");
 			strcat(str, cfgs[i].back[j].lpath);
 			strcat(str, "\n");
@@ -1243,7 +1341,8 @@ static inline int font_merge_kv(struct cfg_entry *cfg, const char *ipath,
 			continue;
 		}
 
-		FILE *fp = fchroot_fopen(cfg->back[i].root_fd, bpath, "r");
+		FILE *fp = fchroot_fopen(deref(&cfg->back[i])->root_fd, bpath,
+			"r");
 		if (fp == NULL) {
 			continue;
 		}
@@ -1335,7 +1434,7 @@ static inline int virt_filldir(const char *ipath, size_t ipath_len,
 		 */
 		for (size_t j = 0; j < cfgs[i].back_cnt; j++) {
 			struct stat stbuf;
-			if (fchroot_stat(cfgs[i].back[j].root_fd,
+			if (fchroot_stat(deref(&cfgs[i].back[j])->root_fd,
 					cfgs[i].back[j].lpath, &stbuf) >= 0) {
 				size_t len =
 					strlen(cfgs[i].cpath + ipath_len + 1);
@@ -1347,6 +1446,46 @@ static inline int virt_filldir(const char *ipath, size_t ipath_len,
 
 	}
 	return rv;
+}
+
+/*
+ * Populate thread-local storage with information about calling process'
+ * stratum.  This requires euid 0.
+ */
+static inline int set_local_stratum(void)
+{
+	local_stratum.name = local_stratum_name;
+	local_stratum.name[0] = '\0';
+	local_stratum.name_len = 0;
+	local_stratum.root_fd = 0;
+
+	struct fuse_context *context = fuse_get_context();
+	if (context == NULL) {
+		return -1;
+	}
+
+	char procroot[PATH_MAX];
+	int s = snprintf(procroot, PATH_MAX, "/proc/%d/root", context->pid);
+	if (s < 0 || s >= (int)sizeof(procroot)) {
+		return -1;
+	}
+
+	local_stratum.root_fd =
+		fchroot_open(init_root_fd, procroot, O_DIRECTORY);
+	if (local_stratum.root_fd < 0) {
+		return -1;
+	}
+
+	ssize_t len = fgetxattr(local_stratum.root_fd, STRATUM_XATTR,
+		local_stratum_name, sizeof(local_stratum_name) - 1);
+	if (len < 0) {
+		close(local_stratum.root_fd);
+		return -1;
+	}
+	local_stratum.name_len = len;
+	local_stratum_name[len] = '\0';
+
+	return 0;
 }
 
 static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
@@ -1388,7 +1527,7 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 			break;
 		}
 
-		FILE *fp = fchroot_fopen(back->root_fd, bpath, "r");
+		FILE *fp = fchroot_fopen(deref(back)->root_fd, bpath, "r");
 		if (fp == NULL) {
 			rv = -errno;
 			break;
@@ -1407,7 +1546,7 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 				}
 				stbuf->st_size += STRAT_PATH_LEN;
 				stbuf->st_size += strlen(" ");
-				stbuf->st_size += back->stratum_len;
+				stbuf->st_size += deref(back)->name_len;
 				stbuf->st_size += strlen(" ");
 				break;
 			}
@@ -1498,9 +1637,7 @@ static int m_getattr(const char *ipath, struct stat *stbuf,
 {
 	(void)fi;
 
-	int rv;
-	set_caller_fsid();
-	pthread_rwlock_rdlock(&cfg_lock);
+	FS_IMP_SETUP(CFG_RDLOCK);
 
 	size_t ipath_len = strlen(ipath);
 	struct cfg_entry *cfg;
@@ -1520,14 +1657,50 @@ static int m_getattr(const char *ipath, struct stat *stbuf,
 		rv = 0;
 		break;
 
+	case CLASS_LOCAL:
+		*stbuf = local_stat;
+		stbuf->st_size = local_stratum.name_len;
+		break;
+
 	case CLASS_ENOENT:
 	default:
 		rv = -ENOENT;
 		break;
 	}
 
-	pthread_rwlock_unlock(&cfg_lock);
-	return rv;
+	FS_IMP_RETURN(rv);
+}
+
+static int m_readlink(const char *ipath, char *buf, size_t size)
+{
+	FS_IMP_SETUP(CFG_RDLOCK);
+
+	size_t ipath_len = strlen(ipath);
+	struct cfg_entry *cfg;
+	switch (classify_ipath(ipath, ipath_len, &cfg)) {
+	case CLASS_BACK:
+	case CLASS_VDIR:
+	case CLASS_ROOT:
+	case CLASS_CFG:
+		rv = -EINVAL;
+		break;
+
+	case CLASS_LOCAL:
+		if (STRATA_ROOT_LEN + local_stratum.name_len >= size) {
+			return -ENAMETOOLONG;
+		} else {
+			strcpy(buf, STRATA_ROOT);
+			strcat(buf, local_stratum.name);
+		}
+		break;
+
+	case CLASS_ENOENT:
+	default:
+		rv = -ENOENT;
+		break;
+	}
+
+	FS_IMP_RETURN(rv);
 }
 
 static int m_readdir(const char *ipath, void *buf, fuse_fill_dir_t filler,
@@ -1537,9 +1710,7 @@ static int m_readdir(const char *ipath, void *buf, fuse_fill_dir_t filler,
 	(void)fi;
 	(void)flags;
 
-	int rv = 0;
-	set_caller_fsid();
-	pthread_rwlock_rdlock(&cfg_lock);
+	FS_IMP_SETUP(CFG_RDLOCK);
 
 	struct h_str *files = NULL;
 	rv |= insert_h_str(&files, ".", 1);
@@ -1555,6 +1726,8 @@ static int m_readdir(const char *ipath, void *buf, fuse_fill_dir_t filler,
 
 	case CLASS_ROOT:
 		rv |= insert_h_str(&files, CFG_NAME, CFG_NAME_LEN);
+		rv |= insert_h_str(&files, LOCAL_ALIAS_NAME,
+			LOCAL_ALIAS_NAME_LEN);
 		ipath_len = 0;
 		/* fallthrough */
 	case CLASS_VDIR:
@@ -1562,6 +1735,7 @@ static int m_readdir(const char *ipath, void *buf, fuse_fill_dir_t filler,
 		break;
 
 	case CLASS_CFG:
+	case CLASS_LOCAL:
 	case CLASS_ENOENT:
 	default:
 		rv = -ENOENT;
@@ -1584,15 +1758,12 @@ static int m_readdir(const char *ipath, void *buf, fuse_fill_dir_t filler,
 		free(file);
 	}
 
-	pthread_rwlock_unlock(&cfg_lock);
-	return rv;
+	FS_IMP_RETURN(rv);
 }
 
 static int m_open(const char *ipath, struct fuse_file_info *fi)
 {
-	int rv;
-	set_caller_fsid();
-	pthread_rwlock_rdlock(&cfg_lock);
+	FS_IMP_SETUP(CFG_RDLOCK);
 
 	size_t ipath_len = strlen(ipath);
 	struct cfg_entry *cfg;
@@ -1641,14 +1812,17 @@ static int m_open(const char *ipath, struct fuse_file_info *fi)
 		}
 		break;
 
+	case CLASS_LOCAL:
+		rv = -ELOOP;
+		break;
+
 	case CLASS_ENOENT:
 	default:
 		rv = -ENOENT;
 		break;
 	}
 
-	pthread_rwlock_unlock(&cfg_lock);
-	return rv;
+	FS_IMP_RETURN(rv);
 }
 
 static inline int read_pass(struct cfg_entry *cfg, const char *const ipath,
@@ -1693,7 +1867,7 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 			break;
 		}
 
-		FILE *fp = fchroot_fopen(back->root_fd, bpath, "r");
+		FILE *fp = fchroot_fopen(deref(back)->root_fd, bpath, "r");
 		if (fp == NULL) {
 			rv = -errno;
 			break;
@@ -1718,8 +1892,9 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 				strcatoff(buf, STRAT_PATH, STRAT_PATH_LEN,
 					&off, &wrote, size);
 				strcatoff(buf, " ", 1, &off, &wrote, size);
-				strcatoff(buf, back->stratum, back->stratum_len,
-					&off, &wrote, size);
+				strcatoff(buf, deref(back)->name,
+					deref(back)->name_len, &off, &wrote,
+					size);
 				strcatoff(buf, " ", 1, &off, &wrote, size);
 				strcatoff(buf, line + ini_exec_len[i],
 					strlen(line + ini_exec_len[i]),
@@ -1827,9 +2002,7 @@ static int m_read(const char *ipath, char *buf, size_t size, off_t offset,
 {
 	(void)fi;
 
-	int rv;
-	set_caller_fsid();
-	pthread_rwlock_rdlock(&cfg_lock);
+	FS_IMP_SETUP(CFG_RDLOCK);
 
 	size_t ipath_len = strlen(ipath);
 	struct cfg_entry *cfg;
@@ -1853,14 +2026,17 @@ static int m_read(const char *ipath, char *buf, size_t size, off_t offset,
 		rv = -EISDIR;
 		break;
 
+	case CLASS_LOCAL:
+		rv = -EBADF;
+		break;
+
 	case CLASS_ENOENT:
 	default:
 		rv = -ENOENT;
 		break;
 	}
 
-	pthread_rwlock_unlock(&cfg_lock);
-	return rv;
+	FS_IMP_RETURN(rv);
 }
 
 static int m_write(const char *ipath, const char *buf, size_t size,
@@ -1869,9 +2045,7 @@ static int m_write(const char *ipath, const char *buf, size_t size,
 	(void)offset;
 	(void)fi;
 
-	int rv;
-	set_caller_fsid();
-	pthread_rwlock_wrlock(&cfg_lock);
+	FS_IMP_SETUP(CFG_WRLOCK);
 
 	size_t ipath_len = strlen(ipath);
 	struct fuse_context *context = fuse_get_context();
@@ -1892,16 +2066,13 @@ static int m_write(const char *ipath, const char *buf, size_t size,
 		rv = -EINVAL;
 	}
 
-	pthread_rwlock_unlock(&cfg_lock);
-	return rv;
+	FS_IMP_RETURN(rv);
 }
 
 static int m_getxattr(const char *ipath, const char *name, char *value,
 	size_t size)
 {
-	int rv;
-	set_caller_fsid();
-	pthread_rwlock_wrlock(&cfg_lock);
+	FS_IMP_SETUP(CFG_WRLOCK);
 
 	size_t name_len = strlen(name);
 	char *target;
@@ -1919,8 +2090,8 @@ static int m_getxattr(const char *ipath, const char *name, char *value,
 			rv = loc_first_bpath(cfg, ipath, ipath_len, &back,
 				bpath);
 			if (rv >= 0) {
-				target = back->stratum;
-				target_len = back->stratum_len;
+				target = deref(back)->name;
+				target_len = deref(back)->name_len;
 			}
 		} else if (pstrcmp(name, name_len, LPATH_XATTR,
 				LPATH_XATTR_LEN) == 0) {
@@ -1944,6 +2115,7 @@ static int m_getxattr(const char *ipath, const char *name, char *value,
 	case CLASS_VDIR:
 	case CLASS_ROOT:
 	case CLASS_CFG:
+	case CLASS_LOCAL:
 		if (pstrcmp(name, name_len, STRATUM_XATTR,
 				STRATUM_XATTR_LEN) == 0) {
 			rv = 0;
@@ -1981,8 +2153,7 @@ static int m_getxattr(const char *ipath, const char *name, char *value,
 		}
 	}
 
-	pthread_rwlock_unlock(&cfg_lock);
-	return rv;
+	FS_IMP_RETURN(rv);
 }
 
 /*
@@ -2005,6 +2176,7 @@ static void m_destroy(void *private_data)
  */
 static struct fuse_operations m_oper = {
 	.getattr = m_getattr,
+	.readlink = m_readlink,
 	.readdir = m_readdir,
 	.open = m_open,
 	.read = m_read,
@@ -2020,7 +2192,7 @@ int main(int argc, char *argv[])
 	 * any user (including root) and chroot().
 	 */
 	if (getuid() != 0) {
-		fprintf(stderr, "crossfs error: not running as root.\n");
+		fprintf(stderr, "crossfs: error not running as root.\n");
 		return 1;
 	}
 
@@ -2060,6 +2232,9 @@ int main(int argc, char *argv[])
 	memcpy(&cfg_stat, &vdir_stat, sizeof(struct stat));
 	cfg_stat.st_mode = S_IFREG | 0600;
 	cfg_stat.st_size = 0;
+
+	memcpy(&local_stat, &vdir_stat, sizeof(struct stat));
+	local_stat.st_mode = S_IFLNK | 0777;
 
 	struct stat bouncer_stat;
 	if (lstat(BOUNCER_PATH, &bouncer_stat) < 0) {
