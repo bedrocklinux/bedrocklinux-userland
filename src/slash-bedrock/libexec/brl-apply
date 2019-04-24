@@ -60,9 +60,8 @@ lock
 # early.
 cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
 
-# Configure /sys
+# Configure cross firmware.
 if [ -w /sys/module/firmware_class/parameters/path ] && [ -d /bedrock/cross/firmware ]; then
-	# Ensure the kernel knows about cross-strata firmware
 	printf "/bedrock/cross/firmware" >/sys/module/firmware_class/parameters/path
 fi
 
@@ -88,7 +87,11 @@ fi
 # By ensuring TZ is unset, all tested software including chromium, glibc, and
 # musl, fall back to /etc/localtime, which is symlinked (eventually) to
 # /bedrock/cross.
+
+# Set up /etc/localtime
 ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/localtime
+
+# Setup /etc/environment
 (
 	echo "unset TZ"
 	echo "LANG=$(cfg_value "locale" "LANG")"
@@ -98,8 +101,10 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 	echo "XDG_DATA_DIRS=$(cfg_value "env-vars" "XDG_DATA_DIRS")"
 	echo "TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
 ) >/bedrock/run/environment
+
+# Setup /etc/profile
 (
-	echo '[ -n "${BEDROCK_RESTRICT:-}" ] && return'
+	echo "[ -n \"\${BEDROCK_RESTRICT:-}\" ] && return"
 	echo "unset TZ"
 	echo "export LANG=$(cfg_value "locale" "LANG")"
 	echo "export PATH=$(cfg_value "env-vars" "PATH")"
@@ -108,13 +113,17 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 	echo "export XDG_DATA_DIRS=$(cfg_value "env-vars" "XDG_DATA_DIRS")"
 	echo "export TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
 ) >/bedrock/run/profile
+
+# Setup /etc/zsh/zprofile, /etc/zprofile
 (
-	echo '[ -n "${BEDROCK_RESTRICT:-}" ] && return'
+	echo "[ -n \"${BEDROCK_RESTRICT:-}\" ] && return"
 	echo ". /bedrock/run/profile"
 	echo "export fpath=(/bedrock/share/zsh/completion/ \$fpath /bedrock/cross/zsh-completion/)"
 ) >/bedrock/run/zprofile
+
+# Setup /etc/fish/conf.d/ configuration
 (
-	echo '[ -n "$BEDROCK_RESTRICT" ]; and exit 0'
+	echo "[ -n \"\$BEDROCK_RESTRICT\" ]; and exit 0"
 	echo "set -e TZ"
 	echo "set LANG $(cfg_value "locale" "LANG")"
 	echo "set PATH $(cfg_value "env-vars" "PATH" | sed 's/:/ /g')"
@@ -123,9 +132,13 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 	echo "set XDG_DATA_DIRS $(cfg_value "env-vars" "XDG_DATA_DIRS")"
 	echo "set TERMINFO_DIRS $(cfg_value "env-vars" "TERMINFO_DIRS")"
 ) >/bedrock/run/fprofile
+
+# Setup /etc/sudoers configuration
 (
 	echo "Defaults secure_path=\"$(cfg_value "env-vars" "PATH")\""
 ) >/bedrock/run/sudoers
+
+# Setup xorg.conf configuration
 if [ -d /bedrock/cross/fonts ]; then
 	(
 		echo "Section \"Files\""
@@ -134,7 +147,7 @@ if [ -d /bedrock/cross/fonts ]; then
 	) >/bedrock/run/xorg-fonts
 fi
 
-# Configure various global files in-place.
+# Configure /etc/login.defs
 if [ -r /etc/login.defs ] && awk -F'=' -v"path=$(cfg_value "env-vars" "PATH")" '
 	# Ensure login.defs uses Bedrock $PATH.
 	#
@@ -164,6 +177,8 @@ if [ -r /etc/login.defs ] && awk -F'=' -v"path=$(cfg_value "env-vars" "PATH")" '
 	' /etc/login.defs >/etc/login.defs-new
 	mv /etc/login.defs-new /etc/login.defs
 fi
+
+# Configure /etc/fstab
 if [ -r /etc/fstab ] && awk '$1$2$3$4$5$6 !~ "#" && $6 != "" && $6 != 0 {x=1} END {exit !x}' /etc/fstab; then
 	# Bedrock creates bind mounts referencing the root directory which
 	# confuse various init systems attempts to fsck the root directory.
@@ -179,10 +194,7 @@ if [ -r /etc/fstab ] && awk '$1$2$3$4$5$6 !~ "#" && $6 != "" && $6 != 0 {x=1} EN
 	' /etc/fstab >/etc/fstab-new && mv /etc/fstab-new /etc/fstab
 fi
 
-if [ -w /sys/module/firmware_class/parameters/path ] && [ -d /bedrock/cross/firmware ]; then
-	printf "/bedrock/cross/firmware" >/sys/module/firmware_class/parameters/path
-fi
-
+# Disable SELinux
 for stratum in $(/bedrock/bin/brl list -ei); do
 	root="$(stratum_root --empty "${stratum}")"
 	seconfig="/proc/1/root${root}/etc/selinux/config"
@@ -192,6 +204,10 @@ for stratum in $(/bedrock/bin/brl list -ei); do
 	fi
 done
 
+# Force login shells to use cross path to ensure they are available to all
+# programs which may call them.  This is particularly important to allow users
+# to login when the login software comes from a stratum which does not directly
+# provide the user's configured shell.
 need_shell_change=false
 while read -r line; do
 	shell="$(echo "${line}" | awk -F":" '{print$7}')"

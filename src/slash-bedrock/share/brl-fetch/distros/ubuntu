@@ -134,7 +134,8 @@ fetch() {
 
 	step "Configuring"
 	if grep -q "\<main\>" "${target_dir}/etc/apt/sources.list" && ! grep -q "\<universe\>" "${target_dir}/etc/apt/sources.list"; then
-		sed 's/\<main\>/main universe/' "${target_dir}/etc/apt/sources.list" > "${target_dir}/etc/apt/sources.list-new"
+		# universe contains locales-all package needed below
+		sed 's/\<main\>/main universe/' "${target_dir}/etc/apt/sources.list" >"${target_dir}/etc/apt/sources.list-new"
 		mv "${target_dir}/etc/apt/sources.list-new" "${target_dir}/etc/apt/sources.list"
 	fi
 	case "$(uname -m)" in
