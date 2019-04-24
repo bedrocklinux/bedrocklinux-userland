@@ -23,6 +23,7 @@
 #include <sys/capability.h>
 #include <sys/param.h>
 #include <sys/stat.h>
+#include <sys/xattr.h>
 #include <unistd.h>
 
 #define STATE_DIR "/bedrock/run/enabled_strata/"
@@ -33,6 +34,8 @@
 #define STRATA_ROOT_LEN strlen(STRATA_ROOT)
 #define CROSS_DIR "/bedrock/cross/"
 #define CROSS_DIR_LEN strlen(CROSS_DIR)
+#define LOCAL_ALIAS "local"
+#define LOCAL_ALIAS_LEN strlen(LOCAL_ALIAS_LEN)
 
 #ifdef MIN
 #undef MIN
@@ -445,17 +448,148 @@ void execv_skip(char *file, char *argv[], char *skip)
 	return;
 }
 
-int main(int argc, char *argv[])
+int switch_stratum(const char *alias)
 {
+	/*
+	 * local alias indicates no stratum change is needed.  Hard code this
+	 * to avoid unnecessary overhead.
+	 */
+	if (strcmp(alias, LOCAL_ALIAS) == 0) {
+		return 0;
+	}
+
+	char stratum[PATH_MAX];
+	if (deref_alias(alias, stratum, sizeof(stratum)) < 0) {
+		fprintf(stderr, "strat: unable to find stratum \"%s\"\n",
+			alias);
+		return -1;
+	}
+
+	char current_stratum[PATH_MAX];
+	ssize_t len = getxattr("/", "user.bedrock.stratum",
+		current_stratum, sizeof(current_stratum) - 1);
+	if (len < 0) {
+		fprintf(stderr, "strat: unable to determine current stratum\n");
+		return -errno;
+	}
+	current_stratum[len] = '\0';
+
+	/*
+	 * Already at specified stratum.
+	 */
+	if (strcmp(current_stratum, stratum) == 0) {
+		return 0;
+	}
+
+	/*
+	 * Above early returns are used to minimize ptrace concern described
+	 * below.
+	 */
 	if (check_capsyschroot() < 0) {
 		fprintf(stderr,
 			"strat: wrong cap_sys_chroot capability.\n"
 			"This may occur when using ptrace across stratum boundaries such as with\n"
 			"`strace` or `gdb`.  To remedy this install strace/gdb/etc from same stratum\n"
 			"as the traced program and use `strat` to specify appropriate strace/gdb/etc.\n");
-		return 1;
+		return -1;
 	}
 
+	char cwd[PATH_MAX];
+	if (getcwd(cwd, sizeof(cwd)) == NULL) {
+		fprintf(stderr,
+			"strat: error determining current working directory\n");
+		return -1;
+	}
+
+	size_t stratum_len = strlen(stratum);
+	char state_file_path[STATE_DIR_LEN + stratum_len + 1];
+	strcpy(state_file_path, STATE_DIR);
+	strcat(state_file_path, stratum);
+
+	if (check_config_secure(state_file_path) >= 0) {
+		/*
+		 * Config is found and secure, we're good to go
+		 */
+	} else if (errno == EACCES) {
+		fprintf(stderr,
+			"strat: the state file for stratum\n"
+			"    %s\n"
+			"at\n"
+			"    %s\n"
+			"is insecure, refusing to continue.\n",
+			stratum, state_file_path);
+		return -1;
+	} else if (errno == EMLINK) {
+		fprintf(stderr,
+			"strat: the path to the state file for stratum\n"
+			"    %s\n"
+			"at\n"
+			"    %s\n"
+			"contains a symlink, refusing to continue.\n",
+			stratum, state_file_path);
+		return -1;
+	} else if (errno == ENOENT) {
+		fprintf(stderr,
+			"strat: could not find state file for stratum\n"
+			"    %s\n"
+			"at\n"
+			"    %s\n"
+			"Perhaps the stratum is disabled or typo'd?\n",
+			stratum, state_file_path);
+		return -1;
+	} else {
+		fprintf(stderr,
+			"strat: error sanity checking request for stratum\n"
+			"    %s\n"
+			"via state file at\n    %s\n", stratum,
+			state_file_path);
+		return -1;
+	}
+
+	if (break_out_of_chroot("/bedrock") < 0) {
+		fprintf(stderr, "strat: unable to break out of chroot\n");
+		return -1;
+	}
+
+	char stratum_path[STRATA_ROOT_LEN + stratum_len + 1];
+	strcpy(stratum_path, STRATA_ROOT);
+	strcat(stratum_path, stratum);
+
+	if (chroot_to_stratum(stratum_path) < 0) {
+		fprintf(stderr, "strat: unable chroot() to %s\n", stratum_path);
+		return -1;
+	}
+
+	/*
+	 * Set the current working directory in this new stratum to the same as
+	 * it was originally, if possible; fall back to the root otherwise.
+	 */
+	if (chdir(cwd) < 0) {
+		chdir("/");
+		fprintf(stderr,
+			"strat: warning: unable to set cwd to\n"
+			"    %s\nfor stratum\n    %s\n", cwd, stratum);
+		switch (errno) {
+		case EACCES:
+			fprintf(stderr,
+				"due to: permission denied (EACCES).\n");
+			break;
+		case ENOENT:
+			fprintf(stderr,
+				"due to: no such directory (ENOENT).\n");
+			break;
+		default:
+			perror("due to: execv:\n");
+			break;
+		}
+		fprintf(stderr, "falling back to root directory\n");
+	}
+
+	return 0;
+}
+
+int main(int argc, char *argv[])
+{
 	int flag_help;
 	int flag_restrict;
 	int flag_unrestrict;
@@ -482,102 +616,8 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	char stratum[PATH_MAX];
-	if (deref_alias(param_stratum, stratum, sizeof(stratum)) < 0) {
-		fprintf(stderr, "strat: unable to find stratum \"%s\"\n",
-			param_stratum);
+	if (switch_stratum(param_stratum) < 0) {
 		return 1;
-	}
-	size_t stratum_len = strlen(stratum);
-
-	char cwd[PATH_MAX];
-	if (getcwd(cwd, sizeof(cwd)) == NULL) {
-		fprintf(stderr,
-			"strat: error determining current working directory\n");
-		return 1;
-	}
-
-	char stratum_path[STRATA_ROOT_LEN + stratum_len + 1];
-	strcpy(stratum_path, STRATA_ROOT);
-	strcat(stratum_path, stratum);
-
-	char state_file_path[STATE_DIR_LEN + stratum_len + 1];
-	strcpy(state_file_path, STATE_DIR);
-	strcat(state_file_path, stratum);
-
-	if (check_config_secure(state_file_path) >= 0) {
-		/*
-		 * Config is found and secure, we're good to go
-		 */
-	} else if (errno == EACCES) {
-		fprintf(stderr,
-			"strat: the state file for stratum\n"
-			"    %s\n"
-			"at\n"
-			"    %s\n"
-			"is insecure, refusing to continue.\n",
-			stratum, state_file_path);
-		return 1;
-	} else if (errno == EMLINK) {
-		fprintf(stderr,
-			"strat: the path to the state file for stratum\n"
-			"    %s\n"
-			"at\n"
-			"    %s\n"
-			"contains a symlink, refusing to continue.\n",
-			stratum, state_file_path);
-		return 1;
-	} else if (errno == ENOENT) {
-		fprintf(stderr,
-			"strat: could not find state file for stratum\n"
-			"    %s\n"
-			"at\n"
-			"    %s\n"
-			"Perhaps the stratum is disabled or typo'd?\n",
-			stratum, state_file_path);
-		return 1;
-	} else {
-		fprintf(stderr,
-			"strat: error sanity checking request for stratum\n"
-			"    %s\n"
-			"via state file at\n    %s\n", stratum,
-			state_file_path);
-		return 1;
-	}
-
-	if (break_out_of_chroot("/bedrock") < 0) {
-		fprintf(stderr, "strat: unable to break out of chroot\n");
-		return 1;
-	}
-
-	if (chroot_to_stratum(stratum_path) < 0) {
-		fprintf(stderr, "strat: unable chroot() to %s\n", stratum_path);
-		return 1;
-	}
-
-	/*
-	 * Set the current working directory in this new stratum to the same as
-	 * it was originally, if possible; fall back to the root otherwise.
-	 */
-	if (chdir(cwd) < 0) {
-		chdir("/");
-		fprintf(stderr,
-			"strat: warning: unable to set cwd to\n"
-			"    %s\nfor stratum\n    %s\n", cwd, stratum);
-		switch (errno) {
-		case EACCES:
-			fprintf(stderr,
-				"due to: permission denied (EACCES).\n");
-			break;
-		case ENOENT:
-			fprintf(stderr,
-				"due to: no such directory (ENOENT).\n");
-			break;
-		default:
-			perror("due to: execv:\n");
-			break;
-		}
-		fprintf(stderr, "falling back to root directory\n");
 	}
 
 	/*
@@ -625,7 +665,7 @@ int main(int argc, char *argv[])
 	 */
 	fprintf(stderr,
 		"strat: could not run\n"
-		"    %s\nfrom stratum\n    %s\n", file, stratum);
+		"    %s\nfrom stratum\n    %s\n", file, param_stratum);
 	switch (errno) {
 	case EACCES:
 		fprintf(stderr, "due to: permission denied (EACCES).\n");

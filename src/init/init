@@ -101,6 +101,7 @@ complete_hijack() {
 
 	step "Moving ${color_strat}${hijacked}${color_norm} files to ${color_file}/bedrock/strata/${hijacked}${color_norm}"
 	mkdir -p "/bedrock/strata/${hijacked}"
+	set_attr "/bedrock/strata/${hijacked}" "stratum" "${hijacked}"
 	cd /
 	for item in *; do
 		case "${item}" in
@@ -112,6 +113,7 @@ complete_hijack() {
 	done
 
 	step "Moving ${color_strat}global${color_norm} items to ${color_file}/${color_norm}"
+	set_attr "/" "stratum" "bedrock"
 	for global in $(cfg_values "global" "share") $(cfg_values "global" "bind"); do
 		case "${global}" in
 		"/proc" | "/sys" | "/dev" | "/run" | "/boot" | /bedrock*)
