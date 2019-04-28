@@ -169,6 +169,8 @@ repair_bedrock() {
 	"
 
 	enforce_symlinks "${stratum}"
+	enforce_shells
+	enforce_id_ranges
 
 	cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
 }
