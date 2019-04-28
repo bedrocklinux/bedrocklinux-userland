@@ -1450,7 +1450,7 @@ static inline int virt_filldir(const char *ipath, size_t ipath_len,
 
 /*
  * Populate thread-local storage with information about calling process'
- * stratum.  This requires euid 0.
+ * stratum.
  */
 static inline int set_local_stratum(void)
 {
@@ -1461,30 +1461,49 @@ static inline int set_local_stratum(void)
 
 	struct fuse_context *context = fuse_get_context();
 	if (context == NULL) {
-		return -1;
+		goto fallback_virtual;
 	}
 
 	char procroot[PATH_MAX];
 	int s = snprintf(procroot, PATH_MAX, "/proc/%d/root", context->pid);
 	if (s < 0 || s >= (int)sizeof(procroot)) {
-		return -1;
+		goto fallback_virtual;
 	}
 
 	local_stratum.root_fd =
 		fchroot_open(init_root_fd, procroot, O_DIRECTORY);
 	if (local_stratum.root_fd < 0) {
-		return -1;
+		goto fallback_virtual;
 	}
 
 	ssize_t len = fgetxattr(local_stratum.root_fd, STRATUM_XATTR,
 		local_stratum_name, sizeof(local_stratum_name) - 1);
 	if (len < 0) {
 		close(local_stratum.root_fd);
-		return -1;
+		goto fallback_virtual;
 	}
 	local_stratum.name_len = len;
 	local_stratum_name[len] = '\0';
+	return 0;
 
+fallback_virtual:
+	/*
+	 * The above attempt to associate a stratum will fail on some
+	 * processes, including kernel processes and sandboxed userland
+	 * processes.
+	 *
+	 * Treat them as the virtual stratum.
+	 */
+	local_stratum.root_fd = fchroot_open(strata_root_fd, VIRTUAL_STRATUM,
+		O_DIRECTORY);
+	if (local_stratum.root_fd < 0) {
+		return -ESRCH;
+	}
+	if (VIRTUAL_STRATUM_LEN >= sizeof(local_stratum_name)) {
+		return -ENAMETOOLONG;
+	}
+	strcpy(local_stratum_name, VIRTUAL_STRATUM);
+	local_stratum.name_len = VIRTUAL_STRATUM_LEN;
 	return 0;
 }
 
