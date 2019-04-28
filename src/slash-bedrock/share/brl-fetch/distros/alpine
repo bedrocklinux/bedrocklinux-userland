@@ -98,7 +98,7 @@ fetch() {
 	setup_chroot "${bootstrap_dir}"
 	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
 	set +o pipefail
-	yes "" | LC_ALL=C chroot "${bootstrap_dir}" /apk -X "${mirror}/latest-stable/main" -U --allow-untrusted --root "/target-root" --initdb add alpine-base
+	yes "" | LC_ALL=C chroot "${bootstrap_dir}" /apk -X "${mirror}/${release}/main" -U --allow-untrusted --root "/target-root" --initdb add alpine-base
 	set -o pipefail
 
 	step "Removing temporary bootstrap files"
