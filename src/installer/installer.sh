@@ -350,9 +350,6 @@ update() {
 		strat bedrock /bedrock/libexec/busybox --install -s
 	fi
 
-	notice "Applying runtime changes"
-	/bedrock/bin/brl apply
-
 	notice "Successfully updated to ${new_version}"
 	new_crossfs=false
 	new_etcfs=false
@@ -377,6 +374,10 @@ update() {
 
 	if ver_cmp_first_newer "0.7.2" "${current_version}"; then
 		new_etcfs=true
+		new_crossfs=true
+	fi
+
+	if ver_cmp_first_newer "0.7.4" "${current_version}"; then
 		new_crossfs=true
 	fi
 

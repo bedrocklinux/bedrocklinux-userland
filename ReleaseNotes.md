@@ -1,3 +1,16 @@
+# 0.7.4
+
+- Added `[restriction]` feature, superseding previous `[cross-bin-restrict]` feature.
+	- Configured restriction is not dropped by `strat` unless explicitly indicated so via `--unrestrict`.
+	- Local stratum instance of restricted command is used if available.
+- Added local alias.
+- Fixed Alpine networking issues.
+- Fixed `brl fetch -LX` ignoring `-X`
+- Fixed determining default Ubuntu release
+- Fixed dist-upgrading Ubuntu
+- Fixed hijack on bsdtar distros
+- Fixed system uid/gid range consistency issues
+
 # 0.7.3
 
 - Added "current" to list of Slackware releases.

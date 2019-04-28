@@ -37,14 +37,15 @@
 # Current release #
 ###################
 # x86_64
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.3/bedrock-linux-0.7.3-x86_64.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.4/bedrock-linux-0.7.4-x86_64.sh
 # arm7vl
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.3/bedrock-linux-0.7.3-armv7l.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.4/bedrock-linux-0.7.4-armv7l.sh
 
 #################
 # Past releases #
 #################
 # x86_64
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.3/bedrock-linux-0.7.3-x86_64.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.2/bedrock-linux-0.7.2-x86_64.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.1/bedrock-linux-0.7.1-x86_64.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.0/bedrock-linux-0.7.0-x86_64.sh
@@ -56,6 +57,7 @@ https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.0bet
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.0beta2/bedrock-linux-0.7.0beta2-x86_64.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.0beta1/bedrock-linux-0.7.0beta1-x86_64.sh
 # arm7vl
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.3/bedrock-linux-0.7.3-armv7l.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.2/bedrock-linux-0.7.2-armv7l.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.1/bedrock-linux-0.7.1-armv7l.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.0/bedrock-linux-0.7.0-armv7l.sh
