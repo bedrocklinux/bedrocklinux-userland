@@ -1,3 +1,7 @@
+# 0.7.5
+
+- Fixed crossfs local alias dereferencing of sandboxed software.
+
 # 0.7.4
 
 - Added `[restriction]` feature, superseding previous `[cross-bin-restrict]` feature.
