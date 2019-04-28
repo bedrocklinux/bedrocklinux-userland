@@ -129,7 +129,9 @@ repair_bedrock() {
 	# Set an attribute on the stratum's root indicating to which stratum it
 	# belongs.  This allows processes to look up their stratum by reading
 	# the attribute off of their root directory.
-	set_attr "${root}/" "stratum" "${stratum}"
+	if ! cur_attr="$(get_attr "/proc/1/root/${root}" "stratum" 2>/dev/null)" || [ "${cur_attr}" != "${stratum}" ]; then
+		set_attr "/proc/1/root/${root}" "stratum" "${stratum}"
+	fi
 
 	mnt="/proc"
 	ensure_mnt "${stratum}" "${mnt}" "proc" "true" "
@@ -189,7 +191,9 @@ repair_stratum() {
 	# Set an attribute on the stratum's root indicating to which stratum it
 	# belongs.  This allows processes to look up their stratum by reading
 	# the attribute off of their root directory.
-	set_attr "${root}/" "stratum" "${stratum}"
+	if ! cur_attr="$(get_attr "/proc/1/root/${root}" "stratum" 2>/dev/null)" || [ "${cur_attr}" != "${stratum}" ]; then
+		set_attr "/proc/1/root/${root}" "stratum" "${stratum}"
+	fi
 
 	for mnt in $(cfg_values "global" "share"); do
 		ensure_mnt "${stratum}" "${mnt}" "" "true" "

@@ -50,8 +50,8 @@ enable_stratum() {
 	# Set an attribute on the stratum's root indicating to which stratum it
 	# belongs.  This allows processes to look up their stratum by reading
 	# the attribute off of their root directory.
-	if ! cur_attr="$(get_attr "${root}" "stratum" 2>/dev/null)" || [ "${cur_attr}" != "${stratum}" ]; then
-		set_attr "${root}" "stratum" "${stratum}"
+	if ! cur_attr="$(get_attr "/proc/1/root/${root}" "stratum" 2>/dev/null)" || [ "${cur_attr}" != "${stratum}" ]; then
+		set_attr "/proc/1/root/${root}" "stratum" "${stratum}"
 	fi
 
 	# Ensure the stratum's root directory is a mount point.
