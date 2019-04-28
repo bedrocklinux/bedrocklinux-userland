@@ -629,7 +629,7 @@ umount_r() {
 		cur_cnt="$(mounts_in_dir ${init_flag} "${dir}" | wc -l || true)"
 	done
 
-	if mounts_in_dir ${init_flag} "${dir}" | grep '.'; then
+	if mounts_in_dir ${init_flag} "${dir}" | grep -q '.'; then
 		abort "Unable to unmount all mounts at \"${dir}\"."
 	fi
 }
