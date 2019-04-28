@@ -754,6 +754,8 @@ min_args "${#}" "1"
 export flag_release=""
 export flag_mirror=""
 export flag_name=""
+flag_list=false
+flag_experimental=false
 flag_releases=false
 flag_dont_enable=false
 flag_dont_show=false
@@ -767,13 +769,11 @@ saw_non_positional=false
 while [ -n "${1:-}" ]; do
 	case "${1}" in
 	-L | --list)
-		list_distros
-		exit_success
+		flag_list=true
 		shift
 		;;
 	-X | --experimental)
-		list_experimental
-		exit_success
+		flag_experimental=true
 		shift
 		;;
 	-R | --releases)
@@ -822,8 +822,35 @@ while [ -n "${1:-}" ]; do
 	esac
 done
 
+(
+	if "${flag_list}"; then
+		list_distros
+	fi
+	if "${flag_experimental}"; then
+		list_experimental
+	fi
+	exit_success
+) | sort
+
+if "${flag_releases}"; then
+	if [ -z "${distros:-}" ]; then
+		abort "list-releases operation requires distro to be specified"
+	fi
+	for distro in ${distros}; do
+		if ! [ -r "/bedrock/share/brl-fetch/distros/${distro}" ]; then
+			abort "Could not find supporting code for \`${distro}\`."
+		fi
+		. "/bedrock/share/brl-fetch/distros/${distro}"
+		list_releases "${distro}" | sort -n
+	done
+fi
+
+if "${flag_list}" || "${flag_experimental}" || "${flag_releases}"; then
+	exit_success
+fi
+
 if [ -z "${distros:-}" ]; then
-	abort "no distro specified"
+	abort "fetch operation requires distro to be specified"
 fi
 
 for distro in ${distros}; do
@@ -836,17 +863,10 @@ for distro in ${distros}; do
 	}
 
 	. "/bedrock/share/brl-fetch/distros/${distro}"
-
 	if ! check_supported; then
 		notice "The fetch code for \`${distro}\` is not supported on current architecture.  This may or may not work."
 	fi
-
 	unset target_dir
-	if "${flag_releases}"; then
-		list_releases "${distro}" | sort -n
-		continue
-	fi
-
 	export name="${flag_name:-${distro}}"
 	ensure_legal_stratum_name "${name}"
 
