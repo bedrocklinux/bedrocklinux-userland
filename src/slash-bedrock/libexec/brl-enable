@@ -78,6 +78,8 @@ enable_stratum() {
 		cfg_etcfs "/proc/1/root${root}/etc"
 	)
 
+	setup_binfmt_misc "${stratum}"
+
 	enforce_symlinks "${stratum}"
 
 	stinit busybox touch "/bedrock/strata/bedrock/bedrock/run/enabled_strata/${1}"
@@ -86,7 +88,6 @@ enable_stratum() {
 	enforce_id_ranges
 
 	cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
-
 }
 
 for alias in "${@}"; do

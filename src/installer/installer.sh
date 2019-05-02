@@ -12,6 +12,8 @@
 
 . /bedrock/share/common-code # replace with file content during build process
 
+ARCHITECTURE= # replace with build target CPU architecture during build process
+
 print_help() {
 	printf "Usage: ${color_cmd}${0} ${color_sub}<operations>${color_norm}
 
@@ -214,6 +216,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 
 	notice "Configuring ${color_strat}bedrock${color_norm} stratum"
 	set_attr "/" "stratum" "bedrock"
+	set_attr "/" "arch" "${ARCHITECTURE}"
 	set_attr "/bedrock/strata/bedrock" "stratum" "bedrock"
 	notice "Configuring ${color_strat}${name}${color_norm} stratum"
 	mkdir -p "/bedrock/strata/${name}"
@@ -383,6 +386,10 @@ update() {
 
 	if ver_cmp_first_newer "0.7.5" "${current_version}"; then
 		new_crossfs=true
+	fi
+
+	if ver_cmp_first_newer "0.7.6" "${current_version}"; then
+		set_attr "/bedrock/strata/bedrock" "arch" "${ARCHITECTURE}"
 	fi
 
 	if "${new_crossfs}"; then

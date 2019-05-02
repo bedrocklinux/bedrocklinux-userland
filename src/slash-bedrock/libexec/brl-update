@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 # Updates Bedrock Linux system
 
@@ -90,6 +90,7 @@ current_version="$(awk '{print$3}' </bedrock/etc/bedrock-release)"
 newest_version="${current_version}"
 newest_update_url=""
 found_valid_mirror=false
+system_arch="$(get_system_arch)"
 for update_list_url in ${mirrors}; do
 	rm -rf /bedrock/var/releases
 	if ! wget -O- "${update_list_url}" >/bedrock/var/releases 2>/bedrock/run/tmp; then
@@ -105,7 +106,7 @@ for update_list_url in ${mirrors}; do
 			continue
 		fi
 		arch="$(echo "${update_url}" | awk -F'[-.]' '{print $(NF-1)}')"
-		if [ "${arch}" != "$(uname -m)" ]; then
+		if [ "${arch}" != "${system_arch}" ]; then
 			continue
 		fi
 		version="$(echo "${update_url}" | awk -F'-' '{print $(NF-1)}')"

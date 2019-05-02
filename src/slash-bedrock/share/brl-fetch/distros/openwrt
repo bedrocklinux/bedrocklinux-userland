@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 . /bedrock/share/common-code
@@ -16,22 +16,8 @@ check_supported() {
 	false
 }
 
-check_experimental() {
-	case "$(uname -m)" in
-	"x86_64") true ;;
-	# The distro's target list is too specific to know what to
-	# fetch.  Couldn't find generic armv7.
-	# "armv7l") true;;
-	*) false ;;
-	esac
-}
-
-distro_arch_name() {
-	case "$(uname -m)" in
-	"x86_64") echo "x86_64" ;;
-	# "armv7l") echo "arm";;
-	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
-	esac
+speed_test_url() {
+	echo "releases/${target_release:-}/targets/x86/64/sha256sums"
 }
 
 list_mirrors() {
@@ -46,12 +32,27 @@ list_mirrors() {
 		grep "^http"
 }
 
-speed_test_url() {
-	if [ "$(uname -m)" = "x86_64" ]; then
-		echo "releases/${release}/targets/x86/64/sha256sums"
-	else
-		abort "Unsupported architecture"
-	fi
+brl_arch_to_distro() {
+	case "${1}" in
+	"aarch64") echo "armvirt-64" ;;
+	"armv7l") echo "armvirt-32" ;;
+	"x86_64") echo "x86-64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	esac
+}
+
+list_architectures() {
+	cat <<EOF
+aarch64
+armv7l
+x86_64
+EOF
+}
+
+default_release() {
+	list_releases |
+		sort -n |
+		tail -n1
 }
 
 list_releases() {
@@ -65,56 +66,28 @@ list_releases() {
 	done
 }
 
-default_release() {
-	list_releases |
-		sort -n |
-		tail -n1
-}
-
 fetch() {
-	step_init 7
-
-	if [ -z "${target_dir:-}" ]; then
-		fetch_abort "Essential variable not set"
-	fi
-
-	step "Determining name"
-	name="${flag_name:-${distro}}"
-	notice "Using ${color_strat}${name}${color_norm}"
-
-	step "Determining release"
-	release="${flag_release:-$(default_release)}"
-	notice "Using ${color_file}${release}${color_norm}"
-
-	step "Determining mirror"
-	mirror="$(pick_mirror "$(speed_test_url)")"
-	notice "Using ${color_link}${mirror}${color_norm}"
-
 	step "Downloading bootstrap software"
 
-	case "$(uname -m)" in
-	"x86_64") url="$(find_link "${mirror}/releases/${release}/targets/x86/64/" "^openwrt-${release}-x86-64-generic-rootfs.tar.gz$")" ;;
-	*) false ;;
+	case "${target_arch:-}" in
+	"aarch64") url="$(find_link "${target_mirror:-}/releases/${target_release:-}/targets/armvirt/64/" "^openwrt-${target_release:-}-${distro_arch:-}-default-rootfs.tar.gz$")" ;;
+	"armv7l") url="$(find_link "${target_mirror:-}/releases/${target_release:-}/targets/armvirt/32/" "^openwrt-${target_release:-}-${distro_arch:-}-default-rootfs.tar.gz$")" ;;
+	"x86_64") url="$(find_link "${target_mirror:-}/releases/${target_release:-}/targets/x86/64/" "^openwrt-${target_release:-}-${distro_arch:-}-generic-rootfs.tar.gz$")" ;;
 	esac
 
-	wget -O "${target_dir}/rootfs.tar.gz" "${url}"
+	wget -O "${target_dir:-}/rootfs.tar.gz" "${url}"
 
-	step "Running bootstrap software"
-	cp /bedrock/libexec/busybox "${target_dir}/busybox"
-
-	chroot "${target_dir}" /busybox tar xf rootfs.tar.gz
-
-	step "Removing temporary bootstrap files"
-	rm "${target_dir}/busybox"
-	rm "${target_dir}/rootfs.tar.gz"
+	step "Extracting bootstrap software"
+	cp /bedrock/libexec/busybox "${target_dir:-}/busybox"
+	chroot "${target_dir:-}" /busybox tar xf rootfs.tar.gz
+	rm "${target_dir:-}/busybox"
+	rm "${target_dir:-}/rootfs.tar.gz"
 
 	step "Configuring"
 	# OpenWrt defaults to /var being a symlink to /tmp.  This makes /var
 	# shared on Bedrock when it should be private.  Disconnect /tmp from /var.
-	if [ -h "${target_dir}/var" ]; then
-		rm "${target_dir}/var"
+	if [ -h "${target_dir:-}/var" ]; then
+		rm "${target_dir:-}/var"
 	fi
-	mkdir -p "${target_dir}/var/lock"
-
-	notice "Successfully acquired ${distro} stratum"
+	mkdir -p "${target_dir:-}/var/lock"
 }

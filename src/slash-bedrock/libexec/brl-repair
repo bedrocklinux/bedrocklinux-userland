@@ -120,6 +120,8 @@ ensure_mnt() {
 		stinit busybox mount --make-private "${br_root}${mnt}" 2>/dev/null || true
 		stinit busybox mount --make-private "${root}${mnt}"
 	fi
+
+	setup_binfmt_misc "${stratum}"
 }
 
 repair_bedrock() {
@@ -287,7 +289,9 @@ for alias in ${strata}; do
 	else
 		if [ "${strategy}" = "clear" ]; then
 			disable_stratum "${stratum}"
-			enable_stratum "${stratum}"
+			drop_lock
+			/bedrock/libexec/brl-enable "${stratum}"
+			lock
 		else
 			repair_stratum "${stratum}"
 		fi

@@ -76,6 +76,10 @@ ensure_essential_environment() {
 		mknod -m 660 /dev/fuse c 10 229
 	fi
 
+	if ! grep -q "\\<binfmt_misc\\>" /proc/filesystems; then
+		modprobe binfmt_misc >/dev/null 2>&1 || true
+	fi
+
 	# Systemd seems confused when an initrd-systemd launches Bedrock's init
 	# which launches userland-systemd.  Kill /run/systemd to break the
 	# relationship so systemd thinks it is starting fresh.

@@ -1,11 +1,3 @@
 bedrock-linux-*.sh
-build/
-vendor/
-
-src/*/*~
-
-src/bouncer/bouncer
-src/crossfs/crossfs
-src/etcfs/etcfs
-src/manage_tty_lock/manage_tty_lock
-src/strat/strat
+build
+vendor

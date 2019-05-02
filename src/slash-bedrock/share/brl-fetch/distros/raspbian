@@ -6,30 +6,18 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
-bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv raspbian-archive-keyring"
-
 check_supported() {
-	case "$(uname -m)" in
-	"armv7l") true ;;
-	*) false ;;
-	esac
+	true
 }
 
-check_experimental() {
-	false
-}
-
-distro_arch_name() {
-	case "$(uname -m)" in
-	"armv7l") echo "armhf" ;;
-	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
-	esac
+speed_test_url() {
+	echo "dists/${target_release:-}/Release"
 }
 
 list_mirrors() {
@@ -42,8 +30,25 @@ list_mirrors() {
 		sed 's,<.*$,,'
 }
 
-speed_test_url() {
-	echo "dists/${release}/Release"
+brl_arch_to_distro() {
+	case "${1}" in
+	"armv7hl") echo "armhf" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	esac
+}
+
+list_architectures() {
+	echo "armv7hl"
+}
+
+default_release() {
+	for mirror in "${flag_mirror:-}" $(list_mirrors); do
+		release="$(wget -O- "${mirror}/dists/stable/Release" 2>/dev/null | awk '$1 == "Codename:" {print$2;exit}')"
+		if [ -n "${release}" ]; then
+			echo "${release}"
+			return
+		fi
+	done
 }
 
 list_releases() {
@@ -59,71 +64,38 @@ list_releases() {
 	done
 }
 
-default_release() {
-	echo "stable"
-}
-
 fetch() {
-	step_init 14
-
-	if [ -z "${target_dir:-}" ]; then
-		fetch_abort "Essential variable not set"
-	fi
-
-	step "Determining name"
-	name="${flag_name:-${distro}}"
-	notice "Using ${color_strat}${name}${color_norm}"
-
-	step "Determining CPU architecture"
-	arch="$(distro_arch_name)"
-	notice "Using ${color_file}${arch}${color_norm}"
-
-	step "Determining release"
-	release="${flag_release:-$(default_release)}"
-	notice "Using ${color_file}${release}${color_norm}"
-
-	step "Determining mirror"
-	mirror="$(pick_mirror "$(speed_test_url)")"
-	notice "Using ${color_link}${mirror}${color_norm}"
-
-	step "Making directory structure"
-	bootstrap_dir="${target_dir}/brl-bootstrap"
-	mkdir -p "${target_dir}" "${bootstrap_dir}/target-root"
+	bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv raspbian-archive-keyring"
 
 	step "Downloading package information database"
-	wget -O "${bootstrap_dir}/Packages.gz" "${mirror}/dists/${release}/main/binary-${arch}/Packages.gz"
-	gunzip "${bootstrap_dir}/Packages.gz"
+	wget -O "${bootstrap_dir:-}/Packages.gz" "${target_mirror:-}/dists/${target_release:-}/main/binary-${distro_arch:-}/Packages.gz"
+	gunzip "${bootstrap_dir:-}/Packages.gz"
 
 	step "Converting distro package information database to brl format"
-	debdb_to_brldb "${bootstrap_dir}/Packages" "${bootstrap_dir}/brldb"
+	debdb_to_brldb "${bootstrap_dir:-}/Packages" "${bootstrap_dir:-}/brldb"
 
 	step "Calculating required bootstrap packages"
-	brldb_calculate_paths_with_deps "${bootstrap_dir}/brldb" "${bootstrap_dir}/package_paths" "${bootstrap_deps}"
+	brldb_calculate_paths_with_deps "${bootstrap_dir:-}/brldb" "${bootstrap_dir:-}/package_paths" "${bootstrap_deps}"
 
 	step "Downloading bootstrap packages"
-	download_files "${bootstrap_dir}" "$(awk -v"m=${mirror}" '{print m"/"$0}' "${bootstrap_dir}/package_paths")"
+	download_files "${bootstrap_dir:-}" "$(awk -v"m=${target_mirror:-}" '{print m"/"$0}' "${bootstrap_dir:-}/package_paths")"
 
 	step "Extracting bootstrap packages"
-	extract_debs "${bootstrap_dir}" "${bootstrap_dir}"/*.deb
+	extract_debs "${bootstrap_dir:-}" "${bootstrap_dir:-}"/*.deb
 
 	step "Running bootstrap software"
-	setup_chroot "${bootstrap_dir}"
-	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
+	setup_chroot "${bootstrap_dir:-}"
 	set +o pipefail
-	yes "" | LANG=C chroot "${bootstrap_dir}" debootstrap --variant=minbase "${release}" "/target-root" "${mirror}"
+	yes "" | LANG=C chroot "${bootstrap_dir:-}" debootstrap --variant=minbase "${target_release:-}" "/target-root" "${target_mirror:-}"
 	set -o pipefail
-
-	step "Removing temporary bootstrap files"
-	less_lethal_rm_rf "${bootstrap_dir}"
 
 	step "Configuring"
-
+	if [ "${target_release:-}" != "sid" ] && [ "${target_release:-}" != "unstable" ]; then
+		echo "deb http://security.debian.org/ ${target_release:-}/updates main" >>"${target_dir:-}/etc/apt/sources.list"
+	fi
 	set +o pipefail
-	setup_chroot "${target_dir}"
-	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get update
-	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get install locales-all
-	tear_down_chroot "${target_dir}"
+	setup_chroot "${target_dir:-}"
+	yes "" | LANG=C chroot "${target_dir:-}" /usr/bin/apt-get update
+	yes "" | LANG=C chroot "${target_dir:-}" /usr/bin/apt-get install locales-all
 	set -o pipefail
-
-	step "Successfully acquired ${distro} stratum"
 }

@@ -108,14 +108,17 @@ case "${words[2]}" in
 	;;
 "fetch")
 	if [[ "${CURRENT}" -eq 3 ]]; then
-		args+=('(-l --list)'{-l,--list}'[list supported distros]')
-		args+=('(-x --experimental)'{-x,--experimental}'[list experimental distros]')
+		args+=('(-L --list)'{-l,--list}'[list supported distros]')
+		args+=('(-X --experimental)'{-x,--experimental}'[list experimental distros]')
 	fi
 	args+=('(-R --releases)'{-R,--releases}'[list releases provided by distros]')
+	args+=('(-A --archs)'{-A,--archs}'[list CPU architectures supported by distros]')
 	args+=('-n[specify name]:new stratum name:')
 	args+=('--name[specify name]:new stratum name:')
 	args+=('-r[specify distro release to fetch]:release:')
 	args+=('--release[specify distro release to fetch]:release:')
+	args+=('-a[specify CPU architectures to fetch]:CPU architecture:')
+	args+=('--arch[specify CPU architectures to fetch]:CPU architecture:')
 	args+=('-m[specify desired mirror]:mirror:')
 	args+=('--mirror[specify desired mirror]:mirror:')
 	args+=('(-e --dont-enable)'{-e,--dont-enable}'[skip enabling newly fetched strata]')

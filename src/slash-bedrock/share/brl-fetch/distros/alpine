@@ -6,124 +6,115 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
 check_supported() {
-	case "$(uname -m)" in
-	"x86_64") true ;;
-	"armv7l") true ;;
-	*) false ;;
-	esac
+	true
 }
 
-check_experimental() {
-	false
-}
-
-distro_arch_name() {
-	case "$(uname -m)" in
-	"x86_64") echo "x86_64" ;;
-	"armv7l") echo "armhf" ;;
-	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
-	esac
+speed_test_url() {
+	echo "latest-stable/main/${distro_arch:-}/APKINDEX.tar.gz"
 }
 
 list_mirrors() {
 	mirror_list_url='http://nl.alpinelinux.org/alpine/MIRRORS.txt'
-	wget -O- "$mirror_list_url" 2>/dev/null
+	wget -O- "${mirror_list_url}" 2>/dev/null
 }
 
-speed_test_url() {
-	echo "latest-stable/main/${arch}/APKINDEX.tar.gz"
+brl_arch_to_distro() {
+	case "${1}" in
+	"aarch64") echo "aarch64" ;;
+	"armv7hl") echo "armhf" ;;
+	"armv7l") echo "armv7" ;;
+	"ppc64le") echo "ppc64le" ;;
+	"s390x") echo "s3960x" ;;
+	"x86_64") echo "x86_64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	esac
 }
 
-list_releases() {
-	for mirror in "${flag_mirror:-}" $(list_mirrors); do
-		if wget -O- "$mirror" 2>/dev/null |
-			list_links |
-			grep -e '^v[0-9]' -e 'edge' -e 'latest-stable' |
-			sed -e 's/^v//' -e 's,/$,,'; then
-			break
-		fi
-	done
+list_architectures() {
+	cat <<EOF
+aarch64
+armv7hl
+armv7l
+ppc64le
+s390x
+x86_64
+EOF
 }
 
 default_release() {
 	echo "latest-stable"
 }
 
-fetch() {
-	step_init 10
+list_releases() {
+	for mirror in "${flag_mirror:-}" $(list_mirrors); do
+		# get list of all releases, irrelevant of architecture
+		if ! release_pages="$(wget -O- "${mirror}" 2>/dev/null |
+			list_links |
+			grep '/$')"; then
+			continue
+		fi
+		for page in ${release_pages}; do
+			# find architectures supported by given release
+			page_archs="$(wget -O- "${mirror}/${page}/main/" 2>/dev/null |
+				list_links | sed -e 's,/$,,')"
+			# print release if it supports architecture
+			for arch in ${page_archs}; do
+				if [ "${arch}" = "${distro_arch:-}" ]; then
+					echo "${page}" | sed -e 's/^v//' -e 's,/$,,'
+					break
+				fi
+			done
+		done
+		break
+	done
+}
 
-	if [ -z "${target_dir:-}" ]; then
-		fetch_abort "Essential variable not set"
+fetch() {
+	if echo "${target_release:-}" | grep -q "^[0-9.]*$"; then
+		mirror_release="v${target_release:-}"
+	else
+		mirror_release="${target_release:-}"
 	fi
 
-	step "Determining name"
-	name="${flag_name:-${distro}}"
-	notice "Using ${color_strat}${name}${color_norm}"
-
-	step "Determining CPU architecture"
-	arch="$(distro_arch_name)"
-	notice "Using ${color_file}${arch}${color_norm}"
-
-	step "Determining release"
-	release="$(pick_release)"
-	notice "Using ${color_file}${release}${color_norm}"
-
-	step "Determining mirror"
-	mirror="$(pick_mirror "$(speed_test_url)")"
-	notice "Using ${color_link}${mirror}${color_norm}"
-
-	step "Making directory structure"
-	bootstrap_dir="${target_dir}/brl-bootstrap"
-	mkdir -p "${target_dir}/etc/apk/" "${bootstrap_dir}/target-root"
-
 	step "Downloading bootstrap software"
-	url="$(find_link "${mirror}/${release}/main/${arch}/" "^apk-tools-static.*.apk")"
-	wget -O "${bootstrap_dir}/apk-tools-static.apk" "${url}"
+	url="$(find_link "${target_mirror:-}/${mirror_release}/main/${distro_arch:-}/" "^apk-tools-static.*.apk")"
+	wget -O "${bootstrap_dir:-}/apk-tools-static.apk" "${url}"
 
 	step "Preparing bootstrap software"
 	(
-		cd "${bootstrap_dir}" &&
-			tar xf apk-tools-static.apk -O sbin/apk.static >"${bootstrap_dir}/apk" &&
-			chmod a+rx "${bootstrap_dir}/apk"
+		cd "${bootstrap_dir:-}"
+		tar xf apk-tools-static.apk -O sbin/apk.static >"${bootstrap_dir:-}/apk"
+		chmod a+rx "${bootstrap_dir:-}/apk"
+		mkdir -p "${target_dir:-}/etc/apk/"
 	)
 
 	step "Running bootstrap software"
-	setup_chroot "${bootstrap_dir}"
-	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
+	setup_chroot "${bootstrap_dir:-}"
 	set +o pipefail
-	yes "" | LC_ALL=C chroot "${bootstrap_dir}" /apk -X "${mirror}/${release}/main" -U --allow-untrusted --root "/target-root" --initdb add alpine-base
+	yes "" | LC_ALL=C chroot "${bootstrap_dir:-}" /apk -X "${target_mirror:-}/${mirror_release}/main" -U --allow-untrusted --root "/target-root" --initdb add alpine-base
 	set -o pipefail
 
-	step "Removing temporary bootstrap files"
-	less_lethal_rm_rf "${bootstrap_dir}"
-
 	step "Configuring"
-	setup_chroot "${target_dir}"
-	echo "${mirror}/latest-stable/main" >"${target_dir}/etc/apk/repositories"
-	LC_ALL=C chroot "${target_dir}" rc-update add devfs sysinit
-	LC_ALL=C chroot "${target_dir}" rc-update add dmesg sysinit
-	LC_ALL=C chroot "${target_dir}" rc-update add mdev sysinit
-	LC_ALL=C chroot "${target_dir}" rc-update add networking sysinit
-	LC_ALL=C chroot "${target_dir}" rc-update add hwclock boot
-	LC_ALL=C chroot "${target_dir}" rc-update add modules boot
-	LC_ALL=C chroot "${target_dir}" rc-update add sysctl boot
-	LC_ALL=C chroot "${target_dir}" rc-update add hostname boot
-	LC_ALL=C chroot "${target_dir}" rc-update add bootmisc boot
-	LC_ALL=C chroot "${target_dir}" rc-update add syslog boot
-	LC_ALL=C chroot "${target_dir}" rc-update add mount-ro shutdown
-	LC_ALL=C chroot "${target_dir}" rc-update add killprocs shutdown
-	LC_ALL=C chroot "${target_dir}" rc-update add savecache shutdown
-
-	tear_down_chroot "${target_dir}"
-
-	notice "Successfully acquired ${distro} stratum"
-	notice "Setup /bedrock/strata/${name}/etc/network/interfaces to use networking with ${name}'s init"
-	notice "Ensure ${name} has root user's login shell available locally to use networking with ${name}'s init"
+	setup_chroot "${target_dir:-}"
+	echo "${target_mirror:-}/${mirror_release}/main" >"${target_dir:-}/etc/apk/repositories"
+	LC_ALL=C chroot "${target_dir:-}" rc-update add devfs sysinit
+	LC_ALL=C chroot "${target_dir:-}" rc-update add dmesg sysinit
+	LC_ALL=C chroot "${target_dir:-}" rc-update add mdev sysinit
+	LC_ALL=C chroot "${target_dir:-}" rc-update add networking sysinit
+	LC_ALL=C chroot "${target_dir:-}" rc-update add hwclock boot
+	LC_ALL=C chroot "${target_dir:-}" rc-update add modules boot
+	LC_ALL=C chroot "${target_dir:-}" rc-update add sysctl boot
+	LC_ALL=C chroot "${target_dir:-}" rc-update add hostname boot
+	LC_ALL=C chroot "${target_dir:-}" rc-update add bootmisc boot
+	LC_ALL=C chroot "${target_dir:-}" rc-update add syslog boot
+	LC_ALL=C chroot "${target_dir:-}" rc-update add mount-ro shutdown
+	LC_ALL=C chroot "${target_dir:-}" rc-update add killprocs shutdown
+	LC_ALL=C chroot "${target_dir:-}" rc-update add savecache shutdown
 }

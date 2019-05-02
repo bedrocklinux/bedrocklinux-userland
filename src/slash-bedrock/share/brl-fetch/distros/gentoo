@@ -6,30 +6,18 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
 check_supported() {
-	case "$(uname -m)" in
-	"x86_64") true ;;
-	"armv7l") true ;;
-	*) false ;;
-	esac
+	true
 }
 
-check_experimental() {
-	false
-}
-
-distro_arch_name() {
-	case "$(uname -m)" in
-	"x86_64") echo "amd64" ;;
-	"armv7l") echo "arm" ;;
-	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
-	esac
+speed_test_url() {
+	echo "releases/verify-digests.sh"
 }
 
 list_mirrors() {
@@ -40,87 +28,74 @@ list_mirrors() {
 		grep "^http"
 }
 
-speed_test_url() {
-	echo "releases/${arch:-}/autobuilds/latest-stage3.txt"
+brl_arch_to_distro() {
+	case "${1}" in
+	"armv7hl") echo "armv7a_hardfp" ;;
+	"armv7l") echo "armv7a" ;;
+	"ppc64le") echo "ppc64le" ;;
+	"s390x") echo "s3960x" ;;
+	"x86_64") echo "amd64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	esac
 }
 
-list_releases() {
-	echo "rolling"
+list_architectures() {
+	cat <<EOF
+armv7hl
+armv7l
+ppc64le
+s390x
+x86_64
+EOF
 }
 
 default_release() {
 	echo "rolling"
 }
 
-fetch() {
-	step_init 10
+list_releases() {
+	echo "rolling"
+}
 
-	if [ -z "${target_dir:-}" ]; then
-		fetch_abort "Essential variable not set"
+fetch() {
+	step "Finding bootstrap software"
+	groups="$(wget -O- "${target_mirror:-}/releases/" 2>/dev/null |
+		list_links |
+		grep '/$' |
+		sed -e 's,/$,,')"
+	group="$(for group in ${groups}; do
+		if wget -O- "${target_mirror:-}/releases/${group}/autobuilds/" 2>/dev/null |
+			list_links |
+			grep "^current-stage3-${distro_arch:-}/$" >/dev/null; then
+			echo "${group}"
+			break
+		fi
+	done)"
+	if [ -z "${group}" ]; then
+		abort "Could not find bootstrap software at ${target_mirror:-} for ${distro_arch:-}."
 	fi
 
-	step "Determining name"
-	name="${flag_name:-${distro}}"
-	notice "Using ${color_strat}${name}${color_norm}"
-
-	step "Determining CPU architecture"
-	arch="$(distro_arch_name)"
-	notice "Using ${color_file}${arch}${color_norm}"
-
-	step "Determining release"
-	release="$(pick_release)"
-	notice "Using ${color_file}${release}${color_norm}"
-
-	step "Determining mirror"
-	mirror="$(pick_mirror "$(speed_test_url)")"
-	notice "Using ${color_link}${mirror}${color_norm}"
-
-	step "Making directory structure"
-	bootstrap_dir="${target_dir}/brl-bootstrap"
-	mkdir -p "${bootstrap_dir}/target-root"
-
 	step "Downloading bootstrap software"
-	case "$(uname -m)" in
-	"x86_64")
-		url="$(find_link "${mirror}/releases/amd64/autobuilds/current-stage3-amd64/" "^stage3-amd64-[^.]*[.]tar[.]xz$")"
-		wget -O "${bootstrap_dir}/stage3.tar.xz" "${url}"
-		;;
-	"armv7l")
-		url="$(find_link "${mirror}/releases/arm/autobuilds/current-stage3-armv7a_hardfp/" "^stage3-armv7a_hardfp-[^.]*[.]tar[.]bz2")"
-		wget -O "${bootstrap_dir}/stage3.tar.bz2" "${url}"
-		;;
-	esac
+	url="$(find_link "${target_mirror:-}/releases/${group}/autobuilds/current-stage3-${distro_arch:-}/" "^stage3-${distro_arch:-}-[^.]*[.]tar[.]\(xz\|bz2\)$")"
+	(
+		cd "${bootstrap_dir:-}"
+		wget "${url}"
+	)
 
 	step "Preparing bootstrap software"
 	(
-		cd "${bootstrap_dir}"
-		tar xf stage3.tar.*
+		cd "${bootstrap_dir:-}"
+		tar xf "stage3-${distro_arch:-}"-*
 	)
 
 	step "Running bootstrap software"
-	setup_chroot "${bootstrap_dir}"
-	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
-	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xpf /stage3.tar.* --xattrs-include='*.*' --numeric-owner"
-
-	step "Removing temporary bootstrap files"
-	less_lethal_rm_rf "${bootstrap_dir}"
+	setup_chroot "${bootstrap_dir:-}"
+	chroot "${bootstrap_dir:-}" sh -c "cd /target-root && tar xpf /stage3-${distro_arch:-}-* --xattrs-include='*.*' --numeric-owner"
 
 	step "Configuring"
-	setup_chroot "${target_dir}"
-	echo "GENTOO_MIRRORS=\"${mirror}\"" >>"${target_dir}/etc/portage/make.conf"
-	mkdir -p "${target_dir}/etc/portage/repos.conf"
-	cp "${target_dir}/usr/share/portage/config/repos.conf" "${target_dir}/etc/portage/repos.conf/gentoo.conf"
-
-	localegen="$(cfg_values "locale" "localegen")"
-	if [ -n "${localegen:-}" ]; then
-		echo "### Added by Bedrock Linux when acquiring this stratum" >>"${target_dir}/etc/locale.gen"
-		echo "${localegen}" >>"${target_dir}/etc/locale.gen"
-		LC_ALL=C chroot "${target_dir}" locale-gen
-	else
-		notice "Could not determine desired locale, skipping setting locale"
-	fi
-	chroot "${target_dir}" emerge-webrsync
-	tear_down_chroot "${target_dir}"
-
-	notice "Successfully acquired ${distro} stratum"
+	setup_chroot "${target_dir:-}"
+	echo "GENTOO_MIRRORS=\"${target_mirror:-}\"" >>"${target_dir:-}/etc/portage/make.conf"
+	mkdir -p "${target_dir:-}/etc/portage/repos.conf"
+	cp "${target_dir:-}/usr/share/portage/config/repos.conf" "${target_dir:-}/etc/portage/repos.conf/gentoo.conf"
+	LC_ALL=C chroot "${target_dir:-}" emerge-webrsync
 }

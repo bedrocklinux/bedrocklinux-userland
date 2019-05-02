@@ -4,7 +4,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2012-2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2012-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 # This creates a script which can be used to install or update a Bedrock Linux
 # system.
@@ -70,16 +70,17 @@
 # - vendor/*/.success_fetching_source files indicate that the given vendor
 #   component's files have been successfully acquired.  This is used to properly
 #   handle interrupted downloads.
-# - build/ (initially absent) will contain intermediate build output which can be
-#   safely removed.
-# - build/support/ will contain build-time support code and will not directly end
-#   up in the resulting install.
-# - build/bedrock/ will contain files which eventually end up in the installed
-#   system's /bedrock/ directory.  This will be populated by src/slash-bedrock/
-#   contents and the various src/ binaries.
-# - build/completed/ will contain files which indicate various build steps have
-#   been completed.  These are for build steps that may produce many output
-#   files as an alternative to verbosely tracking each individual output file.
+# - build-<arch>/ (initially absent) will contain intermediate build output
+#   which can be safely removed.
+# - build-<arch>/support/ will contain build-time support code and will not
+#   directly end up in the resulting install.
+# - build-<arch>/bedrock/ will contain files which eventually end up in the
+#   installed system's /bedrock/ directory.  This will be populated by
+#   src/slash-bedrock/ contents and the various src/ binaries.
+# - build-<arch>/completed/ will contain files which indicate various build
+#   steps have been completed.  These are for build steps that may produce many
+#   output files as an alternative to verbosely tracking each individual output
+#   file.
 # - Makefile service as the build system.
 # - `*.md` files service as documentation.
 #
@@ -121,14 +122,18 @@
 
 VERSION=0.7.5
 CODENAME=Poki
-ARCH=$(shell uname -m)
+ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
+FILE_ARCH_NAME=$(shell ./detect_arch.sh | tail -1)
 RELEASE=Bedrock Linux $(VERSION) $(CODENAME)
-INSTALLER=bedrock-linux-$(VERSION)-$(ARCH).sh
+INSTALLER=bedrock-linux-$(VERSION)-$(ARCHITECTURE).sh
 
-SRC=$(shell pwd)/src/
-SUPPORT=$(shell pwd)/build/support
-SLASHBR=$(shell pwd)/build/bedrock
-COMPLETED=$(shell pwd)/build/completed
+ROOT=$(shell pwd)
+BUILD=$(ROOT)/build/$(ARCHITECTURE)
+SRC=$(BUILD)/src
+VENDOR=$(BUILD)/vendor
+SUPPORT=$(BUILD)/support
+SLASHBR=$(BUILD)/bedrock
+COMPLETED=$(BUILD)/completed
 MUSLCC=$(SUPPORT)/bin/musl-gcc
 
 INDENT_FLAGS=--linux-style --dont-line-up-parentheses \
@@ -141,24 +146,23 @@ remove_vendor_source:
 	rm -rf ./vendor
 
 clean:
-	rm -rf ./build/
-	rm -f $(INSTALLER)
-	if [ -e vendor/ ]; then \
-		for dir in vendor/*/Makefile; do \
-			$(MAKE) -C "$${dir%Makefile}" clean; \
-		done \
-	fi
-	for dir in src/*/Makefile; do \
-		$(MAKE) -C "$${dir%Makefile}" clean; \
-	done
+	rm -rf build/*
+	rm -f bedrock-linux-*-*.sh
 
 #
-# The build/ directory structure.  This is a dependency of just about
+# The build directory structure.  This is a dependency of just about
 # everything.
 #
 
 $(COMPLETED)/builddir:
+	# Support symlinking build into a tmpfs
+	if [ -h "$(ROOT)/build" ]; then \
+		mkdir -p $$(readlink $(ROOT)/build); \
+	fi; \
+	# build internal directory structure
+	mkdir -p $(BUILD) $(SRC) $(VENDOR)
 	mkdir -p $(SUPPORT)/include $(SUPPORT)/lib
+	# copy /bedrock into build structure
 	cp -r src/slash-bedrock/ $(SLASHBR)
 	# create bedrock-release
 	echo "$(RELEASE)" > $(SLASHBR)/etc/bedrock-release
@@ -170,6 +174,8 @@ $(COMPLETED)/builddir:
 	mv $(SLASHBR)/etc/os-release-new $(SLASHBR)/etc/os-release
 	# create release-specific bedrock.conf
 	mv $(SLASHBR)/etc/bedrock.conf $(SLASHBR)/etc/bedrock.conf-$(VERSION)
+	# git does not track empty directories.  Ensure known required
+	# directories are created.
 	mkdir -p $(SLASHBR)/bin
 	mkdir -p $(SLASHBR)/etc
 	mkdir -p $(SLASHBR)/gnupg-keys
@@ -180,8 +186,10 @@ $(COMPLETED)/builddir:
 	mkdir -p $(SLASHBR)/strata/bedrock
 	mkdir -p $(SLASHBR)/var
 	mkdir -p $(COMPLETED)
-	mkdir -p build/sbin/
-	cp src/init/init build/sbin/init
+	mkdir -p $(BUILD)/sbin/
+	# Most files going into the tarball exist in /bedrock, but Bedrock's
+	# /sbin/init is not one of them.  Copy it separately.
+	cp src/init/init $(BUILD)/sbin/init
 	touch $(COMPLETED)/builddir
 builddir: $(COMPLETED)/builddir
 
@@ -189,14 +197,25 @@ builddir: $(COMPLETED)/builddir
 # Support libraries and tools.  Populates $(SUPPORT)
 #
 
+fetch_vendor_sources: vendor/linux_headers/.success_fetching_source \
+	vendor/musl/.success_fetching_source \
+	vendor/libcap/.success_fetching_source \
+	vendor/libfuse/.success_fetching_source \
+	vendor/uthash/.success_fetching_source \
+	vendor/busybox/.success_retrieving_source \
+	vendor/libattr/.success_retrieving_source \
+	vendor/netselect/.success_retrieving_source
+ 
 vendor/linux_headers/.success_fetching_source:
 	rm -rf vendor/linux_headers
 	mkdir -p vendor/linux_headers
 	git clone --depth=1 'https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git' vendor/linux_headers
 	touch vendor/linux_headers/.success_fetching_source
 $(COMPLETED)/linux_headers: vendor/linux_headers/.success_fetching_source $(COMPLETED)/builddir
-	cd vendor/linux_headers/ && \
-		$(MAKE) headers_install INSTALL_HDR_PATH=$(SUPPORT)
+	rm -rf $(VENDOR)/linux_headers/
+	mkdir -p $(VENDOR)/linux_headers
+	cd $(ROOT)/vendor/linux_headers/ && \
+		$(MAKE) headers_install INSTALL_HDR_PATH=$(SUPPORT) O=$(VENDOR)/linux_headers
 	touch $(COMPLETED)/linux_headers
 linux_headers: $(COMPLETED)/linux_headers
 
@@ -214,7 +233,9 @@ vendor/musl/.success_fetching_source:
 		vendor/musl
 	touch vendor/musl/.success_fetching_source
 $(COMPLETED)/musl: vendor/musl/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/linux_headers
-	cd vendor/musl/ && \
+	rm -rf $(VENDOR)/musl
+	cp -r vendor/musl $(VENDOR)
+	cd $(VENDOR)/musl/ && \
 		./configure --prefix=$(SUPPORT) --enable-static --enable-gcc-wrapper && \
 		$(MAKE) && \
 		$(MAKE) install
@@ -250,16 +271,18 @@ vendor/libcap/.success_fetching_source:
 		vendor/libcap
 	touch vendor/libcap/.success_fetching_source
 $(COMPLETED)/libcap: vendor/libcap/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	rm -rf $(VENDOR)/libcap
+	cp -r vendor/libcap/ $(VENDOR)
 	mkdir -p $(SUPPORT)/include/sys
 	if ! [ -e $(SUPPORT)/include/sys/capability.h ]; then \
 		cp $(SUPPORT)/include/linux/capability.h $(SUPPORT)/include/sys/capability.h; \
 	fi
-	sed 's/^BUILD_GPERF.*/BUILD_GPERF=no/' vendor/libcap/Make.Rules > vendor/libcap/Make.Rules-new
-	mv vendor/libcap/Make.Rules-new vendor/libcap/Make.Rules
-	cd vendor/libcap/libcap && \
+	sed 's/^BUILD_GPERF.*/BUILD_GPERF=no/' $(VENDOR)/libcap/Make.Rules > $(VENDOR)/libcap/Make.Rules-new
+	mv $(VENDOR)/libcap/Make.Rules-new $(VENDOR)/libcap/Make.Rules
+	cd $(VENDOR)/libcap/libcap && \
 		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) lib=$(SUPPORT)/lib prefix=$(SUPPORT) BUILD_CFLAGS="$(CFLAGS) -static" && \
 		$(MAKE) install RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib
-	cd vendor/libcap/progs && \
+	cd $(VENDOR)/libcap/progs && \
 		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) lib=$(SUPPORT)/lib prefix=$(SUPPORT) LDFLAGS=-static && \
 		$(MAKE) install RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib
 	touch $(COMPLETED)/libcap
@@ -279,13 +302,14 @@ vendor/libfuse/.success_fetching_source:
 		vendor/libfuse
 	touch vendor/libfuse/.success_fetching_source
 $(COMPLETED)/libfuse: vendor/libfuse/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/musl
-	rm -rf vendor/libfuse/build
-	mkdir -p vendor/libfuse/build
+	rm -rf $(VENDOR)/libfuse
+	cp -r vendor/libfuse/ $(VENDOR)
+	mkdir -p $(VENDOR)/libfuse/build
 	# meson/ninja sometimes fails with
 	#     ninja: error: unknown target 'lib/libfuse3.a'
 	# for no apparent reason.  It seems to eventually take after multiple
 	# tries.  Thus, retry a few times.
-	cd vendor/libfuse/build && \
+	cd $(VENDOR)/libfuse/build && \
 		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
 		meson configure -D buildtype=release && \
 		meson configure -D default_library=static && \
@@ -316,9 +340,9 @@ $(COMPLETED)/libfuse: vendor/libfuse/.success_fetching_source $(COMPLETED)/build
 		meson configure -D strip=true && \
 		meson configure -D prefix=$(SUPPORT) && \
 		CC=$(MUSLCC) ninja lib/libfuse3.a
-	cp -r vendor/libfuse/build/lib/* $(SUPPORT)/lib/
+	cp -r $(VENDOR)/libfuse/build/lib/* $(SUPPORT)/lib/
 	mkdir -p $(SUPPORT)/include/fuse3/
-	cp vendor/libfuse/include/*.h $(SUPPORT)/include/fuse3/
+	cp $(VENDOR)/libfuse/include/*.h $(SUPPORT)/include/fuse3/
 	touch $(COMPLETED)/libfuse
 libfuse: $(COMPLETED)/libfuse
 
@@ -336,7 +360,9 @@ vendor/uthash/.success_fetching_source:
 		vendor/uthash
 	touch vendor/uthash/.success_fetching_source
 $(COMPLETED)/uthash: vendor/uthash/.success_fetching_source $(COMPLETED)/builddir
-	cp -r vendor/uthash/src/*.h $(SUPPORT)/include/
+	rm -rf $(VENDOR)/uthash
+	cp -r vendor/uthash/ $(VENDOR)
+	cp -r $(VENDOR)/uthash/src/*.h $(SUPPORT)/include/
 	touch $(COMPLETED)/uthash
 uthash: $(COMPLETED)/uthash
 
@@ -355,8 +381,10 @@ vendor/busybox/.success_retrieving_source:
 		vendor/busybox
 	touch vendor/busybox/.success_retrieving_source
 $(SLASHBR)/libexec/busybox: vendor/busybox/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	rm -rf $(VENDOR)/busybox
+	cp -r vendor/busybox/ $(VENDOR)
 	# create busybox config helper
-	cd vendor/busybox && \
+	cd $(VENDOR)/busybox && \
 		echo '#!/bin/sh' > set_bb_option && \
 		echo 'if grep -q "^$$1=" .config; then' >> set_bb_option && \
 		echo 'sed "s,^$$1=.*,$$1=$$2," .config > .config-new' >> set_bb_option && \
@@ -370,19 +398,19 @@ $(SLASHBR)/libexec/busybox: vendor/busybox/.success_retrieving_source $(COMPLETE
 		echo 'fi' >> set_bb_option && \
 		chmod u+x set_bb_option
 	# start with default config
-	rm -f vendor/busybox/.config
-	cd vendor/busybox && \
+	rm -f $(VENDOR)/busybox/.config
+	cd $(VENDOR)/busybox && \
 		$(MAKE) defconfig
 	# disable unused applets
-	cd vendor/busybox && \
+	cd $(VENDOR)/busybox && \
 		for applet in $$(grep "^CONFIG_.*=y$$" .config | grep -v "FEATURE" | sed -e 's/^CONFIG_//' -e 's/=.*$$//' | tr '[A-Z_]' '[a-z-]' ); do \
-			if ! grep -rq "\<$$applet\>" $(SRC)/slash-bedrock/; then \
+			if ! grep -rq "\<$$applet\>" $(SLASHBR) $(ROOT)/src/installer/installer.sh $(ROOT)/src/init/init; then \
 echo "DISABLING $$applet"; \
 				./set_bb_option "CONFIG_$$(echo "$$applet" | tr '[a-z-]' '[A-Z_]')" "n"; \
 			fi; \
 		done
 	# explicitly enable known desired and explicitly undesired features
-	cd vendor/busybox && \
+	cd $(VENDOR)/busybox && \
 		./set_bb_option "CONFIG_AR" "y" && \
 		./set_bb_option "CONFIG_ASH_BASH_COMPAT" "y" && \
 		./set_bb_option "CONFIG_ASH_CMDCMD" "y" && \
@@ -428,7 +456,7 @@ echo "DISABLING $$applet"; \
 	cd $(SUPPORT)/include/linux/ && \
 		echo '' > in6.h
 	cp $(SUPPORT)/include/linux/if_slip.h $(SUPPORT)/include/net/
-	cd vendor/busybox && \
+	cd $(VENDOR)/busybox && \
 		$(MAKE) CC=$(MUSLCC) && \
 		cp busybox $(SLASHBR)/libexec/busybox
 busybox: $(SLASHBR)/libexec/busybox
@@ -445,14 +473,16 @@ vendor/libattr/.success_retrieving_source:
 		vendor/libattr
 	touch vendor/libattr/.success_retrieving_source
 $(COMPLETED)/libattr: vendor/libattr/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	rm -rf $(VENDOR)/libattr
+	cp -r vendor/libattr/ $(VENDOR)
 	# Sometimes autogen does not take the first time despite returning 0.  Thus, try a few times.
-	cd vendor/libattr && \
+	cd $(VENDOR)/libattr && \
 		./autogen.sh && \
 		CC=$(MUSLCC) ./configure --enable-static --disable-shared ; \
 		make clean && \
 		make CC=$(MUSLCC) getfattr setfattr && \
 		cp getfattr $(SLASHBR)/libexec/getfattr && \
-		cp setfattr $(SLASHBR)/libexec/setfattr && \
+		cp setfattr $(SLASHBR)/libexec/setfattr
 	touch $(COMPLETED)/libattr
 $(SLASHBR)/libexec/getfattr: $(COMPLETED)/libattr
 $(SLASHBR)/libexec/setfattr: $(COMPLETED)/libattr
@@ -468,40 +498,48 @@ vendor/netselect/.success_retrieving_source:
 	git clone --depth=1 'https://github.com/apenwarr/netselect.git' vendor/netselect
 	touch vendor/netselect/.success_retrieving_source
 $(SLASHBR)/libexec/netselect: vendor/netselect/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	rm -rf $(VENDOR)/netselect
+	cp -r vendor/netselect/ $(VENDOR)
 	# netselect uses non-standard types which musl does not recognize.
-	if ! grep -q '^#include "fix_types.h"' vendor/netselect/netselect.c; then \
-		echo '#define u_char unsigned char' > vendor/netselect/fix_types.h && \
-		echo '#define u_short unsigned short' >> vendor/netselect/fix_types.h && \
-		echo '#define u_long unsigned long' >> vendor/netselect/fix_types.h && \
-		echo '#include "fix_types.h"' > vendor/netselect/netselect_fixed.c && \
-		cat vendor/netselect/netselect.c >> vendor/netselect/netselect_fixed.c && \
-		mv vendor/netselect/netselect_fixed.c vendor/netselect/netselect.c; fi
+	if ! grep -q '^#include "fix_types.h"' $(VENDOR)/netselect/netselect.c; then \
+		echo '#define u_char unsigned char' > $(VENDOR)/netselect/fix_types.h && \
+		echo '#define u_short unsigned short' >> $(VENDOR)/netselect/fix_types.h && \
+		echo '#define u_long unsigned long' >> $(VENDOR)/netselect/fix_types.h && \
+		echo '#include "fix_types.h"' > $(VENDOR)/netselect/netselect_fixed.c && \
+		cat $(VENDOR)/netselect/netselect.c >> $(VENDOR)/netselect/netselect_fixed.c && \
+		mv $(VENDOR)/netselect/netselect_fixed.c $(VENDOR)/netselect/netselect.c; fi
 	# patch netselect to avoid dropping domain in output
 	# users may prefer the domain to a raw IP, and some services (e.g.
 	# cloudflare) refuse to operate when contacted with raw IP.
-	if grep -q '^\s*if\s*(result.multi)$$' vendor/netselect/netselect.c; then \
+	if grep -q '^\s*if\s*(result.multi)$$' $(VENDOR)/netselect/netselect.c; then \
 		sed 's/^\s*if\s*(result.multi)$$/if(0)/' \
-			vendor/netselect/netselect.c > vendor/netselect/netselect_fixed.c && \
-		mv vendor/netselect/netselect_fixed.c vendor/netselect/netselect.c; fi
-	cd vendor/netselect/ && \
+			$(VENDOR)/netselect/netselect.c > $(VENDOR)/netselect/netselect_fixed.c && \
+		mv $(VENDOR)/netselect/netselect_fixed.c $(VENDOR)/netselect/netselect.c; fi
+	cd $(VENDOR)/netselect/ && \
 		make CC=$(MUSLCC) LDFLAGS='-static' && \
 		cp netselect $(SLASHBR)/libexec/netselect
 netselect: $(SLASHBR)/libexec/netselect
 
 $(SLASHBR)/bin/strat: $(COMPLETED)/builddir $(COMPLETED)/musl $(COMPLETED)/libcap
-	cd src/strat && \
+	rm -rf $(SRC)/strat
+	cp -r src/strat/ $(SRC)
+	cd $(SRC)/strat && \
 		$(MAKE) CC=$(MUSLCC) && \
 		cp ./strat $(SLASHBR)/bin/strat
 strat: $(SLASHBR)/bin/strat
 
 $(SLASHBR)/libexec/manage_tty_lock: $(COMPLETED)/builddir $(COMPLETED)/musl
-	cd src/manage_tty_lock && \
+	rm -rf $(SRC)/manage_tty_lock
+	cp -r src/manage_tty_lock/ $(SRC)
+	cd $(SRC)/manage_tty_lock && \
 		$(MAKE) CC=$(MUSLCC) && \
 		cp manage_tty_lock $(SLASHBR)/libexec/manage_tty_lock
 manage_tty_lock: $(SLASHBR)/libexec/manage_tty_lock
 
 $(SLASHBR)/libexec/bouncer: $(COMPLETED)/builddir $(COMPLETED)/musl
-	cd src/bouncer && \
+	rm -rf $(SRC)/bouncer
+	cp -r src/bouncer/ $(SRC)
+	cd $(SRC)/bouncer && \
 		$(MAKE) CC=$(MUSLCC) && \
 		cp ./bouncer $(SLASHBR)/libexec/bouncer
 bouncer: $(SLASHBR)/libexec/bouncer
@@ -509,7 +547,9 @@ bouncer: $(SLASHBR)/libexec/bouncer
 $(SLASHBR)/libexec/etcfs: $(COMPLETED)/builddir \
 	$(COMPLETED)/musl \
 	$(COMPLETED)/libfuse
-	cd src/etcfs && \
+	rm -rf $(SRC)/etcfs
+	cp -r src/etcfs/ $(SRC)
+	cd $(SRC)/etcfs && \
 		make CC=$(MUSLCC) CFLAGS="$(CFLAGS)" && \
 		cp ./etcfs $(SLASHBR)/libexec/etcfs
 etcfs: $(SLASHBR)/libexec/etcfs
@@ -518,7 +558,9 @@ $(SLASHBR)/libexec/crossfs: $(COMPLETED)/builddir \
 	$(COMPLETED)/musl \
 	$(COMPLETED)/libfuse \
 	$(COMPLETED)/uthash
-	cd src/crossfs && \
+	rm -rf $(SRC)/crossfs
+	cp -r src/crossfs/ $(SRC)
+	cd $(SRC)/crossfs && \
 		make CC=$(MUSLCC) CFLAGS="$(CFLAGS)" && \
 		cp ./crossfs $(SLASHBR)/libexec/crossfs
 crossfs: $(SLASHBR)/libexec/crossfs
@@ -526,7 +568,7 @@ crossfs: $(SLASHBR)/libexec/crossfs
 # Use populated $(SLASHBR) to create the script
 #
 
-build/userland.tar: \
+$(BUILD)/userland.tar: \
 	$(COMPLETED)/builddir \
 	$(SLASHBR)/libexec/busybox \
 	$(SLASHBR)/libexec/getfattr \
@@ -538,11 +580,25 @@ build/userland.tar: \
 	$(SLASHBR)/libexec/bouncer \
 	$(SLASHBR)/libexec/etcfs \
 	$(SLASHBR)/libexec/crossfs
+	# remove symlinks which may have been created in a previous interrupted run
+	rm -f $(SLASHBR)/libexec/brl-strat
+	rm -f $(SLASHBR)/strata/init
+	rm -f $(SLASHBR)/strata/local
 	# ensure static
 	for bin in $(SLASHBR)/bin/* $(SLASHBR)/libexec/*; do \
 		if ldd "$$bin" >/dev/null 2>&1; then \
 			echo "error: $$bin is dynamically linked"; exit 1; \
 		fi; \
+	done
+	# ensure correct binary format
+	for bin in $(SLASHBR)/bin/* $(SLASHBR)/libexec/*; do \
+		if file "$$bin" | grep -q "sh script"; then \
+			continue ; \
+		elif file "$$bin" | grep -q "$(FILE_ARCH_NAME)"; then \
+			continue ; \
+		fi; \
+		echo "ERROR: \`file $$bin\` does not contain $(FILE_ARCH_NAME)"; \
+		exit 1; \
 	done
 	# strip binaries
 	for bin in $(SLASHBR)/bin/* $(SLASHBR)/libexec/*; do \
@@ -559,31 +615,31 @@ build/userland.tar: \
 	chmod 700 $(SLASHBR)/gnupg-keys
 	chmod 600 $(SLASHBR)/gnupg-keys/*
 	chmod 755 $(SLASHBR)/share/resolvconf/00bedrock
-	chmod 755 build/sbin/init
+	chmod 755 $(BUILD)/sbin/init
 	# create symlinks
 	ln -s ../bin/strat $(SLASHBR)/libexec/brl-strat
 	ln -s /bedrock/run/init-alias $(SLASHBR)/strata/init
 	ln -s ../cross/.local-alias $(SLASHBR)/strata/local
 	# create a tarball
-	cd build/ && fakeroot tar cf userland.tar-new bedrock/ sbin/init
-	cd build/ && mv userland.tar-new userland.tar
-tarball: build/userland.tar
+	cd $(BUILD) && fakeroot tar cf userland.tar-new bedrock/ sbin/init
+	cd $(BUILD) && mv userland.tar-new userland.tar
+tarball: $(BUILD)/userland.tar
 
-build/unsigned-installer.sh: build/userland.tar src/installer/installer.sh src/slash-bedrock/share/common-code
+$(BUILD)/unsigned-installer.sh: $(BUILD)/userland.tar src/installer/installer.sh src/slash-bedrock/share/common-code
 	( \
 		cat src/installer/installer.sh | awk '/^[.] \/bedrock\/share\/common-code/{exit}1'; \
 		cat src/slash-bedrock/share/common-code | sed 's/BEDROCK-RELEASE/$(RELEASE)/' | grep -v 'pipefail'; \
-		cat src/installer/installer.sh | awk 'x{print}/^[.] \/bedrock\/share\/common-code/{x=1}'; \
+		cat src/installer/installer.sh | awk 'x{print}/^[.] \/bedrock\/share\/common-code/{x=1}' | sed 's/^ARCHITECTURE=/ARCHITECTURE=$(ARCHITECTURE)/'; \
 		echo "-----BEGIN TARBALL-----"; \
-		cat build/userland.tar | gzip; \
+		cat $(BUILD)/userland.tar | gzip; \
 		echo ""; \
 		echo "-----END TARBALL-----"; \
-	) > build/unsigned-installer.sh-new
-	mv build/unsigned-installer.sh-new build/unsigned-installer.sh
+	) > $(BUILD)/unsigned-installer.sh-new
+	mv $(BUILD)/unsigned-installer.sh-new $(BUILD)/unsigned-installer.sh
 
-$(INSTALLER): build/unsigned-installer.sh
+$(INSTALLER): $(BUILD)/unsigned-installer.sh
 	if [ "$(SKIPSIGN)" = true ]; then \
-		cp build/unsigned-installer.sh $(INSTALLER)-new; \
+		cp $(BUILD)/unsigned-installer.sh $(INSTALLER)-new; \
 		mv $(INSTALLER)-new $(INSTALLER); \
 	elif [ -z "$(GPGID)" ]; then \
 		echo 'Either SKIPSIGN or GPGID must be set.'; \
@@ -597,15 +653,59 @@ $(INSTALLER): build/unsigned-installer.sh
 		echo 'Use `make SKIPSIGN=true` to opt out of signing'; \
 		exit 1; \
 	else \
-		rm -f build/signed-installer.sh; \
-		cp build/unsigned-installer.sh build/signed-installer.sh; \
-		gpg --output - --armor --detach-sign build/unsigned-installer.sh >> build/signed-installer.sh; \
-		mv build/signed-installer.sh $(INSTALLER); \
+		rm -f $(BUILD)/signed-installer.sh; \
+		cp $(BUILD)/unsigned-installer.sh $(BUILD)/signed-installer.sh; \
+		gpg --output - --armor --detach-sign $(BUILD)/unsigned-installer.sh >> $(BUILD)/signed-installer.sh; \
+		mv $(BUILD)/signed-installer.sh $(INSTALLER); \
 	fi
 	chmod +x $(INSTALLER)
-	@ echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g'
 	@ echo "=== Completed creating $(INSTALLER) ==="
-	@ echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g'
+
+#
+# Build signed installers/updates for all supported Bedrock architectures.
+#
+# Assumes running on a Bedrock Linux system with br-build-<arch> strata/aliases
+# set up that support the build tools for the corresponding architecture.
+#
+# Upstream vendor source fetching logic is not set up to be parallelized
+# per-arch, and thus it is a dependency.
+#
+# Reasons for popular architectures not currently being enabled:
+#
+# ppc64le: Building ppc64le results in:
+#
+#     checking whether compiler's long double definition matches float.h... no
+#     ./configure: error: unsupported long double type
+#
+# while building musl.  However, musl appears to support ppc64le.
+#
+# x86: Could not find binfmt_misc registration magic/mask/offset for i585 or
+# i686.
+#
+bedrock-linux-$(VERSION)-aarch64: fetch_vendor_sources
+	strat -r br-build-aarch64 $(MAKE) GPGID='$(GPGID)'
+bedrock-linux-$(VERSION)-armv7hl: fetch_vendor_sources
+	strat -r br-build-armv7hl $(MAKE) GPGID='$(GPGID)'
+bedrock-linux-$(VERSION)-armv7l: fetch_vendor_sources
+	strat -r br-build-armv7l $(MAKE) GPGID='$(GPGID)'
+bedrock-linux-$(VERSION)-mips: fetch_vendor_sources
+	strat -r br-build-mips $(MAKE) GPGID='$(GPGID)'
+bedrock-linux-$(VERSION)-mipsel: fetch_vendor_sources
+	strat -r br-build-mipsel $(MAKE) GPGID='$(GPGID)'
+bedrock-linux-$(VERSION)-mips64el: fetch_vendor_sources
+	strat -r br-build-mips64el $(MAKE) GPGID='$(GPGID)'
+bedrock-linux-$(VERSION)-s390x: fetch_vendor_sources
+	strat -r br-build-s390x $(MAKE) GPGID='$(GPGID)'
+bedrock-linux-$(VERSION)-x86_64: fetch_vendor_sources
+	strat -r br-build-x86_64 $(MAKE) GPGID='$(GPGID)'
+release: bedrock-linux-$(VERSION)-aarch64 \
+	bedrock-linux-$(VERSION)-armv7hl \
+	bedrock-linux-$(VERSION)-armv7l \
+	bedrock-linux-$(VERSION)-mips \
+	bedrock-linux-$(VERSION)-mipsel \
+	bedrock-linux-$(VERSION)-mips64el \
+	bedrock-linux-$(VERSION)-s390x \
+	bedrock-linux-$(VERSION)-x86_64
 
 #
 # Code quality enforcement

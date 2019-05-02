@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 
 # Print the Bedrock Linux ASCII logo.
 #
@@ -492,6 +492,201 @@ enforce_id_ranges() {
 	done
 }
 
+# List of architectures Bedrock Linux supports.
+brl_archs() {
+	cat <<EOF
+aarch64
+armv7hl
+armv7l
+mips
+mipsel
+mips64el
+ppc64le
+s390x
+x86
+x86_64
+EOF
+}
+
+#
+# Many distros have different phrasing for the same exact CPU architecture.
+# Standardize witnessed variations against Bedrock's convention.
+#
+standardize_architecture() {
+	case "${1}" in
+	aarch64 | arm64) echo "aarch64" ;;
+	armhf | armhfp | armv7h | armv7hl | armv7a) echo "armv7hl" ;;
+	arm | armel | armle | arm7 | armv7 | armv7l | armv7a_hardfp) echo "armv7l" ;;
+	mips | mipsbe | mipseb) echo "mips" ;;
+	mipsel | mipsle) echo "mipsel" ;;
+	mips64el | mips64le) echo "mips64el" ;;
+	ppc64el | ppc64le) echo "ppc64le" ;;
+	s390x) echo "s390x" ;;
+	i*86 | x86) echo "x86" ;;
+	amd64 | x86_64) echo "x86_64" ;;
+	esac
+}
+
+get_system_arch() {
+	if ! system_arch="$(standardize_architecture "$(get_attr "/bedrock/strata/bedrock/" "arch")")" || [ -z "${system_arch}" ]; then
+		system_arch="$(standardize_architecture "$(uname -m)")"
+	fi
+	if [ -z "${system_arch}" ]; then
+		abort "Unable to determine system CPU architecture"
+	fi
+	echo "${system_arch}"
+}
+
+check_arch_supported_natively() {
+	arch="${1}"
+	system_arch="$(get_system_arch)"
+	if [ "${system_arch}" = "${arch}" ]; then
+		true
+		return
+	fi
+
+	case "${system_arch}:${arch}" in
+	aarch64:armv7hl)
+		true
+		return
+		;;
+	aarch64:armv7l)
+		true
+		return
+		;;
+	armv7hl:armv7l)
+		true
+		return
+		;;
+	armv7l:armv7hl)
+		# do not want qemu registering over native
+		true
+		return
+		;;
+	x86_64:x86)
+		true
+		return
+		;;
+	esac
+
+	false
+	return
+}
+
+qemu_binary_for_arch() {
+	case "${1}" in
+	aarch64) echo "qemu-aarch64-static" ;;
+	armv7hl) echo "qemu-arm-static" ;;
+	armv7l) echo "qemu-arm-static" ;;
+	mips) echo "qemu-mips-static" ;;
+	mipsel) echo "qemu-mipsel-static" ;;
+	mips64el) echo "qemu-mips64el-static" ;;
+	ppc64le) echo "qemu-ppc64le-static" ;;
+	s390x) echo "qemu-s390x-static" ;;
+	x86) echo "qemu-i386-static" ;;
+	x86_64) echo "qemu-x86_64-static" ;;
+	esac
+}
+
+setup_binfmt_misc() {
+	stratum="${1}"
+	mount="/proc/sys/fs/binfmt_misc"
+
+	arch="$(get_attr "/bedrock/strata/${stratum}" "arch" 2>/dev/null)" || true
+
+	# If stratum is native, skip setting up binfmt_misc
+	if [ -z "${arch}" ] || check_arch_supported_natively "${arch}"; then
+		return
+	fi
+
+	# ensure module is loaded
+	if ! [ -d "${mount}" ]; then
+		modprobe binfmt_misc
+	fi
+	if ! [ -d "${mount}" ]; then
+		abort "Unable to mount binfmt_misc to register handler for ${stratum}"
+	fi
+
+	# mount binfmt_misc if it is not already mounted
+	if ! [ -r "${mount}/register" ]; then
+		mount binfmt_misc -t binfmt_misc "${mount}"
+	fi
+	if ! [ -r "${mount}/register" ]; then
+		abort "Unable to mount binfmt_misc to register handler for ${stratum}"
+	fi
+
+	# Gather information needed to register with binfmt
+	unset name
+	unset sum
+	unset reg
+	case "${arch}" in
+	aarch64)
+		name="qemu-aarch64"
+		sum="707cf2bfbdb58152fc97ed4c1643ecd16b064465"
+		reg=':qemu-aarch64:M:0:\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-aarch64-static:OC'
+		;;
+	armv7l | armv7hl)
+		name="qemu-arm"
+		sum="bbada633c3eda72c9be979357b51c0ac8edb9eba"
+		reg=':qemu-arm:M:0:\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-arm-static:OC'
+		;;
+	mips)
+		name="qemu-mips"
+		sum="5751a5cf2bbc2cb081d314f4b340ca862c11b90c"
+		reg=':qemu-mips:M:0:\x7fELF\x01\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x08:\xff\xff\xff\xff\xff\xff\xff\x00\xfe\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff:/usr/bin/qemu-mips-static:OC'
+		;;
+	mipsel)
+		name="qemu-mipsel"
+		sum="2bccf248508ffd8e460b211f5f4159906754a498"
+		reg=':qemu-mipsel:M:0:\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x08\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xfe\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-mipsel-static:OC'
+		;;
+	mips64el)
+		name="qemu-mips64el"
+		sum="ed9513fa110eed9085cf21a789a55e047f660237"
+		reg=':qemu-mips64el:M:0:\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x08\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xfe\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-mips64el-static:OC'
+		;;
+	ppc64le)
+		name="qemu-ppc64le"
+		sum="b42c326e62f05cae1d412d3b5549a06228aeb409"
+		reg=':qemu-ppc64le:M:0:\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x15\x00:\xff\xff\xff\xff\xff\xff\xff\xfc\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\x00:/usr/bin/qemu-ppc64le-static:OC'
+		;;
+	s390x)
+		name="qemu-s390x"
+		sum="9aed062ea40b5388fd4dea5e5da837c157854021"
+		reg=':qemu-s390x:M:0:\x7fELF\x02\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x16:\xff\xff\xff\xff\xff\xff\xff\xfc\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff:/usr/bin/qemu-s390x-static:OC'
+		;;
+	# x86)
+	# TODO: Tests with i686 failed.  Determine if i586 and i686 require different registration, and if so, their registration values.
+	# 	echo ':qemu-i386:M:0:\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x03\x00:\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x00\xfe\xff\xff\xff:/usr/bin/qemu-i386-static:OC' >"${mount}/register" 2>/dev/null || true
+	# 	echo '1' >"${mount}/qemu-i386"
+	# 	echo ':qemu-i486:M:0:\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x06\x00:\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x00\xfe\xff\xff\xff:/usr/bin/qemu-i386-static:OC' >"${mount}/register" 2>/dev/null || true
+	# 	echo '1' >"${mount}/qemu-i486"
+	# 	;;
+	x86_64)
+		name="qemu-x86_64"
+		sum="823c58bdb19743335c68d036fdc795e3be57e243"
+		reg=':qemu-x86_64:M:0:\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00:\xff\xff\xff\xff\xff\xfe\xfe\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-x86_64-static:OC'
+		;;
+	*)
+		abort "Stratum \"${stratum}\" has unrecognized arch ${arch}"
+		;;
+	esac
+
+	# Remove registration with differing values.
+	if [ -r "${mount}/${name}" ] && [ "$(sha1sum "${mount}/${name}" | awk '{print$1}')" != "${sum}" ]; then
+		notice "Removing conflicting ${arch} binfmt registration"
+		echo '-1' >"${mount}/${name}"
+	fi
+
+	# Register if not already registered
+	if ! [ -r "${mount}/${name}" ]; then
+		echo "${reg}" >"${mount}/register"
+	fi
+	# Enable
+	printf "1" >"${mount}/${name}"
+	printf "1" >"${mount}/status"
+}
+
 # Run executable in /bedrock/libexec with init stratum.
 #
 # Requires the init stratum to be enabled, which is typically true in a
@@ -620,10 +815,11 @@ umount_r() {
 	prev_cnt=$((cur_cnt + 1))
 	while [ "${cur_cnt}" -lt "${prev_cnt}" ]; do
 		prev_cnt=${cur_cnt}
-		for mount in $(mounts_in_dir ${init_flag} "${dir}" | sort -r); do
+		for mount in $(mounts_in_dir ${init_flag} "${dir}" | sort -ru); do
 			${x_mount} --make-rprivate "${mount}" 2>/dev/null || true
 		done
-		for mount in $(mounts_in_dir ${init_flag} "${dir}" | sort -r); do
+		for mount in $(mounts_in_dir ${init_flag} "${dir}" | sort -ru); do
+			${x_mount} --make-rprivate "${mount}" 2>/dev/null || true
 			${x_umount} -l "${mount}" 2>/dev/null || true
 		done
 		cur_cnt="$(mounts_in_dir ${init_flag} "${dir}" | wc -l || true)"

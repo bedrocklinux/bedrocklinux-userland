@@ -122,6 +122,9 @@ _brl() {
 		"-r" | "--release")
 			return
 			;;
+		"-a" | "--arch")
+			return
+			;;
 		"-m" | "--mirror")
 			return
 			;;
@@ -138,8 +141,10 @@ _brl() {
 			opts="${opts} $(_brl_unused_all "-x --experimental" "${COMP_WORDS[@]}")"
 		fi
 		opts="${opts} $(_brl_unused_all "-R --releases" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-A --archs" "${COMP_WORDS[@]}")"
 		opts="${opts} $(_brl_unused_all "-n --name" "${COMP_WORDS[@]}")"
 		opts="${opts} $(_brl_unused_all "-r --release" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-a --arch" "${COMP_WORDS[@]}")"
 		opts="${opts} $(_brl_unused_all "-m --mirror" "${COMP_WORDS[@]}")"
 		opts="${opts} $(_brl_unused_all "-e --dont-enable" "${COMP_WORDS[@]}")"
 		opts="${opts} $(_brl_unused_all "-s --dont-show" "${COMP_WORDS[@]}")"

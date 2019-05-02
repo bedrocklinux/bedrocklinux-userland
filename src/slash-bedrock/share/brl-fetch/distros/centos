@@ -6,49 +6,52 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
 check_supported() {
-	case "$(uname -m)" in
-	"x86_64") true ;;
-	*) false ;;
-	esac
-}
-
-check_experimental() {
-	false
-}
-
-distro_arch_name() {
-	case "$(uname -m)" in
-	"x86_64") echo "x86_64" ;;
-	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
-	esac
-}
-
-list_mirrors() {
-	mirror_list_url="http://mirror-status.centos.org/"
-	wget -O- "${mirror_list_url}" 2>/dev/null |
-		awk '/<H2>report/,/<H3>/' |
-		grep -e "HREF" -e ">ok<" |
-		awk '/HREF/{l=$0} />ok</{print l}' |
-		sed 's,</A>.*$,,' |
-		list_links
+	true
 }
 
 speed_test_url() {
-	echo "${release}/os/x86_64/isolinux/memtest"
+	echo "${target_release:-}/os/${distro_arch:-}/GPL"
+}
+
+list_mirrors() {
+	wget -O- "http://mirrorlist.centos.org/?release=${target_release:-}&arch=${distro_arch:-}&repo=os" 2>/dev/null |
+		sed -e 's,/$,,' -e 's,/[^/]*/os/[^/]*$,,'
+}
+
+brl_arch_to_distro() {
+	case "${1}" in
+	"aarch64") echo "aarch64" ;;
+	"armv7hl") echo "armhfp" ;;
+	"ppc64le") echo "ppc64le" ;;
+	"x86_64") echo "x86_64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	esac
+}
+
+list_architectures() {
+	cat <<EOF
+aarch64
+armv7hl
+ppc64le
+x86_64
+EOF
+}
+
+default_release() {
+	list_releases |
+		sort -n |
+		tail -n1
 }
 
 list_releases() {
-	for mirror in "${flag_mirror:-}" $(list_mirrors); do
-		# This mirror didn't include the latest release during testing
-		# while spot checking a bunch of others did.  Just skip it.
-		[ "${mirror}" = "http://centos.xfree.com.ar/" ] && continue
+	for mirror in "${flag_mirror:-}" "http://mirror.centos.org/centos/"; do
 		if wget -O- "${mirror}" 2>/dev/null |
 			list_links |
 			grep '^[0-9][0-9]*/$' |
@@ -57,14 +60,9 @@ list_releases() {
 		fi
 	done
 }
-default_release() {
-	list_releases |
-		sort -n |
-		tail -n1
-}
 
 determine_package_manager() {
-	if [ -e "${bootstrap_dir}/brldb/depends/dn" ] && grep -q '^dnf\>' "${bootstrap_dir}/brldb/depends/dn"; then
+	if [ -e "${bootstrap_dir:-}/brldb/depends/dn" ] && grep -q '^dnf\>' "${bootstrap_dir:-}/brldb/depends/dn"; then
 		echo "dnf"
 	else
 		echo "yum"
@@ -76,64 +74,34 @@ bootstrap_deps() {
 }
 
 fetch() {
-	step_init 13
-
-	if [ -z "${target_dir:-}" ]; then
-		fetch_abort "Essential variable not set"
-	fi
-
-	step "Determining name"
-	name="${flag_name:-${distro}}"
-	notice "Using ${color_strat}${name}${color_norm}"
-
-	step "Determining CPU architecture"
-	arch="$(distro_arch_name)"
-	notice "Using ${color_file}${arch}${color_norm}"
-
-	step "Determining release"
-	release="$(pick_release)"
-	notice "Using ${color_file}${release}${color_norm}"
-
-	step "Determining mirror"
-	mirror="$(pick_mirror "$(speed_test_url)")"
-	notice "Using ${color_link}${mirror}${color_norm}"
-
-	step "Making directory structure"
-	bootstrap_dir="${target_dir}/brl-bootstrap"
-	mkdir -p "${target_dir}" "${bootstrap_dir}/target-root"
-
 	step "Downloading package information database"
-	url="$(find_link "${mirror}/${release}/os/${arch}/repodata/" "primary.xml.gz")"
-	wget -O "${bootstrap_dir}/primary.xml.gz" "${url}"
-	gunzip "${bootstrap_dir}/primary.xml.gz"
+	url="$(find_link "${target_mirror:-}/${target_release:-}/os/${distro_arch:-}/repodata/" "primary.xml.gz")"
+	wget -O "${bootstrap_dir:-}/primary.xml.gz" "${url}"
+
+	step "Extracting package information database"
+	gunzip "${bootstrap_dir:-}/primary.xml.gz"
 
 	step "Converting distro package information database to brl format"
-	rpmdb_to_brldb "${bootstrap_dir}/primary.xml" "${bootstrap_dir}/brldb"
+	rpmdb_to_brldb "${bootstrap_dir:-}/primary.xml" "${bootstrap_dir:-}/brldb"
 
 	step "Calculating required bootstrap packages"
 	package_manager="$(determine_package_manager)"
-	brldb_calculate_paths_with_deps "${bootstrap_dir}/brldb" "${bootstrap_dir}/package_paths" "$(bootstrap_deps)"
+	brldb_calculate_paths_with_deps "${bootstrap_dir:-}/brldb" "${bootstrap_dir:-}/package_paths" "$(bootstrap_deps)"
 
 	step "Downloading bootstrap packages"
-	download_files "${bootstrap_dir}" "$(awk -v"m=$mirror/$release/os/$arch" '{print m"/"$0}' "${bootstrap_dir}/package_paths")"
+	download_files "${bootstrap_dir:-}" "$(awk -v"m=${target_mirror:-}/${target_release:-}/os/${distro_arch:-}" '{print m"/"$0}' "${bootstrap_dir:-}/package_paths")"
 
 	step "Extracting bootstrap packages"
 	# This round is just to bootstrap the distro's rpm.
 	# Next step we'll use the distro's rpm to install everything properly.
 	# Need to extract filesystem first to ensure symlinks are set up
-	extract_rpms "${bootstrap_dir}" "${bootstrap_dir}"/filesystem*.rpm "${bootstrap_dir}"/*.rpm
+	extract_rpms "${bootstrap_dir:-}" "${bootstrap_dir:-}"/filesystem*.rpm "${bootstrap_dir:-}"/*.rpm
 
 	step "Installing bootstrap packages"
-	setup_chroot "${bootstrap_dir}"
-	LC_ALL=C chroot "${bootstrap_dir}" rpm -i ./*.rpm 2>&1 | progress_unknown
+	setup_chroot "${bootstrap_dir:-}"
+	LC_ALL=C chroot "${bootstrap_dir:-}" rpm -i ./*.rpm
 
 	step "Running bootstrap software"
-	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
-	LC_ALL=C chroot "${bootstrap_dir}" rpm -i --root=/target-root --nodeps centos-release-*.rpm 2>/dev/null || true
-	LC_ALL=C chroot "${bootstrap_dir}" "${package_manager}" --installroot=/target-root install -y rpm-build "${package_manager}" centos-repos
-
-	step "Removing temporary bootstrap files"
-	less_lethal_rm_rf "${bootstrap_dir}"
-
-	notice "Successfully acquired ${distro} stratum"
+	LC_ALL=C chroot "${bootstrap_dir:-}" rpm -i --root=/target-root --nodeps centos-release-*.rpm 2>/dev/null || true
+	LC_ALL=C chroot "${bootstrap_dir:-}" "${package_manager}" --installroot=/target-root install -y rpm-build "${package_manager}" centos-repos
 }

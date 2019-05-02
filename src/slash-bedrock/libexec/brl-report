@@ -89,6 +89,9 @@ run "ps"
 run "cd /proc && for x in *; do echo \"\$x\" | grep -q \"^[0-9]*\$\" && echo \"\$x: \$(/bedrock/bin/brl which -p \"\$x\" 2>/dev/null)\"; done | sort -n"
 run "cat /bedrock/cross/.bedrock-config-filesystem"
 run "cat /proc/1/root/etc/.bedrock-config-filesystem"
+run "uname -m"
+run "uname -a"
+run "/bedrock/libexec/getfattr -d /bedrock/strata/bedrock"
 
 notice "Completed creating report at ${color_file}\`$report\`${color_norm}."
 

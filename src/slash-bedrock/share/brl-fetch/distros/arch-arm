@@ -6,32 +6,19 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
 check_supported() {
-	case "$(uname -m)" in
-	"armv7l") true ;;
-	*) false ;;
-	esac
+	true
 }
 
-check_experimental() {
-	false
-}
-
-distro_arch_name() {
-	case "$(uname -m)" in
-	"armv7l") echo "armv7h" ;;
-	*) fetch_abort "brl-fetch does not support distro/architecture pair" ;;
-	esac
-}
-
-list_releases() {
-	echo "rolling"
+speed_test_url() {
+	file="$(brl_arch_to_image_name "${target_arch:-}")"
+	echo "/os/${file}.sig"
 }
 
 list_mirrors() {
@@ -42,11 +29,38 @@ list_mirrors() {
 		awk -F "[ $]" '/^Server/{print$3}'
 }
 
-speed_test_url() {
-	echo "${arch}/core/core.db.tar.gz"
+brl_arch_to_distro() {
+	case "${1}" in
+	"aarch64") echo "aarch64" ;;
+	"armv7hl") echo "arm7h" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format.  Manually specify another architecture with the \`-a\` flag." ;;
+	esac
+}
+
+brl_arch_to_image_name() {
+	case "${1}" in
+	"aarch64") echo "ArchLinuxARM-aarch64-latest.tar.gz" ;;
+	"armv7hl") echo "ArchLinuxARM-armv7-latest.tar.gz" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} bootstrap file name.  Manually specify another architecture with the \`-a\` flag." ;;
+	esac
+}
+
+# Current strategy uses pre-made image to bootstrap system.  Could not find an
+# image for armv7l, and thus it is removed for the time being.  In the future
+# we could refactor to actually parse the repos ourselves to build a bootstrap
+# environment, which could then use the armv7l repos.
+list_architectures() {
+	cat <<EOF
+aarch64
+armv7hl
+EOF
 }
 
 default_release() {
+	echo "rolling"
+}
+
+list_releases() {
 	echo "rolling"
 }
 
@@ -56,77 +70,31 @@ setup_pacman() {
 
 	if ! grep -q "^Server" "${1}/etc/pacman.d/mirrorlist"; then
 		echo "### Set by Bedrock Linux when acquiring this stratum" >>"${1}/etc/pacman.d/mirrorlist"
-		echo "Server = ${mirror}/\$repo/os/\$arch" >>"$1/etc/pacman.d/mirrorlist"
+		echo "Server = ${target_mirror:-}/\$repo/os/\$arch" >>"$1/etc/pacman.d/mirrorlist"
 	fi
 }
 
 fetch() {
-	step_init 10
-
-	if [ -z "${target_dir:-}" ]; then
-		fetch_abort "Essential variable not set"
-	fi
-
-	step "Determining name"
-	name="${flag_name:-${distro}}"
-	notice "Using ${color_strat}${name}${color_norm}"
-
-	step "Determining CPU architecture"
-	arch="$(distro_arch_name)"
-	notice "Using ${color_file}${arch}${color_norm}"
-
-	step "Determining release"
-	release="$(pick_release)"
-	notice "Using ${color_file}${release}${color_norm}"
-
-	step "Determining mirror"
-	mirror="$(pick_mirror "$(speed_test_url)")"
-	# arch mirrors are typically formatted including $variables.  Strip
-	# those - we'll populate them and append ourselves.
-	echo "${mirror}" | grep -q "[$]" && mirror="$(echo "${mirror}" | sed 's/[$].*//g')"
-	# Some users call brl-fetch without escaping/quoting the aforementioned
-	# variables.  Since they are not populated shell variables, they end up
-	# being empty strings.  Detect this and handle it as well.
-	echo "${mirror}" | grep -q '//os//\?$' && mirror="$(echo "${mirror}" | sed 's,//os//\?$,,g')"
-	notice "Using ${color_link}${mirror}${color_norm}"
-
-	step "Making directory structure"
-	bootstrap_dir="${target_dir}/brl-bootstrap"
-	mkdir -p "${target_dir}" "${bootstrap_dir}/target-root"
-
 	step "Downloading bootstrap software"
-	url="$(find_link "${mirror}/os/" "^ArchLinuxARM-armv7-latest.tar.gz$")"
-	wget -O "${bootstrap_dir}/bootstrap.tar.gz" "${url}"
+	file="$(brl_arch_to_image_name "${target_arch}")"
+	url="$(find_link "${target_mirror:-}/os/" "^${file}$")"
+	wget -O "${bootstrap_dir:-}/bootstrap.tar.gz" "${url}"
 
 	step "Preparing bootstrap software"
 	(
-		cd "${bootstrap_dir}"
+		cd "${bootstrap_dir:-}"
 		tar xf bootstrap.tar.gz
-		rm "${bootstrap_dir}/bootstrap.tar.gz"
+		rm "${bootstrap_dir:-}/bootstrap.tar.gz"
 	)
 
 	step "Running bootstrap software"
-	setup_chroot "${bootstrap_dir}"
-	mount --bind "${target_dir}" "${bootstrap_dir}/target-root"
-	setup_pacman "${bootstrap_dir}"
-	LC_ALL=C chroot "${bootstrap_dir}" pacman --noconfirm -S extra/arch-install-scripts
-	LC_ALL=C chroot "${bootstrap_dir}" pacstrap "/target-root" base
+	setup_chroot "${bootstrap_dir:-}"
+	setup_pacman "${bootstrap_dir:-}"
 
-	step "Removing temporary bootstrap files"
-	less_lethal_rm_rf "${bootstrap_dir}"
+	LC_ALL=C chroot "${bootstrap_dir:-}" pacman --noconfirm -S extra/arch-install-scripts
+	LC_ALL=C chroot "${bootstrap_dir:-}" pacstrap "/target-root" base
 
 	step "Configuring"
-	setup_chroot "${target_dir}"
-	setup_pacman "${target_dir}"
-	localegen="$(cfg_values "locale" "localegen")"
-	if [ -n "${localegen:-}" ]; then
-		echo "### Added by Bedrock Linux when acquiring this stratum" >>"${target_dir}/etc/locale.gen"
-		echo "${localegen}" >>"${target_dir}/etc/locale.gen"
-		LC_ALL=C chroot "${target_dir}" locale-gen
-	else
-		notice "Could not determine desired locale, skipping setting locale"
-	fi
-	tear_down_chroot "${target_dir}"
-
-	notice "Successfully acquired ${distro} stratum"
+	setup_chroot "${target_dir:-}"
+	setup_pacman "${target_dir:-}"
 }
