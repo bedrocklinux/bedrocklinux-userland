@@ -1,0 +1,112 @@
+#!/bedrock/libexec/busybox sh
+# Exherbo Linux (GNUEABIHF) bootstrap support based on Gentoo Linux bootstrap support by Daniel Thau <danthau@bedrocklinux.org> created by Jacob Hrbek <werifgx@gmail.com> under GNUv2 (https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
+
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+#### NOTES
+##	target_dir="/bedrock/strata/${name}"
+
+check_supported() {
+	case "$(uname -m)" in
+	"armv7l") true ;;
+	*) false ;;
+	esac
+}
+
+check_experimental() {
+	true
+}
+
+distro_arch_name() {
+	case "$(uname -m)" in
+	"armv7l") echo "armv7l" ;;
+	*) fetch_abort "FATAL: This fetch of Exherbo Linux does not support $(uname -m) architecture." ;;
+	esac
+}
+
+list_mirrors() {
+	echo "https://dev.exherbo.org"
+	# Alternative mirror is https://www.somas.is/stages/ which doesn't have all
+}
+
+speed_test_url() {
+	echo "/stages/sha256sum"
+}
+
+list_releases() {
+	echo "rolling"
+}
+
+default_release() {
+	echo "rolling"
+}
+
+## Fetch process
+fetch() {
+	step_init 13 # Sets steps count to calculate percentage correctly
+
+	if [ -z "${target_dir:-}" ]; then
+		fetch_abort "FATAL: Variable target_dir is not set."
+	fi
+
+	step "Determining name"
+		name="${flag_name:-${distro}}"
+		notice "Using ${color_strat}${name}${color_norm}"
+
+	step "Determining CPU architecture"
+		arch="$(distro_arch_name)"
+		notice "Using ${color_file}${arch}${color_norm}"
+
+	step "Determining release"
+		release="${flag_release:-$(default_release)}"
+		notice "Using ${color_file}${release}${color_norm}"
+
+	step "Determining mirror"
+		mirror="$(pick_mirror "$(speed_test_url)")"
+		notice "Using ${color_link}${mirror}${color_norm}"
+
+	step "Making directory structure"
+		bootstrap_dir="${target_dir}/brl-bootstrap"
+		mkdir -p "${bootstrap_dir}/target-root"
+
+	step "Downloading bootstrap software"
+			url="$(find_link "${mirror}/stages/" "exherbo-armv7-unknown-linux-gnueabihf-current.tar.xz")"
+			wget -O "${bootstrap_dir}/exherbo-armv7-unknown-linux-gnueabihf-current.tar.xz" "${url}"
+
+	step "Locating tarbar"
+		file="${bootstrap_dir}/exherbo-armv7-unknown-linux-gnueabihf-current.tar.xz"
+		file_name="exherbo-armv7-unknown-linux-gnueabihf-current.tar.xz"
+		echo "INFO: tarbar was located in ${file}."
+		cd ${bootstrap_dir}
+
+	step "Performing sanity checks"
+		## SANITY: Check if `sha1sum` is executable
+		[ ! -x $(command -v sha1sum) ] && fetch_abort "FATAL: Command 'sha1sum' is not executable by bedrock which is required for checksum."
+
+	step "Performing checksum"
+		## Fetch checksum definitions
+		wget -O "${bootstrap_dir}/sha1sum" "http://dev.exherbo.org/stages/sha1sum" || fetch_abort "FATAL: Unable to fetch checksum definitions."
+
+		## Perform checksum
+		grep "${file_name}" "${bootstrap_dir}/sha1sum" | sha1sum -c || fetch_abort "FATAL: Checksum failed"
+
+	step "Preparing bootstrap software"
+		[ -e "${file}" ] && tar -xJpf "${file}" -C "${bootstrap_dir}/" && echo "INFO: ${file} has been extracted in ${bootstrap_dir}" || fetch_abort "FATAL: Unable to extract tarbar."
+
+	step "Running bootstrap software"
+
+		## Prepare chroot environment
+		setup_chroot "${bootstrap_dir}" && echo "INFO: Chroot environment has been set up" || fetch_abort "FATAL: Unable to setup chroot in ${bootstrap_dir}"
+
+		## Mount target-root directory
+		mount --bind "${target_dir}" "${bootstrap_dir}/target-root" || fetch_abort "FATAL: Unable to mount ${target_dir} to ${bootstrap_dir}/target-root"
+
+		## Extract file in target_dir
+		tar -xJpf "${file}" -C "${target_dir}" || fetch_abort "FATAL: Unable to extract tarbar on chroot environment."
+
+	step "Removing temporary bootstrap files"
+		less_lethal_rm_rf "${bootstrap_dir}"
+
+	notice "Successfully acquired ${distro} stratum"
+}
