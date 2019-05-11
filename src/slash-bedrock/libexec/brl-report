@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2015-2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2015-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 # Generates report about system status
 
@@ -40,9 +40,12 @@ if [ "${1:-}" = "-o" ] || [ "${1:-}" = "--overwrite" ]; then
 	overwrite="true"
 	shift
 fi
-
 report="${1}"
 shift
+if [ "${1:-}" = "-o" ] || [ "${1:-}" = "--overwrite" ]; then
+	overwrite="true"
+	shift
+fi
 
 if [ -e "${report}" ]; then
 	if "${overwrite}"; then
