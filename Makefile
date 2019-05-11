@@ -120,7 +120,7 @@
 #
 #     make check
 
-VERSION=0.7.5
+VERSION=0.7.6
 CODENAME=Poki
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | tail -1)
