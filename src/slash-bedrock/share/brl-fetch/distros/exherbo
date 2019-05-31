@@ -1,0 +1,110 @@
+#!/bedrock/libexec/busybox sh
+#
+# Exherbo Linux bootstrap support
+# Copyright 2019 Wulf C. Krueger <philantrop@exherbo.org>
+# Distributed under the terms of the GNU General Public License v2
+#
+# based in part upon "Gentoo Linux bootstrap support" which is:
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+#	Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
+
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	true
+}
+
+speed_test_url() {
+	echo "/stages/sha1sum"
+}
+
+list_mirrors() {
+	echo "https://dev.exherbo.org/"
+}
+
+brl_arch_to_distro() {
+	case "${1}" in
+	     "armv7hl") echo "armv7a_hardfp" ;;
+	     "armv7l") echo "armv7a" ;;
+	     "ppc64le") echo "ppc64le" ;;
+	     "s390x") echo "s3960x" ;;
+	     "x86_64") echo "amd64" ;;
+	     *) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	esac
+}
+
+list_architectures() {
+	cat <<EOF
+x86_64
+EOF
+}
+
+default_release() {
+	echo "rolling"
+}
+
+list_releases() {
+	echo "rolling"
+}
+
+fetch() {
+
+        paludis_builddir=/var/paludis
+        paludis_repo_dir=/etc/paludis/repositories
+        paludis_user=paludisbuild
+        paludis_group=paludisbuild
+
+	ex_download=/var/tmp/brl-fetch
+	ex_stage=exherbo-x86_64-pc-linux-gnu-current.tar.xz
+	ex_checksum=sha1sum
+
+	mkdir -p "${ex_download}"
+
+	step "Downloading bootstrap software"
+	(
+	    if [[ -f ${ex_download}/${ex_stage} ]]; then
+	        cp "${ex_download}/${ex_stage}" "${bootstrap_dir:-}"
+		cp "${ex_download}/${ex_checksum}" "${bootstrap_dir:-}"
+	    else
+		wget ${target_mirror:-}/stages/"${ex_stage}" -O "${bootstrap_dir:-}"/"${ex_stage}"
+		wget ${target_mirror:-}/stages/"${ex_checksum}" -O "${bootstrap_dir:-}"/"${ex_checksum}"
+	    fi
+	)
+
+	step "Verifying stage tarball"
+	(
+	    cd "${bootstrap_dir:-}"
+	    grep "${ex_stage}" "${ex_checksum}" | sha1sum -c
+	)
+
+	step "Preparing bootstrap software"
+	(
+	    cd "${bootstrap_dir:-}"
+	    tar xJpf "${ex_stage}"
+	)
+
+	step "Running bootstrap software"
+	(
+	    setup_chroot "${bootstrap_dir:-}"
+	    chroot "${bootstrap_dir:-}" sh -c "cd /target-root && tar xJpf /${ex_stage}"
+	)
+	
+	step "Configuring"
+	setup_chroot "${target_dir:-}"
+
+	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/arbor.conf"
+	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/i686-pc-linux-gnu.conf"
+	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/installed.conf"
+	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/../repository.template"
+
+	mkdir -p "${target_dir:-}"/"${paludis_builddir}/"
+	chroot ${target_dir} chown -R ${paludis_user}:${paludis_group} "${paludis_builddir}"
+	chroot ${target_dir} chmod -R g+rwx "${paludis_builddir}"
+	chroot ${target_dir} usermod --home "${paludis_builddir}" ${paludis_user}
+	chroot ${target_dir} usermod -a -G $(stat -c %G /dev/tty) ${paludis_user}
+}
+
