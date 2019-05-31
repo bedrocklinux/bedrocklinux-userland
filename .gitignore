@@ -1,3 +1,4 @@
 bedrock-linux-*.sh
 build
 vendor
+*~
