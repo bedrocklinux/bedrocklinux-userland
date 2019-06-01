@@ -120,12 +120,12 @@
 #
 #     make check
 
-VERSION=0.7.6
-CODENAME=Poki
+VERSION=9999
+CODENAME=Anubis
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | tail -1)
-RELEASE=Bedrock Linux $(VERSION) $(CODENAME)
-INSTALLER=bedrock-linux-$(VERSION)-$(ARCHITECTURE).sh
+RELEASE=Kreyrock Linux $(VERSION) $(CODENAME)
+INSTALLER=kreyrock-linux-$(VERSION)-$(ARCHITECTURE).sh
 
 ROOT=$(shell pwd)
 BUILD=$(ROOT)/build/$(ARCHITECTURE)
@@ -205,7 +205,7 @@ fetch_vendor_sources: vendor/linux_headers/.success_fetching_source \
 	vendor/busybox/.success_retrieving_source \
 	vendor/libattr/.success_retrieving_source \
 	vendor/netselect/.success_retrieving_source
- 
+
 vendor/linux_headers/.success_fetching_source:
 	rm -rf vendor/linux_headers
 	mkdir -p vendor/linux_headers
