@@ -91,15 +91,57 @@ fetch() {
 	step "Configuring"
 	setup_chroot "${target_dir:-}"
 
-	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/arbor.conf"
-	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/i686-pc-linux-gnu.conf"
-	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/installed.conf"
-	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/../repository.template"
+	step "Configuring Paludis' repositories"
+	(
+	    echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/arbor.conf"
+	    echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/i686-pc-linux-gnu.conf"
+	    echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/installed.conf"
+	    echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/../repository.template"
+	)
 
-	mkdir -p "${target_dir:-}"/"${paludis_builddir}/"
-	chroot ${target_dir} chown -R ${paludis_user}:${paludis_group} "${paludis_builddir}"
-	chroot ${target_dir} chmod -R g+rwx "${paludis_builddir}"
-	chroot ${target_dir} usermod --home "${paludis_builddir}" ${paludis_user}
-	chroot ${target_dir} usermod -a -G $(stat -c %G /dev/tty) ${paludis_user}
+	step "Creating Paludis' build-dir & fixing permissions"
+	(
+	    mkdir -p "${target_dir:-}"/"${paludis_builddir}/"
+	    chroot ${target_dir} chown -R ${paludis_user}:${paludis_group} "${paludis_builddir}"
+	    chroot ${target_dir} chmod -R g+rwx "${paludis_builddir}"
+	)
+
+	step "Modifying ${paludis_user}"
+	(
+	    chroot ${target_dir} usermod --home "${paludis_builddir}" ${paludis_user}
+	    chroot ${target_dir} usermod -a -G $(stat -c %G /dev/tty) ${paludis_user}
+	)
+
+	case "${ex_stage}" in
+	     *-musl-*) ex_locale_conf=musl;;
+	     *) ex_locale_conf=true;;
+	esac
+
+	if [[ ${ex_locale_conf} == "true" ]]; then
+	    step "Preparing locales"
+
+	    # get local locales because they will bleed trough via the environment
+	    ex_locales=$(locale | sed -e "s:.*=::" | sort -u)
+
+	    # get the locale from bedrock.conf
+	    brl_loc=$(cfg_value "locale" "localegen" | cut -d ' ' -f1 -)
+	    ex_locales="${ex_locales} ${brl_loc}"
+
+	    for loc in ${ex_locales}; do
+	        ex_locale=${loc/\.*}
+	        ex_charset=${loc/*\.}
+		ex_charset=$(
+		    case "${ex_charset}" in
+		        *-*) echo ${ex_charset} | tr '[a-z]' '[A-Z]';;
+		        *) echo ${ex_charset/8/-8} | tr '[a-z]' '[A-Z]';;
+		    esac
+	        )
+	        chroot ${target_dir} localedef -i "${ex_locale}" -f "${ex_charset}" "${ex_locale}"."${ex_charset}"
+	    done
+	    echo LANG="$(cfg_value locale LANG)" > ${target_dir}/etc/env.d/99locale
+	elif [[ ${ex_locale_conf} == "musl" ]]; then
+	    step "No locale config for exherbo-musl (yet)"
+	fi
+	chroot ${target_dir} eclectic env update >/dev/null
 }
 
