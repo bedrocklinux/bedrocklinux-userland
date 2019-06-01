@@ -28,9 +28,6 @@ list_mirrors() {
 
 brl_arch_to_distro() {
 	case "${1}" in
-	     "armv7hl") echo "armv7a_hardfp" ;;
-	     "armv7l") echo "armv7a" ;;
-	     "x86") echo "x86";;
 	     "x86_64") echo "amd64" ;;
 	     *) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
 	esac
@@ -38,7 +35,6 @@ brl_arch_to_distro() {
 
 list_architectures() {
 	cat <<EOF
-x86
 x86_64
 EOF
 }
