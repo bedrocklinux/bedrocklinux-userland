@@ -53,20 +53,12 @@ fetch() {
         paludis_user=paludisbuild
         paludis_group=paludisbuild
 
-	ex_download=/var/tmp/brl-fetch
 	ex_stage=exherbo-x86_64-pc-linux-gnu-current.tar.xz
 	ex_checksum=sha1sum
 
-	mkdir -p "${ex_download}"
-
 	step "Downloading bootstrap software"
-	if [[ -f "${ex_download}"/"${ex_stage}" ]]; then
-	    cp "${ex_download}/${ex_stage}" "${bootstrap_dir:-}"
-	    cp "${ex_download}/${ex_checksum}" "${bootstrap_dir:-}"
-	else
-	    wget "${target_mirror:-}"/stages/"${ex_stage}" -O "${bootstrap_dir:-}"/"${ex_stage}"
-	    wget "${target_mirror:-}"/stages/"${ex_checksum}" -O "${bootstrap_dir:-}"/"${ex_checksum}"
-	fi
+	wget "${target_mirror:-}"/stages/"${ex_stage}" -O "${bootstrap_dir:-}"/"${ex_stage}"
+	wget "${target_mirror:-}"/stages/"${ex_checksum}" -O "${bootstrap_dir:-}"/"${ex_checksum}"
 
 	step "Verifying stage tarball"
 	cd "${bootstrap_dir:-}"
