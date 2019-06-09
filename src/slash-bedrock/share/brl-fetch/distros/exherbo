@@ -48,10 +48,12 @@ list_releases() {
 }
 
 fetch() {
-        paludis_builddir=/var/paludis
+	# The following line will be changed to /var/tmp/paludis once /var/tmp
+	# is no longer global. For testing the github PR it temporarily stays.
+	paludis_builddir=/var/paludis
         paludis_repo_dir=/etc/paludis/repositories
-        paludis_user=paludisbuild
-        paludis_group=paludisbuild
+	paludis_user=paludisbuild
+	paludis_group=paludisbuild
 
 	ex_stage=exherbo-x86_64-pc-linux-gnu-current.tar.xz
 	ex_checksum=sha1sum
