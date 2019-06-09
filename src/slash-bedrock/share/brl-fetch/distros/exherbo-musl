@@ -48,100 +48,47 @@ list_releases() {
 }
 
 fetch() {
-        paludis_builddir=/var/paludis
+	# The following line will be changed to /var/tmp/paludis once /var/tmp
+	# is no longer global. For testing the github PR it temporarily stays.
+	paludis_builddir=/var/paludis
         paludis_repo_dir=/etc/paludis/repositories
-        paludis_user=paludisbuild
-        paludis_group=paludisbuild
+	paludis_user=paludisbuild
+	paludis_group=paludisbuild
 
-	ex_download=/var/tmp/brl-fetch
 	ex_stage=exherbo-x86_64-pc-linux-musl-current.tar.xz
 	ex_checksum=sha1sum
 
-	mkdir -p "${ex_download}"
-
 	step "Downloading bootstrap software"
-	(
-	    if [[ -f ${ex_download}/${ex_stage} ]]; then
-	        cp "${ex_download}/${ex_stage}" "${bootstrap_dir:-}"
-		cp "${ex_download}/${ex_checksum}" "${bootstrap_dir:-}"
-	    else
-		wget ${target_mirror:-}/stages/"${ex_stage}" -O "${bootstrap_dir:-}"/"${ex_stage}"
-		wget ${target_mirror:-}/stages/"${ex_checksum}" -O "${bootstrap_dir:-}"/"${ex_checksum}"
-	    fi
-	)
+	wget "${target_mirror:-}"/stages/"${ex_stage}" -O "${bootstrap_dir:-}"/"${ex_stage}"
+	wget "${target_mirror:-}"/stages/"${ex_checksum}" -O "${bootstrap_dir:-}"/"${ex_checksum}"
 
 	step "Verifying stage tarball"
-	(
-	    cd "${bootstrap_dir:-}"
-	    grep "${ex_stage}" "${ex_checksum}" | sha1sum -c
-	)
+	cd "${bootstrap_dir:-}"
+	grep "${ex_stage}" "${ex_checksum}" | sha1sum -c
 
 	step "Preparing bootstrap software"
-	(
-	    cd "${bootstrap_dir:-}"
-	    tar xJpf "${ex_stage}"
-	)
+	tar xJp -C "${bootstrap_dir:-}" -f "${ex_stage}"
 
 	step "Running bootstrap software"
-	(
-	    setup_chroot "${bootstrap_dir:-}"
-	    chroot "${bootstrap_dir:-}" sh -c "cd /target-root && tar xJpf /${ex_stage}"
-	)
+	setup_chroot "${bootstrap_dir:-}"
+	chroot "${bootstrap_dir:-}" sh -c "cd /target-root && tar xJpf /${ex_stage}"
 	
 	step "Configuring"
 	setup_chroot "${target_dir:-}"
 
 	step "Configuring Paludis' repositories"
-	(
-	    echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/arbor.conf"
-	    echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/i686-pc-linux-gnu.conf"
-	    echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/installed.conf"
-	    echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/../repository.template"
-	)
+	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/arbor.conf"
+	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/i686-pc-linux-musl.conf"
+	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/installed.conf"
+	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/../repository.template"
 
 	step "Creating Paludis' build-dir & fixing permissions"
-	(
-	    mkdir -p "${target_dir:-}"/"${paludis_builddir}/"
-	    chroot ${target_dir} chown -R ${paludis_user}:${paludis_group} "${paludis_builddir}"
-	    chroot ${target_dir} chmod -R g+rwx "${paludis_builddir}"
-	)
+	mkdir -p "${target_dir:-}"/"${paludis_builddir}/"
+	chroot "${target_dir}" chown -R "${paludis_user}":"${paludis_group}" "${paludis_builddir}"
+	chroot "${target_dir}" chmod -R g+rwx "${paludis_builddir}"
 
 	step "Modifying ${paludis_user}"
-	(
-	    chroot ${target_dir} usermod --home "${paludis_builddir}" ${paludis_user}
-	    chroot ${target_dir} usermod -a -G $(stat -c %G /dev/tty) ${paludis_user}
-	)
-
-	case "${ex_stage}" in
-	     *-musl-*) ex_locale_conf=musl;;
-	     *) ex_locale_conf=true;;
-	esac
-
-	if [[ ${ex_locale_conf} == "true" ]]; then
-	    step "Preparing locales"
-
-	    # get local locales because they will bleed trough via the environment
-	    ex_locales=$(locale | sed -e "s:.*=::" | sort -u)
-
-	    # get the locale from bedrock.conf
-	    brl_loc=$(cfg_value "locale" "localegen" | cut -d ' ' -f1 -)
-	    ex_locales="${ex_locales} ${brl_loc}"
-
-	    for loc in ${ex_locales}; do
-	        ex_locale=${loc/\.*}
-	        ex_charset=${loc/*\.}
-		ex_charset=$(
-		    case "${ex_charset}" in
-		        *-*) echo ${ex_charset} | tr '[a-z]' '[A-Z]';;
-		        *) echo ${ex_charset/8/-8} | tr '[a-z]' '[A-Z]';;
-		    esac
-	        )
-	        chroot ${target_dir} localedef -i "${ex_locale}" -f "${ex_charset}" "${ex_locale}"."${ex_charset}"
-	    done
-	    echo LANG="$(cfg_value locale LANG)" > ${target_dir}/etc/env.d/99locale
-	elif [[ ${ex_locale_conf} == "musl" ]]; then
-	    step "No locale config for exherbo-musl (yet)"
-	fi
-	chroot ${target_dir} eclectic env update >/dev/null
+	chroot "${target_dir}" usermod --home "${paludis_builddir}" ${paludis_user}
+	chroot "${target_dir}" usermod -a -G "$(stat -c %G /dev/tty)" ${paludis_user}
 }
 
