@@ -65,8 +65,7 @@ fetch() {
 	grep "${ex_stage}" "${ex_checksum}" | sha1sum -c
 
 	step "Preparing bootstrap software"
-	cd "${bootstrap_dir:-}"
-	tar xJpf "${ex_stage}"
+	tar xJp -C "${bootstrap_dir:-}" -f "${ex_stage}"
 
 	step "Running bootstrap software"
 	setup_chroot "${bootstrap_dir:-}"
