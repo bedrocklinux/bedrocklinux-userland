@@ -60,12 +60,12 @@ fetch() {
 	mkdir -p "${ex_download}"
 
 	step "Downloading bootstrap software"
-	if [[ -f ${ex_download}/${ex_stage} ]]; then
+	if [[ -f "${ex_download}"/"${ex_stage}" ]]; then
 	    cp "${ex_download}/${ex_stage}" "${bootstrap_dir:-}"
 	    cp "${ex_download}/${ex_checksum}" "${bootstrap_dir:-}"
 	else
-	    wget ${target_mirror:-}/stages/"${ex_stage}" -O "${bootstrap_dir:-}"/"${ex_stage}"
-	    wget ${target_mirror:-}/stages/"${ex_checksum}" -O "${bootstrap_dir:-}"/"${ex_checksum}"
+	    wget "${target_mirror:-}"/stages/"${ex_stage}" -O "${bootstrap_dir:-}"/"${ex_stage}"
+	    wget "${target_mirror:-}"/stages/"${ex_checksum}" -O "${bootstrap_dir:-}"/"${ex_checksum}"
 	fi
 
 	step "Verifying stage tarball"
@@ -91,19 +91,19 @@ fetch() {
 
 	step "Creating Paludis' build-dir & fixing permissions"
 	mkdir -p "${target_dir:-}"/"${paludis_builddir}/"
-	chroot ${target_dir} chown -R ${paludis_user}:${paludis_group} "${paludis_builddir}"
-	chroot ${target_dir} chmod -R g+rwx "${paludis_builddir}"
+	chroot "${target_dir}" chown -R "${paludis_user}":"${paludis_group}" "${paludis_builddir}"
+	chroot "${target_dir}" chmod -R g+rwx "${paludis_builddir}"
 
 	step "Modifying ${paludis_user}"
-	chroot ${target_dir} usermod --home "${paludis_builddir}" ${paludis_user}
-	chroot ${target_dir} usermod -a -G $(stat -c %G /dev/tty) ${paludis_user}
+	chroot "${target_dir}" usermod --home "${paludis_builddir}" ${paludis_user}
+	chroot "${target_dir}" usermod -a -G "$(stat -c %G /dev/tty)" ${paludis_user}
 
 	case "${ex_stage}" in
 	     *-musl-*) ex_locale_conf=musl;;
 	     *) ex_locale_conf=true;;
 	esac
 
-	if [[ ${ex_locale_conf} == "true" ]]; then
+	if [[ "${ex_locale_conf}" == "true" ]]; then
 	    step "Preparing locales"
 
 	    # get local locales because they will bleed trough via the environment
@@ -113,21 +113,21 @@ fetch() {
 	    brl_loc=$(cfg_value "locale" "localegen" | cut -d ' ' -f1 -)
 	    ex_locales="${ex_locales} ${brl_loc}"
 
-	    for loc in ${ex_locales}; do
-	        ex_locale=${loc/\.*}
-	        ex_charset=${loc/*\.}
-		ex_charset=$(
+	    for loc in "${ex_locales}"; do
+	        ex_locale="${loc/\.*}"
+	        ex_charset="${loc/*\.}"
+		ex_charset="$(
 		    case "${ex_charset}" in
 		        *-*) echo ${ex_charset} | tr '[a-z]' '[A-Z]';;
 		        *) echo ${ex_charset/8/-8} | tr '[a-z]' '[A-Z]';;
 		    esac
-	        )
-	        chroot ${target_dir} localedef -i "${ex_locale}" -f "${ex_charset}" "${ex_locale}"."${ex_charset}"
+	        )"
+	        chroot "${target_dir}" localedef -i "${ex_locale}" -f "${ex_charset}" "${ex_locale}"."${ex_charset}"
 	    done
-	    echo LANG="$(cfg_value locale LANG)" > ${target_dir}/etc/env.d/99locale
-	elif [[ ${ex_locale_conf} == "musl" ]]; then
+	    echo LANG="$(cfg_value locale LANG)" > "${target_dir}"/etc/env.d/99locale
+	elif [[ "${ex_locale_conf}" == "musl" ]]; then
 	    step "No locale config for exherbo-musl (yet)"
 	fi
-	chroot ${target_dir} eclectic env update >/dev/null
+	chroot "${target_dir}" eclectic env update >/dev/null
 }
 
