@@ -127,6 +127,27 @@ download_files() {
 	)
 }
 
+delete_from_cache() {
+	local del_file=$1
+
+	if [ -f "${del_file}" ]; then
+		echo "${del_file} has expired and will be deleted from cache"
+		rm "${del_file}"
+	fi
+}
+
+setup_cache() {
+	cache="/bedrock/var/cache/brl-fetch/${distro}-${target_release}-${target_arch}"
+
+	require_root
+	mkdir -p "${cache}"
+
+	brl_fetch_cache_expiration=$(cfg_value "brl-fetch-cache" "expiration")
+	for file in $(find "${cache}" -type f -mtime +"${brl_fetch_cache_expiration}"); do
+		delete_from_cache "${file}"
+	done
+}
+
 setup_chroot() {
 	dir="${1}"
 
@@ -978,6 +999,9 @@ for distro in ${distros}; do
 		target_release="$(pick_release)"
 	fi
 	notice "Using ${color_file}${target_release}${color_norm}"
+
+	step "Setting up cache"
+	setup_cache
 
 	step "Determining mirror"
 	if [ -n "${flag_mirror}" ]; then
