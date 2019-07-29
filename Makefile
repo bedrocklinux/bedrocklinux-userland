@@ -16,6 +16,7 @@
 # - git 1.8 or newer
 # - meson 0.38 or newer
 # - ninja-build
+# - bison
 # - libtool
 # - autoconf
 # - pkg-config
@@ -204,7 +205,10 @@ fetch_vendor_sources: vendor/linux_headers/.success_fetching_source \
 	vendor/uthash/.success_fetching_source \
 	vendor/busybox/.success_retrieving_source \
 	vendor/libattr/.success_retrieving_source \
-	vendor/netselect/.success_retrieving_source
+	vendor/netselect/.success_retrieving_source \
+	vendor/libaio/.success_retrieving_source \
+	vendor/util-linux/.success_fetching_source \
+	vendor/lvm2/.success_retrieving_source
  
 vendor/linux_headers/.success_fetching_source:
 	rm -rf vendor/linux_headers
@@ -366,6 +370,51 @@ $(COMPLETED)/uthash: vendor/uthash/.success_fetching_source $(COMPLETED)/builddi
 	touch $(COMPLETED)/uthash
 uthash: $(COMPLETED)/uthash
 
+vendor/libaio/.success_retrieving_source:
+	rm -rf vendor/libaio/
+	mkdir vendor/libaio
+	git clone --depth=1 \
+		-b `git ls-remote --tags 'https://pagure.io/libaio.git' | \
+		awk -F/ '{print $$NF}' | \
+		sed 's/^libaio-//g' | \
+		grep '^[0-9.]*$$' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed 's/^/libaio-/'` 'https://pagure.io/libaio.git' \
+		vendor/libaio
+	touch vendor/libaio/.success_retrieving_source
+$(COMPLETED)/libaio: vendor/libaio/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	rm -rf $(VENDOR)/libaio
+	cp -r vendor/libaio $(VENDOR)
+	cd $(VENDOR)/libaio && $(MAKE) CC=$(MUSLCC)
+	cp $(VENDOR)/libaio/src/libaio.h $(SUPPORT)/include
+	cp $(VENDOR)/libaio/src/libaio.a $(SUPPORT)/lib
+	cp $(VENDOR)/libaio/src/libaio.so.1.0.1 $(SUPPORT)/lib/libaio.so
+	touch $(COMPLETED)/libaio
+libaio: $(COMPLETED)/libaio
+
+vendor/util-linux/.success_fetching_source:
+	rm -rf vendor/util-linux
+	mkdir -p vendor/util-linux
+	git clone --depth=1 \
+		-b `git ls-remote --tags 'https://git.kernel.org/pub/scm/utils/util-linux/util-linux.git' | \
+		awk -F/ '{print $$NF}' | \
+		sed 's/^v//g' | \
+		grep '^[0-9.]*$$' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed 's/^/v/'` 'https://git.kernel.org/pub/scm/utils/util-linux/util-linux.git' \
+		vendor/util-linux
+	touch vendor/util-linux/.success_fetching_source
+$(COMPLETED)/util-linux: vendor/util-linux/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	rm -rf $(VENDOR)/util-linux
+	cp -r vendor/util-linux $(VENDOR)
+	cd $(VENDOR)/util-linux && ./autogen.sh && CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib" ./configure --enable-static=yes --disable-all-programs --enable-libblkid --enable-libuuid && $(MAKE) CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib"
+	cp $(VENDOR)/util-linux/.libs/libblkid.* $(SUPPORT)/lib
+	cp $(VENDOR)/util-linux/.libs/libuuid.* $(SUPPORT)/lib
+	touch $(COMPLETED)/util-linux
+util-linux: $(COMPLETED)/util-linux
+
 #
 # Compiled binaries which will go into the output script.  Populates $(SLASHBR)
 #
@@ -520,6 +569,39 @@ $(SLASHBR)/libexec/netselect: vendor/netselect/.success_retrieving_source $(COMP
 		cp netselect $(SLASHBR)/libexec/netselect
 netselect: $(SLASHBR)/libexec/netselect
 
+vendor/lvm2/.success_retrieving_source:
+	rm -rf vendor/lvm2/
+	mkdir -p vendor/lvm2
+	git clone \
+		-b `git ls-remote --tags 'https://sourceware.org/git/lvm2.git' | \
+		awk -F/ '{print $$NF}' | \
+		sed -e 's/^v//g' -e 's/_/./g' | \
+		grep '^[0-9.]*$$' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed -e 's/^/v/' -e 's/[.]/_/g'` 'https://sourceware.org/git/lvm2.git' \
+		vendor/lvm2
+	wget -O vendor/lvm2/mallinfo.patch https://git.alpinelinux.org/aports/plain/main/lvm2/mallinfo.patch
+	wget -O vendor/lvm2/fix-stdio.patch https://git.alpinelinux.org/aports/plain/main/lvm2/fix-stdio-usage.patch
+	cd vendor/lvm2 && patch -p0 -i mallinfo.patch
+	cd vendor/lvm2 && patch -p0 -i fix-stdio.patch
+	touch vendor/lvm2/.success_retrieving_source
+$(VENDOR)/lvm2/.build: vendor/lvm2/.success_retrieving_source $(COMPLETED)/musl $(COMPLETED)/libaio $(COMPLETED)/util-linux
+	rm -rf $(VENDOR)/lvm2
+	cp -r vendor/lvm2 $(VENDOR)
+	cd $(VENDOR)/lvm2 && \
+		CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib -fPIC" ./configure --disable-udev-systemd-background-jobs --disable-selinux --enable-static_link && \
+		$(MAKE) tools CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib -L$(VENDOR)/lvm2/libdm/ioctl -fPIC" interfacebuilddir=$(VENDOR)/lvm2/libdm/ioctl
+	touch $(VENDOR)/lvm2/.build
+
+$(SLASHBR)/libexec/lvm: $(VENDOR)/lvm2/.build
+	cp $(VENDOR)/lvm2/tools/lvm.static $(SLASHBR)/libexec/lvm
+
+$(SLASHBR)/libexec/dmsetup: $(VENDOR)/lvm2/.build
+	cp $(VENDOR)/lvm2/libdm/dm-tools/dmsetup.static $(SLASHBR)/libexec/dmsetup
+
+lvm2: $(SLASHBR)/libexec/dmsetup $(SLASHBR)/libexec/lvm
+
 $(SLASHBR)/bin/strat: $(COMPLETED)/builddir $(COMPLETED)/musl $(COMPLETED)/libcap
 	rm -rf $(SRC)/strat
 	cp -r src/strat/ $(SRC)
@@ -579,7 +661,9 @@ $(BUILD)/userland.tar: \
 	$(SLASHBR)/libexec/manage_tty_lock \
 	$(SLASHBR)/libexec/bouncer \
 	$(SLASHBR)/libexec/etcfs \
-	$(SLASHBR)/libexec/crossfs
+	$(SLASHBR)/libexec/crossfs \
+	$(SLASHBR)/libexec/dmsetup \
+	$(SLASHBR)/libexec/lvm
 	# remove symlinks which may have been created in a previous interrupted run
 	rm -f $(SLASHBR)/libexec/brl-strat
 	rm -f $(SLASHBR)/strata/init

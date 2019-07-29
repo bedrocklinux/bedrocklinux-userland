@@ -91,10 +91,6 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		abort "/bedrock found.  Cannot hijack Bedrock Linux."
 	elif ! type sha1sum >/dev/null 2>&1; then
 		abort "Could not find sha1sum executable.  Install it then try again."
-	elif grep '/dev/mapper.* /home ' /proc/mounts; then
-		abort "Bedrock is currently unable to support LVM /home mount points."
-	elif grep '/dev/mapper.* /root ' /proc/mounts; then
-		abort "Bedrock is currently unable to support LVM /root mount points."
 	fi
 
 	bb="/true"
