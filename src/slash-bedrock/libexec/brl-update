@@ -13,45 +13,172 @@
 . /bedrock/share/common-code
 
 print_help() {
-	printf "Usage: ${color_cmd}brl update ${color_sub}[options]${color_norm}
+	printf "Usage: ${color_cmd}brl update ${color_sub}[options]${color_norm} ${color_sub}[file]${color_norm}
 
-Fetches and applies updates to ${color_term}bedrock stratum${color_norm}.
+Applies updates to the ${color_term}bedrock stratum${color_norm}.
+
+If a ${color_sub}file${color_norm} is specified, it is applied to the ${color_term}bedrock stratum${color_norm}.  Otherwise,
+${color_cmd}brl update${color_norm} will attempt to fetch an update from a mirror then apply it.
 
 Options:
-  ${color_sub}<none>${color_norm}                 fetch and apply update from configured mirror
-  ${color_cmd}-m, --mirror ${color_sub}[mirror]${color_norm}  fetch and apply update from specified mirror
+  ${color_cmd}-f, --force${color_norm}            ignore warnings when applying update
+  ${color_cmd}-m, --mirror ${color_sub}[mirror]${color_norm}  use ${color_sub}mirror${color_norm} when fetching update
   ${color_cmd}-s, --skip-check       ${color_norm}skip cryptographic signature check
   ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}             print this message
 
 Example:
   ${color_cmd}$ brl version
-  ${color_norm}Bedrock Linux 0.7.0 Poki
+  ${color_norm}Bedrock Linux 0.7.7 Poki
+  ${color_rcmd}# brl update ./bedrocklinux-0.7.8-x86_64.sh
+  ${color_sub}<update progress>
+  ${color_cmd}$ brl version
+  ${color_norm}Bedrock Linux 0.7.8 Poki
   ${color_rcmd}# brl update
   ${color_sub}<update progress>
   ${color_cmd}$ brl version
-  ${color_norm}Bedrock Linux 0.7.1 Poki
+  ${color_norm}Bedrock Linux 0.7.9 Poki
 ${color_norm}"
+}
+
+download_update() {
+	notice "Checking for updates"
+
+	current_version="$(awk '{print$3}' </bedrock/etc/bedrock-release)"
+	newest_version="${current_version}"
+	newest_update_url=""
+	found_valid_mirror="false"
+	system_arch="$(get_system_arch)"
+	update_list="/bedrock/var/releases"
+	for update_list_url in ${mirrors}; do
+		# Get an update list file.  These are lists of Bedrock updates
+		# and their corresponding URLs.
+		rm -rf "${update_list}"
+		if ! wget -O- "${update_list_url}" >"${update_list}" 2>/bedrock/run/tmp; then
+			cat /bedrock/run/tmp
+			notice "${update_list_url} fetch failed, trying next mirror"
+			continue
+		fi
+		found_valid_mirror="true"
+
+		# Find the latest update in the update list corresponding to
+		# the system CPU architecture.
+		IFS="
+"
+		while read -r update_url; do
+			if ! echo "${update_url}" | grep -q "^http"; then
+				continue
+			fi
+			arch="$(echo "${update_url}" | awk -F'[-.]' '{print $(NF-1)}')"
+			if [ "${arch}" != "${system_arch}" ]; then
+				continue
+			fi
+			version="$(echo "${update_url}" | awk -F'-' '{print $(NF-1)}')"
+			if ver_cmp_first_newer "${version}" "${newest_version}"; then
+				newest_version="${version}"
+				newest_update_url="${update_url}"
+			fi
+		done <"${update_list}"
+		rm -rf "${update_list}"
+	done
+	if ! "${found_valid_mirror}"; then
+		abort "No working mirrors found"
+	fi
+	if [ -z "${newest_update_url}" ]; then
+		notice "No updates"
+		trap '' EXIT
+		return
+	fi
+	notice "Found update at ${color_link}${newest_update_url}${color_norm}"
+
+	notice "Downloading update"
+	if ! wget -O- "${newest_update_url}" >"${update}" 2>/bedrock/run/tmp; then
+		cat /bedrock/run/tmp
+		abort "Unable to download update."
+	fi
+}
+
+verify_update() {
+	notice "Preparing gpg"
+	#
+	# A gnupg homedir is not intended portable across gnupg versions or
+	# builds.  An exported key file is the intended method of passing keys
+	# between gnupg builds.
+	#
+	# Since we're using a gnupg build from another distro which could
+	# change between brl-update calls , we have to rebuild a homedir from
+	# an exported key every time.
+	#
+	homedir="/bedrock/var/gnupg"
+	rm -rf "${homedir}"
+	mkdir -p "${homedir}"
+	chmod go-rwx "${homedir}"
+	if ! gpg --homedir "${homedir}" --import /bedrock/gnupg-keys/* 2>/bedrock/run/tmp; then
+		cat /bedrock/run/tmp
+		abort "Unable to prepare gpg."
+	fi
+
+	notice "Verifying update"
+	#
+	# Bedrock update files are scripts with PGP/GPG signatures appended at
+	# the end.  This is preferred over clearsign because clearsign
+	# disallows the #!/bin/sh hashbang needed to also make the update work
+	# as a stand-alone script.  The downside is we have to manually extract
+	# the signature to verify it.
+	#
+
+	# Stand-alone signature extracted from update.
+	update_sig="${update}-sig"
+	sed -n '/^-----BEGIN PGP SIGNATURE-----$/,/^-----END PGP_SIGNATURE-----$/p' "${update}" >"${update_sig}"
+
+	# Update file without embedded signature.
+	update_raw="${update}-raw"
+	#
+	# This can - and usually does - contain null characters, which is a
+	# problem because many UNIX utilities choke on them.  busybox `wc -l`
+	# and `head -n` both seem null safe, as they're focused on newlines.
+	#
+	# Given the extracted (ASCII armored, null-free) signature above and
+	# the entire file we can calculate the number of lines in the raw
+	# update to extract it.
+	#
+	lines_sig="$(wc -l <"${update_sig}")"
+	lines="$(wc -l <"${update}")"
+	lines_raw="$((lines - lines_sig))"
+	head -n "${lines_raw}" "${update}" >"${update_raw}"
+
+	if ! gpg --homedir "${homedir}" --verify "${update_sig}" "${update_raw}" 2>/bedrock/run/tmp; then
+		cat /bedrock/run/tmp
+		abort "Signature verification failed."
+	fi
 }
 
 handle_help "${@:-}"
 
+file=""
+force="false"
 mirror=""
-skip_check=false
+skip_check="false"
 
-OPTL="mirror:,skip-check"
-OPTO="m:s"
+update="/bedrock/var/update.sh-combine"
+
+OPTL="force,mirror:,skip-check"
+OPTO="fm:s"
 eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
-saw_non_positional=false
+saw_non_positional="false"
 
 while [ -n "${1:-}" ]; do
 	case "${1}" in
+	-f | --force)
+		force="true"
+		shift
+		;;
 	-m | --mirror)
 		mirror="${2}"
 		shift
 		shift
 		;;
 	-s | --skip-check)
-		skip_check=true
+		skip_check="true"
 		shift
 		;;
 	--)
@@ -60,13 +187,18 @@ while [ -n "${1:-}" ]; do
 	-*)
 		if "${saw_non_positional}"; then
 			eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
-			saw_non_positional=false
+			saw_non_positional="false"
 		else
 			abort "Unrecognized argument: ${1}"
 		fi
 		;;
 	*)
-		abort "Unrecognized argument: ${1}"
+		if [ -z "${file}" ]; then
+			file="${1}"
+			shift
+		else
+			abort "Unrecognized argument: ${1}"
+		fi
 		;;
 	esac
 done
@@ -84,87 +216,29 @@ else
 	mirrors="$(cfg_values miscellaneous mirrors)"
 fi
 
-notice "Checking for updates"
-
-current_version="$(awk '{print$3}' </bedrock/etc/bedrock-release)"
-newest_version="${current_version}"
-newest_update_url=""
-found_valid_mirror=false
-system_arch="$(get_system_arch)"
-for update_list_url in ${mirrors}; do
-	rm -rf /bedrock/var/releases
-	if ! wget -O- "${update_list_url}" >/bedrock/var/releases 2>/bedrock/run/tmp; then
-		cat /bedrock/run/tmp
-		notice "${update_list_url} fetch failed, trying next mirror"
-		continue
-	fi
-	found_valid_mirror=true
-	IFS="
-"
-	while read -r update_url; do
-		if ! echo "${update_url}" | grep -q "^http"; then
-			continue
-		fi
-		arch="$(echo "${update_url}" | awk -F'[-.]' '{print $(NF-1)}')"
-		if [ "${arch}" != "${system_arch}" ]; then
-			continue
-		fi
-		version="$(echo "${update_url}" | awk -F'-' '{print $(NF-1)}')"
-		if ver_cmp_first_newer "${version}" "${newest_version}"; then
-			newest_version="${version}"
-			newest_update_url="${update_url}"
-		fi
-	done </bedrock/var/releases
-	rm -rf /bedrock/var/releases
-done
-if ! "${found_valid_mirror}"; then
-	abort "No working mirrors found"
-fi
-if [ -z "${newest_update_url}" ]; then
-	notice "No updates"
-	trap '' EXIT
-	return
-fi
-notice "Found update at ${color_link}${newest_update_url}${color_norm}"
-
-notice "Downloading update"
-update_combine="/bedrock/var/bedrock-linux-${version}-${arch}.sh-combine"
-update_file="/bedrock/var/bedrock-linux-${version}-${arch}.sh"
-update_sig="/bedrock/var/bedrock-linux-${version}-${arch}.sh.asc"
-rm -f "${update_combine}" "${update_file}" "${update_sig}"
-if ! wget -O- "${newest_update_url}" >"${update_combine}" 2>/bedrock/run/tmp; then
-	cat /bedrock/run/tmp
-	rm -f "${update_combine}"
-	abort "Unable to download update."
+rm -f "${update}"
+if [ -n "${file}" ]; then
+	cp "${file}" "${update}"
+else
+	download_update
 fi
 
-notice "Preparing gpg"
-homedir="/bedrock/var/gnupg"
-rm -rf "${homedir}"
-mkdir -p "${homedir}"
-chmod go-rwx "${homedir}"
-if ! gpg --homedir "${homedir}" --import /bedrock/gnupg-keys/* 2>/bedrock/run/tmp; then
-	cat /bedrock/run/tmp
-	abort "Unable to prepare gpg."
+if ! [ -f "${update}" ]; then
+	exit 0
 fi
 
-notice "Verifying update"
-sed -n '/^-----BEGIN PGP SIGNATURE-----$/,/^-----END PGP_SIGNATURE-----$/p' "${update_combine}" >"${update_sig}"
-lines_sig="$(wc -l <"${update_sig}")"
-lines_combine="$(wc -l <"${update_combine}")"
-lines_file="$((lines_combine - lines_sig))"
-head -n "${lines_file}" "${update_combine}" >"${update_file}"
-
-if ! "${skip_check}" && ! gpg --homedir "${homedir}" --verify "${update_sig}" "${update_file}" 2>/bedrock/run/tmp; then
-	cat /bedrock/run/tmp
-	rm -rf "${homedir}" "${update_combine}" "${update_file}" "${update_sig}"
-	abort "Signature verification failed."
+if "${skip_check}"; then
+	notice "Skipping update signature verification"
+else
+	verify_update
 fi
 
 notice "Applying update"
 
-chmod a+rx "${update_file}"
-"${update_file}" --update
-rm -rf "${homedir}" "${update_combine}" "${update_file}" "${update_sig}"
+if "${force}"; then
+	/bedrock/libexec/busybox sh "${update}" --force-update
+else
+	/bedrock/libexec/busybox sh "${update}" --update
+fi
 
 exit_success
