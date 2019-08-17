@@ -58,6 +58,22 @@ extract_tarball() {
 	tail -n "$((lines_tarball + lines_after))" "${0}" | head -n "${lines_tarball}" | head -c -1 | gzip -d
 }
 
+sanity_check_grub_mkrelpath() {
+	if grub2-mkrelpath --help 2>&1 | grep -q "relative"; then
+		orig="$(grub2-mkrelpath --relative /boot)"
+		mount --bind /boot /boot
+		new="$(grub2-mkrelpath --relative /boot)"
+		umount -l /boot
+		[ "${orig}" = "${new}" ]
+	elif grub-mkrelpath --help 2>&1 | grep -q "relative"; then
+		orig="$(grub-mkrelpath --relative /boot)"
+		mount --bind /boot /boot
+		new="$(grub-mkrelpath --relative /boot)"
+		umount -l /boot
+		[ "${orig}" = "${new}" ]
+	fi
+}
+
 hijack() {
 	printf "\
 ${color_priority}* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *${color_norm}
@@ -92,6 +108,8 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		abort "Could not find sha1sum executable.  Install it then try again."
 	elif ! extract_tarball >/dev/null 2>&1 || [ "${TARBALL_SHA1SUM}" != "$(extract_tarball | sha1sum - | cut -d' ' -f1)" ]; then
 		abort "Embedded tarball is corrupt.  Did you edit this script with software that does not support null characters?"
+	elif ! sanity_check_grub_mkrelpath; then
+		abort "grub-mkrelpath/grub2-mkrelpath --relative does not support bind-mounts on /boot.  Continuing may break the bootloader on a kernel update.  This is a known Bedrock issue with OpenSUSE+btrfs+GRUB."
 	elif grep -q '/dev/mapper.* /home ' /proc/mounts; then
 		abort "Bedrock is currently unable to support LVM /home mount points."
 	elif grep -q '/dev/mapper.* /root ' /proc/mounts; then
