@@ -48,17 +48,19 @@ download_update() {
 	newest_update_url=""
 	found_valid_mirror="false"
 	system_arch="$(get_system_arch)"
-	update_list="/bedrock/var/releases"
-	for update_list_url in ${mirrors}; do
-		# Get an update list file.  These are lists of Bedrock updates
-		# and their corresponding URLs.
-		rm -rf "${update_list}"
-		if ! wget -O- "${update_list_url}" >"${update_list}" 2>/bedrock/run/tmp; then
-			cat /bedrock/run/tmp
-			notice "${update_list_url} fetch failed, trying next mirror"
+	releases="/bedrock/var/releases"
+	for mirror in ${mirrors}; do
+		# Get releases file.  These are lists of Bedrock updates and
+		# their corresponding URLs.
+		rm -f "${releases}"
+		printf "Checking %s... " "${mirror}"
+		if ! wget -O- "${mirror}" >"${releases}" 2>/bedrock/run/tmp; then
+			echo "ERROR!"
+			sed 's/^/  /g' /bedrock/run/tmp
 			continue
 		fi
 		found_valid_mirror="true"
+		echo "done"
 
 		# Find the latest update in the update list corresponding to
 		# the system CPU architecture.
@@ -77,8 +79,8 @@ download_update() {
 				newest_version="${version}"
 				newest_update_url="${update_url}"
 			fi
-		done <"${update_list}"
-		rm -rf "${update_list}"
+		done <"${releases}"
+		rm -f "${releases}"
 	done
 	if ! "${found_valid_mirror}"; then
 		abort "No working mirrors found"
