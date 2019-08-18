@@ -118,12 +118,12 @@
 #
 #     make check
 
-VERSION=0.7.6
+BEDROCK_VERSION=0.7.6
 CODENAME=Poki
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | tail -1)
-RELEASE=Bedrock Linux $(VERSION) $(CODENAME)
-INSTALLER=bedrock-linux-$(VERSION)-$(ARCHITECTURE).sh
+RELEASE=Bedrock Linux $(BEDROCK_VERSION) $(CODENAME)
+INSTALLER=bedrock-linux-$(BEDROCK_VERSION)-$(ARCHITECTURE).sh
 
 ROOT=$(shell pwd)
 BUILD=$(ROOT)/build/$(ARCHITECTURE)
@@ -174,13 +174,13 @@ $(COMPLETED)/builddir:
 	# create bedrock-release
 	echo "$(RELEASE)" > $(SLASHBR)/etc/bedrock-release
 	# create os-release
-	sed -e "s,^VERSION=.*,VERISON=\"$(VERSION) ($(CODENAME))\"," \
-		-e "s,^VERSION_ID=.*,VERSION_ID=\"$(VERSION)\"," \
+	sed -e "s,^VERSION=.*,VERISON=\"$(BEDROCK_VERSION) ($(CODENAME))\"," \
+		-e "s,^VERSION_ID=.*,VERSION_ID=\"$(BEDROCK_VERSION)\"," \
 		-e "s,^PRETTY_NAME=.*,PRETTY_NAME=\"$(RELEASE)\"," \
 		$(SLASHBR)/etc/os-release > $(SLASHBR)/etc/os-release-new
 	mv $(SLASHBR)/etc/os-release-new $(SLASHBR)/etc/os-release
 	# create release-specific bedrock.conf
-	mv $(SLASHBR)/etc/bedrock.conf $(SLASHBR)/etc/bedrock.conf-$(VERSION)
+	mv $(SLASHBR)/etc/bedrock.conf $(SLASHBR)/etc/bedrock.conf-$(BEDROCK_VERSION)
 	# git does not track empty directories.  Ensure known required
 	# directories are created.
 	mkdir -p $(SLASHBR)/bin
@@ -679,33 +679,33 @@ $(INSTALLER): $(BUILD)/unsigned-installer.sh
 # x86: Could not find binfmt_misc registration magic/mask/offset for i585 or
 # i686.
 #
-bedrock-linux-$(VERSION)-aarch64: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-aarch64: fetch_vendor_sources
 	strat -r br-build-aarch64 $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-armv7hl: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-armv7hl: fetch_vendor_sources
 	strat -r br-build-armv7hl $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-armv7l: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-armv7l: fetch_vendor_sources
 	strat -r br-build-armv7l $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-mips: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-mips: fetch_vendor_sources
 	strat -r br-build-mips $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-mipsel: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-mipsel: fetch_vendor_sources
 	strat -r br-build-mipsel $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-mips64el: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-mips64el: fetch_vendor_sources
 	strat -r br-build-mips64el $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-ppc64le: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-ppc64le: fetch_vendor_sources
 	strat -r br-build-ppc64le $(MAKE) GPGID='$(GPGID)' CFLAGS='$(CFLAGS) -mlong-double-64'
-bedrock-linux-$(VERSION)-s390x: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-s390x: fetch_vendor_sources
 	strat -r br-build-s390x $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-x86_64: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-x86_64: fetch_vendor_sources
 	strat -r br-build-x86_64 $(MAKE) GPGID='$(GPGID)'
-release: bedrock-linux-$(VERSION)-aarch64 \
-	bedrock-linux-$(VERSION)-armv7hl \
-	bedrock-linux-$(VERSION)-armv7l \
-	bedrock-linux-$(VERSION)-mips \
-	bedrock-linux-$(VERSION)-mips64el \
-	bedrock-linux-$(VERSION)-mipsel \
-	bedrock-linux-$(VERSION)-ppc64le \
-	bedrock-linux-$(VERSION)-s390x \
-	bedrock-linux-$(VERSION)-x86_64
+release: bedrock-linux-$(BEDROCK_VERSION)-aarch64 \
+	bedrock-linux-$(BEDROCK_VERSION)-armv7hl \
+	bedrock-linux-$(BEDROCK_VERSION)-armv7l \
+	bedrock-linux-$(BEDROCK_VERSION)-mips \
+	bedrock-linux-$(BEDROCK_VERSION)-mips64el \
+	bedrock-linux-$(BEDROCK_VERSION)-mipsel \
+	bedrock-linux-$(BEDROCK_VERSION)-ppc64le \
+	bedrock-linux-$(BEDROCK_VERSION)-s390x \
+	bedrock-linux-$(BEDROCK_VERSION)-x86_64
 
 #
 # Code quality enforcement
