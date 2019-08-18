@@ -17,8 +17,7 @@ check_supported() {
 }
 
 speed_test_url() {
-	suffix="releases/${target_release:-}/Everything/${distro_arch:-}/os"
-	echo "${suffix}/LICENSE"
+	echo "releases/${target_release:-}/Everything/${distro_arch:-}/os/repodata/repomd.xml"
 }
 
 list_mirrors() {
