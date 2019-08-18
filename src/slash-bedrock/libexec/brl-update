@@ -48,11 +48,9 @@ download_update() {
 	newest_update_url=""
 	found_valid_mirror="false"
 	system_arch="$(get_system_arch)"
-	releases="/bedrock/var/releases"
 	for mirror in ${mirrors}; do
 		# Get releases file.  These are lists of Bedrock updates and
 		# their corresponding URLs.
-		rm -f "${releases}"
 		printf "Checking %s... " "${mirror}"
 		if ! wget -O- "${mirror}" >"${releases}" 2>/bedrock/run/tmp; then
 			echo "ERROR!"
@@ -80,7 +78,6 @@ download_update() {
 				newest_update_url="${update_url}"
 			fi
 		done <"${releases}"
-		rm -f "${releases}"
 	done
 	if ! "${found_valid_mirror}"; then
 		abort "No working mirrors found"
@@ -110,8 +107,6 @@ verify_update() {
 	# change between brl-update calls , we have to rebuild a homedir from
 	# an exported key every time.
 	#
-	homedir="/bedrock/var/gnupg"
-	rm -rf "${homedir}"
 	mkdir -p "${homedir}"
 	chmod go-rwx "${homedir}"
 	if ! gpg --homedir "${homedir}" --import /bedrock/gnupg-keys/* 2>/bedrock/run/tmp; then
@@ -129,11 +124,9 @@ verify_update() {
 	#
 
 	# Stand-alone signature extracted from update.
-	update_sig="${update}-sig"
 	sed -n '/^-----BEGIN PGP SIGNATURE-----$/,/^-----END PGP_SIGNATURE-----$/p' "${update}" >"${update_sig}"
 
 	# Update file without embedded signature.
-	update_raw="${update}-raw"
 	#
 	# This can - and usually does - contain null characters, which is a
 	# problem because many UNIX utilities choke on them.  busybox `wc -l`
@@ -160,8 +153,6 @@ file=""
 force="false"
 mirror=""
 skip_check="false"
-
-update="/bedrock/var/update.sh-combine"
 
 OPTL="force,mirror:,skip-check"
 OPTO="fm:s"
@@ -208,6 +199,16 @@ done
 require_root
 lock
 
+releases="/bedrock/var/releases"
+update="/bedrock/var/update.sh"
+update_sig="${update}-sig"
+update_raw="${update}-raw"
+homedir="/bedrock/var/gnupg"
+
+# Clean up any files from a previous aborted run
+rm -f "${releases}" "${update}" "${update_sig}" "${update_raw}"
+rm -rf "${homedir}"
+
 if ! "${skip_check}" && ! type gpg >/dev/null 2>&1; then
 	abort "\`gpg\` required for cryptographic signature verification.  Either install it (often in \`gnupg\` package) or use \`--skip-check\` flag to disable check."
 fi
@@ -218,7 +219,6 @@ else
 	mirrors="$(cfg_values miscellaneous mirrors)"
 fi
 
-rm -f "${update}"
 if [ -n "${file}" ]; then
 	cp "${file}" "${update}"
 else
