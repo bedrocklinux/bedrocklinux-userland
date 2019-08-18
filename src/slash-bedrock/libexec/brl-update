@@ -216,7 +216,7 @@ fi
 if [ -n "${mirror}" ]; then
 	mirrors="${mirror}"
 else
-	mirrors="$(cfg_values miscellaneous mirrors)"
+	mirrors="$(cfg_values miscellaneous mirrors) $(cfg_values brl-update mirrors)"
 fi
 
 if [ -n "${file}" ]; then
