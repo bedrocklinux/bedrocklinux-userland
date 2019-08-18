@@ -81,14 +81,28 @@ fetch() {
 		tar xf "install.tar.xz" -C "${target_dir:-}"
 	)
 
+	# Solus' package manager depends on dbus at runtime.
 	mkdir -p "${bootstrap_dir:-}/run/dbus"
 	chroot "${bootstrap_dir:-}" dbus-daemon --system
+
 	chroot "${bootstrap_dir:-}" eopkg --debug -y -D/target-root rdb
 	chroot "${bootstrap_dir:-}" eopkg -y -D/target-root ar Solus "${target_mirror:-}/packages/shannon/eopkg-index.xml.xz"
-	chroot "${bootstrap_dir:-}" eopkg -y -D/target-root install -c system.base
 
+	# system.base contains util-linux which depends on python3.  However,
+	# installing system.base does not pull in python3, but rather just
+	# errors about a missing dependency.  To resolve this, explicitly
+	# install python3 first with --ignore-deps.
+	chroot "${bootstrap_dir:-}" eopkg -y -D/target-root install python3 --ignore-dep
+	# Explicitly install system.base just in case python3 didn't pull
+	# something from system.base in as a dependency.
+	chroot "${bootstrap_dir:-}" eopkg -y -D/target-root install -c system.base
 	# perl is an unlisted required package.  Installing vim runs /usr/bin/c_rehash which requires perl.
 	chroot "${bootstrap_dir:-}" eopkg -y -D/target-root install perl
+
+	# There are various compatibility issues between Bedrock and Solus'
+	# fontcache setup.  Install fontcache now in case a user wants it,
+	# applying fixes as we go.
+	#
 	# Installing fontcache rename()s from /etc to /usr, which EXDEVs.
 	if [ -e "${target_dir:-}/etc/fonts" ]; then
 		mv "${target_dir:-}/etc/fonts" "${target_dir:-}/usr/share/fonts"
