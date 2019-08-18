@@ -80,4 +80,5 @@ fetch() {
 	step "Configuring"
 	setup_chroot "${target_dir:-}"
 	setup_pacman "${target_dir:-}"
+	LC_ALL=C chroot "${target_dir:-}" pacman --noconfirm -R linux
 }
