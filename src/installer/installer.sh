@@ -13,6 +13,7 @@
 . /bedrock/share/common-code # replace with file content during build process
 
 ARCHITECTURE= # replace with build target CPU architecture during build process
+TARBALL_SHA1SUM= # replace with tarball sha1sum during build process
 
 print_help() {
 	printf "Usage: ${color_cmd}${0} ${color_sub}<operations>${color_norm}
@@ -72,7 +73,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		abort "Warning not copied exactly."
 	fi
 
-	release="$(extract_tarball | tar xOf - bedrock/etc/bedrock-release)"
+	release="$(extract_tarball | tar xOf - bedrock/etc/bedrock-release 2>/dev/null || true)"
 	print_logo "${release}"
 
 	step_init 6
@@ -87,14 +88,18 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		abort "/proc/filesystems does not contain \"fuse\".  FUSE is required for Bedrock Linux to operate.  Install the module fuse kernel module and try again."
 	elif ! [ -e /dev/fuse ]; then
 		abort "/dev/fuse not found.  FUSE is required for Bedrock Linux to operate.  Install the module fuse kernel module and try again."
-	elif [ -e /bedrock/ ]; then
-		abort "/bedrock found.  Cannot hijack Bedrock Linux."
 	elif ! type sha1sum >/dev/null 2>&1; then
 		abort "Could not find sha1sum executable.  Install it then try again."
-	elif grep '/dev/mapper.* /home ' /proc/mounts; then
+	elif ! extract_tarball >/dev/null 2>&1 || [ "${TARBALL_SHA1SUM}" != "$(extract_tarball | sha1sum - | cut -d' ' -f1)" ]; then
+		abort "Embedded tarball is corrupt.  Did you edit this script with software that does not support null characters?"
+	elif grep -q '/dev/mapper.* /home ' /proc/mounts; then
 		abort "Bedrock is currently unable to support LVM /home mount points."
-	elif grep '/dev/mapper.* /root ' /proc/mounts; then
+	elif grep -q '/dev/mapper.* /root ' /proc/mounts; then
 		abort "Bedrock is currently unable to support LVM /root mount points."
+	elif [ -e /bedrock/ ]; then
+		# Prefer this check at end of sanity check list so other sanity
+		# checks can be tested directly on a Bedrock system.
+		abort "/bedrock found.  Cannot hijack Bedrock Linux."
 	fi
 
 	bb="/true"

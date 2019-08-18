@@ -629,7 +629,10 @@ $(BUILD)/unsigned-installer.sh: $(BUILD)/userland.tar src/installer/installer.sh
 	( \
 		cat src/installer/installer.sh | awk '/^[.] \/bedrock\/share\/common-code/{exit}1'; \
 		cat src/slash-bedrock/share/common-code | sed 's/BEDROCK-RELEASE/$(RELEASE)/' | grep -v 'pipefail'; \
-		cat src/installer/installer.sh | awk 'x{print}/^[.] \/bedrock\/share\/common-code/{x=1}' | sed 's/^ARCHITECTURE=/ARCHITECTURE=$(ARCHITECTURE)/'; \
+		cat src/installer/installer.sh | awk 'x{print}/^[.] \/bedrock\/share\/common-code/{x=1}' | sed \
+			-e 's/^ARCHITECTURE=.*/ARCHITECTURE="$(ARCHITECTURE)"/' \
+			-e 's/^TARBALL_SHA1SUM=.*/TARBALL_SHA1SUM="$(shell cat $(BUILD)/userland.tar | sha1sum - | cut -d' ' -f1)"/' \
+			; \
 		echo "-----BEGIN TARBALL-----"; \
 		cat $(BUILD)/userland.tar | gzip; \
 		echo ""; \
