@@ -676,13 +676,6 @@ $(INSTALLER): $(BUILD)/unsigned-installer.sh
 #
 # Reasons for popular architectures not currently being enabled:
 #
-# ppc64le: Building ppc64le results in:
-#
-#     checking whether compiler's long double definition matches float.h... no
-#     ./configure: error: unsupported long double type
-#
-# while building musl.  However, musl appears to support ppc64le.
-#
 # x86: Could not find binfmt_misc registration magic/mask/offset for i585 or
 # i686.
 #
@@ -698,6 +691,8 @@ bedrock-linux-$(VERSION)-mipsel: fetch_vendor_sources
 	strat -r br-build-mipsel $(MAKE) GPGID='$(GPGID)'
 bedrock-linux-$(VERSION)-mips64el: fetch_vendor_sources
 	strat -r br-build-mips64el $(MAKE) GPGID='$(GPGID)'
+bedrock-linux-$(VERSION)-ppc64le: fetch_vendor_sources
+	strat -r br-build-ppc64le $(MAKE) GPGID='$(GPGID)' CFLAGS='$(CFLAGS) -mlong-double-64'
 bedrock-linux-$(VERSION)-s390x: fetch_vendor_sources
 	strat -r br-build-s390x $(MAKE) GPGID='$(GPGID)'
 bedrock-linux-$(VERSION)-x86_64: fetch_vendor_sources
@@ -706,8 +701,9 @@ release: bedrock-linux-$(VERSION)-aarch64 \
 	bedrock-linux-$(VERSION)-armv7hl \
 	bedrock-linux-$(VERSION)-armv7l \
 	bedrock-linux-$(VERSION)-mips \
-	bedrock-linux-$(VERSION)-mipsel \
 	bedrock-linux-$(VERSION)-mips64el \
+	bedrock-linux-$(VERSION)-mipsel \
+	bedrock-linux-$(VERSION)-ppc64le \
 	bedrock-linux-$(VERSION)-s390x \
 	bedrock-linux-$(VERSION)-x86_64
 
