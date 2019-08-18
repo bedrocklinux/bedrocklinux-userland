@@ -72,7 +72,13 @@ fetch() {
 
 	step "Running bootstrap software"
 	set +o pipefail
-	yes "" | LC_ALL=C XBPS_ARCH="${distro_arch:-}-musl" "${bootstrap_dir:-}/usr/bin/xbps-install" -S -R "${distro_mirror}" -r "${target_dir:-}" base-voidstrap
+	cp /bedrock/libexec/busybox "${bootstrap_dir:-}"
+	for dir in bin sbin usr/bin usr/sbin; do
+		mkdir -p "${bootstrap_dir:-}/${dir}"
+	done
+	chroot "${bootstrap_dir:-}" /busybox --install
+	setup_chroot "${bootstrap_dir:-}"
+	yes "" | LC_ALL=C XBPS_ARCH="${distro_arch:-}-musl" chroot "${bootstrap_dir:-}" "/usr/bin/xbps-install" -S -R "${distro_mirror}" -r /target-root/ base-voidstrap
 	set -o pipefail
 
 	step "Configuring"
