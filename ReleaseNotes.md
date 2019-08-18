@@ -3,7 +3,7 @@
 - Added experimental non-native CPU architecture strata support.
 	- Requires `qemu-user-static`.
 - Added experimental non-native CPU capabilities to brl-fetch.
-	- See new `-a` and -A` flags in `brl fetch --help`.
+	- See new `-a` and `-A` flags in `brl fetch --help`.
 - Added official installer/update binaries for additional CPU architectures.
 - Fixed Firefox font handling issue.  Work-around is no longer needed.
 - Various minor fixes and improvements.

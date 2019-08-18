@@ -164,7 +164,7 @@ step() {
 
 	step_count=$(printf "%d" "${step_total}" | wc -c)
 	percent=$((step_current * 100 / step_total))
-	printf "${color_misc}[%${step_count}d/%d (%3d%%)}]${color_norm} ${*:-}${color_norm}\\n" \
+	printf "${color_misc}[%${step_count}d/%d (%3d%%)]${color_norm} ${*:-}${color_norm}\\n" \
 		"${step_current}" \
 		"${step_total}" \
 		"${percent}"
@@ -201,7 +201,7 @@ require_root() {
 	fi
 }
 
-# Lock Bedrock subsystem management.
+# Bedrock lock subsystem management.
 #
 # This is used to avoid race conditions between various Bedrock subsystems.
 # For example, it would be unwise to allow multiple simultaneous attempts to
@@ -346,7 +346,7 @@ stratum_root() {
 	fi
 }
 
-# Applies /bedrock/etc/berdock.conf symlink requirements to the specified stratum.
+# Applies /bedrock/etc/bedrock.conf symlink requirements to the specified stratum.
 #
 # Use `--force` to indicate that, should a scenario occur which cannot be
 # handled cleanly, remove problematic files.  Otherwise generate a warning.

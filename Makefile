@@ -48,13 +48,9 @@
 # Directory layout:
 #
 # - src/ contains Bedrock's own code, in contrast to upstream libraries.
-# - src/slash-bedrock/ contains files and directories which will populate the
-#   eventual install's /bedrock/ directory as-is.  Anything from here is copied
-#   over preexisting files in an update, and thus this should not contain
-#   configuration the user may change.
-# - src/default-configs/ contains default configuration files.  These are files
-#   which may be used in a fresh install but should not be applied over existing
-#   files in an update.
+# - src/slash-bedrock/ contains all files and directories which will populate
+#   the eventual install's /bedrock/ directory except binary executables which
+#   must be compiled.
 # - src/installer/ contains the actual installer script.  The build system will
 #   embed the eventual system files into the installation script.
 # - Other src/ directories correspond to source for binary executables.  These
@@ -70,14 +66,16 @@
 # - vendor/*/.success_fetching_source files indicate that the given vendor
 #   component's files have been successfully acquired.  This is used to properly
 #   handle interrupted downloads.
-# - build-<arch>/ (initially absent) will contain intermediate build output
-#   which can be safely removed.
-# - build-<arch>/support/ will contain build-time support code and will not
+# - build/ (initially absent) will contain intermediate build output
+# - build/<arch>/ separates build artifacts per-CPU-architecture which allows
+#   parallelized builds for different CPU architectures.  See the "release"
+#   recipe.
+# - build/<arch>/support/ will contain build-time support code and will not
 #   directly end up in the resulting install.
-# - build-<arch>/bedrock/ will contain files which eventually end up in the
+# - build/<arch>/bedrock/ will contain files which eventually end up in the
 #   installed system's /bedrock/ directory.  This will be populated by
 #   src/slash-bedrock/ contents and the various src/ binaries.
-# - build-<arch>/completed/ will contain files which indicate various build
+# - build/<arch>/completed/ will contain files which indicate various build
 #   steps have been completed.  These are for build steps that may produce many
 #   output files as an alternative to verbosely tracking each individual output
 #   file.
@@ -85,7 +83,7 @@
 # - `*.md` files service as documentation.
 #
 # Many dependencies have deep paths which may be awkward to type at a command
-# line.  For these, shorter aliases are created.
+# line.  For these, shorter recipe aliases are created.
 #
 # Where possible, recipes which acquire upstream source should attempt to get
 # the latest stable version.  This does risk the possibility that an upstream
@@ -145,6 +143,15 @@ all: $(INSTALLER)
 remove_vendor_source:
 	rm -rf ./vendor
 
+fetch_vendor_sources: vendor/linux_headers/.success_fetching_source \
+	vendor/musl/.success_fetching_source \
+	vendor/libcap/.success_fetching_source \
+	vendor/libfuse/.success_fetching_source \
+	vendor/uthash/.success_fetching_source \
+	vendor/busybox/.success_retrieving_source \
+	vendor/libattr/.success_retrieving_source \
+	vendor/netselect/.success_retrieving_source
+
 clean:
 	rm -rf build/*
 	rm -f bedrock-linux-*-*.sh
@@ -197,15 +204,6 @@ builddir: $(COMPLETED)/builddir
 # Support libraries and tools.  Populates $(SUPPORT)
 #
 
-fetch_vendor_sources: vendor/linux_headers/.success_fetching_source \
-	vendor/musl/.success_fetching_source \
-	vendor/libcap/.success_fetching_source \
-	vendor/libfuse/.success_fetching_source \
-	vendor/uthash/.success_fetching_source \
-	vendor/busybox/.success_retrieving_source \
-	vendor/libattr/.success_retrieving_source \
-	vendor/netselect/.success_retrieving_source
- 
 vendor/linux_headers/.success_fetching_source:
 	rm -rf vendor/linux_headers
 	mkdir -p vendor/linux_headers
@@ -422,6 +420,8 @@ echo "DISABLING $$applet"; \
 		./set_bb_option "CONFIG_FEATURE_AR_CREATE" "y" && \
 		./set_bb_option "CONFIG_FEATURE_AR_LONG_FILENAMES" "y" && \
 		./set_bb_option "CONFIG_FEATURE_CHECK_TAINTED_MODULE" "y" && \
+		./set_bb_option "CONFIG_FEATURE_FIND_MMIN" "y" && \
+		./set_bb_option "CONFIG_FEATURE_FIND_XDEV" "y" && \
 		./set_bb_option "CONFIG_FEATURE_MODPROBE_BLACKLIST" "y" && \
 		./set_bb_option "CONFIG_FEATURE_MODUTILS_ALIAS" "y" && \
 		./set_bb_option "CONFIG_FEATURE_MODUTILS_SYMBOLS" "y" && \
@@ -564,8 +564,9 @@ $(SLASHBR)/libexec/crossfs: $(COMPLETED)/builddir \
 		make CC=$(MUSLCC) CFLAGS="$(CFLAGS)" && \
 		cp ./crossfs $(SLASHBR)/libexec/crossfs
 crossfs: $(SLASHBR)/libexec/crossfs
+
 #
-# Use populated $(SLASHBR) to create the script
+# Use populated $(SLASHBR) to create the installer/updater script
 #
 
 $(BUILD)/userland.tar: \
