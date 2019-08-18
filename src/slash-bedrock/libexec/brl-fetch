@@ -101,7 +101,7 @@ find_link() {
 
 	printf "Looking for file matching: ${color_file}${regex}${color_norm}\\n" >&2
 	printf "at: ${color_link}${index}${color_norm}\\n" >&2
-	path="$(wget -O- "${index}" 2>/dev/null | list_links | grep -- "${regex}" | head -n1)"
+	path="$(wget -O- "${index}" 2>/dev/null | list_links | sed 's,^.*/,,' | grep -- "${regex}" | head -n1)"
 	if ! echo "${path}" | grep -q '[^[:space:]]'; then
 		abort "Unable to find file.  Try manually specifying a known good mirror with \`--mirror\`."
 	fi
