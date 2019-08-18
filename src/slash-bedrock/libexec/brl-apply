@@ -112,7 +112,6 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 
 # Setup /etc/environment
 (
-	echo "unset TZ"
 	echo "LANG=$(cfg_value "locale" "LANG")"
 	echo "PATH=$(cfg_value "env-vars" "PATH")"
 	echo "MANPATH=$(cfg_value "env-vars" "MANPATH")"
