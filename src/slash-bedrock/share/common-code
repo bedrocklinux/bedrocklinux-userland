@@ -467,16 +467,19 @@ ensure_line() {
 
 enforce_id_ranges() {
 	for stratum in $(/bedrock/bin/brl list); do
+		# /etc/login.defs is global such that in theory we only need to
+		# update one file.  However, the logic to potentially update
+		# multiple is retained in case it is ever made local.
 		cfg="/bedrock/strata/${stratum}/etc/login.defs"
 		if [ -e "${cfg}" ]; then
 			ensure_line "${cfg}" "^[ \t]*UID_MIN[ \t][ \t]*1000$" "^[ \t]*UID_MIN\>.*$" "UID_MIN 1000"
 			ensure_line "${cfg}" "^[ \t]*UID_MAX[ \t][ \t]*65534$" "^[ \t]*UID_MAX\>.*$" "UID_MAX 65534"
 			ensure_line "${cfg}" "^[ \t]*SYS_UID_MIN[ \t][ \t]*1$" "^[ \t]*SYS_UID_MIN\>.*$" "SYS_UID_MIN 1"
-			ensure_line "${cfg}" "^[ \t]*SYS_UID_MAX[ \t][ \t]*999$" "^[ \t]*SYS_UID_MAX\>.*$" "SYS_UID_MIN 999"
+			ensure_line "${cfg}" "^[ \t]*SYS_UID_MAX[ \t][ \t]*999$" "^[ \t]*SYS_UID_MAX\>.*$" "SYS_UID_MAX 999"
 			ensure_line "${cfg}" "^[ \t]*GID_MIN[ \t][ \t]*1000$" "^[ \t]*GID_MIN\>.*$" "GID_MIN 1000"
 			ensure_line "${cfg}" "^[ \t]*GID_MAX[ \t][ \t]*65534$" "^[ \t]*GID_MAX\>.*$" "GID_MAX 65534"
 			ensure_line "${cfg}" "^[ \t]*SYS_GID_MIN[ \t][ \t]*1$" "^[ \t]*SYS_GID_MIN\>.*$" "SYS_GID_MIN 1"
-			ensure_line "${cfg}" "^[ \t]*SYS_GID_MAX[ \t][ \t]*999$" "^[ \t]*SYS_GID_MAX\>.*$" "SYS_GID_MIN 999"
+			ensure_line "${cfg}" "^[ \t]*SYS_GID_MAX[ \t][ \t]*999$" "^[ \t]*SYS_GID_MAX\>.*$" "SYS_GID_MAX 999"
 		fi
 		cfg="/bedrock/strata/${stratum}/etc/adduser.conf"
 		if [ -e "${cfg}" ]; then

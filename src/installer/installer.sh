@@ -358,6 +358,45 @@ update() {
 		strat bedrock /bedrock/libexec/busybox --install -s
 	fi
 
+	if ver_cmp_first_newer "0.7.6" "${current_version}"; then
+		set_attr "/bedrock/strata/bedrock" "arch" "${ARCHITECTURE}"
+	fi
+
+	if ver_cmp_first_newer "0.7.7beta1" "${current_version}" && [ -r /etc/login.defs ]; then
+		# A typo in /bedrock/share/common-code's enforce_id_ranges()
+		# resulted in spam at the bottom of /etc/login.defs files.  The
+		# typo was fixed in this release such that we won't generate
+		# new spam, but we still need to remove any existing spam.
+		#
+		# /etc/login.defs is global such that we only have to update
+		# one file.
+		#
+		# Remove all SYS_UID_MIN and SYS_GID_MIN lines after the first
+		# of each.
+		awk '
+			/^[ \t]*SYS_UID_MIN[ \t]/ {
+				if (uid == 0) {
+					print
+					uid++
+				}
+				next
+			}
+			/^[ \t]*SYS_GID_MIN[ \t]/ {
+				if (gid == 0) {
+					print
+					gid++
+				}
+				next
+			}
+			1
+		' "/etc/login.defs" > "/etc/login.defs-new"
+		mv "/etc/login.defs-new" "/etc/login.defs"
+
+		# Run working enforce_id_ranges to fix add potentially missing
+		# lines
+		enforce_id_ranges
+	fi
+
 	notice "Successfully updated to ${new_version}"
 	new_crossfs=false
 	new_etcfs=false
@@ -391,10 +430,6 @@ update() {
 
 	if ver_cmp_first_newer "0.7.5" "${current_version}"; then
 		new_crossfs=true
-	fi
-
-	if ver_cmp_first_newer "0.7.6" "${current_version}"; then
-		set_attr "/bedrock/strata/bedrock" "arch" "${ARCHITECTURE}"
 	fi
 
 	if "${new_crossfs}"; then
