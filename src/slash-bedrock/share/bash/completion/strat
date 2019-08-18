@@ -19,6 +19,7 @@ _strat() {
 	# - command
 	saw_help=0
 	saw_local=0
+	saw_restrict=0
 	saw_arg0=0
 	saw_arg0_arg=0
 	saw_stratum=0
@@ -30,6 +31,9 @@ _strat() {
 			;;
 		"-l" | "--local")
 			saw_local=${i}
+			;;
+		"-r" | "--restrict")
+			saw_restrict=${i}
 			;;
 		"-a" | "--arg0")
 			saw_arg0=${i}
@@ -55,6 +59,7 @@ _strat() {
 		opts="${opts} $(/bedrock/bin/brl list)"
 		[ "${saw_help}" -eq 0 ] && opts="${opts} -h --help"
 		[ "${saw_local}" -eq 0 ] && opts="${opts} -l --local"
+		[ "${saw_restrict}" -eq 0 ] && opts="${opts} -r --restrict"
 		[ "${saw_arg0}" -eq 0 ] && opts="${opts} -a --arg0"
 	elif [[ "${saw_command}" -eq 0 ]]; then
 		prefix="/bedrock/strata/${COMP_WORDS[saw_stratum]}"

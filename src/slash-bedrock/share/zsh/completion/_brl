@@ -126,8 +126,18 @@ case "${words[2]}" in
 	args+=("*:distro:($(/bedrock/bin/brl fetch --list))")
 	;;
 "remove")
-	# TODO: do not list disabled strata if `-d` flag is missing
-	args+=("*:aliases and disabled strata:($(/bedrock/bin/brl list -aAi | grep -ve "^bedrock\$" -ve "^init\$"))")
+	args+=('(-d --disable)'{-d,--disable}'[disable then remove enabled strata]')
+	saw_disable_flag=false
+	for word in ${words}; do
+		if [ "${word}" = "-d" ] || [ "${word}" = "--disable" ]; then
+			saw_disable_flag=true
+		fi
+	done
+	if "${saw_disable_flag}"; then
+		args+=("*:aliases and disabled strata:($(/bedrock/bin/brl list -aAi | grep -ve "^bedrock\$" -ve "^init\$"))")
+	else
+		args+=("*:aliases and disabled strata:($(/bedrock/bin/brl list -dDi | grep -ve "^bedrock\$" -ve "^init\$"))")
+	fi
 	;;
 "rename")
 	args+=("2:alias or disabled stratum:($(/bedrock/bin/brl list -dD | grep -ve "^bedrock\$" -ve "^init\$"))")
@@ -182,7 +192,9 @@ case "${words[2]}" in
 "update")
 	args+=('-m[specify desired mirror]:mirror:')
 	args+=('--mirror[specify desired mirror]:mirror:')
-	args+=('(-s --skip-check'{-s,--skip-check}'[skip cryptographic signature check]')
+	args+=('(-s --skip-check)'{-s,--skip-check}'[skip cryptographic signature check]')
+	args+=('(-f --force)'{-f,--force}'[ignore warnings when applying update]')
+	args+=("*:update file:_path_files -f")
 	;;
 "apply")
 	;; # no parameters other than -h/--help

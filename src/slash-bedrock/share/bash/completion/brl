@@ -151,8 +151,18 @@ _brl() {
 		opts="${opts} $(/bedrock/bin/brl fetch --list)"
 		;;
 	"remove")
-		# TODO: do not list disabled strata if `-d` flag is missing
-		opts="$(/bedrock/bin/brl list -aAi | grep -ve "^bedrock\$" -ve "^init\$")"
+		opts="${opts} $(_brl_unused_all "-d --disable" "${COMP_WORDS[@]}")"
+		saw_disable_flag=false
+		for word in ${@}; do
+			if [ "${word}" = "-d" ] || [ "${word}" = "--disable" ]; then
+				saw_disable_flag=true
+			fi
+		done
+		if "${saw_disable_flag}"; then
+			opts="${opts} $(/bedrock/bin/brl list -aAi | grep -ve "^bedrock\$" -ve "^init\$")"
+		else
+			opts="${opts} $(/bedrock/bin/brl list -dDi | grep -ve "^bedrock\$" -ve "^init\$")"
+		fi
 		;;
 	"rename")
 		if [ "${COMP_CWORD}" -eq 2 ]; then
@@ -210,6 +220,9 @@ _brl() {
 	"update")
 		opts="${opts} $(_brl_unused_all "-m --mirror" "${COMP_WORDS[@]}")"
 		opts="${opts} $(_brl_unused_all "-s --skip-check" "${COMP_WORDS[@]}")"
+		opts="${opts} $(_brl_unused_all "-f --force" "${COMP_WORDS[@]}")"
+		compopt -o filenames
+		opts="${opts} $(compgen -d -f -- "${cur}")"
 		;;
 	"apply") ;;
 		# no parameters other than -h/--help
