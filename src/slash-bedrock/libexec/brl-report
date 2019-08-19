@@ -94,6 +94,7 @@ run "cat /bedrock/cross/.bedrock-config-filesystem"
 run "cat /proc/1/root/etc/.bedrock-config-filesystem"
 run "uname -m"
 run "uname -a"
+run "env"
 run "/bedrock/libexec/getfattr -d /bedrock/strata/bedrock"
 
 notice "Completed creating report at ${color_file}\`$report\`${color_norm}."
