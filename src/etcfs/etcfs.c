@@ -62,6 +62,9 @@
 #define CMD_RM_OVERRIDE "rm_override"
 #define CMD_RM_OVERRIDE_LEN strlen(CMD_RM_OVERRIDE)
 
+#define ATOMIC_UPDATE_SUFFIX "-bedrock-backup"
+#define ATOMIC_UPDATE_SUFFIX_LEN strlen(ATOMIC_UPDATE_SUFFIX)
+
 /*
  * Various permissions related POSIX functions are per-process, not per thread.
  * The underlying Linux filesystem calls, however, are per-thread.  We can
@@ -368,10 +371,10 @@ static inline int procpath(const int fd, char *buf, size_t size)
 /*
  * Ensure a given file path contains a specific string.
  */
-static int inject(int ref_dir, const char *rpath, const char *inject,
+static int inject(int ref_fd, const char *rpath, const char *inject,
 	const size_t inject_len)
 {
-	int fd = openat(ref_dir, rpath, O_RDWR | O_APPEND);
+	int fd = openat(ref_fd, rpath, O_RDONLY);
 	if (fd < 0) {
 		return -1;
 	}
@@ -407,34 +410,86 @@ static int inject(int ref_dir, const char *rpath, const char *inject,
 
 		char *match = memmem(content, init_len, inject,
 			inject_len);
+		munmap(content, init_len);
 
 		if (match != NULL) {
-			munmap(content, init_len);
 			close(fd);
 			return 0;
 		}
-		munmap(content, init_len);
 	}
 
 	/*
-	 * File lacks what intended content.  Append content.
+	 * File lacks what intended content.  Add it atomically.
 	 */
-	if (write(fd, inject, inject_len) < 0) {
+
+	/*
+	 * Create a temporary file
+	 */
+	char tmp_file[PATH_MAX];
+	int s = snprintf(tmp_file, sizeof(tmp_file), "%s%s", rpath,
+			ATOMIC_UPDATE_SUFFIX);
+	if (s < 0 || s >= (int)sizeof(tmp_file)) {
 		close(fd);
 		return -1;
 	}
+	unlinkat(ref_fd, tmp_file, 0);
+	int tmp_fd;
+	if ((tmp_fd = openat(ref_fd, tmp_file, O_CREAT | O_RDWR | O_NOFOLLOW,
+					stbuf.st_mode)) < 0) {
+		goto clean_up_and_error;
+	}
 
+	/*
+	 * Copy the original file into it
+	 */
+	ssize_t bytes_read;
+	ssize_t bytes_written;
+	char buf[PATH_MAX];
+	if (lseek(fd, 0, SEEK_SET) < 0) {
+		goto clean_up_and_error;
+	}
+	while ((bytes_read = read(fd, buf, sizeof(buf))) > 0) {
+		if ((bytes_written = write(tmp_fd, buf, bytes_read)) < 0) {
+			goto clean_up_and_error;
+		}
+	}
+
+	/*
+	 * Append
+	 */
+	if (write(tmp_fd, inject, inject_len) < 0) {
+		goto clean_up_and_error;
+	}
+	close(tmp_fd);
 	close(fd);
+
+	/*
+	 * Atomically rename over original
+	 */
+	if (renameat(ref_fd, tmp_file, ref_fd, rpath) < 0) {
+		goto clean_up_and_error;
+	}
+
 	return 0;
+
+clean_up_and_error:
+	unlinkat(ref_fd, tmp_file, 0);
+	if (tmp_fd >= 0) {
+		close(tmp_fd);
+	}
+	if (fd >= 0) {
+		close(fd);
+	}
+	return -1;
 }
 
 /*
  * Remove up to one instance of a given string from a file.
  */
-static int uninject(int ref_dir, const char *rpath, const char *inject,
+static int uninject(int ref_fd, const char *rpath, const char *inject,
 	const size_t inject_len)
 {
-	int fd = openat(ref_dir, rpath, O_RDWR);
+	int fd = openat(ref_fd, rpath, O_RDWR);
 
 	struct stat stbuf;
 	if (fstat(fd, &stbuf) < 0) {
@@ -448,29 +503,106 @@ static int uninject(int ref_dir, const char *rpath, const char *inject,
 		return 0;
 	}
 
-	char *content = mmap(NULL, init_len, PROT_READ | PROT_WRITE,
-		MAP_SHARED, fd, 0);
-	if (content == MAP_FAILED) {
-		close(fd);
-		return -1;
+	/*
+	 * Search for string in file
+	 */
+	char buf[inject_len * 2];
+	ssize_t bytes_read;
+	ssize_t multiple = 0;
+	off_t offset = -1;
+
+	while ((bytes_read = read(fd, buf, sizeof(buf))) > 0) {
+		char *start = strstr(buf, inject);
+		if (start) {
+			offset = (start - buf) + (multiple * inject_len);
+			break;
+		}
+		multiple++;
+		if (lseek(fd, inject_len * multiple, SEEK_SET) < 0) {
+			break;
+		}
 	}
 
-	char *match = memmem(content, init_len, inject, inject_len);
-
-	if (match == NULL) {
-		munmap(content, init_len);
-		close(fd);
+	if (offset < 0) {
 		return 0;
 	}
 
-	memmove(match, match + inject_len,
-		init_len - (match - content) - inject_len);
-	msync(content, init_len, MS_SYNC);
-	munmap(content, init_len);
-
-	ftruncate(fd, init_len - inject_len);
+	/*
+	 * Found string in file.  Remove it atomically.
+	 */
+	
+	/*
+	 * Create a temporary file
+	 */
+	char tmp_file[PATH_MAX];
+	int s = snprintf(tmp_file, sizeof(tmp_file), "%s%s", rpath,
+			ATOMIC_UPDATE_SUFFIX);
+	if (s < 0 || s >= (int)sizeof(tmp_file)) {
+		close(fd);
+		return -1;
+	}
+	unlinkat(ref_fd, tmp_file, 0);
+	int tmp_fd;
+	if ((tmp_fd = openat(ref_fd, tmp_file, O_CREAT | O_RDWR | O_NOFOLLOW,
+					stbuf.st_mode)) < 0) {
+		goto clean_up_and_error;
+	}
+	
+	/*
+	 * Copy the file
+	 */
+	ssize_t bytes_written;
+	if (lseek(fd, 0, SEEK_SET) < 0) {
+		goto clean_up_and_error;
+	}
+	while ((bytes_read = read(fd, buf, sizeof(buf))) > 0) {
+		if ((bytes_written = write(tmp_fd, buf, bytes_read)) < 0) {
+			goto clean_up_and_error;
+		}
+	}
+	
+	/*
+	 * Truncate to target size
+	 */
+	if (ftruncate(tmp_fd, stbuf.st_size - inject_len) < 0) {
+		goto clean_up_and_error;
+	}
+	
+	/*
+	 * Shift post-match region over region we want to remove
+	 */
+	if (lseek(fd, offset + inject_len, SEEK_SET) < 0) {
+		goto clean_up_and_error;
+	}
+	if (lseek(tmp_fd, offset, SEEK_SET) < 0) {
+		goto clean_up_and_error;
+	}
+	while ((bytes_read = read(fd, buf, sizeof(buf))) > 0) {
+		if ((bytes_written = write(tmp_fd, buf, bytes_read)) < 0) {
+			goto clean_up_and_error;
+		}
+	}
 	close(fd);
+	close(tmp_fd);
+	
+	/*
+	 * Atomically rename over original
+	 */
+	if (renameat(ref_fd, tmp_file, ref_fd, rpath) < 0) {
+		goto clean_up_and_error;
+	}
+	
 	return 0;
+
+clean_up_and_error:
+	unlinkat(ref_fd, tmp_file, 0);
+	if (tmp_fd >= 0) {
+		close(tmp_fd);
+	}
+	if (fd >= 0) {
+		close(fd);
+	}
+	return -1;
 }
 
 /*
