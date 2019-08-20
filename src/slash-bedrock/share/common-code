@@ -182,6 +182,10 @@ ensure_legal_stratum_name() {
 	fi
 }
 
+strip_illegal_stratum_name_characters() {
+	cat | sed -e 's![[:space:]/\\:=$"'"'"']!!g' -e "s!^-!!"
+}
+
 # Call with:
 #     min_args "${#}" "<minimum-expected-arg-count>"
 # at the beginning of brl subcommands to error early if insufficient parameters

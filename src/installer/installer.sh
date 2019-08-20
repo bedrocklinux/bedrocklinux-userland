@@ -109,7 +109,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	elif ! extract_tarball >/dev/null 2>&1 || [ "${TARBALL_SHA1SUM}" != "$(extract_tarball | sha1sum - | cut -d' ' -f1)" ]; then
 		abort "Embedded tarball is corrupt.  Did you edit this script with software that does not support null characters?"
 	elif ! sanity_check_grub_mkrelpath; then
-		abort "grub-mkrelpath/grub2-mkrelpath --relative does not support bind-mounts on /boot.  Continuing may break the bootloader on a kernel update.  This is a known Bedrock issue with OpenSUSE+btrfs+GRUB."
+		abort "grub-mkrelpath/grub2-mkrelpath --relative does not support bind-mounts on /boot.  Continuing may break the bootloader on a kernel update.  This is a known Bedrock issue with OpenSUSE+btrfs/GRUB."
 	elif grep -q '/dev/mapper.* /home ' /proc/mounts; then
 		abort "Bedrock is currently unable to support LVM /home mount points."
 	elif grep -q '/dev/mapper.* /root ' /proc/mounts; then
@@ -157,9 +157,9 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	if [ -n "${1:-}" ]; then
 		name="${1}"
 	elif grep -q '^DISTRIB_ID=' /etc/lsb-release 2>/dev/null; then
-		name="$(awk -F= '$1 == "DISTRIB_ID" {print tolower($2)}' /etc/lsb-release)"
+		name="$(awk -F= '$1 == "DISTRIB_ID" {print tolower($2)}' /etc/lsb-release | strip_illegal_stratum_name_characters)"
 	elif grep -q '^ID=' /etc/os-release 2>/dev/null; then
-		name="$(. /etc/os-release && echo "${ID}")"
+		name="$(. /etc/os-release && echo "${ID}" | strip_illegal_stratum_name_characters)"
 	else
 		for file in /etc/*; do
 			if [ "${file}" = "os-release" ]; then
@@ -167,7 +167,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 			elif [ "${file}" = "lsb-release" ]; then
 				continue
 			elif echo "${file}" | grep -q -- "-release$" 2>/dev/null; then
-				name="$(awk '{print tolower($1);exit}' "${file}")"
+				name="$(awk '{print tolower($1);exit}' "${file}" | strip_illegal_stratum_name_characters)"
 				break
 			fi
 		done
@@ -448,6 +448,10 @@ update() {
 
 	if ver_cmp_first_newer "0.7.5" "${current_version}"; then
 		new_crossfs=true
+	fi
+
+	if ver_cmp_first_newer "0.7.7beta1" "${current_version}"; then
+		new_etcfs=true
 	fi
 
 	if "${new_crossfs}"; then
