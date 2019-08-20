@@ -1,3 +1,26 @@
+# 0.7.7beta1
+
+- Added brl-fetch KISS Linux support
+- Added brl-report check for environment variables
+- Added brl-update support for verifying signature of offline updates
+- Added brl-update support scanning multiple configured mirrors
+- Added installer check for corrupt embedded tarball
+- Added installer check for grub2-mkrelpath bug
+- Added official installer/update binaries for ppc64le
+- Fixed brl-fetch arch
+- Fixed brl-fetch fedora
+- Fixed brl-fetch mirrors with paths in http indexes
+- Fixed brl-fetch non-native void
+- Fixed brl-fetch solus
+- Fixed installer handling of quotes in distro name
+- Fixed login.defs handling bug
+- Fixed resolv.conf handling for some distros
+- Fixed various shell tab completion issues
+- Improved etcfs robustness to power outages
+- Removed /var/tmp from share list
+- Update expiration date of signing key
+- Various minor fixes and improvements.
+
 # 0.7.6
 
 - Added experimental non-native CPU architecture strata support.
@@ -47,7 +70,7 @@
 
 - Made `makepkg` and similar programs restricted by default via new
   `[cross-bin-restrict]` configuration.
-- Add snap and flatpak items to bedrock.conf
+- Added snap and flatpak items to bedrock.conf
 - Added delay between etcfs overrides, which fixes `xbps-install` updating
   etcfs-override files such as /etc/environment.
 - Added confirmation prompt to installer when hijacking.
