@@ -135,10 +135,14 @@
 /*
  * Set up permissions and lock.
  *
- * If fd is -1, assume reference to CFG_NAME and skip operation.
+ * If operating on CFG_NAME, no actual operation can be done.  Early exit with
+ * default.
  */
-#define FS_IMP_SETUP_FD(fd)                                                  \
+#define FS_IMP_SETUP_FD(fd, path, default)                                   \
 	(void)fd;                                                            \
+	if (strcmp(path+1, CFG_NAME) == 0) {                                 \
+		return default;                                              \
+	}                                                                    \
 	if (SET_THREAD_EUID(0) < 0) {                                        \
 		return -EPERM;                                               \
 	}                                                                    \
@@ -1611,9 +1615,7 @@ static int m_statfs(const char *path, struct statvfs *stbuf)
  */
 static int m_flush(const char *path, struct fuse_file_info *fi)
 {
-	(void)path;
-
-	FS_IMP_SETUP_FD(fi->fh);
+	FS_IMP_SETUP_FD(fi->fh, path, 0);
 
 	rv = close(dup(fi->fh));
 
@@ -1625,9 +1627,7 @@ static int m_flush(const char *path, struct fuse_file_info *fi)
  */
 static int m_release(const char *path, struct fuse_file_info *fi)
 {
-	(void)path;
-
-	FS_IMP_SETUP_FD(fi->fh);
+	FS_IMP_SETUP_FD(fi->fh, path, 0);
 
 	rv = close(fi->fh);
 
@@ -1640,9 +1640,7 @@ static int m_release(const char *path, struct fuse_file_info *fi)
  */
 static int m_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 {
-	(void)path;
-
-	FS_IMP_SETUP_FD(fi->fh);
+	FS_IMP_SETUP_FD(fi->fh, path, 0);
 
 	if (datasync) {
 		rv = fdatasync(fi->fh);
@@ -1854,7 +1852,7 @@ static int m_flock(const char *path, struct fuse_file_info *fi, int op)
 {
 	(void)path;
 
-	FS_IMP_SETUP_FD(fi->fh);
+	FS_IMP_SETUP_FD(fi->fh, path, -EINVAL);
 
 	rv = flock(fi->fh, op);
 
