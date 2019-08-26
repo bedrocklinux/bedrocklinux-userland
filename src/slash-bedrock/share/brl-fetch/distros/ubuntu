@@ -9,6 +9,7 @@
 # Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
@@ -17,11 +18,11 @@ check_supported() {
 }
 
 speed_test_url() {
-	echo "dists/${target_release:-}/Release"
+	echo "dists/${target_release}/Release"
 }
 
 list_mirrors() {
-	case "${target_arch:-}" in
+	case "${target_arch}" in
 	"x86_64")
 		echo 'http://archive.ubuntu.com/ubuntu'
 		mirror_list_url='https://launchpad.net/ubuntu/+archivemirrors'
@@ -43,7 +44,7 @@ brl_arch_to_distro() {
 	"ppc64le") echo "ppc64el" ;;
 	"s390x") echo "s390x" ;;
 	"x86_64") echo "amd64" ;;
-	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
 
@@ -90,7 +91,7 @@ default_release() {
 }
 
 list_releases() {
-	for mirror in "${flag_mirror:-}" $(list_mirrors); do
+	for mirror in "${flag_mirror}" $(list_mirrors); do
 		if wget -O- "${mirror}/dists" 2>/dev/null |
 			list_links |
 			grep '/$' |
@@ -106,41 +107,48 @@ fetch() {
 	bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv ubuntu-keyring"
 
 	step "Downloading package information database"
-	wget -O "${bootstrap_dir:-}/Packages.gz" "${target_mirror:-}/dists/${target_release:-}/main/binary-${distro_arch:-}/Packages.gz"
-	gunzip "${bootstrap_dir:-}/Packages.gz"
+	wget -O "${bootstrap_dir}/Packages.gz" "${target_mirror}/dists/${target_release}/main/binary-${distro_arch}/Packages.gz"
+	gunzip "${bootstrap_dir}/Packages.gz"
 
 	step "Converting distro package information database to brl format"
-	debdb_to_brldb "${bootstrap_dir:-}/Packages" "${bootstrap_dir:-}/brldb"
+	debdb_to_brldb "${bootstrap_dir}/Packages" "${bootstrap_dir}/brldb"
 
 	step "Calculating required bootstrap packages"
-	brldb_calculate_paths_with_deps "${bootstrap_dir:-}/brldb" "${bootstrap_dir:-}/package_paths" "${bootstrap_deps}"
+	brldb_calculate_required_packages "${bootstrap_dir}/brldb" "${bootstrap_dir}/required_packages" "${bootstrap_deps}"
 
 	step "Downloading bootstrap packages"
-	download_files "${bootstrap_dir:-}" "$(awk -v"m=${target_mirror:-}" '{print m"/"$0}' "${bootstrap_dir:-}/package_paths")"
+	checksum_downloads "${cache}/packages/" "$(awk -v"m=${target_mirror}" '{print m"/"$0}' "${bootstrap_dir}/required_packages")"
 
 	step "Extracting bootstrap packages"
-	extract_debs "${bootstrap_dir:-}" "${bootstrap_dir:-}"/*.deb
+	bootstrap_packages="$(awk -v"d=${cache}/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
+	# shellcheck disable=SC2086
+	extract_debs "${bootstrap_dir}" ${bootstrap_packages}
 
 	step "Running bootstrap software"
-	setup_chroot "${bootstrap_dir:-}"
+	setup_chroot "${bootstrap_dir}"
 	set +o pipefail
-	yes "" | LANG=C chroot "${bootstrap_dir:-}" debootstrap --variant=minbase "${target_release:-}" "/target-root" "${target_mirror:-}"
+	if LANG=C chroot "${bootstrap_dir}" debootstrap --help | grep -q "cache-dir"; then
+		share_cache "packages" "${bootstrap_dir}/packages"
+		yes "" | LANG=C chroot "${bootstrap_dir}" debootstrap --variant=minbase --cache-dir="/packages" "${target_release}" "/target-root" "${target_mirror}"
+	else
+		yes "" | LANG=C chroot "${bootstrap_dir}" debootstrap --variant=minbase "${target_release}" "/target-root" "${target_mirror}"
+	fi
 	set -o pipefail
 
 	step "Configuring"
-	if grep -q "\<main\>" "${target_dir:-}/etc/apt/sources.list" && ! grep -q "\<universe\>" "${target_dir:-}/etc/apt/sources.list"; then
+	if grep -q "\<main\>" "${target_dir}/etc/apt/sources.list" && ! grep -q "\<universe\>" "${target_dir}/etc/apt/sources.list"; then
 		# universe contains locales-all package needed below
-		sed 's/\<main\>/main universe/' "${target_dir:-}/etc/apt/sources.list" >"${target_dir:-}/etc/apt/sources.list-new"
-		mv "${target_dir:-}/etc/apt/sources.list-new" "${target_dir:-}/etc/apt/sources.list"
+		sed 's/\<main\>/main universe/' "${target_dir}/etc/apt/sources.list" >"${target_dir}/etc/apt/sources.list-new"
+		mv "${target_dir}/etc/apt/sources.list-new" "${target_dir}/etc/apt/sources.list"
 	fi
-	case "${distro_arch:-}" in
+	case "${distro_arch}" in
 	"amd64")
-		echo "deb http://archive.ubuntu.com/ubuntu/ ${target_release:-}-security main universe" >>"${target_dir:-}/etc/apt/sources.list"
+		echo "deb http://archive.ubuntu.com/ubuntu/ ${target_release}-security main universe" >>"${target_dir}/etc/apt/sources.list"
 		;;
 	esac
 	set +o pipefail
-	setup_chroot "${target_dir:-}"
-	yes "" | LANG=C chroot "${target_dir:-}" /usr/bin/apt-get update
-	yes "" | LANG=C chroot "${target_dir:-}" /usr/bin/apt-get install locales-all
+	setup_chroot "${target_dir}"
+	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get update
+	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get install locales-all
 	set -o pipefail
 }

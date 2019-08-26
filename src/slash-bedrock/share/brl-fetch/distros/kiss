@@ -9,6 +9,7 @@
 # Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
@@ -27,7 +28,7 @@ list_mirrors() {
 brl_arch_to_distro() {
 	case "${1}" in
 	"x86_64") echo "x86_64" ;;
-	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
 
@@ -47,10 +48,11 @@ list_releases() {
 
 fetch() {
 	step "Downloading bootstrap software"
-	wget -O "${bootstrap_dir:-}/kiss-chroot.tar.xz" "${target_mirror:-}/kiss-chroot.tar.xz"
+	wget -O "${bootstrap_dir}/checksum" "https://dl.getkiss.org/kiss-chroot.sha256"
+	bootstrap_checksum="$(cat "${bootstrap_dir}/checksum")"
+	checksum_download "${cache}/bootstrap.tar.xz" "sha256sum" "${bootstrap_checksum}" "${target_mirror}/kiss-chroot.tar.xz"
 
 	step "Preparing bootstrap software"
-	cd "${bootstrap_dir:-}"
-	tar xf "${bootstrap_dir:-}/kiss-chroot.tar.xz" -C "${bootstrap_dir}"
-	mv "${bootstrap_dir:-}/kiss-chroot/"* "${target_dir}"
+	tar -xv -f "${cache}/bootstrap.tar.xz" -C "${bootstrap_dir}" | awk 'NR%100==0' | progress_unknown
+	mv "${bootstrap_dir}/kiss-chroot/"* "${target_dir}"
 }

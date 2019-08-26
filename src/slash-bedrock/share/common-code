@@ -207,23 +207,49 @@ require_root() {
 
 # Bedrock lock subsystem management.
 #
+# Locks specified directory.  If no directory is specified, defaults to
+# /bedrock/var/.
+#
 # This is used to avoid race conditions between various Bedrock subsystems.
 # For example, it would be unwise to allow multiple simultaneous attempts to
 # enable the same stratum.
 #
-# This blocks while another process holds the lock.  Only utilize with
-# short-run commands.  For example, do not lock while fetching a new stratum's
-# files from the internet, as this may take quite some time.
+# By default will this will block until the lock is acquired.  Do not use this
+# on long-running commands.  If --nonblock is provided, will return non-zero if
+# the lock is already in use rather than block.
 #
 # The lock is automatically dropped when the shell script (and any child
 # processes) ends, and thus an explicit unlock is typically not needed.  See
 # drop_lock() for cases where an explicit unlock is needed.
 #
-# The hard-coded lock file requires root.
+# Only one lock may be held at a time.
 lock() {
 	require_root
-	exec 9>/bedrock/var/lock
-	flock -x 9
+
+	if [ "${1:-}" = "--nonblock" ]; then
+		nonblock="${1}"
+		shift
+	fi
+	dir="${1:-/bedrock/var/}"
+
+	# The list of directories which can be locked is white-listed to help
+	# catch typos/bugs.  Abort if not in the list.
+	if echo "${dir}" | grep -q "^\\/bedrock\\/var\\/\\?$"; then
+		# system lock
+		true
+	elif echo "${dir}" | grep -q "^\\/bedrock\\/var\\/cache\\/[^/]*/\\?$"; then
+		# cache lock
+		true
+	else
+		abort "Attempted to lock non-white-listed item \"${1}\""
+	fi
+
+	# Update timestamps on lock to delay removal by cache cleaning logic.
+	mkdir -p "${dir}"
+	touch "${dir}"
+	touch "${dir}/lock"
+	exec 9>"${dir}/lock"
+	flock ${nonblock:-} -x 9
 }
 
 # Drop lock on Bedrock subsystem management.
@@ -231,17 +257,73 @@ lock() {
 # This can be used in two ways:
 #
 # 1. If a shell script needs to unlock before it finishes.  This is primarily
-# intended for long-running shell scripts to strategically only lock required
+# intended for long-running shell scripts to strategically lock only required
 # sections rather than lock for an unacceptably large period of time.  Call
 # with:
 #     drop_lock
 #
 # 2. If the shell script launches a process which will outlive it (and
 # consequently the intended lock period), as child processes inherit locks.  To
-# drop the lock for just the daemon and not the parent script, call with:
-#     ( drop_lock ; daemon)
+# drop the lock for just the child process and not the parent script, call with:
+#     ( drop_lock ; cmd )
 drop_lock() {
 	exec 9>&-
+}
+
+# Various Bedrock subsystems - most notably brl-fetch - create files which are
+# cached for use in the future.  Clean up any that have not been utilized in a
+# configured amount of time.
+clear_old_cache() {
+	require_root
+
+	life="$(cfg_value "miscellaneous" "cache-life" || echo "90")"
+	age_in_sec="$((life * 24 * 60 * 60))"
+	current_time="$(date +%s)"
+	export del_time="$((current_time - age_in_sec))"
+
+	# If there are no cache items, abort early
+	if ! echo /bedrock/var/cache/* >/dev/null 2>&1; then
+		return
+	fi
+
+	for dir in /bedrock/var/cache/*; do
+		# Lock directory so nothing uses it mid-removal.  Skip it if it
+		# is currently in use.
+		if ! lock --nonblock "${dir}"; then
+			continue
+		fi
+
+		# Busybox ignores -xdev when combine with -delete and/or -depth.
+		# http://lists.busybox.net/pipermail/busybox-cvs/2012-December/033720.html
+		# Rather than take performance hit with alternative solutions,
+		# disallow mounting into cache directories and drop -xdev.
+		#
+		# /bedrock/var/cache/ should be on the same filesystem as
+		# /bedrock/libexec/busybox.  Save some disk writes and
+		# hardlink.
+		#
+		# busybox also lacks find -ctime, so implement it ourselves
+		# with a bit of overhead.
+		if ! [ -x "${dir}/busybox" ]; then
+			ln /bedrock/libexec/busybox "${dir}/busybox"
+		else
+			touch "${dir}/busybox"
+		fi
+		chroot "${dir}" /busybox find / -mindepth 1 ! -type d -exec /busybox sh -c "[ \"\$(stat -c \"%Z\" \"{}\")\" -le \"${del_time}\" ] && rm -- \"{}\"" \;
+		# Remove all empty directories irrelevant of timestamp.  Only cache files.
+		chroot "${dir}" /busybox find / -depth -mindepth 1 -type d -exec /busybox rmdir -- "{}" \; >/dev/null 2>&1 || true
+
+		# If the cache directory only contains the above-created lock
+		# and busybox, it's no longer caching anything meaningful.
+		# Remove it.
+		if [ "$(echo "${dir}/"* | wc -w)" -le 2 ]; then
+			rm -f "${dir}/lock"
+			rm -f "${dir}/busybox"
+			rmdir "${dir}"
+		fi
+
+		drop_lock "${dir}"
+	done
 }
 
 # List all strata irrelevant of their state.

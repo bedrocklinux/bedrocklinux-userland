@@ -9,6 +9,7 @@
 # Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
@@ -17,7 +18,7 @@ check_supported() {
 }
 
 speed_test_url() {
-	echo "core/os/${distro_arch:-}/core.db.tar.gz"
+	echo "core/os/${distro_arch}/core.db.tar.gz"
 }
 
 list_mirrors() {
@@ -32,7 +33,7 @@ list_mirrors() {
 brl_arch_to_distro() {
 	case "${1}" in
 	"x86_64") echo "x86_64" ;;
-	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
 
@@ -54,31 +55,39 @@ setup_pacman() {
 
 	if ! grep -q "^Server" "${1}/etc/pacman.d/mirrorlist"; then
 		echo "### Set by Bedrock Linux when acquiring this stratum" >>"${1}/etc/pacman.d/mirrorlist"
-		echo "Server = ${target_mirror:-}/\$repo/os/\$arch" >>"$1/etc/pacman.d/mirrorlist"
+		echo "Server = ${target_mirror}/\$repo/os/\$arch" >>"$1/etc/pacman.d/mirrorlist"
 	fi
 }
 
 fetch() {
 	step "Downloading bootstrap software"
-	url="$(find_link "${target_mirror:-}/iso/latest/" "^archlinux-bootstrap-[^-]*-${distro_arch:-}[.]tar[.]gz$")"
-	wget -O "${bootstrap_dir:-}/bootstrap.tar.gz" "${url}"
+	wget -O "${bootstrap_dir}/checksum" "${target_mirror}/iso/latest/sha1sums.txt"
+	bootstrap_checksum="$(awk '$2 ~ /^archlinux-bootstrap-.*[.]tar[.]gz/{print$1}' "${bootstrap_dir}/checksum")"
+	bootstrap_name="$(awk '$2 ~ /^archlinux-bootstrap-.*[.]tar[.]gz/{print$2}' "${bootstrap_dir}/checksum")"
+	bootstrap_url="${target_mirror}/iso/latest/${bootstrap_name}"
+	checksum_download "${cache}/bootstrap.tar.gz" "sha1sum" "${bootstrap_checksum}" "${bootstrap_url}"
 
 	step "Preparing bootstrap software"
-	(
-		cd "${bootstrap_dir:-}"
-		tar xf bootstrap.tar.gz
-		mv "${bootstrap_dir:-}"/root.*/* "${bootstrap_dir:-}"
-		rmdir "${bootstrap_dir:-}/root."*
-		rm "${bootstrap_dir:-}/bootstrap.tar.gz"
-	)
+	tar -xv -f "${cache}/bootstrap.tar.gz" -C "${bootstrap_dir}" | awk 'NR%100==0' | progress_unknown
+	if [ -d "${bootstrap_dir}/usr" ]; then
+		mv "${bootstrap_dir}/usr" "${bootstrap_dir}/qemu-static-usr"
+	fi
+	mv "${bootstrap_dir}"/root.*/* "${bootstrap_dir}"
+	rmdir "${bootstrap_dir}/root."*
+	if [ -d "${bootstrap_dir}/qemu-static-usr" ]; then
+		mkdir -p "${bootstrap_dir}/usr/bin/"
+		mv "${bootstrap_dir}/qemu-static-user/bin/qemu-"* "${bootstrap_dir}/usr/bin/"
+	fi
 
 	step "Running bootstrap software"
-	setup_chroot "${bootstrap_dir:-}"
-	setup_pacman "${bootstrap_dir:-}"
-	LC_ALL=C chroot "${bootstrap_dir:-}" pacstrap "/target-root" base
+	setup_chroot "${bootstrap_dir}"
+	setup_pacman "${bootstrap_dir}"
+	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/pacman/pkg/"
+	LC_ALL=C chroot "${bootstrap_dir}" pacstrap "/target-root" base
 
 	step "Configuring"
-	setup_chroot "${target_dir:-}"
-	setup_pacman "${target_dir:-}"
-	LC_ALL=C chroot "${target_dir:-}" pacman --noconfirm -R linux
+	setup_chroot "${target_dir}"
+	setup_pacman "${target_dir}"
+	cp "${cache}/packages/"* "${target_dir}/var/cache/pacman/"
+	LC_ALL=C chroot "${target_dir}" pacman --noconfirm -R linux
 }

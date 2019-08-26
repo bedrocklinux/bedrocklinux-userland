@@ -9,6 +9,7 @@
 # Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
@@ -29,7 +30,7 @@ list_mirrors() {
 brl_arch_to_distro() {
 	case "${1}" in
 	"x86_64") echo "x86_64" ;;
-	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
 
@@ -47,83 +48,84 @@ list_releases() {
 
 fetch() {
 	step "Downloading package information database"
-	wget "${target_mirror:-}/packages/shannon/eopkg-index.xml.xz" -O "${bootstrap_dir:-}/eopkg-index.xml.xz"
-	unxz "${bootstrap_dir:-}/eopkg-index.xml.xz"
+	wget "${target_mirror}/packages/shannon/eopkg-index.xml.xz" -O "${bootstrap_dir}/eopkg-index.xml.xz"
+	unxz "${bootstrap_dir}/eopkg-index.xml.xz"
 
 	step "Converting distro package information database to brl format"
-	eopkgdb_to_brldb "${bootstrap_dir:-}/eopkg-index.xml" "${bootstrap_dir:-}/brldb"
+	eopkgdb_to_brldb "${bootstrap_dir}/eopkg-index.xml" "${bootstrap_dir}/brldb"
 
 	step "Calculating required bootstrap packages"
-	bootstrap_deps="$(cat "${bootstrap_dir:-}/brldb/required")"
-	brldb_calculate_paths_with_deps "${bootstrap_dir:-}/brldb" "${bootstrap_dir:-}/package_paths" "${bootstrap_deps}"
+	bootstrap_deps="$(cat "${bootstrap_dir}/brldb/required")"
+	brldb_calculate_required_packages "${bootstrap_dir}/brldb" "${bootstrap_dir}/required_packages" "${bootstrap_deps}"
 
 	step "Downloading bootstrap packages"
-	download_files "${bootstrap_dir:-}" "$(awk -v"m=${target_mirror:-}" '{print m"/packages/shannon/"$0}' "${bootstrap_dir:-}/package_paths")"
+	checksum_downloads "${cache}/packages/" "$(awk -v"m=${target_mirror}" '{print m"/packages/shannon/"$0}' "${bootstrap_dir}/required_packages")"
 
 	step "Extracting bootstrap packages"
-	(
-		cd "${bootstrap_dir:-}"
-		total="$(echo baselayout-*.eopkg ./*.eopkg | wc -w)"
-		for pkg in baselayout-*.eopkg *.eopkg; do
-			unzip -qo "${pkg}"
-			tar xf "install.tar.xz"
-			echo "x"
-		done | progress_bar "${total}"
-	)
+	bootstrap_packages="$(awk -v"d=${cache}/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
+	total="$(echo "${cache}/packages/baselayout-"*.eopkg "${bootstrap_packages}" | wc -w)"
+	for pkg in "${cache}/packages/baselayout-"*.eopkg ${bootstrap_packages}; do
+		unzip -d "${bootstrap_dir}" -qo "${pkg}"
+		tar xf "${bootstrap_dir}/install.tar.xz" -C "${bootstrap_dir}"
+		echo "x"
+	done | progress_bar "${total}"
 
 	step "Running bootstrap software"
-	setup_chroot "${bootstrap_dir:-}"
-	(
-		# eopkg errors when installing baselayout, presumably due to
-		# missing assumed files.
-		cd "${bootstrap_dir:-}"
-		unzip -qo "baselayout-"*.eopkg
-		tar xf "install.tar.xz" -C "${target_dir:-}"
-	)
+	setup_chroot "${bootstrap_dir}"
+	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/eopkg/packages"
+
+	# eopkg errors when installing baselayout, presumably due to
+	# missing assumed files.  Extract it rather than install.
+	unzip -d "${bootstrap_dir}" -qo "${cache}/packages/baselayout-"*.eopkg
+	tar xf "${bootstrap_dir}/install.tar.xz" -C "${target_dir}"
 
 	# Solus' package manager depends on dbus at runtime.
-	mkdir -p "${bootstrap_dir:-}/run/dbus"
-	chroot "${bootstrap_dir:-}" dbus-daemon --system
+	mkdir -p "${bootstrap_dir}/run/dbus"
+	cp /bedrock/libexec/busybox "${bootstrap_dir}"
+	chroot "${bootstrap_dir}" /busybox addgroup -S messagebus >/dev/null 2>&1 || true
+	chroot "${bootstrap_dir}" /busybox adduser -h "/run/dbus" -g "D-Bus Message Daemon" -s "/bin/false" -G "messagebus" -S -D -H "messagebus" >/dev/null 2>&1 || true
+	chroot "${bootstrap_dir}" dbus-daemon --system
 
-	chroot "${bootstrap_dir:-}" eopkg --debug -y -D/target-root rdb
-	chroot "${bootstrap_dir:-}" eopkg -y -D/target-root ar Solus "${target_mirror:-}/packages/shannon/eopkg-index.xml.xz"
+	chroot "${bootstrap_dir}" eopkg --debug -y -D/target-root rdb
+	chroot "${bootstrap_dir}" eopkg -y -D/target-root ar Solus "${target_mirror}/packages/shannon/eopkg-index.xml.xz"
 
 	# system.base contains util-linux which depends on python3.  However,
 	# installing system.base does not pull in python3, but rather just
 	# errors about a missing dependency.  To resolve this, explicitly
 	# install python3 first with --ignore-deps.
-	chroot "${bootstrap_dir:-}" eopkg -y -D/target-root install python3 --ignore-dep
+	chroot "${bootstrap_dir}" eopkg -y -D/target-root install python3 --ignore-dep
 	# Explicitly install system.base just in case python3 didn't pull
 	# something from system.base in as a dependency.
-	chroot "${bootstrap_dir:-}" eopkg -y -D/target-root install -c system.base
+	chroot "${bootstrap_dir}" eopkg -y -D/target-root install -c system.base
 	# perl is an unlisted required package.  Installing vim runs /usr/bin/c_rehash which requires perl.
-	chroot "${bootstrap_dir:-}" eopkg -y -D/target-root install perl
+	chroot "${bootstrap_dir}" eopkg -y -D/target-root install perl
 
 	# There are various compatibility issues between Bedrock and Solus'
 	# fontcache setup.  Install fontcache now in case a user wants it,
 	# applying fixes as we go.
 	#
 	# Installing fontcache rename()s from /etc to /usr, which EXDEVs.
-	if [ -e "${target_dir:-}/etc/fonts" ]; then
-		mv "${target_dir:-}/etc/fonts" "${target_dir:-}/usr/share/fonts"
+	if [ -e "${target_dir}/etc/fonts" ]; then
+		mv "${target_dir}/etc/fonts" "${target_dir}/usr/share/fonts"
 	fi
-	ln -s "../usr/share/fonts" "${target_dir:-}/etc/fonts"
-	chroot "${bootstrap_dir:-}" eopkg -y -D/target-root install fontconfig
+	ln -s "../usr/share/fonts" "${target_dir}/etc/fonts"
+	chroot "${bootstrap_dir}" eopkg -y -D/target-root install fontconfig
 	# The post-fontcache /etc/fonts symlink is absolute, which confuses
 	# `brl status`.  `brl status` should probably be updated to handle
 	# this, but for now we can hack around it by making /etc/fonts
 	# relative.
-	rm "${target_dir:-}/etc/fonts"
-	ln -s "../usr/share/fonts" "${target_dir:-}/etc/fonts"
+	rm "${target_dir}/etc/fonts"
+	ln -s "../usr/share/fonts" "${target_dir}/etc/fonts"
 }
 
 eopkgdb_to_brldb() {
 	mkdir -p "${2}/depends/" "${2}/provides" "${2}/paths"
 
 	tr -d '\n' <"${1}" |
-		sed -e 's,<,\n<,g' -e 's,>\(.\),>\n\1,g' >"${2}/flattened"
+		sed -e 's,<,\n<,g' -e 's,>\(.\),>\n\1,g' |
+		grep '[^ ]' >"${2}/flattened"
 
-	awk -F"[<> ]" -v"dir=${2}" -v"total=$(wc -l <"${2}/flattened")" -v"arch=${distro_arch:-}" '
+	awk -F"[<> ]" -v"dir=${2}" -v"total=$(wc -l <"${2}/flattened")" -v"arch=${distro_arch}" '
 		function brldbpath(type, name) {
 			if (substr(name,1,3) == "lib") {
 				return dir "/" type "/" substr(name, 4, 2)
@@ -156,11 +158,12 @@ eopkgdb_to_brldb() {
 			close(file)
 
 			file = brldbpath("paths", name)
-			print name "\t" uri >> file
+			print name "\t" uri "\tsha1sum\t" hash >> file
 			close(file)
 
 			name = ""
 			uri = ""
+			hash = ""
 		}
 		/^<[^\/]/ && !/\/>$/ {
 			path = path ">" $2
@@ -180,6 +183,10 @@ eopkgdb_to_brldb() {
 		}
 		path == ">PISI>Package>PackageURI" {
 			uri = $0
+			next
+		}
+		path == ">PISI>Package>PackageHash" {
+			hash = $0
 			next
 		}
 		path == ">PISI>Package>PartOf" && name && $0 == "system.base" {
