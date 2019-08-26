@@ -808,6 +808,7 @@ check:
 		for dir in src/*/Makefile; do \
 			$(MAKE) -C "$${dir%Makefile}" clean || exit 1; \
 			$(MAKE) -C "$${dir%Makefile}" CC=$$compiler CFLAGS="$(WERROR_FLAGS)" || exit 1; \
+			$(MAKE) -C "$${dir%Makefile}" clean || exit 1; \
 		done \
 	done
 	# check C code formatting
