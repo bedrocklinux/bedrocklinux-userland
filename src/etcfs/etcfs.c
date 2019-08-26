@@ -427,7 +427,7 @@ static int inject(int ref_fd, const char *rpath, const char *inject,
 	 */
 	char tmp_file[PATH_MAX];
 	int s = snprintf(tmp_file, sizeof(tmp_file), "%s%s", rpath,
-			ATOMIC_UPDATE_SUFFIX);
+		ATOMIC_UPDATE_SUFFIX);
 	if (s < 0 || s >= (int)sizeof(tmp_file)) {
 		close(fd);
 		return -1;
@@ -435,7 +435,7 @@ static int inject(int ref_fd, const char *rpath, const char *inject,
 	unlinkat(ref_fd, tmp_file, 0);
 	int tmp_fd;
 	if ((tmp_fd = openat(ref_fd, tmp_file, O_CREAT | O_RDWR | O_NOFOLLOW,
-					stbuf.st_mode)) < 0) {
+				stbuf.st_mode)) < 0) {
 		goto clean_up_and_error;
 	}
 
@@ -530,13 +530,13 @@ static int uninject(int ref_fd, const char *rpath, const char *inject,
 	/*
 	 * Found string in file.  Remove it atomically.
 	 */
-	
+
 	/*
 	 * Create a temporary file
 	 */
 	char tmp_file[PATH_MAX];
 	int s = snprintf(tmp_file, sizeof(tmp_file), "%s%s", rpath,
-			ATOMIC_UPDATE_SUFFIX);
+		ATOMIC_UPDATE_SUFFIX);
 	if (s < 0 || s >= (int)sizeof(tmp_file)) {
 		close(fd);
 		return -1;
@@ -544,10 +544,10 @@ static int uninject(int ref_fd, const char *rpath, const char *inject,
 	unlinkat(ref_fd, tmp_file, 0);
 	int tmp_fd;
 	if ((tmp_fd = openat(ref_fd, tmp_file, O_CREAT | O_RDWR | O_NOFOLLOW,
-					stbuf.st_mode)) < 0) {
+				stbuf.st_mode)) < 0) {
 		goto clean_up_and_error;
 	}
-	
+
 	/*
 	 * Copy the file
 	 */
@@ -560,14 +560,14 @@ static int uninject(int ref_fd, const char *rpath, const char *inject,
 			goto clean_up_and_error;
 		}
 	}
-	
+
 	/*
 	 * Truncate to target size
 	 */
 	if (ftruncate(tmp_fd, stbuf.st_size - inject_len) < 0) {
 		goto clean_up_and_error;
 	}
-	
+
 	/*
 	 * Shift post-match region over region we want to remove
 	 */
@@ -584,14 +584,14 @@ static int uninject(int ref_fd, const char *rpath, const char *inject,
 	}
 	close(fd);
 	close(tmp_fd);
-	
+
 	/*
 	 * Atomically rename over original
 	 */
 	if (renameat(ref_fd, tmp_file, ref_fd, rpath) < 0) {
 		goto clean_up_and_error;
 	}
-	
+
 	return 0;
 
 clean_up_and_error:

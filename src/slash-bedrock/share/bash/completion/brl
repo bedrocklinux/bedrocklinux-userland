@@ -153,7 +153,7 @@ _brl() {
 	"remove")
 		opts="${opts} $(_brl_unused_all "-d --disable" "${COMP_WORDS[@]}")"
 		saw_disable_flag=false
-		for word in ${@}; do
+		for word in "${@}"; do
 			if [ "${word}" = "-d" ] || [ "${word}" = "--disable" ]; then
 				saw_disable_flag=true
 			fi
