@@ -292,7 +292,8 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	step "Finalizing"
 	touch "/bedrock/complete-hijack-install"
 	notice "Reboot to complete installation"
-	notice "After reboot explore the ${color_cmd}brl${color_norm} command."
+	notice "After reboot explore the ${color_cmd}brl${color_norm} command"
+	notice "and ${color_file}/bedrock/etc/bedrock.conf${color_norm} configuration file."
 }
 
 update() {
