@@ -148,6 +148,8 @@ verify_update() {
 }
 
 handle_help "${@:-}"
+require_root
+lock
 
 file=""
 force="false"
@@ -196,18 +198,15 @@ while [ -n "${1:-}" ]; do
 	esac
 done
 
-require_root
-lock
-
-releases="/bedrock/var/releases"
-update="/bedrock/var/update.sh"
+releases="/bedrock/var/brl-update/releases"
+update="/bedrock/var/brl-update/update.sh"
 update_sig="${update}-sig"
 update_raw="${update}-raw"
-homedir="/bedrock/var/gnupg"
+homedir="/bedrock/var/brl-update/gnupg"
 
 # Clean up any files from a previous aborted run
-rm -f "${releases}" "${update}" "${update_sig}" "${update_raw}"
-rm -rf "${homedir}"
+rm -rf "/bedrock/var/brl-update"
+mkdir -p "/bedrock/var/brl-update"
 
 if ! "${skip_check}" && ! type gpg >/dev/null 2>&1; then
 	abort "\`gpg\` required for cryptographic signature verification.  Either install it (often in \`gnupg\` package) or use \`--skip-check\` flag to disable check."
