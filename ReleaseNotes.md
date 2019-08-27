@@ -1,11 +1,13 @@
-# 0.7.7beta1
+# 0.7.7
 
 - Added brl-fetch KISS Linux support
 - Added brl-report check for environment variables
 - Added brl-update support for verifying signature of offline updates
 - Added brl-update support scanning multiple configured mirrors
+- Added init message about bedrock.conf
 - Added installer check for corrupt embedded tarball
 - Added installer check for grub2-mkrelpath bug
+- Added installer message about bedrock.conf
 - Added official installer/update binaries for ppc64le
 - Fixed brl-fetch arch
 - Fixed brl-fetch fedora
