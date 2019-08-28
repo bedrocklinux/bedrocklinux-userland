@@ -101,7 +101,7 @@ find_link() {
 
 	printf "Looking for file matching: ${color_file}${regex}${color_norm}\\n" >&2
 	printf "at: ${color_link}${index}${color_norm}\\n" >&2
-	path="$(wget -O- "${index}" 2>/dev/null | list_links | grep -- "${regex}" | head -n1)"
+	path="$(wget -O- "${index}" 2>/dev/null | list_links | sed 's,^.*/,,' | grep -- "${regex}" | head -n1)"
 	if ! echo "${path}" | grep -q '[^[:space:]]'; then
 		abort "Unable to find file.  Try manually specifying a known good mirror with \`--mirror\`."
 	fi
@@ -450,6 +450,59 @@ import_users_and_groups() {
 	fi
 }
 
+# bind mount a cache entry so that possibly chrooted operations can utilize
+# cache directly.
+share_cache() {
+	[ -n "${cache:-}" ]
+	cache_entry="${cache:-}/${1}"
+	cache_target="${2}"
+	mkdir -p "${cache_entry}" "${cache_target}"
+	mount --bind "${cache_entry}" "${cache_target}"
+}
+
+# Download a file if a file with the target checksum is not already present.
+checksum_download() {
+	file="${1}"
+	checksum_cmd="${2}"
+	checksum="${3}"
+	url="${4}"
+
+	if [ -r "${file}" ] && [ "$("${checksum_cmd}" "${file}" | awk '{print$1}')" = "${checksum}" ]; then
+		notice "Using cached ${file}"
+		touch "${file}"
+		return
+	fi
+
+	if [ -r "${file}" ]; then
+		rm -- "${file}"
+	fi
+
+	mkdir -p "$(dirname "${file}")"
+	wget -O "${file}" "${url}"
+
+	# Check download is valid
+	if [ "$("${checksum_cmd}" "${file}" | awk '{print$1}')" != "${checksum}" ]; then
+		abort "${url} does not have expected ${checksum_cmd} ${checksum}"
+	fi
+}
+
+# Download files if they are not already present with desired checksums
+checksum_downloads() {
+	dir="${1}"
+	shift
+	lines="${*}"
+	IFS="
+"
+	for line in ${lines}; do
+		url="$(echo "${line}" | cut -d"	" -f1)"
+		file="${dir}/$(echo "${url}" | sed "s,^.*/,,")"
+		checksum_cmd="$(echo "${line}" | cut -d"	" -f2)"
+		checksum="$(echo "${line}" | cut -d"	" -f3)"
+		checksum_download "${file}" "${checksum_cmd}" "${checksum}" "${url}" >/dev/null 2>&1
+		echo "X"
+	done | progress_bar "$(echo "${lines}" | wc -l)"
+}
+
 extract_debs() {
 	(
 		cd "${1}"
@@ -548,11 +601,12 @@ debdb_to_brldb() {
 		}
 
 		file = brldbpath("paths", name)
-		for (i in paths) {
-			print name "\t" paths[i] >> file
-			delete paths[i]
-		}
+		print name "\t" urlpath "\t" checksum_cmd "\t" checksum >> file
 		close(file)
+		name=""
+		urlpath=""
+		checksum_cmd=""
+		checksum=""
 	}
 	$1 == "Package:" {
 		name = $2
@@ -576,11 +630,15 @@ debdb_to_brldb() {
 		}
 	}
 	$1 == "Filename:" {
-		for (i=2; i<=NF; i++) {
-			if ($i) {
-				paths[$i] = $i
-			}
-		}
+		urlpath = $2
+	}
+	$1 == "MD5sum:" {
+		checksum_cmd = "md5sum"
+		checksum = $2
+	}
+	$1 == "SHA256:" {
+		checksum_cmd = "sha256sum"
+		checksum = $2
 	}
 	int(NR * 100 / total) > percent {
 		percent = int(NR * 100 / total)
@@ -593,7 +651,8 @@ rpmdb_to_brldb() {
 	mkdir -p "${2}/depends/" "${2}/provides" "${2}/paths"
 
 	tr -d '\n' <"${1}" |
-		sed -e 's,<,\n<,g' -e 's,>\(.\),>\n\1,g' >"${2}/flattened"
+		sed -e 's,<,\n<,g' -e 's,>\(.\),>\n\1,g' |
+		grep '[^ ]' >"${2}/flattened"
 
 	awk -F"[<> ]" -v"dir=${2}" -v"total=$(wc -l <"${2}/flattened")" -v"arch=${distro_arch}" '
 		function brldbpath(type, name) {
@@ -611,6 +670,9 @@ rpmdb_to_brldb() {
 		}
 		/^[^ <]/ && path == ">?xml>metadata>package>arch" {
 			pkg_arch = $0
+		}
+		/^[^ <]/ && path == ">?xml>metadata>package>checksum" {
+			checksum = $0
 		}
 		path == ">?xml>metadata>package>format>rpm:requires>rpm:entry" {
 			for (i=1; i <= NF; i++) {
@@ -644,8 +706,19 @@ rpmdb_to_brldb() {
 					sub(/^href="/, "", entry)
 					sub(/"\/?$/, "", entry)
 					if (entry ~ arch".rpm$" || entry ~ "noarch.rpm$") {
-						paths[entry] = entry
+						urlpath = entry
 					}
+					break
+				}
+			}
+		}
+		path == ">?xml>metadata>package>checksum" {
+			for (i=1; i <= NF; i++) {
+				if (index($i, "type=\"") == 1) {
+					entry = $i
+					sub(/^type="/, "", entry)
+					sub(/"\/?$/, "", entry)
+					checksum_cmd = entry "sum"
 					break
 				}
 			}
@@ -656,7 +729,7 @@ rpmdb_to_brldb() {
 		/^<\// {
 			if (path == ">?xml>metadata>package" && name != "" && (pkg_arch == arch || pkg_arch == "noarch")) {
 				file = brldbpath("depends", name)
-				printf "%s", name >> file
+				printf "%s\t", name >> file
 				for (i in depends) {
 					printf " %s", depends[i] >> file
 					delete depends[i]
@@ -676,14 +749,14 @@ rpmdb_to_brldb() {
 				}
 
 				file = brldbpath("paths", name)
-				for (i in paths) {
-					print name "\t" paths[i] >> file
-					delete paths[i]
-				}
+				print name "\t" urlpath "\t" checksum_cmd "\t" checksum >> file
 				close(file)
 
 				pkg_arch=""
 				name=""
+				urlpath=""
+				checksum_cmd=""
+				checksum=""
 			}
 			sub(">[^>]*$","",path)
 		}
@@ -694,7 +767,7 @@ rpmdb_to_brldb() {
 	' "${2}/flattened" | progress_bar 100
 }
 
-brldb_calculate_paths_with_deps() {
+brldb_calculate_required_packages() {
 	awk -v"dir=${1}" -v"out=${2}" -v"packages=${3}" '
 	function brldbpath(type, name) {
 		if (substr(name,1,3) == "lib") {
@@ -703,7 +776,7 @@ brldb_calculate_paths_with_deps() {
 			return dir "/" type "/" substr(name, 1, 2)
 		}
 	}
-	function get_values(type, key, values, only_first) {
+	function get_values(type, key, values, only_first, full_line) {
 		for (value in values) {
 			delete values[value]
 		}
@@ -713,6 +786,11 @@ brldb_calculate_paths_with_deps() {
 				if (only_first) {
 					close(file)
 					return $2
+				}
+				if (full_line) {
+					close(file)
+					sub(/^[^[:space:]]*[[:space:]]*/,"")
+					return $0
 				}
 				for (i = 2; i <= NF; i++) {
 					values[$i] = $i
@@ -731,11 +809,11 @@ brldb_calculate_paths_with_deps() {
 		while (length(to_process) > 0) {
 			for (package in to_process) {
 				delete to_process[package]
-				processed[package] = get_values("paths", package, "", 1)
-				get_values("depends", package, depends, 0)
+				processed[package] = get_values("paths", package, "", 0, 1)
+				get_values("depends", package, depends, 0, 0)
 				depends[package] = package
 				for (depend in depends) {
-					provider = get_values("provides", depend, "", 1)
+					provider = get_values("provides", depend, "", 1, 0)
 					if (provider == "") {
 						print "Unable to find provider for \""depend"\"" > "/dev/stderr"
 						exit 1
@@ -744,15 +822,17 @@ brldb_calculate_paths_with_deps() {
 						to_process[provider]
 					}
 				}
+				print "X"
 			}
 		}
 		for (i in processed) {
-			print processed[i] >> out
+			if (processed[i] != "") {
+				print processed[i] >> out
+			}
 		}
 		close(out)
 	}
-	'
-	#' | progress_unknown
+	' | progress_unknown
 }
 
 handle_help "${@:-}"
@@ -891,6 +971,7 @@ for distro in ${distros}; do
 	. "${backend}"
 	unset target_dir
 	unset bootstrap_dir
+	unset cache
 
 	if "${flag_archs}"; then
 		list_architectures
@@ -1016,13 +1097,17 @@ for distro in ${distros}; do
 		chown 755 "${bootstrap_dir}/usr/bin/${qemu_bin}"
 	fi
 
+	cache="/bedrock/var/cache/brl-fetch-${distro}-${target_release}-${target_arch}"
+	lock "${cache}"
+
 	# backends rely on these variables.
 	if [ -z "${target_dir:-}" ] ||
 		[ -z "${bootstrap_dir:-}" ] ||
 		[ -z "${target_mirror:-}" ] ||
 		[ -z "${target_release:-}" ] ||
 		[ -z "${target_arch:-}" ] ||
-		[ -z "${distro_arch:-}" ]; then
+		[ -z "${distro_arch:-}" ] ||
+		[ -z "${cache:-}" ]; then
 		fetch_abort "Essential variable not set"
 	fi
 	fetch
@@ -1039,8 +1124,10 @@ for distro in ${distros}; do
 	fi
 
 	step "Cleaning up"
+	drop_lock "${cache}"
 	tear_down_chroot "${target_dir}"
 	less_lethal_rm_rf "${bootstrap_dir}"
+	clear_old_cache
 
 	step "Importing users and groups"
 	import_users_and_groups "${target_dir}/etc/passwd" "${target_dir}/etc/group"

@@ -9,6 +9,7 @@
 # Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
@@ -35,7 +36,7 @@ brl_arch_to_distro() {
 	"ppc64le") echo "ppc64le" ;;
 	"s390x") echo "s3960x" ;;
 	"x86_64") echo "amd64" ;;
-	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
 
@@ -59,43 +60,42 @@ list_releases() {
 
 fetch() {
 	step "Finding bootstrap software"
-	groups="$(wget -O- "${target_mirror:-}/releases/" 2>/dev/null |
+	groups="$(wget -O- "${target_mirror}/releases/" 2>/dev/null |
 		list_links |
 		grep '/$' |
 		sed -e 's,/$,,')"
 	group="$(for group in ${groups}; do
-		if wget -O- "${target_mirror:-}/releases/${group}/autobuilds/" 2>/dev/null |
+		if wget -O- "${target_mirror}/releases/${group}/autobuilds/" 2>/dev/null |
 			list_links |
-			grep "^current-stage3-${distro_arch:-}/$" >/dev/null; then
+			grep "^current-stage3-${distro_arch}/$" >/dev/null; then
 			echo "${group}"
 			break
 		fi
 	done)"
 	if [ -z "${group}" ]; then
-		abort "Could not find bootstrap software at ${target_mirror:-} for ${distro_arch:-}."
+		abort "Could not find bootstrap software at ${target_mirror} for ${distro_arch}."
 	fi
 
 	step "Downloading bootstrap software"
-	url="$(find_link "${target_mirror:-}/releases/${group}/autobuilds/current-stage3-${distro_arch:-}/" "^stage3-${distro_arch:-}-[^.]*[.]tar[.]\(xz\|bz2\)$")"
-	(
-		cd "${bootstrap_dir:-}"
-		wget "${url}"
-	)
+	bootstrap_url="$(find_link "${target_mirror}/releases/${group}/autobuilds/current-stage3-${distro_arch}/" "^stage3-${distro_arch}-[^.]*[.]tar[.]\(xz\|bz2\)$")"
+	bootstrap_name="$(echo "${bootstrap_url}" | sed 's,^.*/,,')"
+	wget -O "${bootstrap_dir}/checksum" "${bootstrap_url}.DIGESTS"
+	bootstrap_checksum="$(awk -v"name=${bootstrap_name}" '/^# .* HASH$/ {hash=$2;next} hash == "SHA512" && $2 == name {print$1;exit}' "${bootstrap_dir}/checksum")"
+	cache_name="stage3.tar.$(echo "${bootstrap_name}" | sed 's/^.*[.]//')"
+	checksum_download "${cache}/${cache_name}" "sha512sum" "${bootstrap_checksum}" "${bootstrap_url}"
 
 	step "Preparing bootstrap software"
-	(
-		cd "${bootstrap_dir:-}"
-		tar xf "stage3-${distro_arch:-}"-*
-	)
+	tar -xv -f "${cache}/${cache_name}" -C "${bootstrap_dir}" | awk 'NR%100==0' | progress_unknown
 
 	step "Running bootstrap software"
-	setup_chroot "${bootstrap_dir:-}"
-	chroot "${bootstrap_dir:-}" sh -c "cd /target-root && tar xpf /stage3-${distro_arch:-}-* --xattrs-include='*.*' --numeric-owner"
+	setup_chroot "${bootstrap_dir}"
+	share_cache "." "${bootstrap_dir}/tarballs"
+	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xpfv /tarballs/stage3.tar.* --xattrs-include='*.*' --numeric-owner" | awk 'NR%100==0' | progress_unknown
 
 	step "Configuring"
-	setup_chroot "${target_dir:-}"
-	echo "GENTOO_MIRRORS=\"${target_mirror:-}\"" >>"${target_dir:-}/etc/portage/make.conf"
-	mkdir -p "${target_dir:-}/etc/portage/repos.conf"
-	cp "${target_dir:-}/usr/share/portage/config/repos.conf" "${target_dir:-}/etc/portage/repos.conf/gentoo.conf"
-	LC_ALL=C chroot "${target_dir:-}" emerge-webrsync
+	setup_chroot "${target_dir}"
+	echo "GENTOO_MIRRORS=\"${target_mirror}\"" >>"${target_dir}/etc/portage/make.conf"
+	mkdir -p "${target_dir}/etc/portage/repos.conf"
+	cp "${target_dir}/usr/share/portage/config/repos.conf" "${target_dir}/etc/portage/repos.conf/gentoo.conf"
+	LC_ALL=C chroot "${target_dir}" emerge-webrsync
 }

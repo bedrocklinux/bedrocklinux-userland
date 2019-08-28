@@ -9,6 +9,7 @@
 # Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
@@ -31,7 +32,7 @@ list_mirrors() {
 brl_arch_to_distro() {
 	case "${1}" in
 	"x86_64") echo "x86_64" ;;
-	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
 
@@ -40,7 +41,7 @@ list_architectures() {
 }
 
 list_releases() {
-	for mirror in "${flag_mirror:-}" $(list_mirrors); do
+	for mirror in "${flag_mirror}" $(list_mirrors); do
 		if wget -O- "${mirror}" 2>/dev/null |
 			list_links |
 			grep -e '^crux-[0-9]' -e 'latest' |
@@ -59,23 +60,25 @@ default_release() {
 
 fetch() {
 	step "Downloading bootstrap software"
-	url="$(find_link "${target_mirror:-}/crux-${target_release:-}/iso" "crux-.*.iso")"
-	wget -O "${bootstrap_dir:-}/crux.iso" "${url}"
+	wget -O "${bootstrap_dir}/checksum" "${target_mirror}/crux-${target_release}/iso/crux-${target_release}.md5"
+	bootstrap_checksum="$(awk '{print$1}' "${bootstrap_dir}/checksum")"
+	bootstrap_url="${target_mirror}/crux-${target_release}/iso/crux-${target_release}.iso"
+	checksum_download "${cache}/crux.iso" "md5sum" "${bootstrap_checksum}" "${bootstrap_url}"
 
 	step "Preparing bootstrap software"
 	modprobe iso9660 >/dev/null 2>&1 || true
-	mount -t iso9660 -o loop,ro "${bootstrap_dir:-}/crux.iso" "${bootstrap_dir:-}"
-	cat "${bootstrap_dir:-}"/crux/core/pkgutils*.tar.xz | xz -d | tar xf - -O usr/bin/pkgadd >"${target_dir:-}/pkgadd"
-	chmod a+rx "${target_dir:-}/pkgadd"
-	mkdir -p "${target_dir:-}/var/lib/pkg"
-	touch "${target_dir:-}/var/lib/pkg/db"
+	mount -t iso9660 -o loop,ro "${cache}/crux.iso" "${bootstrap_dir}"
+	cat "${bootstrap_dir}"/crux/core/pkgutils*.tar.xz | xz -d | tar xf - -O usr/bin/pkgadd >"${target_dir}/pkgadd"
+	chmod a+rx "${target_dir}/pkgadd"
+	mkdir -p "${target_dir}/var/lib/pkg"
+	touch "${target_dir}/var/lib/pkg/db"
 
 	step "Running bootstrap software"
-	total="$(find "${bootstrap_dir:-}/crux/core/" -mindepth 1 -maxdepth 1 | wc -l)"
-	for pkg in "${bootstrap_dir:-}"/crux/core/*; do
+	total="$(find "${bootstrap_dir}/crux/core/" -mindepth 1 -maxdepth 1 | wc -l)"
+	for pkg in "${bootstrap_dir}"/crux/core/*; do
 		echo "${pkg}"
 		# hiding stderr to ignore noise about .py files not being ELF files
-		"${target_dir:-}/pkgadd" -r "${target_dir:-}" "${pkg}" 2>/dev/null
+		"${target_dir}/pkgadd" -r "${target_dir}" "${pkg}" 2>/dev/null
 	done | progress_bar "${total}"
 
 	step "Configuring"
@@ -83,12 +86,12 @@ fetch() {
 	sed \
 		-e "s/^HOSTNAME=.*/HOSTNAME=$(hostname)/" \
 		-e "s/^TIMEZONE=.*/TIMEZONE=/" \
-		"${target_dir:-}/etc/rc.conf" >"${target_dir:-}/etc/rc.conf-tmp"
-	mv "${target_dir:-}/etc/rc.conf-tmp" "${target_dir:-}/etc/rc.conf"
+		"${target_dir}/etc/rc.conf" >"${target_dir}/etc/rc.conf-new"
+	mv "${target_dir}/etc/rc.conf-new" "${target_dir}/etc/rc.conf"
 
 	# Hack to fix concern around shutdown script running off of bedrock
 	# fuse filesystem.
 	# TODO: get this to work properly
-	mv "${target_dir:-}/etc/rc.shutdown" "${target_dir:-}/rc.shutdown"
-	ln -s "../rc.shutdown" "${target_dir:-}/etc/rc.shutdown"
+	mv "${target_dir}/etc/rc.shutdown" "${target_dir}/rc.shutdown"
+	ln -s "../rc.shutdown" "${target_dir}/etc/rc.shutdown"
 }

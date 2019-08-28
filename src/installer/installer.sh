@@ -13,6 +13,7 @@
 . /bedrock/share/common-code # replace with file content during build process
 
 ARCHITECTURE= # replace with build target CPU architecture during build process
+TARBALL_SHA1SUM= # replace with tarball sha1sum during build process
 
 print_help() {
 	printf "Usage: ${color_cmd}${0} ${color_sub}<operations>${color_norm}
@@ -57,6 +58,22 @@ extract_tarball() {
 	tail -n "$((lines_tarball + lines_after))" "${0}" | head -n "${lines_tarball}" | head -c -1 | gzip -d
 }
 
+sanity_check_grub_mkrelpath() {
+	if grub2-mkrelpath --help 2>&1 | grep -q "relative"; then
+		orig="$(grub2-mkrelpath --relative /boot)"
+		mount --bind /boot /boot
+		new="$(grub2-mkrelpath --relative /boot)"
+		umount -l /boot
+		[ "${orig}" = "${new}" ]
+	elif grub-mkrelpath --help 2>&1 | grep -q "relative"; then
+		orig="$(grub-mkrelpath --relative /boot)"
+		mount --bind /boot /boot
+		new="$(grub-mkrelpath --relative /boot)"
+		umount -l /boot
+		[ "${orig}" = "${new}" ]
+	fi
+}
+
 hijack() {
 	printf "\
 ${color_priority}* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *${color_norm}
@@ -72,7 +89,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		abort "Warning not copied exactly."
 	fi
 
-	release="$(extract_tarball | tar xOf - bedrock/etc/bedrock-release)"
+	release="$(extract_tarball | tar xOf - bedrock/etc/bedrock-release 2>/dev/null || true)"
 	print_logo "${release}"
 
 	step_init 6
@@ -87,10 +104,16 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		abort "/proc/filesystems does not contain \"fuse\".  FUSE is required for Bedrock Linux to operate.  Install the module fuse kernel module and try again."
 	elif ! [ -e /dev/fuse ]; then
 		abort "/dev/fuse not found.  FUSE is required for Bedrock Linux to operate.  Install the module fuse kernel module and try again."
-	elif [ -e /bedrock/ ]; then
-		abort "/bedrock found.  Cannot hijack Bedrock Linux."
 	elif ! type sha1sum >/dev/null 2>&1; then
 		abort "Could not find sha1sum executable.  Install it then try again."
+	elif ! extract_tarball >/dev/null 2>&1 || [ "${TARBALL_SHA1SUM}" != "$(extract_tarball | sha1sum - | cut -d' ' -f1)" ]; then
+		abort "Embedded tarball is corrupt.  Did you edit this script with software that does not support null characters?"
+	elif ! sanity_check_grub_mkrelpath; then
+		abort "grub-mkrelpath/grub2-mkrelpath --relative does not support bind-mounts on /boot.  Continuing may break the bootloader on a kernel update.  This is a known Bedrock issue with OpenSUSE+btrfs/GRUB."
+	elif [ -e /bedrock/ ]; then
+		# Prefer this check at end of sanity check list so other sanity
+		# checks can be tested directly on a Bedrock system.
+		abort "/bedrock found.  Cannot hijack Bedrock Linux."
 	fi
 
 	bb="/true"
@@ -130,9 +153,9 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	if [ -n "${1:-}" ]; then
 		name="${1}"
 	elif grep -q '^DISTRIB_ID=' /etc/lsb-release 2>/dev/null; then
-		name="$(awk -F= '$1 == "DISTRIB_ID" {print tolower($2)}' /etc/lsb-release)"
+		name="$(awk -F= '$1 == "DISTRIB_ID" {print tolower($2)}' /etc/lsb-release | strip_illegal_stratum_name_characters)"
 	elif grep -q '^ID=' /etc/os-release 2>/dev/null; then
-		name="$(. /etc/os-release && echo "${ID}")"
+		name="$(. /etc/os-release && echo "${ID}" | strip_illegal_stratum_name_characters)"
 	else
 		for file in /etc/*; do
 			if [ "${file}" = "os-release" ]; then
@@ -140,7 +163,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 			elif [ "${file}" = "lsb-release" ]; then
 				continue
 			elif echo "${file}" | grep -q -- "-release$" 2>/dev/null; then
-				name="$(awk '{print tolower($1);exit}' "${file}")"
+				name="$(awk '{print tolower($1);exit}' "${file}" | strip_illegal_stratum_name_characters)"
 				break
 			fi
 		done
@@ -265,7 +288,8 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	step "Finalizing"
 	touch "/bedrock/complete-hijack-install"
 	notice "Reboot to complete installation"
-	notice "After reboot explore the ${color_cmd}brl${color_norm} command."
+	notice "After reboot explore the ${color_cmd}brl${color_norm} command"
+	notice "and ${color_file}/bedrock/etc/bedrock.conf${color_norm} configuration file."
 }
 
 update() {
@@ -349,6 +373,45 @@ update() {
 		strat bedrock /bedrock/libexec/busybox --install -s
 	fi
 
+	if ver_cmp_first_newer "0.7.6" "${current_version}"; then
+		set_attr "/bedrock/strata/bedrock" "arch" "${ARCHITECTURE}"
+	fi
+
+	if ver_cmp_first_newer "0.7.7beta1" "${current_version}" && [ -r /etc/login.defs ]; then
+		# A typo in /bedrock/share/common-code's enforce_id_ranges()
+		# resulted in spam at the bottom of /etc/login.defs files.  The
+		# typo was fixed in this release such that we won't generate
+		# new spam, but we still need to remove any existing spam.
+		#
+		# /etc/login.defs is global such that we only have to update
+		# one file.
+		#
+		# Remove all SYS_UID_MIN and SYS_GID_MIN lines after the first
+		# of each.
+		awk '
+			/^[ \t]*SYS_UID_MIN[ \t]/ {
+				if (uid == 0) {
+					print
+					uid++
+				}
+				next
+			}
+			/^[ \t]*SYS_GID_MIN[ \t]/ {
+				if (gid == 0) {
+					print
+					gid++
+				}
+				next
+			}
+			1
+		' "/etc/login.defs" > "/etc/login.defs-new"
+		mv "/etc/login.defs-new" "/etc/login.defs"
+
+		# Run working enforce_id_ranges to fix add potentially missing
+		# lines
+		enforce_id_ranges
+	fi
+
 	notice "Successfully updated to ${new_version}"
 	new_crossfs=false
 	new_etcfs=false
@@ -384,8 +447,8 @@ update() {
 		new_crossfs=true
 	fi
 
-	if ver_cmp_first_newer "0.7.6" "${current_version}"; then
-		set_attr "/bedrock/strata/bedrock" "arch" "${ARCHITECTURE}"
+	if ver_cmp_first_newer "0.7.7beta1" "${current_version}"; then
+		new_etcfs=true
 	fi
 
 	if "${new_crossfs}"; then

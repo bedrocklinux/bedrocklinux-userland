@@ -9,6 +9,7 @@
 # Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
@@ -35,7 +36,7 @@ brl_arch_to_distro() {
 	case "${1}" in
 	"aarch64") echo "aarch64" ;;
 	"x86_64") echo "x86_64" ;;
-	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
 
@@ -56,33 +57,40 @@ list_releases() {
 
 fetch() {
 	step "Downloading bootstrap software"
-	url="$(find_link "${target_mirror:-}/static/" "^xbps-static-latest[.]${distro_arch:-}-musl[.]tar[.]xz")"
-	wget -O "${bootstrap_dir:-}/xbps-static.tar.xz" "${url}"
+	bootstrap_name="xbps-static-latest.${distro_arch}-musl.tar.xz"
+	wget -O "${bootstrap_dir}/checksum" "${target_mirror}/static/sha256sums.txt"
+	bootstrap_checksum="$(awk -v"p=${bootstrap_name}" '$2 == p {print$1;exit}' "${bootstrap_dir}/checksum")"
+	bootstrap_url="${target_mirror}/static/${bootstrap_name}"
+	checksum_download "${cache}/${bootstrap_name}" "sha256sum" "${bootstrap_checksum}" "${bootstrap_url}"
 
 	step "Preparing bootstrap software"
-	(
-		cd "${bootstrap_dir:-}"
-		tar xf xbps-static.tar.xz
-	)
+	tar xf "${cache}/${bootstrap_name}" -C "${bootstrap_dir}"
 
-	case "${distro_arch:-}" in
-	x86_64 | i686) distro_mirror="${target_mirror:-}/current/musl" ;;
-	*) distro_mirror="${target_mirror:-}/current/${distro_arch:-}" ;;
+	case "${distro_arch}" in
+	x86_64 | i686) distro_mirror="${target_mirror}/current/musl" ;;
+	*) distro_mirror="${target_mirror}/current/${distro_arch}" ;;
 	esac
 
 	step "Running bootstrap software"
 	set +o pipefail
-	yes "" | LC_ALL=C XBPS_ARCH="${distro_arch:-}-musl" "${bootstrap_dir:-}/usr/bin/xbps-install" -S -R "${distro_mirror}" -r "${target_dir:-}" base-voidstrap
+	cp /bedrock/libexec/busybox "${bootstrap_dir}"
+	for dir in bin sbin usr/bin usr/sbin; do
+		mkdir -p "${bootstrap_dir}/${dir}"
+	done
+	chroot "${bootstrap_dir}" /busybox --install
+	setup_chroot "${bootstrap_dir}"
+	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/xbps"
+	yes "" | LC_ALL=C XBPS_ARCH="${distro_arch}-musl" chroot "${bootstrap_dir}" "/usr/bin/xbps-install" -S -R "${distro_mirror}" -r /target-root/ base-voidstrap
 	set -o pipefail
 
 	step "Configuring"
-	if [ -d "${target_dir:-}/usr/share/xbps.d/" ]; then
-		echo "repository=${distro_mirror}" >>"${target_dir:-}/usr/share/xbps.d/00-brl-fetch.conf"
+	if [ -d "${target_dir}/usr/share/xbps.d/" ]; then
+		echo "repository=${distro_mirror}" >>"${target_dir}/usr/share/xbps.d/00-brl-fetch.conf"
 	fi
 	# Void's zsh package does not create /etc/zsh/zshenv but it is needed
 	# for various Bedrock hooks
-	if ! [ -e "${target_dir:-}/etc/zsh/zshenv" ]; then
-		mkdir -p "${target_dir:-}/etc/zsh/"
-		echo "# File created by Bedrock Linux during stratum fetch" >"${target_dir:-}/etc/zsh/zshenv"
+	if ! [ -e "${target_dir}/etc/zsh/zshenv" ]; then
+		mkdir -p "${target_dir}/etc/zsh/"
+		echo "# File created by Bedrock Linux during stratum fetch" >"${target_dir}/etc/zsh/zshenv"
 	fi
 }

@@ -9,6 +9,7 @@
 # Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
@@ -27,7 +28,7 @@ list_mirrors() {
 brl_arch_to_distro() {
 	case "${1}" in
 	"x86_64") echo "x86_64" ;;
-	*) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
 
@@ -45,9 +46,9 @@ list_releases() {
 
 fetch() {
 	step "Calculating required bootstrap packages"
-	update="$(wget -O- "${target_mirror:-}/current/latest")"
-	notice "Using update ${update}"
-	wget -O "${bootstrap_dir:-}/Manifest.MoM" "${target_mirror:-}/update/${update}/Manifest.MoM" >/dev/null 2>&1
+	clear_update="$(wget -O- "${target_mirror}/current/latest")"
+	notice "Using update ${clear_update}"
+	wget -O "${bootstrap_dir}/Manifest.MoM" "${target_mirror}/update/${clear_update}/Manifest.MoM" >/dev/null 2>&1
 	loop=true
 	NL="
 "
@@ -55,68 +56,70 @@ fetch() {
 	while "${loop}"; do
 		loop=false
 		for bundle in ${required_bundles}; do
-			if [ -e "${bootstrap_dir:-}/Manifest.${bundle}" ]; then
+			if [ -e "${bootstrap_dir}/Manifest.${bundle}" ]; then
 				continue
 			fi
 			loop=true
-			update="$(awk -v"bundle=${bundle}" '$0 ~ /^M/ && $4 == bundle {print $3; exit}' "${bootstrap_dir:-}/Manifest.MoM")"
-			wget -O "${bootstrap_dir:-}/Manifest.${bundle}" "${target_mirror:-}/update/${update}/Manifest.${bundle}" >/dev/null 2>&1
-			required_bundles="${required_bundles}${NL}$(awk '$1 == "includes:" {print $2}' "${bootstrap_dir:-}/Manifest.${bundle}")"
-			echo "${required_bundles}" | sort | uniq | grep "." >"${bootstrap_dir:-}/required_bundles"
+			update="$(awk -v"bundle=${bundle}" '$0 ~ /^M/ && $4 == bundle {print $3; exit}' "${bootstrap_dir}/Manifest.MoM")"
+			wget -O "${bootstrap_dir}/Manifest.${bundle}" "${target_mirror}/update/${update}/Manifest.${bundle}" >/dev/null 2>&1
+			required_bundles="${required_bundles}${NL}$(awk '$1 == "includes:" {print $2}' "${bootstrap_dir}/Manifest.${bundle}")"
+			echo "${required_bundles}" | sort | uniq | grep "." >"${bootstrap_dir}/required_bundles"
 			echo "x"
 		done
 	done | progress_unknown
-	required_bundles="$(cat "${bootstrap_dir:-}/required_bundles")"
+	required_bundles="$(cat "${bootstrap_dir}/required_bundles")"
 	notice "Bundles required to bootstrap swupd: $(echo "${required_bundles}" | tr '\n' ' ')"
 
+	# Packs themselves aren't checksumed; their contents are.  There isn't
+	# a clean way to invalidate cached packs here, so just download them
+	# every time.
 	step "Downloading bootstrap software"
 	total="$(echo "${required_bundles}" | wc -w)"
-	mkdir -p "${bootstrap_dir:-}/staged/"
 	for bundle in ${required_bundles}; do
-		update="$(awk -v"bundle=${bundle}" '$0 ~ /^M/ && $4 == bundle {print $3; exit}' "${bootstrap_dir:-}/Manifest.MoM")"
-		wget -O "${bootstrap_dir:-}/pack-${bundle}-from-0.tar" "${target_mirror:-}/update/${update}/pack-${bundle}-from-0.tar" >/dev/null 2>&1
+		update="$(awk -v"bundle=${bundle}" '$0 ~ /^M/ && $4 == bundle {print $3; exit}' "${bootstrap_dir}/Manifest.MoM")"
+		wget -O "${bootstrap_dir}/pack-${bundle}-from-0.tar" "${target_mirror}/update/${update}/pack-${bundle}-from-0.tar" >/dev/null 2>&1
 		echo "x"
 	done | progress_bar "${total}"
 
 	step "Extracting bootstrap packages (1/2)"
-	for tarball in "${bootstrap_dir:-}/pack"*.tar; do
-		tar xf "${tarball}" -C "${bootstrap_dir:-}"
+	for tarball in "${bootstrap_dir}/pack"*.tar; do
+		tar xf "${tarball}" -C "${bootstrap_dir}"
 		echo "x"
 	done | progress_bar "${total}"
 
 	step "Extracting bootstrap packages (2/2)"
-	rm "${bootstrap_dir:-}/Manifest.MoM"
-	total="$(awk 'NF==4' "${bootstrap_dir:-}/Manifest."* | wc -l)"
-	awk 'NF==4' "${bootstrap_dir:-}/Manifest."* | while read -r line; do
+	rm "${bootstrap_dir}/Manifest.MoM"
+	total="$(awk 'NF==4' "${bootstrap_dir}/Manifest."* | wc -l)"
+	awk 'NF==4' "${bootstrap_dir}/Manifest."* | while read -r line; do
 		type="$(echo "${line}" | cut -d"	" -f1)"
 		if echo "${type}" | grep -q '^[DFL]'; then
 			hash="$(echo "${line}" | cut -d"	" -f2)"
 			path="$(echo "${line}" | cut -d"	" -f4-)"
-			dest="${bootstrap_dir:-}/${path}"
+			dest="${bootstrap_dir}/${path}"
 			mkdir -p "$(dirname "${dest}")"
-			cp -a "${bootstrap_dir:-}/staged/${hash}" "${dest}"
+			cp -a "${bootstrap_dir}/staged/${hash}" "${dest}"
 		fi
 		echo "x"
 	done | progress_bar "${total}"
 
-	step "Installing bootstrap packages"
-	setup_chroot "${bootstrap_dir:-}"
-	LC_ALL=C chroot "${bootstrap_dir:-}" swupd verify --install --path "/target-root" --no-scripts --manifest latest
-	# expansion is desired
-	# shellcheck disable=SC2086
-	LC_ALL=C chroot "${bootstrap_dir:-}" swupd bundle-add --path "/target-root" --no-scripts "os-core-update"
+	step "Running bootstrap software"
+	setup_chroot "${bootstrap_dir}"
+	# system passwd/group confuses os-install's hash check
+	rm -f "${bootstrap_dir}/etc/passwd" "${bootstrap_dir}/etc/group"
+	# swupd appears to remove packs after use such that we can't cache them between runs.
+	LC_ALL=en_US.UTF-8 chroot "${bootstrap_dir}" swupd os-install --url "${target_mirror}/update" --no-boot-update --version "${clear_update}" -B os-core-update /target-root
 
 	step "Configuring"
 	# Setup certs
-	LC_ALL=C chroot "${target_dir:-}" clrtrust generate
-	mkdir -p "${target_dir:-}/etc/ssl"
-	ln -s /var/cache/ca-certs/anchors "${target_dir:-}/etc/ssl/certs"
+	LC_ALL=C chroot "${target_dir}" clrtrust generate
+	mkdir -p "${target_dir}/etc/ssl"
+	ln -s /var/cache/ca-certs/anchors "${target_dir}/etc/ssl/certs"
 	# Clear Linux does not populate various /etc files on which Bedrock
 	# depends, even if their corresponding package is installed.  Create
 	# them.
-	echo "# File created by Bedrock Linux during stratum fetch" >"${target_dir:-}/etc/profile"
-	if ! [ -e "${target_dir:-}/etc/zshenv" ]; then
-		mkdir -p "${target_dir:-}/etc/zsh/"
-		echo "# File created by Bedrock Linux during stratum fetch" >"${target_dir:-}/etc/zshenv"
+	echo "# File created by Bedrock Linux during stratum fetch" >"${target_dir}/etc/profile"
+	if ! [ -e "${target_dir}/etc/zshenv" ]; then
+		mkdir -p "${target_dir}/etc/zsh/"
+		echo "# File created by Bedrock Linux during stratum fetch" >"${target_dir}/etc/zshenv"
 	fi
 }

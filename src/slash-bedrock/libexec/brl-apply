@@ -60,6 +60,12 @@ lock
 # early.
 cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
 
+# configure etcfs
+for stratum in $(/bedrock/bin/brl list -ei); do
+	root="$(stratum_root "${stratum}")"
+	cfg_etcfs "/proc/1/root${root}/etc"
+done
+
 # Configure cross firmware.
 if [ -w /sys/module/firmware_class/parameters/path ] && [ -d /bedrock/cross/firmware ]; then
 	printf "/bedrock/cross/firmware" >/sys/module/firmware_class/parameters/path
@@ -112,7 +118,6 @@ ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/l
 
 # Setup /etc/environment
 (
-	echo "unset TZ"
 	echo "LANG=$(cfg_value "locale" "LANG")"
 	echo "PATH=$(cfg_value "env-vars" "PATH")"
 	echo "MANPATH=$(cfg_value "env-vars" "MANPATH")"

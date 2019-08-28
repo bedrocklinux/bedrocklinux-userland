@@ -49,13 +49,9 @@
 # Directory layout:
 #
 # - src/ contains Bedrock's own code, in contrast to upstream libraries.
-# - src/slash-bedrock/ contains files and directories which will populate the
-#   eventual install's /bedrock/ directory as-is.  Anything from here is copied
-#   over preexisting files in an update, and thus this should not contain
-#   configuration the user may change.
-# - src/default-configs/ contains default configuration files.  These are files
-#   which may be used in a fresh install but should not be applied over existing
-#   files in an update.
+# - src/slash-bedrock/ contains all files and directories which will populate
+#   the eventual install's /bedrock/ directory except binary executables which
+#   must be compiled.
 # - src/installer/ contains the actual installer script.  The build system will
 #   embed the eventual system files into the installation script.
 # - Other src/ directories correspond to source for binary executables.  These
@@ -71,14 +67,16 @@
 # - vendor/*/.success_fetching_source files indicate that the given vendor
 #   component's files have been successfully acquired.  This is used to properly
 #   handle interrupted downloads.
-# - build-<arch>/ (initially absent) will contain intermediate build output
-#   which can be safely removed.
-# - build-<arch>/support/ will contain build-time support code and will not
+# - build/ (initially absent) will contain intermediate build output
+# - build/<arch>/ separates build artifacts per-CPU-architecture which allows
+#   parallelized builds for different CPU architectures.  See the "release"
+#   recipe.
+# - build/<arch>/support/ will contain build-time support code and will not
 #   directly end up in the resulting install.
-# - build-<arch>/bedrock/ will contain files which eventually end up in the
+# - build/<arch>/bedrock/ will contain files which eventually end up in the
 #   installed system's /bedrock/ directory.  This will be populated by
 #   src/slash-bedrock/ contents and the various src/ binaries.
-# - build-<arch>/completed/ will contain files which indicate various build
+# - build/<arch>/completed/ will contain files which indicate various build
 #   steps have been completed.  These are for build steps that may produce many
 #   output files as an alternative to verbosely tracking each individual output
 #   file.
@@ -86,7 +84,7 @@
 # - `*.md` files service as documentation.
 #
 # Many dependencies have deep paths which may be awkward to type at a command
-# line.  For these, shorter aliases are created.
+# line.  For these, shorter recipe aliases are created.
 #
 # Where possible, recipes which acquire upstream source should attempt to get
 # the latest stable version.  This does risk the possibility that an upstream
@@ -121,12 +119,12 @@
 #
 #     make check
 
-VERSION=0.7.6
+BEDROCK_VERSION=0.7.7
 CODENAME=Poki
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | tail -1)
-RELEASE=Bedrock Linux $(VERSION) $(CODENAME)
-INSTALLER=bedrock-linux-$(VERSION)-$(ARCHITECTURE).sh
+RELEASE=Bedrock Linux $(BEDROCK_VERSION) $(CODENAME)
+INSTALLER=bedrock-linux-$(BEDROCK_VERSION)-$(ARCHITECTURE).sh
 
 ROOT=$(shell pwd)
 BUILD=$(ROOT)/build/$(ARCHITECTURE)
@@ -145,6 +143,18 @@ all: $(INSTALLER)
 
 remove_vendor_source:
 	rm -rf ./vendor
+  
+fetch_vendor_sources: vendor/linux_headers/.success_fetching_source \
+	vendor/musl/.success_fetching_source \
+	vendor/libcap/.success_fetching_source \
+	vendor/libfuse/.success_fetching_source \
+	vendor/uthash/.success_fetching_source \
+	vendor/busybox/.success_retrieving_source \
+	vendor/libattr/.success_retrieving_source \
+	vendor/netselect/.success_retrieving_source \
+	vendor/libaio/.success_retrieving_source \
+	vendor/util-linux/.success_fetching_source \
+	vendor/lvm2/.success_retrieving_source
 
 clean:
 	rm -rf build/*
@@ -168,13 +178,13 @@ $(COMPLETED)/builddir:
 	# create bedrock-release
 	echo "$(RELEASE)" > $(SLASHBR)/etc/bedrock-release
 	# create os-release
-	sed -e "s,^VERSION=.*,VERISON=\"$(VERSION) ($(CODENAME))\"," \
-		-e "s,^VERSION_ID=.*,VERSION_ID=\"$(VERSION)\"," \
+	sed -e "s,^VERSION=.*,VERISON=\"$(BEDROCK_VERSION) ($(CODENAME))\"," \
+		-e "s,^VERSION_ID=.*,VERSION_ID=\"$(BEDROCK_VERSION)\"," \
 		-e "s,^PRETTY_NAME=.*,PRETTY_NAME=\"$(RELEASE)\"," \
 		$(SLASHBR)/etc/os-release > $(SLASHBR)/etc/os-release-new
 	mv $(SLASHBR)/etc/os-release-new $(SLASHBR)/etc/os-release
 	# create release-specific bedrock.conf
-	mv $(SLASHBR)/etc/bedrock.conf $(SLASHBR)/etc/bedrock.conf-$(VERSION)
+	mv $(SLASHBR)/etc/bedrock.conf $(SLASHBR)/etc/bedrock.conf-$(BEDROCK_VERSION)
 	# git does not track empty directories.  Ensure known required
 	# directories are created.
 	mkdir -p $(SLASHBR)/bin
@@ -197,18 +207,6 @@ builddir: $(COMPLETED)/builddir
 #
 # Support libraries and tools.  Populates $(SUPPORT)
 #
-
-fetch_vendor_sources: vendor/linux_headers/.success_fetching_source \
-	vendor/musl/.success_fetching_source \
-	vendor/libcap/.success_fetching_source \
-	vendor/libfuse/.success_fetching_source \
-	vendor/uthash/.success_fetching_source \
-	vendor/busybox/.success_retrieving_source \
-	vendor/libattr/.success_retrieving_source \
-	vendor/netselect/.success_retrieving_source \
-	vendor/libaio/.success_retrieving_source \
-	vendor/util-linux/.success_fetching_source \
-	vendor/lvm2/.success_retrieving_source
  
 vendor/linux_headers/.success_fetching_source:
 	rm -rf vendor/linux_headers
@@ -471,6 +469,8 @@ echo "DISABLING $$applet"; \
 		./set_bb_option "CONFIG_FEATURE_AR_CREATE" "y" && \
 		./set_bb_option "CONFIG_FEATURE_AR_LONG_FILENAMES" "y" && \
 		./set_bb_option "CONFIG_FEATURE_CHECK_TAINTED_MODULE" "y" && \
+		./set_bb_option "CONFIG_FEATURE_FIND_MMIN" "y" && \
+		./set_bb_option "CONFIG_FEATURE_FIND_XDEV" "y" && \
 		./set_bb_option "CONFIG_FEATURE_MODPROBE_BLACKLIST" "y" && \
 		./set_bb_option "CONFIG_FEATURE_MODUTILS_ALIAS" "y" && \
 		./set_bb_option "CONFIG_FEATURE_MODUTILS_SYMBOLS" "y" && \
@@ -646,8 +646,9 @@ $(SLASHBR)/libexec/crossfs: $(COMPLETED)/builddir \
 		make CC=$(MUSLCC) CFLAGS="$(CFLAGS)" && \
 		cp ./crossfs $(SLASHBR)/libexec/crossfs
 crossfs: $(SLASHBR)/libexec/crossfs
+
 #
-# Use populated $(SLASHBR) to create the script
+# Use populated $(SLASHBR) to create the installer/updater script
 #
 
 $(BUILD)/userland.tar: \
@@ -713,7 +714,10 @@ $(BUILD)/unsigned-installer.sh: $(BUILD)/userland.tar src/installer/installer.sh
 	( \
 		cat src/installer/installer.sh | awk '/^[.] \/bedrock\/share\/common-code/{exit}1'; \
 		cat src/slash-bedrock/share/common-code | sed 's/BEDROCK-RELEASE/$(RELEASE)/' | grep -v 'pipefail'; \
-		cat src/installer/installer.sh | awk 'x{print}/^[.] \/bedrock\/share\/common-code/{x=1}' | sed 's/^ARCHITECTURE=/ARCHITECTURE=$(ARCHITECTURE)/'; \
+		cat src/installer/installer.sh | awk 'x{print}/^[.] \/bedrock\/share\/common-code/{x=1}' | sed \
+			-e 's/^ARCHITECTURE=.*/ARCHITECTURE="$(ARCHITECTURE)"/' \
+			-e 's/^TARBALL_SHA1SUM=.*/TARBALL_SHA1SUM="$(shell cat $(BUILD)/userland.tar | sha1sum - | cut -d' ' -f1)"/' \
+			; \
 		echo "-----BEGIN TARBALL-----"; \
 		cat $(BUILD)/userland.tar | gzip; \
 		echo ""; \
@@ -756,40 +760,36 @@ $(INSTALLER): $(BUILD)/unsigned-installer.sh
 #
 # Reasons for popular architectures not currently being enabled:
 #
-# ppc64le: Building ppc64le results in:
-#
-#     checking whether compiler's long double definition matches float.h... no
-#     ./configure: error: unsupported long double type
-#
-# while building musl.  However, musl appears to support ppc64le.
-#
 # x86: Could not find binfmt_misc registration magic/mask/offset for i585 or
 # i686.
 #
-bedrock-linux-$(VERSION)-aarch64: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-aarch64: fetch_vendor_sources
 	strat -r br-build-aarch64 $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-armv7hl: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-armv7hl: fetch_vendor_sources
 	strat -r br-build-armv7hl $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-armv7l: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-armv7l: fetch_vendor_sources
 	strat -r br-build-armv7l $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-mips: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-mips: fetch_vendor_sources
 	strat -r br-build-mips $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-mipsel: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-mipsel: fetch_vendor_sources
 	strat -r br-build-mipsel $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-mips64el: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-mips64el: fetch_vendor_sources
 	strat -r br-build-mips64el $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-s390x: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-ppc64le: fetch_vendor_sources
+	strat -r br-build-ppc64le $(MAKE) GPGID='$(GPGID)' CFLAGS='$(CFLAGS) -mlong-double-64'
+bedrock-linux-$(BEDROCK_VERSION)-s390x: fetch_vendor_sources
 	strat -r br-build-s390x $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(VERSION)-x86_64: fetch_vendor_sources
+bedrock-linux-$(BEDROCK_VERSION)-x86_64: fetch_vendor_sources
 	strat -r br-build-x86_64 $(MAKE) GPGID='$(GPGID)'
-release: bedrock-linux-$(VERSION)-aarch64 \
-	bedrock-linux-$(VERSION)-armv7hl \
-	bedrock-linux-$(VERSION)-armv7l \
-	bedrock-linux-$(VERSION)-mips \
-	bedrock-linux-$(VERSION)-mipsel \
-	bedrock-linux-$(VERSION)-mips64el \
-	bedrock-linux-$(VERSION)-s390x \
-	bedrock-linux-$(VERSION)-x86_64
+release: bedrock-linux-$(BEDROCK_VERSION)-aarch64 \
+	bedrock-linux-$(BEDROCK_VERSION)-armv7hl \
+	bedrock-linux-$(BEDROCK_VERSION)-armv7l \
+	bedrock-linux-$(BEDROCK_VERSION)-mips \
+	bedrock-linux-$(BEDROCK_VERSION)-mips64el \
+	bedrock-linux-$(BEDROCK_VERSION)-mipsel \
+	bedrock-linux-$(BEDROCK_VERSION)-ppc64le \
+	bedrock-linux-$(BEDROCK_VERSION)-s390x \
+	bedrock-linux-$(BEDROCK_VERSION)-x86_64
 
 #
 # Code quality enforcement
@@ -892,6 +892,7 @@ check:
 		for dir in src/*/Makefile; do \
 			$(MAKE) -C "$${dir%Makefile}" clean || exit 1; \
 			$(MAKE) -C "$${dir%Makefile}" CC=$$compiler CFLAGS="$(WERROR_FLAGS)" || exit 1; \
+			$(MAKE) -C "$${dir%Makefile}" clean || exit 1; \
 		done \
 	done
 	# check C code formatting

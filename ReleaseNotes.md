@@ -1,9 +1,34 @@
+# 0.7.7
+
+- Added brl-fetch KISS Linux support
+- Added brl-report check for environment variables
+- Added brl-update support for verifying signature of offline updates
+- Added brl-update support scanning multiple configured mirrors
+- Added init message about bedrock.conf
+- Added installer check for corrupt embedded tarball
+- Added installer check for grub2-mkrelpath bug
+- Added installer message about bedrock.conf
+- Added official installer/update binaries for ppc64le
+- Fixed brl-fetch arch
+- Fixed brl-fetch fedora
+- Fixed brl-fetch mirrors with paths in http indexes
+- Fixed brl-fetch non-native void
+- Fixed brl-fetch solus
+- Fixed installer handling of quotes in distro name
+- Fixed login.defs handling bug
+- Fixed resolv.conf handling for some distros
+- Fixed various shell tab completion issues
+- Improved etcfs robustness to power outages
+- Removed /var/tmp from share list
+- Update expiration date of signing key
+- Various minor fixes and improvements.
+
 # 0.7.6
 
 - Added experimental non-native CPU architecture strata support.
 	- Requires `qemu-user-static`.
 - Added experimental non-native CPU capabilities to brl-fetch.
-	- See new `-a` and -A` flags in `brl fetch --help`.
+	- See new `-a` and `-A` flags in `brl fetch --help`.
 - Added official installer/update binaries for additional CPU architectures.
 - Fixed Firefox font handling issue.  Work-around is no longer needed.
 - Various minor fixes and improvements.
@@ -47,7 +72,7 @@
 
 - Made `makepkg` and similar programs restricted by default via new
   `[cross-bin-restrict]` configuration.
-- Add snap and flatpak items to bedrock.conf
+- Added snap and flatpak items to bedrock.conf
 - Added delay between etcfs overrides, which fixes `xbps-install` updating
   etcfs-override files such as /etc/environment.
 - Added confirmation prompt to installer when hijacking.

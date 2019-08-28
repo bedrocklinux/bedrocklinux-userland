@@ -1,11 +1,14 @@
 #!/bin/sh
 #
-# resolvconf requires /etc/resolv.conf to be a symlink to
-# /etc/resolvconf/run/resolv.conf, but it does not create this symlink itself.
-# Provided /etc/resolv.conf does not exist - no other subsystem is controlling
-# the file - create it to fullfill resolvconf's requirements.
+# resolvconf requires /etc/resolv.conf to be a symlink to the actual resolvconf
+# managed resolv.conf file.  However, resolvconf does not create this symlink
+# itself.  Provided /etc/resolv.conf does not exist - no other subsystem is
+# controlling the file - create it to fullfill resolvconf's requirements.
 #
-if ! [ -e /etc/resolv.conf ] &&
-	! [ -h /etc/resolv.conf ]; then
+if [ -e /etc/resolv.conf ] || [ -h /etc/resolv.conf ]; then
+	true
+elif [ -e /etc/resolvconf/run/resolv.conf ]; then
 	ln -s /etc/resolvconf/run/resolv.conf /etc/resolv.conf
+elif [ -e /run/resolvconf/resolv.conf ]; then
+	ln -s /run/resolvconf/resolv.conf /etc/resolv.conf
 fi

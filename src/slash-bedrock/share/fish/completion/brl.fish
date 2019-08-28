@@ -157,6 +157,8 @@ complete -f -c brl -n '_brl_arg_is 2 update' -o 'm' -d 'specify mirror'
 complete -f -c brl -n '_brl_arg_is 2 update' -l 'mirror' -d 'specify mirror'
 complete -f -c brl -n '_brl_arg_is 2 fetch' -o 's' -d 'skip cryptographic signature check'
 complete -f -c brl -n '_brl_arg_is 2 fetch' -l 'skip-check' -d 'skip cryptographic signature check'
+complete -f -c brl -n '_brl_arg_is 2 fetch' -o 'f' -d 'skip warnings when applying update'
+complete -f -c brl -n '_brl_arg_is 2 fetch' -l 'force-check' -d 'skip warnings when applying update'
 
 complete -f -c brl -n '_brl_arg_is 2 report; and _brl_argnum 2' -o 'o' -d 'overwrite file at report path'
 complete -f -c brl -n '_brl_arg_is 2 report; and _brl_argnum 2' -l 'overwrite' -d 'overwrite file at report path'

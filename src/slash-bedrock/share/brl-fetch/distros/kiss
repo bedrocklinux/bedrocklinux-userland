@@ -1,0 +1,58 @@
+#!/bedrock/libexec/busybox sh
+#
+# KISS Linux bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	false
+}
+
+speed_test_url() {
+	echo "/pages"
+}
+
+list_mirrors() {
+	echo 'https://dl.getkiss.org/'
+}
+
+brl_arch_to_distro() {
+	case "${1}" in
+	"x86_64") echo "x86_64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+	esac
+}
+
+list_architectures() {
+	cat <<EOF
+x86_64
+EOF
+}
+
+default_release() {
+	echo "current"
+}
+
+list_releases() {
+	echo "current"
+}
+
+fetch() {
+	step "Downloading bootstrap software"
+	wget -O "${bootstrap_dir}/checksum" "https://dl.getkiss.org/kiss-chroot.sha256"
+	bootstrap_checksum="$(cat "${bootstrap_dir}/checksum")"
+	checksum_download "${cache}/bootstrap.tar.xz" "sha256sum" "${bootstrap_checksum}" "${target_mirror}/kiss-chroot.tar.xz"
+
+	step "Preparing bootstrap software"
+	tar -xv -f "${cache}/bootstrap.tar.xz" -C "${bootstrap_dir}" | awk 'NR%100==0' | progress_unknown
+	mv "${bootstrap_dir}/kiss-chroot/"* "${target_dir}"
+}

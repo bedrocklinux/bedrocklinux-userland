@@ -231,6 +231,7 @@ pretty_print_options() {
 
 get_init_choice() {
 	echo "Select init number to use for this session" >&2
+	echo "See /bedrock/etc/bedrock.conf [init] to change default init and timeout" >&2
 	echo "" >&2
 	max="$(list_init_options | wc -l)"
 
