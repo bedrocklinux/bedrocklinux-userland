@@ -249,6 +249,9 @@ lock() {
 	touch "${dir}"
 	touch "${dir}/lock"
 	exec 9>"${dir}/lock"
+	# Purposefully not quoting so an empty string is ignored rather than
+	# treated as a parameter.
+	# shellcheck disable=SC2086
 	flock ${nonblock:-} -x 9
 }
 
@@ -1433,16 +1436,28 @@ cfg_etcfs() {
 				fflush(fscfg)
 			}
 		}
-		# double apply injects to ensure they use latest
-		for (i = 1; i <= targets_len; i++) {
-			if (n_targets[i] ~ /override inject/) {
-				print "add_"n_targets[i] >> fscfg
-				fflush(fscfg)
-			}
-		}
 		close(fscfg)
 	}
 	'
+
+	# Injection content may be incorrect if injection files have changed.
+	# Check for this situation and, if so, instruct etcfs to update
+	# injections.
+	for key in $(cfg_keys "etc-inject"); do
+		value="$(cfg_value "etc-inject" "${key}")"
+		if ! [ -e "${mount}/${key}" ]; then
+			continue
+		fi
+		awk -v"RS=^$" -v"x=$(cat "${value}")" \
+			-v"cmd=add_override inject /${key} ${value}" \
+			-v"fscfg=${mount}/.bedrock-config-filesystem" '
+			index($0, x) == 0 {
+				print cmd >> fscfg
+				fflush(fscfg)
+				close(fscfg)
+			}
+		' "${mount}/${key}"
+	done
 }
 
 trap 'abort "Unexpected error occurred."' EXIT

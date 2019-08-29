@@ -374,15 +374,19 @@ static inline int procpath(const int fd, char *buf, size_t size)
 static int inject(int ref_fd, const char *rpath, const char *inject,
 	const size_t inject_len)
 {
-	int fd = openat(ref_fd, rpath, O_RDONLY);
-	if (fd < 0) {
-		return -1;
+	int rv = -1;
+	int fd = -1;
+	int tmp_fd = -1;
+	char tmp_file[PATH_MAX];
+	tmp_file[0] = '\0';
+
+	if ((fd = openat(ref_fd, rpath, O_RDONLY)) < 0) {
+		goto clean_up_and_return;
 	}
 
 	struct stat stbuf;
 	if (fstat(fd, &stbuf) < 0) {
-		close(fd);
-		return -1;
+		goto clean_up_and_return;
 	}
 	size_t init_len = stbuf.st_size;
 
@@ -392,8 +396,8 @@ static int inject(int ref_fd, const char *rpath, const char *inject,
 	 * inject non-empty files.
 	 */
 	if (init_len == 0) {
-		close(fd);
-		return 0;
+		rv = 0;
+		goto clean_up_and_return;
 	}
 
 	/*
@@ -404,8 +408,7 @@ static int inject(int ref_fd, const char *rpath, const char *inject,
 		char *content = mmap(NULL, init_len, PROT_READ, MAP_SHARED,
 			fd, 0);
 		if (content == MAP_FAILED) {
-			close(fd);
-			return -1;
+			goto clean_up_and_return;
 		}
 
 		char *match = memmem(content, init_len, inject,
@@ -413,30 +416,27 @@ static int inject(int ref_fd, const char *rpath, const char *inject,
 		munmap(content, init_len);
 
 		if (match != NULL) {
-			close(fd);
-			return 0;
+			rv = 0;
+			goto clean_up_and_return;
 		}
 	}
 
 	/*
-	 * File lacks what intended content.  Add it atomically.
+	 * File lacks intended content.  Add it atomically.
 	 */
 
 	/*
 	 * Create a temporary file
 	 */
-	char tmp_file[PATH_MAX];
 	int s = snprintf(tmp_file, sizeof(tmp_file), "%s%s", rpath,
 		ATOMIC_UPDATE_SUFFIX);
 	if (s < 0 || s >= (int)sizeof(tmp_file)) {
-		close(fd);
-		return -1;
+		goto clean_up_and_return;
 	}
 	unlinkat(ref_fd, tmp_file, 0);
-	int tmp_fd;
 	if ((tmp_fd = openat(ref_fd, tmp_file, O_CREAT | O_RDWR | O_NOFOLLOW,
 				stbuf.st_mode)) < 0) {
-		goto clean_up_and_error;
+		goto clean_up_and_return;
 	}
 
 	/*
@@ -446,11 +446,11 @@ static int inject(int ref_fd, const char *rpath, const char *inject,
 	ssize_t bytes_written;
 	char buf[PATH_MAX];
 	if (lseek(fd, 0, SEEK_SET) < 0) {
-		goto clean_up_and_error;
+		goto clean_up_and_return;
 	}
 	while ((bytes_read = read(fd, buf, sizeof(buf))) > 0) {
 		if ((bytes_written = write(tmp_fd, buf, bytes_read)) < 0) {
-			goto clean_up_and_error;
+			goto clean_up_and_return;
 		}
 	}
 
@@ -458,29 +458,29 @@ static int inject(int ref_fd, const char *rpath, const char *inject,
 	 * Append
 	 */
 	if (write(tmp_fd, inject, inject_len) < 0) {
-		goto clean_up_and_error;
+		goto clean_up_and_return;
 	}
-	close(tmp_fd);
-	close(fd);
 
 	/*
 	 * Atomically rename over original
 	 */
 	if (renameat(ref_fd, tmp_file, ref_fd, rpath) < 0) {
-		goto clean_up_and_error;
+		goto clean_up_and_return;
 	}
 
-	return 0;
+	rv = 0;
 
-clean_up_and_error:
-	unlinkat(ref_fd, tmp_file, 0);
+clean_up_and_return:
 	if (tmp_fd >= 0) {
 		close(tmp_fd);
+		if (tmp_file[0] != '\0') {
+			unlinkat(ref_fd, tmp_file, 0);
+		}
 	}
 	if (fd >= 0) {
 		close(fd);
 	}
-	return -1;
+	return rv;
 }
 
 /*
@@ -489,24 +489,36 @@ clean_up_and_error:
 static int uninject(int ref_fd, const char *rpath, const char *inject,
 	const size_t inject_len)
 {
-	int fd = openat(ref_fd, rpath, O_RDWR);
+	int rv = -1;
+	int fd = -1;
+	int tmp_fd = -1;
+	char tmp_file[PATH_MAX];
+	tmp_file[0] = '\0';
+
+	char buf[inject_len * 2];
+
+	if ((fd = openat(ref_fd, rpath, O_RDONLY)) < 0) {
+		goto clean_up_and_return;
+	}
 
 	struct stat stbuf;
 	if (fstat(fd, &stbuf) < 0) {
-		close(fd);
-		return -1;
+		goto clean_up_and_return;
 	}
 	size_t init_len = stbuf.st_size;
 
+	/*
+	 * If the file is too small to hold inject content, we know it's
+	 * missing and can skip operation.
+	 */
 	if (init_len < inject_len) {
-		close(fd);
-		return 0;
+		rv = 0;
+		goto clean_up_and_return;
 	}
 
 	/*
 	 * Search for string in file
 	 */
-	char buf[inject_len * 2];
 	ssize_t bytes_read;
 	ssize_t multiple = 0;
 	off_t offset = -1;
@@ -524,7 +536,8 @@ static int uninject(int ref_fd, const char *rpath, const char *inject,
 	}
 
 	if (offset < 0) {
-		return 0;
+		rv = 0;
+		goto clean_up_and_return;
 	}
 
 	/*
@@ -534,18 +547,15 @@ static int uninject(int ref_fd, const char *rpath, const char *inject,
 	/*
 	 * Create a temporary file
 	 */
-	char tmp_file[PATH_MAX];
 	int s = snprintf(tmp_file, sizeof(tmp_file), "%s%s", rpath,
 		ATOMIC_UPDATE_SUFFIX);
 	if (s < 0 || s >= (int)sizeof(tmp_file)) {
-		close(fd);
-		return -1;
+		goto clean_up_and_return;
 	}
 	unlinkat(ref_fd, tmp_file, 0);
-	int tmp_fd;
 	if ((tmp_fd = openat(ref_fd, tmp_file, O_CREAT | O_RDWR | O_NOFOLLOW,
 				stbuf.st_mode)) < 0) {
-		goto clean_up_and_error;
+		goto clean_up_and_return;
 	}
 
 	/*
@@ -553,11 +563,11 @@ static int uninject(int ref_fd, const char *rpath, const char *inject,
 	 */
 	ssize_t bytes_written;
 	if (lseek(fd, 0, SEEK_SET) < 0) {
-		goto clean_up_and_error;
+		goto clean_up_and_return;
 	}
 	while ((bytes_read = read(fd, buf, sizeof(buf))) > 0) {
 		if ((bytes_written = write(tmp_fd, buf, bytes_read)) < 0) {
-			goto clean_up_and_error;
+			goto clean_up_and_return;
 		}
 	}
 
@@ -565,44 +575,44 @@ static int uninject(int ref_fd, const char *rpath, const char *inject,
 	 * Truncate to target size
 	 */
 	if (ftruncate(tmp_fd, stbuf.st_size - inject_len) < 0) {
-		goto clean_up_and_error;
+		goto clean_up_and_return;
 	}
 
 	/*
 	 * Shift post-match region over region we want to remove
 	 */
 	if (lseek(fd, offset + inject_len, SEEK_SET) < 0) {
-		goto clean_up_and_error;
+		goto clean_up_and_return;
 	}
 	if (lseek(tmp_fd, offset, SEEK_SET) < 0) {
-		goto clean_up_and_error;
+		goto clean_up_and_return;
 	}
 	while ((bytes_read = read(fd, buf, sizeof(buf))) > 0) {
 		if ((bytes_written = write(tmp_fd, buf, bytes_read)) < 0) {
-			goto clean_up_and_error;
+			goto clean_up_and_return;
 		}
 	}
-	close(fd);
-	close(tmp_fd);
 
 	/*
 	 * Atomically rename over original
 	 */
 	if (renameat(ref_fd, tmp_file, ref_fd, rpath) < 0) {
-		goto clean_up_and_error;
+		goto clean_up_and_return;
 	}
 
-	return 0;
+	rv = 0;
 
-clean_up_and_error:
-	unlinkat(ref_fd, tmp_file, 0);
+clean_up_and_return:
 	if (tmp_fd >= 0) {
 		close(tmp_fd);
+		if (tmp_file[0] != '\0') {
+			unlinkat(ref_fd, tmp_file, 0);
+		}
 	}
 	if (fd >= 0) {
 		close(fd);
 	}
-	return -1;
+	return rv;
 }
 
 /*
