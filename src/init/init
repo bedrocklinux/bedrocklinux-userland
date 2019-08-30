@@ -359,6 +359,9 @@ echo ""
 step_init "6"
 
 step "Mounting ${color_file}fstab${color_norm}"
+/bedrock/libexec/dmsetup mknodes
+/bedrock/libexec/lvm vgscan --ignorelockingfailure
+/bedrock/libexec/lvm vgchange -ay --ignorelockingfailure
 mount -a
 
 step "Pivoting to ${color_strat}${init_stratum}${color_norm}"
