@@ -370,7 +370,7 @@ uthash: $(COMPLETED)/uthash
 
 vendor/libaio/.success_retrieving_source:
 	rm -rf vendor/libaio/
-	mkdir vendor/libaio
+	mkdir -p vendor/libaio
 	git clone --depth=1 \
 		-b `git ls-remote --tags 'https://pagure.io/libaio.git' | \
 		awk -F/ '{print $$NF}' | \
@@ -586,20 +586,17 @@ vendor/lvm2/.success_retrieving_source:
 	cd vendor/lvm2 && patch -p0 -i mallinfo.patch
 	cd vendor/lvm2 && patch -p0 -i fix-stdio.patch
 	touch vendor/lvm2/.success_retrieving_source
-$(VENDOR)/lvm2/.build: vendor/lvm2/.success_retrieving_source $(COMPLETED)/musl $(COMPLETED)/libaio $(COMPLETED)/util-linux
+$(COMPLETED)/lvm2: vendor/lvm2/.success_retrieving_source $(COMPLETED)/musl $(COMPLETED)/libaio $(COMPLETED)/util-linux
 	rm -rf $(VENDOR)/lvm2
 	cp -r vendor/lvm2 $(VENDOR)
 	cd $(VENDOR)/lvm2 && \
 		CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib -fPIC" ./configure --disable-udev-systemd-background-jobs --disable-selinux --enable-static_link && \
 		$(MAKE) tools CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib -L$(VENDOR)/lvm2/libdm/ioctl -fPIC" interfacebuilddir=$(VENDOR)/lvm2/libdm/ioctl
-	touch $(VENDOR)/lvm2/.build
-
-$(SLASHBR)/libexec/lvm: $(VENDOR)/lvm2/.build
 	cp $(VENDOR)/lvm2/tools/lvm.static $(SLASHBR)/libexec/lvm
-
-$(SLASHBR)/libexec/dmsetup: $(VENDOR)/lvm2/.build
 	cp $(VENDOR)/lvm2/libdm/dm-tools/dmsetup.static $(SLASHBR)/libexec/dmsetup
-
+	touch $(COMPLETED)/lvm2
+$(SLASHBR)/libexec/lvm: $(COMPLETED)/lvm2
+$(SLASHBR)/libexec/dmsetup: $(COMPLETED)/lvm2
 lvm2: $(SLASHBR)/libexec/dmsetup $(SLASHBR)/libexec/lvm
 
 $(SLASHBR)/bin/strat: $(COMPLETED)/builddir $(COMPLETED)/musl $(COMPLETED)/libcap
