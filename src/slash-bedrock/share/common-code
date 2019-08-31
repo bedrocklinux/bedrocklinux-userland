@@ -281,9 +281,17 @@ clear_old_cache() {
 
 	life="$(cfg_value "miscellaneous" "cache-life")"
 	life="${life:-90}"
-	age_in_sec="$((life * 24 * 60 * 60))"
+	one_day="$((24 * 60 * 60))"
+	age_in_sec="$((life * one_day))"
 	current_time="$(date +%s)"
-	export del_time="$((current_time - age_in_sec))"
+	if [ "${life}" -ge 0 ]; then
+		export del_time="$((current_time - age_in_sec))"
+	else
+		# negative value indicates cache never times out.  Set deletion
+		# time to some far future time which will not be hit while the
+		# logic below is running.
+		export del_time="$((current_time + one_day))"
+	fi
 
 	# If there are no cache items, abort early
 	if ! echo /bedrock/var/cache/* >/dev/null 2>&1; then
