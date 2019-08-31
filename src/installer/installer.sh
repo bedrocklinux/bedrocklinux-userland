@@ -113,7 +113,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	elif [ -e /bedrock/ ]; then
 		# Prefer this check at end of sanity check list so other sanity
 		# checks can be tested directly on a Bedrock system.
-		abort "/bedrock found.  Cannot hijack Bedrock Linux."
+		abort "/bedrock found.  Cannot hijack Bedrock Linux. If you want to update this system, run this script with --update instead of --hijack."
 	fi
 
 	bb="/true"
