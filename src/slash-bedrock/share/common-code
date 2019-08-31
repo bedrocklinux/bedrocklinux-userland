@@ -279,7 +279,8 @@ drop_lock() {
 clear_old_cache() {
 	require_root
 
-	life="$(cfg_value "miscellaneous" "cache-life" || echo "90")"
+	life="$(cfg_value "miscellaneous" "cache-life")"
+	life="${life:-90}"
 	age_in_sec="$((life * 24 * 60 * 60))"
 	current_time="$(date +%s)"
 	export del_time="$((current_time - age_in_sec))"
@@ -312,7 +313,7 @@ clear_old_cache() {
 		else
 			touch "${dir}/busybox"
 		fi
-		chroot "${dir}" /busybox find / -mindepth 1 ! -type d -exec /busybox sh -c "[ \"\$(stat -c \"%Z\" \"{}\")\" -le \"${del_time}\" ] && rm -- \"{}\"" \;
+		chroot "${dir}" /busybox find / -mindepth 1 ! -type d -exec /busybox sh -c "[ \"\$(stat -c \"%Z\" \"{}\")\" -lt \"${del_time}\" ] && rm -- \"{}\"" \;
 		# Remove all empty directories irrelevant of timestamp.  Only cache files.
 		chroot "${dir}" /busybox find / -depth -mindepth 1 -type d -exec /busybox rmdir -- "{}" \; >/dev/null 2>&1 || true
 
