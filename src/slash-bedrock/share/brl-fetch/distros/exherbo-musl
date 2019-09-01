@@ -54,25 +54,20 @@ fetch() {
 	paludis_group=paludisbuild
 
 	ex_stage=exherbo-x86_64-pc-linux-musl-current.tar.xz
-	ex_checksum=sha1sum
+	ex_checksum_fn=sha1sum
 
-	step "Downloading bootstrap software"
-	wget "${target_mirror:-}"/stages/"${ex_stage}" -O "${bootstrap_dir:-}"/"${ex_stage}"
-	wget "${target_mirror:-}"/stages/"${ex_checksum}" -O "${bootstrap_dir:-}"/"${ex_checksum}"
-
-	step "Verifying stage tarball"
-	cd "${bootstrap_dir:-}"
-	grep "${ex_stage}" "${ex_checksum}" | sha1sum -c
+	step "Downloading & verifying bootstrap software"
+	wget -O "${bootstrap_dir}/${ex_checksum_fn}" "${target_mirror}"/stages/"${ex_checksum_fn}"
+	ex_sha1sum="$(awk -v"name=${ex_stage}" '/^# .* HASH$/ {hash=$1;next} $2 == name {print$1;exit}' "${bootstrap_dir}/${ex_checksum_fn}")"
+	checksum_download "${cache}/${ex_stage}" "sha1sum" "${ex_sha1sum}" "${target_mirror}"/stages/"${ex_stage}"
 
 	step "Preparing bootstrap software"
-	tar xJp -C "${bootstrap_dir:-}" -f "${ex_stage}"
+	tar xvJp -C "${bootstrap_dir}" -f "${cache}"/"${ex_stage}" | awk 'NR%100==0' | progress_unknown
 
 	step "Running bootstrap software"
-	setup_chroot "${bootstrap_dir:-}"
-	chroot "${bootstrap_dir:-}" sh -c "cd /target-root && tar xJpf /${ex_stage}"
-	
-	step "Configuring"
-	setup_chroot "${target_dir:-}"
+	setup_chroot "${bootstrap_dir}"
+	share_cache "." "${bootstrap_dir}/tarballs"
+	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xvJpf /tarballs/${ex_stage}"  | awk 'NR%100==0' | progress_unknown
 
 	step "Configuring"
 	setup_chroot "${target_dir}"
