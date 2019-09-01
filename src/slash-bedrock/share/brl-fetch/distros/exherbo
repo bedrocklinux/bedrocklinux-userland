@@ -79,5 +79,8 @@ fetch() {
 
 	step "Modifying ${paludis_user}"
 	chroot "${target_dir}" usermod -a -G "$(stat -c %G /dev/tty)" ${paludis_user}
+
+	step "Initial sync"
+	LC_ALL=C chroot "${target_dir}" cave sync
 }
 
