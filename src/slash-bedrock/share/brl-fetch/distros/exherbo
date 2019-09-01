@@ -29,7 +29,7 @@ list_mirrors() {
 brl_arch_to_distro() {
 	case "${1}" in
 	     "x86_64") echo "amd64" ;;
-	     *) abort "brl does not know how to translate arch \"${1}\" to ${distro:-} format" ;;
+	     *) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
 
@@ -59,22 +59,22 @@ fetch() {
 	ex_checksum=sha1sum
 
 	step "Downloading bootstrap software"
-	wget "${target_mirror:-}"/stages/"${ex_stage}" -O "${bootstrap_dir:-}"/"${ex_stage}"
-	wget "${target_mirror:-}"/stages/"${ex_checksum}" -O "${bootstrap_dir:-}"/"${ex_checksum}"
+	wget "${target_mirror}"/stages/"${ex_stage}" -O "${bootstrap_dir}"/"${ex_stage}"
+	wget "${target_mirror}"/stages/"${ex_checksum}" -O "${bootstrap_dir}"/"${ex_checksum}"
 
 	step "Verifying stage tarball"
-	cd "${bootstrap_dir:-}"
+	cd "${bootstrap_dir}"
 	grep "${ex_stage}" "${ex_checksum}" | sha1sum -c
 
 	step "Preparing bootstrap software"
-	tar xJp -C "${bootstrap_dir:-}" -f "${ex_stage}"
+	tar xJp -C "${bootstrap_dir}" -f "${ex_stage}"
 
 	step "Running bootstrap software"
-	setup_chroot "${bootstrap_dir:-}"
-	chroot "${bootstrap_dir:-}" sh -c "cd /target-root && tar xJpf /${ex_stage}"
-	
+	setup_chroot "${bootstrap_dir}"
+	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xJpf /${ex_stage}"
+
 	step "Configuring"
-	setup_chroot "${target_dir:-}"
+	setup_chroot "${target_dir}"
 
 	step "Configuring Paludis' repositories"
 	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/arbor.conf"
@@ -83,7 +83,7 @@ fetch() {
 	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/../repository.template"
 
 	step "Creating Paludis' build-dir & fixing permissions"
-	mkdir -p "${target_dir:-}"/"${paludis_builddir}/"
+	mkdir -p "${target_dir}"/"${paludis_builddir}/"
 	chroot "${target_dir}" chown -R "${paludis_user}":"${paludis_group}" "${paludis_builddir}"
 	chroot "${target_dir}" chmod -R g+rwx "${paludis_builddir}"
 
