@@ -48,10 +48,8 @@ list_releases() {
 }
 
 fetch() {
-	# The following line will be changed to /var/tmp/paludis once /var/tmp
-	# is no longer global. For testing the github PR it temporarily stays.
-	paludis_builddir=/var/paludis
-        paludis_repo_dir=/etc/paludis/repositories
+	paludis_builddir=/var/tmp/paludis/build
+	paludis_repo_dir=/etc/paludis/repositories
 	paludis_user=paludisbuild
 	paludis_group=paludisbuild
 
@@ -76,11 +74,8 @@ fetch() {
 	step "Configuring"
 	setup_chroot "${target_dir:-}"
 
-	step "Configuring Paludis' repositories"
-	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/arbor.conf"
-	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/i686-pc-linux-musl.conf"
-	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/installed.conf"
-	echo "builddir = \${root}${paludis_builddir}" >> "${target_dir}/${paludis_repo_dir}/../repository.template"
+	step "Configuring"
+	setup_chroot "${target_dir}"
 
 	step "Creating Paludis' build-dir & fixing permissions"
 	mkdir -p "${target_dir:-}"/"${paludis_builddir}/"
@@ -88,7 +83,6 @@ fetch() {
 	chroot "${target_dir}" chmod -R g+rwx "${paludis_builddir}"
 
 	step "Modifying ${paludis_user}"
-	chroot "${target_dir}" usermod --home "${paludis_builddir}" ${paludis_user}
 	chroot "${target_dir}" usermod -a -G "$(stat -c %G /dev/tty)" ${paludis_user}
 }
 
