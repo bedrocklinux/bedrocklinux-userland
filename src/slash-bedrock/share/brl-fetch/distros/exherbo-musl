@@ -73,7 +73,7 @@ fetch() {
 	setup_chroot "${target_dir}"
 
 	step "Creating Paludis' build-dir & fixing permissions"
-	mkdir -p "${target_dir:-}"/"${paludis_builddir}/"
+	mkdir -p "${target_dir}"/"${paludis_builddir}/"
 	chroot "${target_dir}" chown -R "${paludis_user}":"${paludis_group}" "${paludis_builddir}"
 	chroot "${target_dir}" chmod -R g+rwx "${paludis_builddir}"
 
