@@ -259,11 +259,11 @@ enum ipath_class {
  */
 enum filter {
 	/*
-	 * Files are expected to be executables.  Return BOUNCER_PATH.
+	 * Files are expected to be executables.  Return bouncer.
 	 */
 	FILTER_BIN,
 	/*
-	 * Files are expected to be executables.  Return BOUNCER_PATH with restrict set.
+	 * Files are expected to be executables.  Return bouncer with restrict set.
 	 */
 	FILTER_BIN_RESTRICT,
 	/*
@@ -412,12 +412,13 @@ static __thread char local_stratum_name[PATH_MAX];
 static __thread struct stratum local_stratum;
 
 /*
- * File descriptors referring to directories.  Used as fixed reference points
- * while chroot()'ing around.
+ * Reference file descriptors.  Used as fixed reference points while
+ * chroot()'ing around.
  */
 int init_root_fd;
 int strata_root_fd;
 int current_root_fd;
+int bouncer_fd;
 
 /*
  * Locks
@@ -1866,14 +1867,7 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 	switch (cfg->filter) {
 	case FILTER_BIN:
 	case FILTER_BIN_RESTRICT:
-		;
-		int fd = fchroot_open(init_root_fd, BOUNCER_PATH, O_RDONLY);
-		if (fd < 0) {
-			rv = -errno;
-		} else {
-			rv = pread(fd, buf, size, offset);
-			close(fd);
-		}
+		rv = pread(bouncer_fd, buf, size, offset);
 		break;
 
 	case FILTER_INI:
@@ -2216,7 +2210,7 @@ int main(int argc, char *argv[])
 	}
 
 	/*
-	 * Get reference directories
+	 * Get reference file descriptors
 	 */
 	if ((init_root_fd = open("/", O_DIRECTORY)) < 0) {
 		fprintf(stderr, "crossfs: unable to open \"/\".\n");
@@ -2225,6 +2219,11 @@ int main(int argc, char *argv[])
 	current_root_fd = init_root_fd;
 	if ((strata_root_fd = open(STRATA_ROOT, O_DIRECTORY)) < 0) {
 		fprintf(stderr, "crossfs: unable to open \"" STRATA_ROOT
+			"\".\n");
+		return 1;
+	}
+	if ((bouncer_fd = open(BOUNCER_PATH, O_RDONLY)) < 0) {
+		fprintf(stderr, "crossfs: unable to open \"" BOUNCER_PATH
 			"\".\n");
 		return 1;
 	}
@@ -2256,7 +2255,7 @@ int main(int argc, char *argv[])
 	local_stat.st_mode = S_IFLNK | 0777;
 
 	struct stat bouncer_stat;
-	if (lstat(BOUNCER_PATH, &bouncer_stat) < 0) {
+	if (fstat(bouncer_fd, &bouncer_stat) < 0) {
 		fprintf(stderr, "crossfs: could not stat \"" BOUNCER_PATH
 			"\"\n");
 		return 1;
