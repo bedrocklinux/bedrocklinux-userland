@@ -11,6 +11,7 @@
 #
 #	Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
 . /bedrock/share/common-code
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
@@ -28,8 +29,8 @@ list_mirrors() {
 
 brl_arch_to_distro() {
 	case "${1}" in
-	     "x86_64") echo "amd64" ;;
-	     *) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+	"x86_64") echo "amd64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
 
@@ -49,7 +50,6 @@ list_releases() {
 
 fetch() {
 	paludis_builddir=/var/tmp/paludis/build
-	paludis_repo_dir=/etc/paludis/repositories
 	paludis_user=paludisbuild
 	paludis_group=paludisbuild
 
@@ -67,13 +67,13 @@ fetch() {
 	step "Running bootstrap software"
 	setup_chroot "${bootstrap_dir}"
 	share_cache "." "${bootstrap_dir}/tarballs"
-	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xvJpf /tarballs/${ex_stage}"  | awk 'NR%100==0' | progress_unknown
+	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xvJpf /tarballs/${ex_stage}" | awk 'NR%100==0' | progress_unknown
 
 	step "Configuring"
 	setup_chroot "${target_dir}"
 
 	step "Creating Paludis' build-dir & fixing permissions"
-	mkdir -p "${target_dir}"/"${paludis_builddir}/"
+	mkdir -p "${target_dir}/${paludis_builddir}/"
 	chroot "${target_dir}" chown -R "${paludis_user}":"${paludis_group}" "${paludis_builddir}"
 	chroot "${target_dir}" chmod -R g+rwx "${paludis_builddir}"
 
@@ -83,4 +83,3 @@ fetch() {
 	step "Initial sync"
 	LC_ALL=C chroot "${target_dir}" cave sync
 }
-
