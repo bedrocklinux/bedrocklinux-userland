@@ -1,3 +1,11 @@
+# 0.7.8beta1
+
+- Added LVM support
+- Added brl-fetch exherbo
+- Added caching support
+- Fixed crossfs handling of live bouncer changes
+- Fixed etcfs file descriptor leak
+
 # 0.7.7
 
 - Added brl-fetch KISS Linux support
