@@ -79,7 +79,4 @@ fetch() {
 
 	step "Modifying ${paludis_user}"
 	addgroup "${paludis_user}" "$(stat -c %G /dev/tty)"
-
-	step "Initial sync"
-	LC_ALL=C chroot "${target_dir}" cave sync
 }
