@@ -77,6 +77,12 @@ fetch() {
 	chroot "${target_dir}" chown -R "${paludis_user}":"${paludis_group}" "${paludis_builddir}"
 	chroot "${target_dir}" chmod -R g+rwx "${paludis_builddir}"
 
+	step "Adding group ${paludis_group}"
+	addgroup "${paludis_group}" >/dev/null 2>&1 || true
+
+	step "Adding user ${paludis_user}"
+	adduser -D -H -G "${paludis_group}" "${paludis_user}" >/dev/null 2>&1 || true
+
 	step "Modifying ${paludis_user}"
 	addgroup "${paludis_user}" "$(stat -c %G /dev/tty)"
 }
