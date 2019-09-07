@@ -167,6 +167,31 @@ complete_hijack() {
 	echo ""
 }
 
+wait_for_keyboard() {
+	# Users with keyboards that take a while to initialize have reported
+	# surprise at the inability to type in the init selection menu.
+	# Vocally wait for a keyboard to be available to assuage these
+	# concerns.
+
+	if /bedrock/libexec/keyboard_is_present; then
+		return
+	fi
+
+	printf "Waiting up to %s seconds for keyboard initialization..." "${init_timeout}"
+	start="$(date +%s)"
+	end="$((init_timeout + start))"
+	while [ "$(date +%s)" -lt "${end}" ] && ! /bedrock/libexec/keyboard_is_present; do
+		usleep 250000 # quarter second
+	done
+
+	printf "\r"
+	printf "Waiting up to %s seconds for keyboard initialization..." "${init_timeout}" | sed 's/./ /g'
+	printf "\r"
+	if ! /bedrock/libexec/keyboard_is_present; then
+		notice "${color_warn}WARNING: unable to detect keyboard${color_norm}"
+	fi
+}
+
 list_init_options() {
 	for stratum in $(list_strata); do
 		if [ "${stratum}" = "bedrock" ]; then
@@ -234,6 +259,8 @@ get_init_choice() {
 	echo "See /bedrock/etc/bedrock.conf [init] to change default init and timeout" >&2
 	echo "" >&2
 	max="$(list_init_options | wc -l)"
+
+	wait_for_keyboard >&2
 
 	while true; do
 		pretty_print_options >&2

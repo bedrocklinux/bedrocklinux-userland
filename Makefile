@@ -615,6 +615,14 @@ $(SLASHBR)/libexec/manage_tty_lock: $(COMPLETED)/builddir $(COMPLETED)/musl
 		cp manage_tty_lock $(SLASHBR)/libexec/manage_tty_lock
 manage_tty_lock: $(SLASHBR)/libexec/manage_tty_lock
 
+$(SLASHBR)/libexec/keyboard_is_present: $(COMPLETED)/builddir $(COMPLETED)/musl
+	rm -rf $(SRC)/keyboard_is_present
+	cp -r src/keyboard_is_present/ $(SRC)
+	cd $(SRC)/keyboard_is_present && \
+		$(MAKE) CC=$(MUSLCC) && \
+		cp keyboard_is_present $(SLASHBR)/libexec/keyboard_is_present
+keyboard_is_present: $(SLASHBR)/libexec/keyboard_is_present
+
 $(SLASHBR)/libexec/bouncer: $(COMPLETED)/builddir $(COMPLETED)/musl
 	rm -rf $(SRC)/bouncer
 	cp -r src/bouncer/ $(SRC)
@@ -657,6 +665,7 @@ $(BUILD)/userland.tar: \
 	$(SLASHBR)/libexec/netselect \
 	$(SLASHBR)/bin/strat \
 	$(SLASHBR)/libexec/manage_tty_lock \
+	$(SLASHBR)/libexec/keyboard_is_present \
 	$(SLASHBR)/libexec/bouncer \
 	$(SLASHBR)/libexec/etcfs \
 	$(SLASHBR)/libexec/crossfs \
