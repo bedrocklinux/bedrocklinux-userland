@@ -1,3 +1,9 @@
+# 0.7.8beta2
+
+- Added etcfs debug option
+- Added wait for keyboard initialisation
+- Fixed brl-fetch exherbo
+
 # 0.7.8beta1
 
 - Added LVM support
