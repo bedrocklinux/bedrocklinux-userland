@@ -78,5 +78,5 @@ fetch() {
 	chroot "${target_dir}" chmod -R g+rwx "${paludis_builddir}"
 
 	step "Modifying ${paludis_user}"
-	addgroup "${paludis_user}" "$(stat -c %G /dev/tty)"
+	chroot "${target_dir}" usermod -a -G "$(stat -c %G /dev/tty)" ${paludis_user}
 }
