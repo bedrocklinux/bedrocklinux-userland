@@ -17,18 +17,20 @@
 #define _GNU_SOURCE
 
 #include <dirent.h>
-#include <libgen.h>
 #include <errno.h>
 #include <fuse3/fuse.h>
 #include <fuse3/fuse_lowlevel.h>
+#include <libgen.h>
 #include <linux/limits.h>
 #include <pthread.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/file.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
+#include <sys/types.h>
 #include <sys/xattr.h>
 #include <unistd.h>
 
@@ -108,6 +110,11 @@
  * The bulk of this program consists of filesystem calls which share a fair bit
  * of structure.
  */
+
+#define DEBUG(name, arg)                                                    \
+	if (debug) {                                                        \
+		print_debug(name, arg);                                     \
+	}
 
 /*
  * Set up permissions, rpath/ref_fd, override, and lock.
@@ -260,6 +267,11 @@ char local_name[PATH_MAX];
 pthread_rwlock_t cfg_lock;
 
 /*
+ * Tracks whether or not to enable debug output.
+ */
+int debug = 0;
+
+/*
  * Set the thread's euid, egid, and grouplist to that of the
  * process calling a given FUSE filesystem call.
  *
@@ -334,6 +346,52 @@ static inline int set_caller_permissions(void)
 		return -errno;
 	}
 	return 0;
+}
+
+static inline void print_debug(const char *const name, const char *const arg)
+{
+	struct fuse_context *context = fuse_get_context();
+
+	char path[PATH_MAX];
+	char exe[PATH_MAX];
+	ssize_t s = snprintf(path, sizeof(path), "/proc/%d/exe", context->pid);
+	if (s < 0 || s >= (int)sizeof(path)) {
+		strcpy(exe, "(unknown)");
+	} else if ((s = readlink(path, exe, sizeof(path) - 1)) < 0) {
+		strcpy(exe, "(unknown)");
+	} else {
+		exe[s] = '\0';
+	}
+
+	char cmdline[PATH_MAX];
+	int fd = -1;
+	s = snprintf(path, sizeof(path), "/proc/%d/cmdline", context->pid);
+	if (s < 0 || s >= (int)sizeof(path)) {
+		strcpy(cmdline, "(unknown)");
+	} else if ((fd = open(path, O_RDONLY)) < 0) {
+		strcpy(cmdline, "(unknown)");
+	} else if (read(fd, cmdline, sizeof(cmdline) - 1) < 0) {
+		strcpy(cmdline, "(unknown)");
+	}
+	if (fd >= 0) {
+		close(fd);
+	}
+
+	char out[PATH_MAX * 5];
+	/*
+	 * Print debug in one atomic statement to avoid thread interleaving
+	 * output.
+	 */
+	s = snprintf(out, sizeof(out), "etcfs: %s(\"%s\") called at time=%ld "
+		"by UID=%d PID=%d exe=\"%s\" cmdline=\"%s\"\n",
+		name, arg, time(NULL), context->uid, context->pid,
+		exe, cmdline);
+	if (s < 0 || s >= (int)sizeof(out)) {
+		fprintf(stderr, "etcfs: (error printing debug)\n");
+	} else {
+		fprintf(stderr, "%s", out);
+	}
+	fflush(NULL);
 }
 
 static inline int get_ref_fd(const char *const path)
@@ -1126,6 +1184,7 @@ static int m_getattr(const char *path, struct stat *stbuf,
 {
 	(void)fi;
 
+	DEBUG("m_getattr", path);
 	FS_IMP_SETUP(path);
 
 	if (strcmp(rpath, CFG_NAME) == 0) {
@@ -1140,6 +1199,7 @@ static int m_getattr(const char *path, struct stat *stbuf,
 
 static int m_access(const char *path, int mask)
 {
+	DEBUG("m_access", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1154,6 +1214,7 @@ static int m_access(const char *path, int mask)
 
 static int m_readlink(const char *path, char *buf, size_t size)
 {
+	DEBUG("m_readlink", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1177,6 +1238,7 @@ static int m_opendir(const char *path, struct fuse_file_info *fi)
 {
 	(void)fi;
 
+	DEBUG("m_opendir", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1203,6 +1265,7 @@ static int m_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 	(void)fi;
 	(void)flags;
 
+	DEBUG("m_readdir", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1321,12 +1384,14 @@ static int m_releasedir(const char *path, struct fuse_file_info *fi)
 {
 	(void)fi;
 	(void)path;
+	DEBUG("m_releasedir", path);
 
 	return 0;
 }
 
 static int m_mknod(const char *path, mode_t mode, dev_t rdev)
 {
+	DEBUG("m_mknod", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1337,6 +1402,7 @@ static int m_mknod(const char *path, mode_t mode, dev_t rdev)
 
 static int m_mkdir(const char *path, mode_t mode)
 {
+	DEBUG("m_mkdir", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1347,6 +1413,7 @@ static int m_mkdir(const char *path, mode_t mode)
 
 static int m_symlink(const char *symlink_string, const char *path)
 {
+	DEBUG("m_symlink", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1357,6 +1424,7 @@ static int m_symlink(const char *symlink_string, const char *path)
 
 static int m_unlink(const char *path)
 {
+	DEBUG("m_unlink", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1367,6 +1435,7 @@ static int m_unlink(const char *path)
 
 static int m_rmdir(const char *path)
 {
+	DEBUG("m_rmdir", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1392,6 +1461,7 @@ static int m_rmdir(const char *path)
  */
 static int m_rename(const char *from, const char *to, unsigned int flags)
 {
+	DEBUG("m_rename", from);
 	FS_IMP_SETUP(from);
 	from = rpath;
 	DISALLOW_ON_CFG(from);
@@ -1547,6 +1617,7 @@ clean_up_and_return:
 
 static int m_link(const char *from, const char *to)
 {
+	DEBUG("m_link", from);
 	FS_IMP_SETUP(from);
 	from = rpath;
 	DISALLOW_ON_CFG(from);
@@ -1564,6 +1635,7 @@ static int m_chmod(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
 	(void)fi;
 
+	DEBUG("m_chmod", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1577,6 +1649,7 @@ static int m_chown(const char *path, uid_t uid, gid_t gid,
 {
 	(void)fi;
 
+	DEBUG("m_chown", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1589,6 +1662,7 @@ static int m_truncate(const char *path, off_t size, struct fuse_file_info *fi)
 {
 	(void)fi;
 
+	DEBUG("m_truncate", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1608,6 +1682,7 @@ static int m_utimens(const char *path, const struct timespec ts[2],
 {
 	(void)fi;
 
+	DEBUG("m_utimens", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1618,6 +1693,7 @@ static int m_utimens(const char *path, const struct timespec ts[2],
 
 static int m_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
+	DEBUG("m_create", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1634,6 +1710,7 @@ static int m_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 
 static int m_open(const char *path, struct fuse_file_info *fi)
 {
+	DEBUG("m_open", path);
 	FS_IMP_SETUP(path);
 
 	if (strcmp(rpath, CFG_NAME) == 0) {
@@ -1664,6 +1741,7 @@ static int m_read(const char *path, char *buf, size_t size, off_t offset,
 {
 	(void)fi;
 
+	DEBUG("m_read", path);
 	FS_IMP_SETUP(path);
 
 	if (strcmp(rpath, CFG_NAME) == 0) {
@@ -1693,6 +1771,7 @@ static int m_write(const char *path, const char *buf, size_t size,
 	(void)offset;
 	(void)fi;
 
+	DEBUG("m_write", path);
 	FS_IMP_SETUP(path);
 
 	if (strcmp(rpath, CFG_NAME) == 0) {
@@ -1734,6 +1813,7 @@ static int m_write(const char *path, const char *buf, size_t size,
 
 static int m_statfs(const char *path, struct statvfs *stbuf)
 {
+	DEBUG("m_statfs", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1757,6 +1837,7 @@ static int m_statfs(const char *path, struct statvfs *stbuf)
  */
 static int m_flush(const char *path, struct fuse_file_info *fi)
 {
+	DEBUG("m_flush", path);
 	FS_IMP_SETUP_FD(fi->fh, path, 0);
 
 	rv = close(dup(fi->fh));
@@ -1769,6 +1850,7 @@ static int m_flush(const char *path, struct fuse_file_info *fi)
  */
 static int m_release(const char *path, struct fuse_file_info *fi)
 {
+	DEBUG("m_release", path);
 	FS_IMP_SETUP_FD(fi->fh, path, 0);
 
 	rv = close(fi->fh);
@@ -1782,6 +1864,7 @@ static int m_release(const char *path, struct fuse_file_info *fi)
  */
 static int m_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 {
+	DEBUG("m_fsync", path);
 	FS_IMP_SETUP_FD(fi->fh, path, 0);
 
 	if (datasync) {
@@ -1798,6 +1881,7 @@ static int m_fallocate(const char *path, int mode,
 {
 	(void)fi;
 
+	DEBUG("m_fallocate", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1816,6 +1900,7 @@ static int m_fallocate(const char *path, int mode,
 static int m_setxattr(const char *path, const char *name, const char *value,
 	size_t size, int flags)
 {
+	DEBUG("m_setxattr", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1839,6 +1924,7 @@ static int m_setxattr(const char *path, const char *name, const char *value,
 static int m_getxattr(const char *path, const char *name, char *value,
 	size_t size)
 {
+	DEBUG("m_getxattr", path);
 	FS_IMP_SETUP(path);
 
 	int fd = -1;
@@ -1948,6 +2034,7 @@ static int m_getxattr(const char *path, const char *name, char *value,
 
 static int m_listxattr(const char *path, char *list, size_t size)
 {
+	DEBUG("m_listxattr", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1970,6 +2057,7 @@ static int m_listxattr(const char *path, char *list, size_t size)
 
 static int m_removexattr(const char *path, const char *name)
 {
+	DEBUG("m_removexattr", path);
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
@@ -1994,6 +2082,7 @@ static int m_flock(const char *path, struct fuse_file_info *fi, int op)
 {
 	(void)path;
 
+	DEBUG("m_flock", path);
 	FS_IMP_SETUP_FD(fi->fh, path, -EINVAL);
 
 	rv = flock(fi->fh, op);
@@ -2079,6 +2168,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "error: no mount point provided.\n");
 		return 1;
 	}
+	debug = opts.debug;
 
 	/*
 	 * Get local mount point reference before mounting over.

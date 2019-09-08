@@ -145,7 +145,17 @@ repair_bedrock() {
 		(
 		drop_lock;
 		mkdir -p \"/proc/1/root${root}${mnt}\";
-		chroot \"/proc/1/root${root}\" /bedrock/libexec/etcfs -o allow_other \"${mnt}\";
+		if cfg_value \"miscellaneous\" \"debug\" | grep -q etcfs; then
+			cache=\"/bedrock/var/cache/etcfs-${stratum}\";
+			lock --nonblock \"\${cache}\" || true;
+			rm -f \"\${cache}/log\";
+			touch \"\${cache}/log\";
+			chmod go-rwx \"\${cache}/log\";
+			chroot \"/proc/1/root${root}\" /bedrock/libexec/etcfs -d -o allow_other \"${mnt}\" >>\"\${cache}/log\" 2>&1 &
+			sleep 1;
+		else
+			chroot \"/proc/1/root${root}\" /bedrock/libexec/etcfs -o allow_other \"${mnt}\";
+		fi
 		cfg_etcfs \"/proc/1/root${root}${mnt}\";
 		)
 	"
@@ -214,7 +224,17 @@ repair_stratum() {
 		(
 		drop_lock;
 		mkdir -p \"/proc/1/root${root}${mnt}\";
-		chroot \"/proc/1/root${root}\" /bedrock/libexec/etcfs -o allow_other \"${mnt}\";
+		if cfg_value \"miscellaneous\" \"debug\" | grep -q etcfs; then
+			cache=\"/bedrock/var/cache/etcfs-${stratum}\";
+			lock --nonblock \"\${cache}\" || true;
+			rm -f \"\${cache}/log\";
+			touch \"\${cache}/log\";
+			chmod go-rwx \"\${cache}/log\";
+			chroot \"/proc/1/root${root}\" /bedrock/libexec/etcfs -d -o allow_other \"${mnt}\" >>\"\${cache}/log\" 2>&1 &
+			sleep 1;
+		else
+			chroot \"/proc/1/root${root}\" /bedrock/libexec/etcfs -o allow_other \"${mnt}\";
+		fi
 		cfg_etcfs \"/proc/1/root${root}${mnt}\";
 		)
 	"
