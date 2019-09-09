@@ -31,13 +31,17 @@ list_mirrors() {
 
 brl_arch_to_distro() {
 	case "${1}" in
-	"x86_64") echo "x86_64" ;;
+	"i586") echo "slackware" ;;
+	"x86_64") echo "slackware64" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
 
 list_architectures() {
-	echo "x86_64"
+	cat <<EOF
+i586
+x86_64
+EOF
 }
 
 default_release() {
@@ -57,11 +61,13 @@ list_releases() {
 }
 
 fetch() {
+	prefix="${target_mirror}/${distro_arch}-${target_release}/${distro_arch}/"
+
 	step "Downloading bootstrap packages"
-	wget -O "${bootstrap_dir}/checksum" "${target_mirror}/slackware64-${target_release}/slackware64/CHECKSUMS.md5"
+	wget -O "${bootstrap_dir}/checksum" "${prefix}/CHECKSUMS.md5"
 
 	checksum_downloads "${cache}/packages/" "$(
-		awk -vm="${target_mirror}/slackware64-${target_release}/slackware64/" '
+		awk -vm="${prefix}" '
 		x && $2 ~ /^[.]\/[al]\/.*[.]txz$/ {
 			printf "%s%s\tmd5sum\t%s\n", m, $2, $1
 		}

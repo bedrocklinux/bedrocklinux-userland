@@ -764,17 +764,20 @@ $(INSTALLER): $(BUILD)/unsigned-installer.sh
 # Upstream vendor source fetching logic is not set up to be parallelized
 # per-arch, and thus it is a dependency.
 #
-# Reasons for popular architectures not currently being enabled:
-#
-# x86: Could not find binfmt_misc registration magic/mask/offset for i585 or
-# i686.
-#
 bedrock-linux-$(BEDROCK_VERSION)-aarch64: fetch_vendor_sources
 	strat -r br-build-aarch64 $(MAKE) GPGID='$(GPGID)'
 bedrock-linux-$(BEDROCK_VERSION)-armv7hl: fetch_vendor_sources
 	strat -r br-build-armv7hl $(MAKE) GPGID='$(GPGID)'
 bedrock-linux-$(BEDROCK_VERSION)-armv7l: fetch_vendor_sources
 	strat -r br-build-armv7l $(MAKE) GPGID='$(GPGID)'
+bedrock-linux-$(BEDROCK_VERSION)-i386: fetch_vendor_sources
+	strat -r br-build-i386 $(MAKE) GPGID='$(GPGID)'
+bedrock-linux-$(BEDROCK_VERSION)-i486: fetch_vendor_sources
+	strat -r br-build-i486 $(MAKE) GPGID='$(GPGID)'
+bedrock-linux-$(BEDROCK_VERSION)-i586: fetch_vendor_sources
+	strat -r br-build-i586 $(MAKE) GPGID='$(GPGID)'
+bedrock-linux-$(BEDROCK_VERSION)-i686: fetch_vendor_sources
+	strat -r br-build-i686 $(MAKE) GPGID='$(GPGID)'
 bedrock-linux-$(BEDROCK_VERSION)-mips: fetch_vendor_sources
 	strat -r br-build-mips $(MAKE) GPGID='$(GPGID)'
 bedrock-linux-$(BEDROCK_VERSION)-mipsel: fetch_vendor_sources
@@ -790,12 +793,16 @@ bedrock-linux-$(BEDROCK_VERSION)-x86_64: fetch_vendor_sources
 release: bedrock-linux-$(BEDROCK_VERSION)-aarch64 \
 	bedrock-linux-$(BEDROCK_VERSION)-armv7hl \
 	bedrock-linux-$(BEDROCK_VERSION)-armv7l \
+	bedrock-linux-$(BEDROCK_VERSION)-i386 \
+	bedrock-linux-$(BEDROCK_VERSION)-i486 \
+	bedrock-linux-$(BEDROCK_VERSION)-i586 \
+	bedrock-linux-$(BEDROCK_VERSION)-i686 \
 	bedrock-linux-$(BEDROCK_VERSION)-mips \
 	bedrock-linux-$(BEDROCK_VERSION)-mips64el \
 	bedrock-linux-$(BEDROCK_VERSION)-mipsel \
 	bedrock-linux-$(BEDROCK_VERSION)-ppc64le \
 	bedrock-linux-$(BEDROCK_VERSION)-s390x \
-	bedrock-linux-$(BEDROCK_VERSION)-x86_64
+	bedrock-linux-$(BEDROCK_VERSION)-x86_64 \
 
 #
 # Code quality enforcement

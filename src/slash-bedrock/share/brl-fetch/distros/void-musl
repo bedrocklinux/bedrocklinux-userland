@@ -35,6 +35,7 @@ brl_arch_to_distro() {
 	# do not provide binary packages for it.
 	case "${1}" in
 	"aarch64") echo "aarch64" ;;
+	"i686") echo "i686" ;;
 	"x86_64") echo "x86_64" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
@@ -43,6 +44,7 @@ brl_arch_to_distro() {
 list_architectures() {
 	cat <<EOF
 aarch64
+i686
 x86_64
 EOF
 }

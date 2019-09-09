@@ -29,13 +29,17 @@ list_mirrors() {
 
 brl_arch_to_distro() {
 	case "${1}" in
-	"x86_64") echo "amd64" ;;
+	"armv7hl") echo "armv7" ;;
+	"i686") echo "i686" ;;
+	"x86_64") echo "x86_64" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
 
 list_architectures() {
 	cat <<EOF
+armv7hl
+i686
 x86_64
 EOF
 }
@@ -53,7 +57,11 @@ fetch() {
 	paludis_user=paludisbuild
 	paludis_group=paludisbuild
 
-	ex_stage=exherbo-x86_64-pc-linux-gnu-current.tar.xz
+	case "${target_arch}" in
+	"armv7hl") ex_stage="exherbo-armv7-unknown-linux-gnueabihf-current.tar.xz" ;;
+	"i686") ex_stage="exherbo-i686-pc-linux-gnu-current.tar.xz" ;;
+	"x86_64") ex_stage="exherbo-x86_64-pc-linux-gnu-current.tar.xz" ;;
+	esac
 	ex_checksum_fn=sha1sum
 
 	step "Downloading & verifying bootstrap software"

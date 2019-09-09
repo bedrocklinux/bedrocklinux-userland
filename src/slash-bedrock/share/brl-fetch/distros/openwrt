@@ -37,6 +37,7 @@ brl_arch_to_distro() {
 	case "${1}" in
 	"aarch64") echo "armvirt-64" ;;
 	"armv7l") echo "armvirt-32" ;;
+	"i486") echo "x86-generic" ;;
 	"x86_64") echo "x86-64" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
@@ -46,6 +47,7 @@ list_architectures() {
 	cat <<EOF
 aarch64
 armv7l
+i486
 x86_64
 EOF
 }
@@ -73,6 +75,7 @@ fetch() {
 	case "${target_arch}" in
 	"aarch64") bootstrap_url="$(find_link "${target_mirror}/releases/${target_release}/targets/armvirt/64/" "^openwrt-${target_release}-${distro_arch}-default-rootfs.tar.gz$")" ;;
 	"armv7l") bootstrap_url="$(find_link "${target_mirror}/releases/${target_release}/targets/armvirt/32/" "^openwrt-${target_release}-${distro_arch}-default-rootfs.tar.gz$")" ;;
+	"i486") bootstrap_url="$(find_link "${target_mirror}/releases/${target_release}/targets/x86/generic/" "^openwrt-${target_release}-${distro_arch}-generic-rootfs.tar.gz$")" ;;
 	"x86_64") bootstrap_url="$(find_link "${target_mirror}/releases/${target_release}/targets/x86/64/" "^openwrt-${target_release}-${distro_arch}-generic-rootfs.tar.gz$")" ;;
 	esac
 

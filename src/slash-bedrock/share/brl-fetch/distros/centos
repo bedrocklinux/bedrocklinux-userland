@@ -31,6 +31,8 @@ brl_arch_to_distro() {
 	"aarch64") echo "aarch64" ;;
 	"armv7hl") echo "armhfp" ;;
 	"ppc64le") echo "ppc64le" ;;
+		# Mirrors call it i386, but repo calls it i686.
+	"i686") echo "i386" ;;
 	"x86_64") echo "x86_64" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
@@ -41,6 +43,7 @@ list_architectures() {
 aarch64
 armv7hl
 ppc64le
+i686
 x86_64
 EOF
 }
@@ -85,7 +88,12 @@ fetch() {
 	gunzip "${bootstrap_dir}/primary.xml.gz"
 
 	step "Converting distro package information database to brl format"
-	rpmdb_to_brldb "${bootstrap_dir}/primary.xml" "${bootstrap_dir}/brldb"
+	if [ "${target_arch}" = i686 ]; then
+		# CentOS arch name is i386 in mirrors but i686 in package manager
+		distro_arch="i686" rpmdb_to_brldb "${bootstrap_dir}/primary.xml" "${bootstrap_dir}/brldb"
+	else
+		rpmdb_to_brldb "${bootstrap_dir}/primary.xml" "${bootstrap_dir}/brldb"
+	fi
 
 	step "Calculating required bootstrap packages"
 	package_manager="$(determine_package_manager)"
@@ -132,6 +140,17 @@ fetch() {
 		echo "keepcache=1" >>"${bootstrap_dir}/etc/yum.conf"
 		share_cache "yum-cache" "${bootstrap_dir}/target-root/var/cache/yum"
 	fi
+
+	# Configure the package manager to utilize the desired architecture
+	if [ "${target_arch}" = "i686" ]; then
+		mkdir -p "${bootstrap_dir}/etc/${package_manager}/vars/"
+		echo 'i686' >"${bootstrap_dir}/etc/${package_manager}/vars/arch"
+		echo 'i386' >"${bootstrap_dir}/etc/${package_manager}/vars/basearch"
+		mkdir -p "${target_dir}/etc/${package_manager}/vars/"
+		echo 'i686' >"${target_dir}/etc/${package_manager}/vars/arch"
+		echo 'i386' >"${target_dir}/etc/${package_manager}/vars/basearch"
+	fi
+
 	LC_ALL=C chroot "${bootstrap_dir}" rpm -i --root=/target-root --nodeps ./packages/centos-release-*.rpm 2>/dev/null || true
 	LC_ALL=C chroot "${bootstrap_dir}" "${package_manager}" --installroot=/target-root install -y rpm-build "${package_manager}" centos-repos
 }

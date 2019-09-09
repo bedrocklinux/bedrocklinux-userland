@@ -1,6 +1,6 @@
 #!/bedrock/libexec/busybox sh
 #
-# Arch Linux bootstrap support
+# Arch Linux 32 bootstrap support
 #
 #      This program is free software; you can redistribute it and/or
 #      modify it under the terms of the GNU General Public License
@@ -18,27 +18,33 @@ check_supported() {
 }
 
 speed_test_url() {
-	echo "core/os/${distro_arch}/core.db.tar.gz"
+	echo "${distro_arch}/core/core.db.tar.gz"
 }
 
 list_mirrors() {
-	# All mirrors:
-	# mirror_list_url='https://www.archlinux.org/mirrorlist/all/'
-	# Server-side filtered list of mirrors:
-	mirror_list_url='https://www.archlinux.org/mirrorlist/?country=all&protocol=https&ip_version=4&ip_version=6&use_mirror_status=on'
+	mirror_list_url='https://www.archlinux32.org/mirrorlist/?country=all'
 	wget -O- "${mirror_list_url}" 2>/dev/null |
-		awk -F "[ $]" ' /^#Server/ {print$3} '
+		sed 's/^# *//' |
+		awk -F "[ $]" '/^Server/{print$3}'
 }
 
 brl_arch_to_distro() {
+	# Arch Linux 32 also supports Pentium 4 / Netburst / i786.  However,
+	# they are the only distro to do so, and at the time of writing it is
+	# not deemed worthwhile to support an architecture only utilized by one
+	# distro, especially since it is compatible with i686.
 	case "${1}" in
-	"x86_64") echo "x86_64" ;;
+	"i486") echo "i486" ;;
+	"i686") echo "i686" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
 
 list_architectures() {
-	echo "x86_64"
+	cat <<EOF
+i486
+i686
+EOF
 }
 
 default_release() {
@@ -50,11 +56,6 @@ list_releases() {
 }
 
 setup_pacman() {
-	# Remove auto architecture detection, as it will confuse things like
-	# i686 on an x86_64 box and armv7hl on a aarch64 box.
-	#
-	# Also remove CheckSpace, which sometimes gets confused by Bedrock's
-	# mount setup.
 	sed 's/^Architecture[ \t]*=.*$//' "${1}/etc/pacman.conf" | \
 		awk -v"a=${distro_arch}" '{print} $0 == "[options]" {print "Architecture = "a}' | \
 		sed 's/^[ \t]*CheckSpace/# &/' \
@@ -63,21 +64,20 @@ setup_pacman() {
 
 	LC_ALL=C chroot "${1}" /usr/bin/update-ca-trust
 	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --init
-	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate archlinux
+	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate archlinux32
 
 	if ! grep -q "^Server" "${1}/etc/pacman.d/mirrorlist"; then
 		echo "### Set by Bedrock Linux when acquiring this stratum" >>"${1}/etc/pacman.d/mirrorlist"
-		echo "Server = ${target_mirror}/\$repo/os/\$arch" >>"$1/etc/pacman.d/mirrorlist"
+		echo "Server = ${target_mirror}/\$arch/\$repo" >>"$1/etc/pacman.d/mirrorlist"
 	fi
 }
 
-#-v"prefix=${repo}/os/${target_arch}/"
 fetch() {
 	bootstrap_deps="arch-install-scripts"
 
 	step "Downloading package information database"
-	wget -O "${bootstrap_dir}/core.db.tar.gz" "${target_mirror}/core/os/${distro_arch}/core.db.tar.gz"
-	wget -O "${bootstrap_dir}/extra.db.tar.gz" "${target_mirror}/extra/os/${distro_arch}/extra.db.tar.gz"
+	wget -O "${bootstrap_dir}/core.db.tar.gz" "${target_mirror}/${distro_arch}/core/core.db.tar.gz"
+	wget -O "${bootstrap_dir}/extra.db.tar.gz" "${target_mirror}/${distro_arch}/extra/extra.db.tar.gz"
 
 	step "Decompressing package information database"
 	mkdir -p "${bootstrap_dir}/pacmandb/core" "${bootstrap_dir}/pacmandb/extra"
@@ -94,8 +94,8 @@ fetch() {
 
 	step "Downloading bootstrap packages"
 	# brldb contains repo/filename
-	# files are at mirror/repo/os/arch/filename
-	checksum_downloads "${cache}/packages/" "$(awk -v"a=${distro_arch}" -v"m=${target_mirror}" '{sub("/", "/os/"a"/"); print m"/"$0}' "${bootstrap_dir}/required_packages")"
+	# files are at mirror/arch/repo/filename
+	checksum_downloads "${cache}/packages/" "$(awk -v"a=${distro_arch}" -v"m=${target_mirror}" '{print m"/"a"/"$0}' "${bootstrap_dir}/required_packages")"
 
 	step "Extracting bootstrap packages"
 	bootstrap_packages="$(awk -v"d=${cache}/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"

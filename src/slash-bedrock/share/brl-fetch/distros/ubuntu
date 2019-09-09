@@ -43,6 +43,7 @@ brl_arch_to_distro() {
 	"armv7hl") echo "armhf" ;;
 	"ppc64le") echo "ppc64el" ;;
 	"s390x") echo "s390x" ;;
+		# Cannot find 32-bit x86 in Ubuntu 19.04.  Apparently it was dropped.
 	"x86_64") echo "amd64" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac

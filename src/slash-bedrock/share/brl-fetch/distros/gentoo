@@ -35,6 +35,8 @@ brl_arch_to_distro() {
 	"armv7l") echo "armv7a" ;;
 	"ppc64le") echo "ppc64le" ;;
 	"s390x") echo "s3960x" ;;
+	"i486") echo "i486" ;;
+	"i686") echo "i686" ;;
 	"x86_64") echo "amd64" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
@@ -46,6 +48,8 @@ armv7hl
 armv7l
 ppc64le
 s390x
+i486
+i686
 x86_64
 EOF
 }

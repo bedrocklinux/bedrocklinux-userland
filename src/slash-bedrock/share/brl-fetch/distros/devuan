@@ -35,6 +35,7 @@ brl_arch_to_distro() {
 	"mipsel") echo "mipsel" ;;
 	"ppc64le") echo "ppc64el" ;;
 	"s390x") echo "s390x" ;;
+	"i686") echo "i686" ;;
 	"x86_64") echo "amd64" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
@@ -50,6 +51,7 @@ mips64el
 mipsel
 ppc64le
 s390x
+i686
 x86_64
 EOF
 }

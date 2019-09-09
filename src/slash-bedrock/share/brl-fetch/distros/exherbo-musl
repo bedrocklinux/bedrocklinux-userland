@@ -29,7 +29,7 @@ list_mirrors() {
 
 brl_arch_to_distro() {
 	case "${1}" in
-	"x86_64") echo "amd64" ;;
+	"x86_64") echo "x86_64" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
@@ -53,7 +53,7 @@ fetch() {
 	paludis_user=paludisbuild
 	paludis_group=paludisbuild
 
-	ex_stage=exherbo-x86_64-pc-linux-musl-current.tar.xz
+	ex_stage="exherbo-x86_64-pc-linux-musl-current.tar.xz"
 	ex_checksum_fn=sha1sum
 
 	step "Downloading & verifying bootstrap software"

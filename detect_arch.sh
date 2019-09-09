@@ -21,58 +21,61 @@ if ! gcc --version >/dev/null 2>&1; then
 	exit 1
 fi
 
-case $(uname -m) in
-	aarch64)
+case "$(gcc -dumpmachine)" in
+	aarch64-*)
 		echo "aarch64"
-		echo "aarch64"
+		echo "ARM aarch64"
 		;;
-	armv7l)
-		if gcc -dumpmachine | grep -q "gnueabihf$"; then
-			echo "armv7hl"
-			echo "EABI5"
-		else
-			echo "armv7l"
-			echo "EABI5"
-		fi
+	arm-*abi)
+		echo "armv7l"
+		echo "EABI5"
 		;;
-	mips)
-		if gcc -dumpmachine | grep -q "^mipsel"; then
-			echo "mipsel"
-			echo "MIPS32"
-		else
-			echo "mips"
-			echo "MIPS32"
-		fi
+	arm-*abihf)
+		echo "armv7hl"
+		echo "EABI5"
 		;;
-	mips64)
-		if gcc -dumpmachine | grep -q "^mips64el"; then
-			echo "mips64el"
-			echo "MIPS64"
-		else
-			echo "mips64"
-			echo "MIPS64"
-		fi
+	i386-*)
+		echo "i386"
+		echo "Intel 80386"
 		;;
-	ppc64le)
+	i486-*)
+		echo "i486"
+		echo "Intel 80386"
+		;;
+	i586-*)
+		echo "i586"
+		echo "Intel 80386"
+		;;
+	i686-*)
+		echo "i686"
+		echo "Intel 80386"
+		;;
+	mips-*)
+		echo "mips"
+		echo "MIPS32"
+		;;
+	mipsel-*)
+		echo "mipsel"
+		echo "MIPS32"
+		;;
+	mips64el-*)
+		echo "mips64el"
+		echo "MIPS64"
+		;;
+	powerpc64le-*)
 		echo "ppc64le"
-		echo "PowerPC"
+		echo "64-bit PowerPC"
 		;;
-	s390x) 
+	s390x-*)
 		echo "s390x"
-		echo "S/390"
+		echo "IBM s/390"
 		;;
-	i*86) 
-		echo "x86"
-		echo "80386"
+	x86_64-*)
+		echo "x86_64"
+		echo "x86-64"
 		;;
-	x86_64)
-		if gcc -dumpmachine | grep -q "^i.86"; then
-			echo "x86"
-			echo "80386"
-		else
-			echo "x86_64"
-			echo "x86-64"
-		fi
+	*)
+		echo "Unrecognized CPU architecture"
+		exit 1
 		;;
-	*) echo "Unrecognized CPU architecture \"$(uname -m)\"" 2>&1 ; exit 1;;
 esac

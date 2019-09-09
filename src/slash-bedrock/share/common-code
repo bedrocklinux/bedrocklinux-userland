@@ -604,7 +604,10 @@ mipsel
 mips64el
 ppc64le
 s390x
-x86
+i386
+i486
+i586
+i686
 x86_64
 EOF
 }
@@ -618,12 +621,15 @@ standardize_architecture() {
 	aarch64 | arm64) echo "aarch64" ;;
 	armhf | armhfp | armv7h | armv7hl | armv7a) echo "armv7hl" ;;
 	arm | armel | armle | arm7 | armv7 | armv7l | armv7a_hardfp) echo "armv7l" ;;
+	i386) echo "i386" ;;
+	i486) echo "i486" ;;
+	i586) echo "i586" ;;
+	x86 | i686) echo "i686" ;;
 	mips | mipsbe | mipseb) echo "mips" ;;
 	mipsel | mipsle) echo "mipsel" ;;
 	mips64el | mips64le) echo "mips64el" ;;
 	ppc64el | ppc64le) echo "ppc64le" ;;
 	s390x) echo "s390x" ;;
-	i*86 | x86) echo "x86" ;;
 	amd64 | x86_64) echo "x86_64" ;;
 	esac
 }
@@ -642,32 +648,19 @@ check_arch_supported_natively() {
 	arch="${1}"
 	system_arch="$(get_system_arch)"
 	if [ "${system_arch}" = "${arch}" ]; then
-		true
 		return
 	fi
 
 	case "${system_arch}:${arch}" in
-	aarch64:armv7hl)
-		true
-		return
-		;;
-	aarch64:armv7l)
-		true
-		return
-		;;
-	armv7hl:armv7l)
-		true
-		return
-		;;
-	armv7l:armv7hl)
-		# do not want qemu registering over native
-		true
-		return
-		;;
-	x86_64:x86)
-		true
-		return
-		;;
+	aarch64:armv7hl) return ;;
+	aarch64:armv7l) return ;;
+	armv7hl:armv7l) return ;;
+	# Not technically true, but binfmt does not differentiate
+	armv7l:armv7hl) return ;;
+	x86_64:i386) return ;;
+	x86_64:i486) return ;;
+	x86_64:i586) return ;;
+	x86_64:i686) return ;;
 	esac
 
 	false
@@ -677,6 +670,10 @@ check_arch_supported_natively() {
 qemu_binary_for_arch() {
 	case "${1}" in
 	aarch64) echo "qemu-aarch64-static" ;;
+	i386) echo "qemu-i386-static" ;;
+	i486) echo "qemu-i386-static" ;;
+	i586) echo "qemu-i386-static" ;;
+	i686) echo "qemu-i386-static" ;;
 	armv7hl) echo "qemu-arm-static" ;;
 	armv7l) echo "qemu-arm-static" ;;
 	mips) echo "qemu-mips-static" ;;
@@ -684,7 +681,6 @@ qemu_binary_for_arch() {
 	mips64el) echo "qemu-mips64el-static" ;;
 	ppc64le) echo "qemu-ppc64le-static" ;;
 	s390x) echo "qemu-s390x-static" ;;
-	x86) echo "qemu-i386-static" ;;
 	x86_64) echo "qemu-x86_64-static" ;;
 	esac
 }
@@ -756,13 +752,11 @@ setup_binfmt_misc() {
 		sum="9aed062ea40b5388fd4dea5e5da837c157854021"
 		reg=':qemu-s390x:M:0:\x7fELF\x02\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x16:\xff\xff\xff\xff\xff\xff\xff\xfc\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff:/usr/bin/qemu-s390x-static:OC'
 		;;
-	# x86)
-	# TODO: Tests with i686 failed.  Determine if i586 and i686 require different registration, and if so, their registration values.
-	# 	echo ':qemu-i386:M:0:\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x03\x00:\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x00\xfe\xff\xff\xff:/usr/bin/qemu-i386-static:OC' >"${mount}/register" 2>/dev/null || true
-	# 	echo '1' >"${mount}/qemu-i386"
-	# 	echo ':qemu-i486:M:0:\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x06\x00:\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x00\xfe\xff\xff\xff:/usr/bin/qemu-i386-static:OC' >"${mount}/register" 2>/dev/null || true
-	# 	echo '1' >"${mount}/qemu-i486"
-	# 	;;
+	i386 | i486 | i586 | i686)
+		name="qemu-i386"
+		sum="59723d1b5d3983ff606ff2befc151d0a26543707"
+		reg=':qemu-i386:M:0:\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x03\x00:\xff\xff\xff\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x00\xfe\xff\xff\xff:/usr/bin/qemu-i386-static:OC'
+		;;
 	x86_64)
 		name="qemu-x86_64"
 		sum="823c58bdb19743335c68d036fdc795e3be57e243"
