@@ -12,18 +12,22 @@
 # First install the necessary build dependencies:
 #
 # - Standard UNIX utilities: grep, sed, awk, etc.
+# - autoconf
+# - autopoint
+# - bison
+# - fakeroot
 # - gcc 4.9.1 or newer
 # - git 1.8 or newer
+# - gpg (optional)
+# - gzip
+# - libtool
+# - make
 # - meson 0.38 or newer
 # - ninja-build
-# - bison
-# - libtool
-# - autoconf
 # - pkg-config
-# - fakeroot
-# - make
-# - gzip
-# - gpg (optional)
+# - rsyn
+# - rsync
+# - udev (build-time only)
 #
 # Ensure you have internet access (to fetch upstream dependencies), then run:
 #
@@ -34,6 +38,14 @@
 #     make SKIPSIGN=true
 #
 # to build an unsigned install/update script.
+#
+# To build for all supported architectures on a Bedrock Linux system, run:
+#
+#     make release-build-environment
+#
+# as root to set up various build strata, and finally
+#
+#     make GPGID=<gpg-id-with-which-to-sign> release
 #
 # This build system attempts to strike a balance between being overly dependent
 # on the host system at the expense of portability, and maximizing portability
@@ -125,6 +137,8 @@ ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | tail -1)
 RELEASE=Bedrock Linux $(BEDROCK_VERSION) $(CODENAME)
 INSTALLER=bedrock-linux-$(BEDROCK_VERSION)-$(ARCHITECTURE).sh
+
+RELEASE_CFLAGS=-O2
 
 ROOT=$(shell pwd)
 BUILD=$(ROOT)/build/$(ARCHITECTURE)
@@ -282,10 +296,10 @@ $(COMPLETED)/libcap: vendor/libcap/.success_fetching_source $(COMPLETED)/builddi
 	sed 's/^BUILD_GPERF.*/BUILD_GPERF=no/' $(VENDOR)/libcap/Make.Rules > $(VENDOR)/libcap/Make.Rules-new
 	mv $(VENDOR)/libcap/Make.Rules-new $(VENDOR)/libcap/Make.Rules
 	cd $(VENDOR)/libcap/libcap && \
-		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) lib=$(SUPPORT)/lib prefix=$(SUPPORT) BUILD_CFLAGS="$(CFLAGS) -static" && \
+		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) LD="$(MUSLCC) -Wl,-x -shared" lib=$(SUPPORT)/lib prefix=$(SUPPORT) BUILD_CFLAGS="$(CFLAGS) -static" && \
 		$(MAKE) install RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib
 	cd $(VENDOR)/libcap/progs && \
-		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) lib=$(SUPPORT)/lib prefix=$(SUPPORT) LDFLAGS=-static && \
+		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) LD="$(MUSLCC) -Wl,-x -shared" lib=$(SUPPORT)/lib prefix=$(SUPPORT) LDFLAGS=-static && \
 		$(MAKE) install RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib
 	touch $(COMPLETED)/libcap
 libcap: $(COMPLETED)/libcap
@@ -384,8 +398,8 @@ vendor/libaio/.success_retrieving_source:
 $(COMPLETED)/libaio: vendor/libaio/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
 	rm -rf $(VENDOR)/libaio
 	cp -r vendor/libaio $(VENDOR)
-	cd $(VENDOR)/libaio && $(MAKE) CC=$(MUSLCC)
 	cp $(VENDOR)/libaio/src/libaio.h $(SUPPORT)/include
+	cd $(VENDOR)/libaio && $(MAKE) CC=$(MUSLCC)
 	cp $(VENDOR)/libaio/src/libaio.a $(SUPPORT)/lib
 	cp $(VENDOR)/libaio/src/libaio.so.1.0.1 $(SUPPORT)/lib/libaio.so
 	touch $(COMPLETED)/libaio
@@ -407,7 +421,9 @@ vendor/util-linux/.success_fetching_source:
 $(COMPLETED)/util-linux: vendor/util-linux/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/musl
 	rm -rf $(VENDOR)/util-linux
 	cp -r vendor/util-linux $(VENDOR)
-	cd $(VENDOR)/util-linux && ./autogen.sh && CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib" ./configure --enable-static=yes --disable-all-programs --enable-libblkid --enable-libuuid && $(MAKE) CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib"
+	cd $(VENDOR)/util-linux && ./autogen.sh && \
+		CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib" ./configure --enable-static=yes --disable-all-programs --enable-libblkid --enable-libuuid && \
+		$(MAKE) CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib"
 	cp $(VENDOR)/util-linux/.libs/libblkid.* $(SUPPORT)/lib
 	cp $(VENDOR)/util-linux/.libs/libuuid.* $(SUPPORT)/lib
 	touch $(COMPLETED)/util-linux
@@ -427,37 +443,37 @@ vendor/busybox/.success_retrieving_source:
 		tail -n1` 'git://git.busybox.net/busybox' \
 		vendor/busybox
 	touch vendor/busybox/.success_retrieving_source
-$(SLASHBR)/libexec/busybox: vendor/busybox/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
-	rm -rf $(VENDOR)/busybox
-	cp -r vendor/busybox/ $(VENDOR)
+build/all/busybox/bedrock-config: vendor/busybox/.success_retrieving_source
+	rm -rf build/all/busybox
+	mkdir -p build/all
+	cp -r vendor/busybox/ build/all/busybox
 	# create busybox config helper
-	cd $(VENDOR)/busybox && \
+	cd build/all/busybox && \
 		echo '#!/bin/sh' > set_bb_option && \
 		echo 'if grep -q "^$$1=" .config; then' >> set_bb_option && \
-		echo 'sed "s,^$$1=.*,$$1=$$2," .config > .config-new' >> set_bb_option && \
-		echo 'mv .config-new .config' >> set_bb_option && \
+		echo '	sed "s,^$$1=.*,$$1=$$2," .config > .config-new' >> set_bb_option && \
+		echo '	mv .config-new .config' >> set_bb_option && \
 		echo 'elif grep -q "^# $$1 is not set" .config; then' >> set_bb_option && \
-		echo 'sed "s/^# $$1 is not set/$$1=$$2/" .config > .config-new' >> set_bb_option && \
-		echo 'sed "s,^# $$1 is not set,$$1=$$2," .config > .config-new' >> set_bb_option && \
-		echo 'mv .config-new .config' >> set_bb_option && \
+		echo '	sed "s,^# $$1 is not set,$$1=$$2," .config > .config-new' >> set_bb_option && \
+		echo '	mv .config-new .config' >> set_bb_option && \
 		echo 'else' >> set_bb_option && \
-		echo 'echo "$$1=$$2" >> .config' >> set_bb_option && \
+		echo '	echo "$$1=$$2" >> .config' >> set_bb_option && \
 		echo 'fi' >> set_bb_option && \
 		chmod u+x set_bb_option
 	# start with default config
-	rm -f $(VENDOR)/busybox/.config
-	cd $(VENDOR)/busybox && \
+	rm -f build/all/busybox/.config
+	cd build/all/busybox && \
 		$(MAKE) defconfig
 	# disable unused applets
-	cd $(VENDOR)/busybox && \
+	cd build/all/busybox && \
 		for applet in $$(grep "^CONFIG_.*=y$$" .config | grep -v "FEATURE" | sed -e 's/^CONFIG_//' -e 's/=.*$$//' | tr '[A-Z_]' '[a-z-]' ); do \
-			if ! grep -rq "\<$$applet\>" $(SLASHBR) $(ROOT)/src/installer/installer.sh $(ROOT)/src/init/init; then \
-echo "DISABLING $$applet"; \
+			if ! grep -rq "\<$$applet\>" $(ROOT)/src/slash-bedrock/ $(ROOT)/src/installer/installer.sh $(ROOT)/src/init/init; then \
+				echo "DISABLING $$applet"; \
 				./set_bb_option "CONFIG_$$(echo "$$applet" | tr '[a-z-]' '[A-Z_]')" "n"; \
 			fi; \
 		done
 	# explicitly enable known desired and explicitly undesired features
-	cd $(VENDOR)/busybox && \
+	cd build/all/busybox && \
 		./set_bb_option "CONFIG_AR" "y" && \
 		./set_bb_option "CONFIG_ASH_BASH_COMPAT" "y" && \
 		./set_bb_option "CONFIG_ASH_CMDCMD" "y" && \
@@ -496,6 +512,12 @@ echo "DISABLING $$applet"; \
 		./set_bb_option "CONFIG_TEST" "y" && \
 		./set_bb_option "CONFIG_TEST1" "y" && \
 		./set_bb_option "CONFIG_VI" "y"
+	cd build/all/busybox && \
+		cp .config bedrock-config
+$(SLASHBR)/libexec/busybox: vendor/busybox/.success_retrieving_source build/all/busybox/bedrock-config $(COMPLETED)/builddir $(COMPLETED)/musl
+	rm -rf $(VENDOR)/busybox
+	cp -r vendor/busybox/ $(VENDOR)/busybox
+	cp build/all/busybox/bedrock-config $(VENDOR)/busybox/.config
 	# fix various busybox-linux-musl issues
 	cd $(SUPPORT)/include/netinet/ && \
 		awk '{p=1}/^struct ethhdr/,/^}/{print "//"$$0; p=0}p==1' if_ether.h > if_ether.h.new && \
@@ -685,7 +707,7 @@ $(BUILD)/userland.tar: \
 	for bin in $(SLASHBR)/bin/* $(SLASHBR)/libexec/*; do \
 		if file "$$bin" | grep -q "sh script"; then \
 			continue ; \
-		elif file "$$bin" | grep -q "$(FILE_ARCH_NAME)"; then \
+		elif file "$$bin" | grep -qi "$(FILE_ARCH_NAME)"; then \
 			continue ; \
 		fi; \
 		echo "ERROR: \`file $$bin\` does not contain $(FILE_ARCH_NAME)"; \
@@ -753,57 +775,11 @@ $(INSTALLER): $(BUILD)/unsigned-installer.sh
 		mv $(BUILD)/signed-installer.sh $(INSTALLER); \
 	fi
 	chmod +x $(INSTALLER)
+	@ printf "\e[32m\n"
+	@ echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g'
 	@ echo "=== Completed creating $(INSTALLER) ==="
-
-#
-# Build signed installers/updates for all supported Bedrock architectures.
-#
-# Assumes running on a Bedrock Linux system with br-build-<arch> strata/aliases
-# set up that support the build tools for the corresponding architecture.
-#
-# Upstream vendor source fetching logic is not set up to be parallelized
-# per-arch, and thus it is a dependency.
-#
-bedrock-linux-$(BEDROCK_VERSION)-aarch64: fetch_vendor_sources
-	strat -r br-build-aarch64 $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(BEDROCK_VERSION)-armv7hl: fetch_vendor_sources
-	strat -r br-build-armv7hl $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(BEDROCK_VERSION)-armv7l: fetch_vendor_sources
-	strat -r br-build-armv7l $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(BEDROCK_VERSION)-i386: fetch_vendor_sources
-	strat -r br-build-i386 $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(BEDROCK_VERSION)-i486: fetch_vendor_sources
-	strat -r br-build-i486 $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(BEDROCK_VERSION)-i586: fetch_vendor_sources
-	strat -r br-build-i586 $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(BEDROCK_VERSION)-i686: fetch_vendor_sources
-	strat -r br-build-i686 $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(BEDROCK_VERSION)-mips: fetch_vendor_sources
-	strat -r br-build-mips $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(BEDROCK_VERSION)-mipsel: fetch_vendor_sources
-	strat -r br-build-mipsel $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(BEDROCK_VERSION)-mips64el: fetch_vendor_sources
-	strat -r br-build-mips64el $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(BEDROCK_VERSION)-ppc64le: fetch_vendor_sources
-	strat -r br-build-ppc64le $(MAKE) GPGID='$(GPGID)' CFLAGS='$(CFLAGS) -mlong-double-64'
-bedrock-linux-$(BEDROCK_VERSION)-s390x: fetch_vendor_sources
-	strat -r br-build-s390x $(MAKE) GPGID='$(GPGID)'
-bedrock-linux-$(BEDROCK_VERSION)-x86_64: fetch_vendor_sources
-	strat -r br-build-x86_64 $(MAKE) GPGID='$(GPGID)'
-release: bedrock-linux-$(BEDROCK_VERSION)-aarch64 \
-	bedrock-linux-$(BEDROCK_VERSION)-armv7hl \
-	bedrock-linux-$(BEDROCK_VERSION)-armv7l \
-	bedrock-linux-$(BEDROCK_VERSION)-i386 \
-	bedrock-linux-$(BEDROCK_VERSION)-i486 \
-	bedrock-linux-$(BEDROCK_VERSION)-i586 \
-	bedrock-linux-$(BEDROCK_VERSION)-i686 \
-	bedrock-linux-$(BEDROCK_VERSION)-mips \
-	bedrock-linux-$(BEDROCK_VERSION)-mips64el \
-	bedrock-linux-$(BEDROCK_VERSION)-mipsel \
-	bedrock-linux-$(BEDROCK_VERSION)-ppc64le \
-	bedrock-linux-$(BEDROCK_VERSION)-s390x \
-	bedrock-linux-$(BEDROCK_VERSION)-x86_64 \
-
+	@ echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g'
+	@ printf "\e[39m\n"
 #
 # Code quality enforcement
 #
@@ -833,9 +809,11 @@ format:
 		indent $(INDENT_FLAGS) "$$file" || exit 1; \
 		rm -f "$$file~"; \
 	done
+	@ printf "\e[32m\n"
 	@ echo "======================================"
 	@ echo "=== Completed formatting code base ==="
 	@ echo "======================================"
+	@ printf "\e[39m\n"
 
 check:
 	# Run various static checkers against the codebase.
@@ -916,3 +894,299 @@ check:
 	@ echo "======================================="
 	@ echo "=== All static analysis checks pass ==="
 	@ echo "======================================="
+
+#
+# Release build environment setup
+#
+
+release-build-environment:
+	# This build system handles non-native CPU ISAs builds by leveraging
+	# qemu to run build scripts and makefiles that may not be cross-compile
+	# friendly while running performance sensitive components such as the
+	# compiler with the native ISA configured to cross compile.
+	#
+	# This recipe fetches and sets up one stratum per ISA to run the scripts and
+	# makefiles (brl-build-<arch>), one stratum to provide most of the
+	# cross-compile tools (brl-build-cross), and one stratum to special
+	# case ppc64le cross-compile tools (brl-build-cross-ppc).
+	#
+	# These strata are hidden from everything but boot-time-enable to avoid
+	# polluting the PATH.
+	#
+	# Fetching strata and installing packages requires root.
+	[ $$(id -u) = 0 ]
+	# Fetch and setup cross compile tool stratum.  It requires
+	# cross-compile tools for every supported architecture except ppc64le,
+	# which needs to be special cased, and the x86/x86_64 family, due to
+	# the expectation that the build machine will support them natively.
+	if ! /bedrock/libexec/getfattr -d /bedrock/strata/brl-build-cross 2>/dev/null | grep -q user.bedrock.show_boot; then \
+		brl remove -d brl-build-cross 2>/dev/null || true; \
+		brl fetch -s -n brl-build-cross debian; \
+		brl show -b brl-build-cross; \
+	fi
+	strat -r brl-build-cross apt -y install \
+			gcc-aarch64-linux-gnu \
+			binutils-aarch64-linux-gnu \
+			gcc-arm-linux-gnueabihf \
+			binutils-arm-linux-gnueabihf \
+			gcc-arm-linux-gnueabi \
+			binutils-arm-linux-gnueabi \
+			gcc-mips-linux-gnu \
+			binutils-mips-linux-gnu \
+			gcc-mipsel-linux-gnu \
+			binutils-mipsel-linux-gnu \
+			gcc-mips64el-linux-gnuabi64 \
+			binutils-mips64el-linux-gnuabi64 \
+			gcc-s390x-linux-gnu \
+			binutils-s390x-linux-gnu
+	for target in aarch64-linux-gnu \
+			arm-linux-gnueabihf \
+			arm-linux-gnueabi \
+			mips-linux-gnu \
+			mipsel-linux-gnu \
+			mips64el-linux-gnuabi64 \
+			s390x-linux-gnu; do \
+		if ! [ -x "/bedrock/strata/brl-build-cross/usr/local/bin/brl-$${target}-gcc" ] && [ -x /bedrock/strata/brl-build-cross/usr/bin/$${target}-gcc ]; then \
+			printf '#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/strat -r brl-build-cross /usr/bin/'"$${target}"'-gcc "$${@}"\n' > \
+				"/bedrock/strata/brl-build-cross/usr/local/bin/brl-$${target}-gcc"; \
+			chmod a+rx "/bedrock/strata/brl-build-cross/usr/local/bin/brl-$${target}-gcc"; \
+		fi; \
+		if ! [ -x "/bedrock/strata/brl-build-cross/usr/local/bin/brl-$${target}-ld" ] && [ -x /bedrock/strata/brl-build-cross/usr/bin/$${target}-ld ]; then \
+			printf '#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/strat -r brl-build-cross /usr/bin/'"$${target}"'-ld "$${@}"\n' > \
+				"/bedrock/strata/brl-build-cross/usr/local/bin/brl-$${target}-ld"; \
+			chmod a+rx "/bedrock/strata/brl-build-cross/usr/local/bin/brl-$${target}-ld"; \
+		fi; \
+		if ! [ -x "/bedrock/strata/brl-build-cross/usr/local/bin/brl-$${target}-ar" ] && [ -x /bedrock/strata/brl-build-cross/usr/bin/$${target}-ar ]; then \
+			printf '#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/strat -r brl-build-cross /usr/bin/'"$${target}"'-ar "$${@}"\n' > \
+				"/bedrock/strata/brl-build-cross/usr/local/bin/brl-$${target}-ar"; \
+			chmod a+rx "/bedrock/strata/brl-build-cross/usr/local/bin/brl-$${target}-ar"; \
+		fi; \
+	done
+	# ppc64le does not use IEEE long double floating point, and musl is
+	# fastidious towards following proper standards.  To get the two to
+	# play long, build a ppc64le targeted gcc which restricts long double
+	# float accuracy to something that makes both ppc64le and musl happy.
+	if ! /bedrock/libexec/getfattr -d /bedrock/strata/brl-build-cross-ppc 2>/dev/null | grep -q user.bedrock.show_boot; then \
+		brl remove -d brl-build-cross-ppc 2>/dev/null || true; \
+		brl fetch -n brl-build-cross-ppc -s gentoo; \
+		brl show -b brl-build-cross-ppc; \
+	fi
+	if ! grep -q "sys-devel/crossdev" /bedrock/strata/brl-build-cross-ppc/var/lib/portage/world; then \
+		strat -r brl-build-cross-ppc emerge "sys-devel/crossdev"; \
+	fi
+	if ! [ -d /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/profiles ]; then \
+		mkdir -p /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/profiles; \
+	fi
+	if ! [ -d /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/metadata ]; then \
+		mkdir -p /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/metadata; \
+	fi
+	if ! [ -e /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/metadata/layout.conf ]; then \
+		touch /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/metadata/layout.conf; \
+	fi
+	if ! grep -q "masters = gentoo" /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/metadata/layout.conf; then \
+		echo 'masters = gentoo' >> /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/metadata/layout.conf; \
+	fi
+	if ! [ -e /bedrock/strata/brl-build-cross-ppc/etc/portage/make.conf ]; then \
+		touch /bedrock/strata/brl-build-cross-ppc/etc/portage/make.conf; \
+	fi
+	if ! grep -q "PORTDIR_OVERLAY=.*/usr/local/portage-crossdev-powerpc64le-linux-gnu" "/bedrock/strata/brl-build-cross-ppc/etc/portage/make.conf"; then \
+		echo "PORTDIR_OVERLAY=\"\$${PORTDIR_OVERLAY} /usr/local/portage-crossdev-powerpc64le-linux-gnu\"" >> "/bedrock/strata/brl-build-cross-ppc/etc/portage/make.conf"; \
+	fi
+	if ! [ -e /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/.set-permissions ]; then \
+		chown -R portage:portage /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu; \
+		touch /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/.set-permissions; \
+	fi
+	strat -r brl-build-cross-ppc crossdev --stable --target "powerpc64le-linux-gnu" --genv 'EXTRA_ECONF="--without-long-double-128 --with-long-double-64"' --ov-output /usr/local/portage-crossdev-powerpc64le-linux-gnu; \
+	if ! grep -q 'CFLAGS=.*-mlong-double-64"' "/bedrock/strata/brl-build-cross-ppc/usr/powerpc64le-linux-gnu/etc/portage/make.conf"; then \
+		echo 'CFLAGS="$${CFLAGS} -mlong-double-64"' >> "/bedrock/strata/brl-build-cross-ppc/usr/powerpc64le-linux-gnu/etc/portage/make.conf"; \
+	fi
+	if ! grep -q 'CXXFLAGS=.*-mlong-double-64"' "/bedrock/strata/brl-build-cross-ppc/usr/powerpc64le-linux-gnu/etc/portage/make.conf"; then \
+		echo 'CXXFLAGS="$${CXXFLAGS} -mlong-double-64"' >> "/bedrock/strata/brl-build-cross-ppc/usr/powerpc64le-linux-gnu/etc/portage/make.conf"; \
+	fi
+	if ! grep -q "EXTRA_ECONF=.*long-double-64" "/bedrock/strata/brl-build-cross-ppc/usr/powerpc64le-linux-gnu/etc/portage/bashrc"; then \
+		echo 'EXTRA_ECONF="$${EXTRA_ECONF} --without-long-double-128 --with-long-double-64"' >> /bedrock/strata/brl-build-cross-ppc/usr/powerpc64le-linux-gnu/etc/portage/bashrc; \
+	fi
+	if ! [ -x "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-gcc" ] && [ -h /bedrock/strata/brl-build-cross-ppc/usr/bin/powerpc64le-linux-gnu-gcc ]; then \
+		printf '#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/strat -r brl-build-cross-ppc /usr/bin/powerpc64le-linux-gnu-gcc "$${@}"\n' > \
+			"/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-gcc"; \
+		chmod a+rx "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-gcc"; \
+	fi
+	if ! [ -x "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ld" ] && [ -h /bedrock/strata/brl-build-cross-ppc/usr/bin/powerpc64le-linux-gnu-ld ]; then \
+		printf '#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/strat -r brl-build-cross-ppc /usr/bin/powerpc64le-linux-gnu-ld "$${@}"\n' > \
+			"/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ld"; \
+		chmod a+rx "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ld"; \
+	fi
+	if ! [ -x "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ar" ] && [ -h /bedrock/strata/brl-build-cross-ppc/usr/bin/powerpc64le-linux-gnu-ar ]; then \
+		printf '#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/strat -r brl-build-cross-ppc /usr/bin/powerpc64le-linux-gnu-ar "$${@}"\n' > \
+			"/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ar"; \
+		chmod a+rx "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ar"; \
+	fi
+	# Fetch and setup Debian per-arch strata.
+	for arch in aarch64 armv7hl armv7l i686 mips mipsel mips64el ppc64le s390x x86_64; do \
+		if ! /bedrock/libexec/getfattr -d /bedrock/strata/brl-build-$${arch} 2>/dev/null | grep -q user.bedrock.show_boot; then \
+			brl remove -d "brl-build-$${arch}" 2>/dev/null || true; \
+			brl fetch -n "brl-build-$${arch}" -a "$${arch}" -s debian; \
+			brl show -b "brl-build-$${arch}"; \
+		fi; \
+		strat -r "brl-build-$${arch}" apt -y install autoconf autopoint bison build-essential fakeroot gpg libtool meson ninja-build pkg-config rsync udev; \
+	done
+	# Debian does not offer i386, i486, or i586.  Gentoo does, either directly or by re-compiling.
+	for arch in i386 i486 i586; do \
+		if ! /bedrock/libexec/getfattr -d /bedrock/strata/brl-build-$${arch} 2>/dev/null | grep -q user.bedrock.show_boot; then \
+			brl remove -d "brl-build-$${arch}" 2>/dev/null || true; \
+			brl fetch -n "brl-build-$${arch}" -a "i486" -s gentoo; \
+			brl show -b "brl-build-$${arch}"; \
+		fi; \
+		for pkg in dev-util/meson dev-util/ninja fakeroot; do \
+			if ! grep -q "$${pkg}" /bedrock/strata/brl-build-$${arch}/var/lib/portage/world; then \
+				strat -r brl-build-$${arch} emerge "$${pkg}"; \
+			fi; \
+		done; \
+		if [ "$${arch}" = i486 ]; then \
+			continue; \
+		fi; \
+		if grep -q "i486" /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf; then \
+			sed "s/i486/$${arch}/g" /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf > /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf-new; \
+			mv /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf-new /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf; \
+		fi; \
+		if ! grep -q 'CHOST_x86="$${arch}-pc-linux-gnu"' /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf; then \
+			sed 's/^CHOST_x86=.*//g' /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf > /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf-new; \
+			echo "CHOST_x86=\"$${arch}-pc-linux-gnu"\" >> /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf-new; \
+			mv /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf-new /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf; \
+		fi; \
+		if ! strat -r brl-build-$${arch} binutils-config -c | grep -q "^$${arch}-"; then \
+			strat -r brl-build-$${arch} emerge --oneshot sys-devel/binutils; \
+		fi; \
+		if ! strat -r brl-build-$${arch} gcc-config -c | grep -q "^$${arch}-"; then \
+			strat -r brl-build-$${arch} emerge --oneshot sys-devel/gcc; \
+		fi; \
+		if ! [ -e /bedrock/strata/brl-build-$${arch}/.brl-build-glibc ]; then \
+			strat -r brl-build-$${arch} emerge --oneshot sys-libs/glibc; \
+			touch /bedrock/strata/brl-build-$${arch}/.brl-build-glibc; \
+		fi; \
+		if ! [ -e /bedrock/strata/brl-build-$${arch}/.brl-build-libtool ]; then \
+			strat -r brl-build-$${arch} emerge --oneshot libtool; \
+			strat -r brl-build-$${arch} /usr/share/gcc-data/$${arch}-pc-linux-gnu/*/fix_libtool_files.sh \
+				"$$(ls -l /bedrock/strata/brl-build-$${arch}/usr/share/gcc-data/$${arch}-pc-linux-gnu)" --oldarch i486-pc-linux-gnu; \
+			touch /bedrock/strata/brl-build-$${arch}/.brl-build-libtool; \
+		fi; \
+		if ! [ -e /bedrock/strata/brl-build-$${arch}/.brl-build-world ]; then \
+			strat -r brl-build-$${arch} emerge --emptytree @world; \
+			touch /bedrock/strata/brl-build-$${arch}/.brl-build-world; \
+		fi; \
+	done
+	@ printf "\e[32m\n"
+	@ echo "===================================="
+	@ echo "=== Completed Build Strata Setup ==="
+	@ echo "===================================="
+	@ printf "\e[39m\n"
+
+# Make job coordination gets confused across `strat`, and thus a job count must
+# be explicitly set for each item here.  This limits parallelization
+# opportunities.  If your system has more cores than then number of installers
+# being built, set SUBJOBS to the per-ISA invocation of make its own job count.
+# For example, if you have a 24 thread CPU, you can run:
+#
+#     make -j8 SUBJOBS=3 GPGID=... release
+#
+# to make eight installers at a time with a max of three jobs for each.
+#
+# Some resources are arch-agnostic and shared across implementations.  Make
+# everything dependent on those so they only run once.
+SUBJOBS=1
+release-aarch64: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-aarch64 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-aarch64-linux-gnu-ar' \
+		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-aarch64-linux-gnu-gcc' \
+		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-aarch64-linux-gnu-ld' \
+		bedrock-linux-$(BEDROCK_VERSION)-aarch64.sh
+release-armv7hl: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-armv7hl make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabihf-ar' \
+		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabihf-gcc' \
+		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabihf-ld' \
+		bedrock-linux-$(BEDROCK_VERSION)-armv7hl.sh
+release-armv7l: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-armv7l make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabi-ar' \
+		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabi-gcc' \
+		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabi-ld' \
+		bedrock-linux-$(BEDROCK_VERSION)-armv7l.sh
+release-i386: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-i386 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		bedrock-linux-$(BEDROCK_VERSION)-i386.sh
+release-i486: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-i486 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		bedrock-linux-$(BEDROCK_VERSION)-i486.sh
+release-i586: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-i586 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		bedrock-linux-$(BEDROCK_VERSION)-i586.sh
+release-i686: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-i686 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		bedrock-linux-$(BEDROCK_VERSION)-i686.sh
+release-mips: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-mips make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips-linux-gnu-ar' \
+		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips-linux-gnu-gcc' \
+		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips-linux-gnu-ld' \
+		bedrock-linux-$(BEDROCK_VERSION)-mips.sh
+release-mipsel: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-mipsel make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mipsel-linux-gnu-ar' \
+		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mipsel-linux-gnu-gcc' \
+		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mipsel-linux-gnu-ld' \
+		bedrock-linux-$(BEDROCK_VERSION)-mipsel.sh
+release-mips64el: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-mips64el make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips64el-linux-gnuabi64-ar' \
+		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips64el-linux-gnuabi64-gcc' \
+		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips64el-linux-gnuabi64-ld' \
+		bedrock-linux-$(BEDROCK_VERSION)-mips64el.sh
+release-ppc64le: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-ppc64le make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ar' \
+		CC='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-gcc' \
+		LD='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ld' \
+		bedrock-linux-$(BEDROCK_VERSION)-ppc64le.sh
+release-s390x: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-s390x make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-s390x-linux-gnu-ar' \
+		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-s390x-linux-gnu-gcc' \
+		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-s390x-linux-gnu-ld' \
+		bedrock-linux-$(BEDROCK_VERSION)-s390x.sh
+release-x86_64: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-x86_64 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		bedrock-linux-$(BEDROCK_VERSION)-x86_64.sh
+release: \
+	release-aarch64 \
+	release-armv7hl \
+	release-armv7l \
+	release-i386 \
+	release-i486 \
+	release-i586 \
+	release-i686 \
+	release-mips \
+	release-mipsel \
+	release-mips64el \
+	release-ppc64le \
+	release-s390x \
+	release-x86_64
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-aarch64.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-armv7hl.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-armv7l.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-i386.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-i486.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-i586.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-i686.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-mips.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-mips64el.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-mipsel.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-ppc64le.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-s390x.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-x86_64.sh ]
+	@ printf "\e[32m\n"
+	@ echo "=== Completed Bedrock Linux $(BEDROCK_VERSION) release build ===" | sed 's/./=/g'
+	@ echo "=== Completed Bedrock Linux $(BEDROCK_VERSION) release build ==="
+	@ echo "=== Completed Bedrock Linux $(BEDROCK_VERSION) release build ===" | sed 's/./=/g'
+	@ printf "\e[39m\n"
+

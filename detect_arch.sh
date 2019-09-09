@@ -68,7 +68,7 @@ case "$(gcc -dumpmachine)" in
 		;;
 	s390x-*)
 		echo "s390x"
-		echo "IBM s/390"
+		echo "IBM S/390"
 		;;
 	x86_64-*)
 		echo "x86_64"
