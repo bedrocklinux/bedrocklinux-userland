@@ -14,11 +14,10 @@
  */
 
 #include <dirent.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <linux/input.h>
 #include <linux/limits.h>
 #include <stdio.h>
+#include <sys/stat.h>
 
 /*
  * Input device directory
@@ -41,8 +40,6 @@ int main(int argc, char *argv[])
 	}
 
 	struct dirent *entry;
-	char path[PATH_MAX];
-	char buf[PATH_MAX];
 	while ((entry = readdir(dir)) != NULL) {
 		/*
 		 * Skip `.` and `..`.  Also dotfiles if they some how end up
@@ -53,27 +50,50 @@ int main(int argc, char *argv[])
 		}
 
 		/*
+		 * Find capabilities directory
+		 */
+		char *cap = "capabilities";
+		char path[PATH_MAX];
+		int s = snprintf(path, sizeof(path),
+			INPUT_DIR "/%s/%s", entry->d_name, cap);
+		if (s < 0 || s >= (int)sizeof(path)) {
+			fprintf(stderr,
+				"Unable to build capabilities path string\n");
+			return 2;
+		}
+		struct stat stbuf;
+		if (stat(path, &stbuf) != 0 || !S_ISDIR(stbuf.st_mode)) {
+			cap = "device/capabilities";
+			s = snprintf(path, sizeof(path),
+				INPUT_DIR "/%s/%s", entry->d_name, cap);
+			if (s < 0 || s >= (int)sizeof(path)) {
+				fprintf(stderr,
+					"Unable to build capabilities path string\n");
+				return 2;
+			}
+		}
+		if (stat(path, &stbuf) != 0 || !S_ISDIR(stbuf.st_mode)) {
+			continue;
+		}
+
+		/*
 		 * Check if device has keyboard event code support
 		 */
-		int s = snprintf(path, sizeof(path),
-			INPUT_DIR "/%s/capabilities/ev", entry->d_name);
+		s = snprintf(path, sizeof(path),
+			INPUT_DIR "/%s/%s/ev", entry->d_name, cap);
 		if (s < 0 || s >= (int)sizeof(path)) {
 			fprintf(stderr, "Unable to build ev path string\n");
 			return 2;
 		}
-		int fd;
-		if ((fd = open(path, O_RDONLY)) < 0) {
+		FILE *f;
+		if ((f = fopen(path, "r")) == NULL) {
 			continue;
 		}
-		if (read(fd, buf, sizeof(buf) - 1) < 0) {
-			fprintf(stderr, "Unable to read \"%s\"\n", path);
-			return 2;
+		unsigned int bits = 0;
+		while (fscanf(f, "%x", &bits) == 1) {
+			;
 		}
-		close(fd);
-		unsigned int bits;
-		if (sscanf(buf, "%x", &bits) != 1) {
-			continue;
-		}
+		fclose(f);
 		if ((bits & EV_KEY) != EV_KEY) {
 			continue;
 		}
@@ -82,22 +102,19 @@ int main(int argc, char *argv[])
 		 * Check if device supports expected keyboard keys such as escape, the number row, and Q through D
 		 */
 		s = snprintf(path, sizeof(path),
-			INPUT_DIR "/%s/capabilities/key", entry->d_name);
+			INPUT_DIR "/%s/%s/key", entry->d_name, cap);
 		if (s < 0 || s >= (int)sizeof(path)) {
 			fprintf(stderr, "Unable to build key path string\n");
 			return 2;
 		}
-		if ((fd = open(path, O_RDONLY)) < 0) {
+		if ((f = fopen(path, "r")) == NULL) {
 			continue;
 		}
-		if (read(fd, buf, sizeof(buf) - 1) < 0) {
-			fprintf(stderr, "Unable to read \"%s\"\n", path);
-			return 2;
+		bits = 0;
+		while (fscanf(f, "%x", &bits) == 1) {
+			;
 		}
-		close(fd);
-		if (sscanf(buf, "%*x %*x %*x %x", &bits) != 1) {
-			continue;
-		}
+		fclose(f);
 		if ((bits & KEYBOARD_MASK) != KEYBOARD_MASK) {
 			continue;
 		}
