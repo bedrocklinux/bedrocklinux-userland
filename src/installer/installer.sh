@@ -305,7 +305,25 @@ update() {
 	require_root
 	if ! [ -r /bedrock/etc/bedrock-release ]; then
 		abort "No /bedrock/etc/bedrock-release file.  Are you running Bedrock Linux 0.7.0 or higher?"
+	elif ! [ -e /dev/fuse ]; then
+		abort "/dev/fuse not found.  FUSE is required for Bedrock Linux to operate.  Install the module fuse kernel module and try again."
+	elif ! type sha1sum >/dev/null 2>&1; then
+		abort "Could not find sha1sum executable.  Install it then try again."
+	elif ! extract_tarball >/dev/null 2>&1 || [ "${TARBALL_SHA1SUM}" != "$(extract_tarball | sha1sum - | cut -d' ' -f1)" ]; then
+		abort "Embedded tarball is corrupt.  Did you edit this script with software that does not support null characters?"
 	fi
+
+	bb="/true"
+	if ! extract_tarball | tar xOf - bedrock/libexec/busybox >"${bb}"; then
+		rm -f "${bb}"
+		abort "Unable to write to root filesystem.  Read-only root filesystems are not supported."
+	fi
+	chmod +x "${bb}"
+	if ! "${bb}"; then
+		rm -f "${bb}"
+		abort "Unable to execute reference binary.  Perhaps this update file is intended for a different CPU architecture."
+	fi
+	rm -f "${bb}"
 
 	step "Determining version change"
 	current_version="$(awk '{print$3}' </bedrock/etc/bedrock-release)"
