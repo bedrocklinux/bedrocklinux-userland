@@ -37,29 +37,24 @@
 # Current release #
 ###################
 
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta2/bedrock-linux-0.7.8beta2-x86_64.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta2/bedrock-linux-0.7.8beta2-s390x.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta2/bedrock-linux-0.7.8beta2-ppc64le.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta2/bedrock-linux-0.7.8beta2-mipsel.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta2/bedrock-linux-0.7.8beta2-mips64el.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta2/bedrock-linux-0.7.8beta2-mips.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta2/bedrock-linux-0.7.8beta2-armv7l.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta2/bedrock-linux-0.7.8beta2-armv7hl.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta2/bedrock-linux-0.7.8beta2-aarch64.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8/bedrock-linux-0.7.8-x86_64.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8/bedrock-linux-0.7.8-s390x.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8/bedrock-linux-0.7.8-ppc64le.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8/bedrock-linux-0.7.8-mipsel.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8/bedrock-linux-0.7.8-mips64el.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8/bedrock-linux-0.7.8-mips.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8/bedrock-linux-0.7.8-i686.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8/bedrock-linux-0.7.8-i586.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8/bedrock-linux-0.7.8-i486.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8/bedrock-linux-0.7.8-i386.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8/bedrock-linux-0.7.8-armv7l.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8/bedrock-linux-0.7.8-armv7hl.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8/bedrock-linux-0.7.8-aarch64.sh
 
 #################
 # Past releases #
 #################
 
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta1/bedrock-linux-0.7.8beta1-x86_64.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta1/bedrock-linux-0.7.8beta1-s390x.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta1/bedrock-linux-0.7.8beta1-ppc64le.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta1/bedrock-linux-0.7.8beta1-mipsel.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta1/bedrock-linux-0.7.8beta1-mips64el.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta1/bedrock-linux-0.7.8beta1-mips.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta1/bedrock-linux-0.7.8beta1-armv7l.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta1/bedrock-linux-0.7.8beta1-armv7hl.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.8beta1/bedrock-linux-0.7.8beta1-aarch64.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.7/bedrock-linux-0.7.7-x86_64.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.7/bedrock-linux-0.7.7-s390x.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.7/bedrock-linux-0.7.7-ppc64le.sh

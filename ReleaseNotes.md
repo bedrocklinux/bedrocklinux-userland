@@ -1,16 +1,22 @@
-# 0.7.8beta2
-
-- Added etcfs debug option
-- Added wait for keyboard initialisation
-- Fixed brl-fetch exherbo
-
-# 0.7.8beta1
+# 0.7.8
 
 - Added LVM support
-- Added brl-fetch exherbo
+- Added brl-fetch Arch Linux 32
+- Added brl-fetch Exherbo
 - Added caching support
+- Added debug subsystem
+	- Add etcfs debug support
+	- Add brl-fetch debug support
+- Added i386, i486, i586, and i686 support
+- Added wait for keyboard initialisation
+	- This fixed no keyboard in init selection menu issue
+- Fixed brl-fetch exherbo
 - Fixed crossfs handling of live bouncer changes
 - Fixed etcfs file descriptor leak
+	- This fixed Void init emergence shell issue
+- Improved build system performance
+- Restrict apt-key by default
+- Restrict debuild by default
 
 # 0.7.7
 
