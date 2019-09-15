@@ -112,6 +112,14 @@ fetch() {
 	extract_pacman_pkgs "${bootstrap_dir}" ${bootstrap_packages}
 
 	step "Running bootstrap software"
+	# pacstrap mounts devtmpfs (which is shared with the host system) and
+	# chowns files in it based on /etc/passwd and /etc/group.  Ensure
+	# system copies of files are used to avoid problematic file ownership
+	# change in /dev.
+	mkdir -p "${target_dir}/etc"
+	cp -a "/etc/passwd" "${target_dir}/etc/passwd"
+	cp -a "/etc/group" "${target_dir}/etc/group"
+
 	setup_chroot "${bootstrap_dir}"
 	setup_pacman "${bootstrap_dir}"
 	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/pacman/pkg/"
