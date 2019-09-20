@@ -1,3 +1,7 @@
+# 0.7.9
+
+- Ensure bouncer updates do not confuse pre-0.7.8 crossfs builds
+
 # 0.7.8
 
 - Added LVM support
