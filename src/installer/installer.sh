@@ -347,8 +347,18 @@ update() {
 	# Early Bedrock versions used a symlink at /sbin/init, which was found
 	# to be problematic.  Ensure the userland extraction places a real file
 	# at /sbin/init.
-	if [ -h /bedrock/strata/bedrock/sbin/init ]; then
+	if ver_cmp_first_newer "0.7.9" "${current_version}" && [ -h /bedrock/strata/bedrock/sbin/init ]; then
 		rm -f /bedrock/strata/bedrock/sbin/init
+	fi
+
+	# All crossfs builds prior to 0.7.8 became confused if bouncer changed
+	# out from under them.  If upgrading such a version, do not upgrade
+	# bouncer in place until reboot.
+	#
+	# Back up original bouncer so we can restore it after extracting over
+	# it.
+	if ver_cmp_first_newer "0.7.9" "${current_version}"; then
+		cp /bedrock/libexec/bouncer /bedrock/libexec/bouncer-pre-0.7.9
 	fi
 
 	step "Installing new files and updating existing ones"
@@ -429,6 +439,18 @@ update() {
 		# lines
 		enforce_id_ranges
 	fi
+
+	# All crossfs builds prior to 0.7.8 became confused if bouncer changed
+	# out from under them.  If upgrading such a version, do not upgrade
+	# bouncer in place until reboot.
+	#
+	# Back up new bouncer and restore previous one.
+	if ver_cmp_first_newer "0.7.9" "${current_version}" && [ -e /bedrock/libexec/bouncer-pre-0.7.9 ]; then
+		cp /bedrock/libexec/bouncer /bedrock/libexec/bouncer-0.7.9
+		cp /bedrock/libexec/bouncer-pre-0.7.9 /bedrock/libexec/bouncer
+		rm /bedrock/libexec/bouncer-pre-0.7.9
+	fi
+
 
 	notice "Successfully updated to ${new_version}"
 	new_crossfs=false

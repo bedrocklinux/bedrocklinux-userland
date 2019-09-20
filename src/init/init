@@ -167,6 +167,16 @@ complete_hijack() {
 	echo ""
 }
 
+complete_upgrade() {
+	# All crossfs builds prior to 0.7.8 became confused if bouncer changed
+	# out from under them.  If upgrading such a version, bouncer was not
+	# upgraded in-place.  Complete the upgrade now while crossfs is not
+	# running.
+	if [ -e /bedrock/libexec/bouncer-0.7.9 ]; then
+		mv /bedrock/libexec/bouncer-0.7.9 /bedrock/libexec/bouncer
+	fi
+}
+
 wait_for_keyboard() {
 	# Users with keyboards that take a while to initialize have reported
 	# surprise at the inability to type in the init selection menu.
@@ -350,6 +360,8 @@ print_logo "$(cat /bedrock/etc/bedrock-release)"
 if [ -e "/bedrock/complete-hijack-install" ]; then
 	complete_hijack
 fi
+
+complete_upgrade
 
 init_timeout="$(cfg_values "init" "timeout")"
 def_tuple="$(cfg_values "init" "default")"
