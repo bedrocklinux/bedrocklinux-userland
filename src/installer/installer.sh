@@ -102,7 +102,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	step_init 6
 
 	step "Performing sanity checks"
-	modprobe fuse || true
+	modprobe fuse 2>/dev/null || true
 	if [ "$(id -u)" != "0" ]; then
 		abort "root required"
 	elif [ -r /proc/sys/kernel/osrelease ] && grep -qi 'microsoft' /proc/sys/kernel/osrelease; then
