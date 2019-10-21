@@ -14,7 +14,7 @@
 trap 'fetch_abort "Unexpected error occurred."' EXIT
 
 check_supported() {
-	false
+	true
 }
 
 speed_test_url() {
