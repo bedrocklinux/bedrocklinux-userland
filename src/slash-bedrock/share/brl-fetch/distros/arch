@@ -55,10 +55,10 @@ setup_pacman() {
 	#
 	# Also remove CheckSpace, which sometimes gets confused by Bedrock's
 	# mount setup.
-	sed 's/^Architecture[ \t]*=.*$//' "${1}/etc/pacman.conf" | \
-		awk -v"a=${distro_arch}" '{print} $0 == "[options]" {print "Architecture = "a}' | \
+	sed 's/^Architecture[ \t]*=.*$//' "${1}/etc/pacman.conf" |
+		awk -v"a=${distro_arch}" '{print} $0 == "[options]" {print "Architecture = "a}' |
 		sed 's/^[ \t]*CheckSpace/# &/' \
-		> "${1}/etc/pacman.conf-new"
+			>"${1}/etc/pacman.conf-new"
 	mv "${1}/etc/pacman.conf-new" "${1}/etc/pacman.conf"
 
 	LC_ALL=C chroot "${1}" /usr/bin/update-ca-trust

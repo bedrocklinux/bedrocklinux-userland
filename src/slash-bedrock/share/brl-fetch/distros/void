@@ -36,9 +36,9 @@ brl_arch_to_distro() {
 	case "${1}" in
 	"aarch64") echo "aarch64" ;;
 	"armv7hl") echo "armv7l" ;;
-	# Void does offer i686, but glibc-only.  The fetch strategy below is
-	# based on leveraging static xbps.  Thus, at least for now, brl-fetch
-	# does not support either flavor of i686 Void.
+		# Void does offer i686, but glibc-only.  The fetch strategy below is
+		# based on leveraging static xbps.  Thus, at least for now, brl-fetch
+		# does not support either flavor of i686 Void.
 	"x86_64") echo "x86_64" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
@@ -74,8 +74,8 @@ fetch() {
 	# Using musl version of tools for both void flavors due to static
 	# linking.
 	case "${distro_arch}" in
-		"aarch64") prefix="aarch64";;
-		*) prefix="musl";;
+	"aarch64") prefix="aarch64" ;;
+	*) prefix="musl" ;;
 	esac
 	wget -O "${bootstrap_dir}/repodata.tar.gz" "${target_mirror}/current/${prefix}/${distro_arch}-musl-repodata"
 
@@ -117,13 +117,13 @@ fetch() {
 	setup_chroot "${bootstrap_dir}"
 	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/xbps"
 	case "${distro}:${distro_arch}" in
-		"void:aarch64") prefix="aarch64";;
-		"void:armv7l") prefix="";;
-		"void:x86_64") prefix="";;
-		"void-musl:aarch64") prefix="aarch64";;
-		"void-musl:armv7l") prefix="musl";;
-		"void-musl:x86_64") prefix="musl";;
-		*) abort "unrecognized distro:architecture pair \"${distro}:${distro_arch}\""
+	"void:aarch64") prefix="aarch64" ;;
+	"void:armv7l") prefix="" ;;
+	"void:x86_64") prefix="" ;;
+	"void-musl:aarch64") prefix="aarch64" ;;
+	"void-musl:armv7l") prefix="musl" ;;
+	"void-musl:x86_64") prefix="musl" ;;
+	*) abort "unrecognized distro:architecture pair \"${distro}:${distro_arch}\"" ;;
 	esac
 	mkdir -p "${target_dir}/var/db/xbps/https___alpha_de_repo_voidlinux_org_current"
 	yes "" | LC_ALL=C XBPS_ARCH="${distro_arch}" chroot "${bootstrap_dir}" "/usr/bin/xbps-install.static" -S -R "${target_mirror}/current/${prefix}" -r /target-root/ base-voidstrap

@@ -125,7 +125,7 @@ fetch() {
 	# incorrectly indicates platform-python requires
 	# /usr/libexec/platform-python rather than provides it.  Hack in a fix.
 	if [ "$(echo "${target_release}" | sed 's/-[a-z]*$//')" -ge 8 ]; then
-		echo "/usr/libexec/platform-python	platform-python" >> "${bootstrap_dir}/brldb/provides/u"
+		echo "/usr/libexec/platform-python	platform-python" >>"${bootstrap_dir}/brldb/provides/u"
 	fi
 
 	step "Calculating required bootstrap packages"

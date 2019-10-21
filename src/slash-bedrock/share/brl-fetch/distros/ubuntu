@@ -108,7 +108,10 @@ list_releases() {
 fetch() {
 	bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv ubuntu-keyring"
 	# libapt-pkg.so.5.X provider changed from libapt-pkg5.0 in pre-eoan to libapt-pkg-dev in eoan
-	if [ "$( (echo "${target_release:-}"; echo "eoan") | sort | head -n1)" != "eoan" ]; then
+	if [ "$( (
+		echo "${target_release:-}"
+		echo "eoan"
+	) | sort | head -n1)" != "eoan" ]; then
 		bootstrap_deps="${bootstrap_deps} libapt-pkg5.0"
 	else
 		bootstrap_deps="${bootstrap_deps} libapt-pkg-dev"
