@@ -129,7 +129,7 @@ fetch() {
 	setup_chroot "${target_dir}"
 	setup_pacman "${target_dir}"
 	cp "${cache}/packages/"* "${target_dir}/var/cache/pacman/"
-	if LC_ALL=C chroot "${target_dir}" pacman --Q linux >/dev/null 2>&1; then
+	if LC_ALL=C chroot "${target_dir}" pacman -Q linux >/dev/null 2>&1; then
 		LC_ALL=C chroot "${target_dir}" pacman --noconfirm -R linux
 	fi
 }
