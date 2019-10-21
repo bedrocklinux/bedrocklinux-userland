@@ -85,7 +85,7 @@ list_releases() {
 }
 
 fetch() {
-	bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv debian-archive-keyring"
+	bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv libapt-pkg5.0 debian-archive-keyring"
 
 	step "Downloading package information database"
 	wget -O "${bootstrap_dir}/Packages.gz" "${target_mirror}/dists/${target_release}/main/binary-${distro_arch}/Packages.gz"
