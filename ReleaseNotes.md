@@ -1,3 +1,11 @@
+# 0.7.10
+
+- Add Artix fetch support
+- Add brl-fetch CentOS support for CentOS 8 and 8-stream
+- Fix brl-fetch debian, devuan, raspbian and ubuntu libapt-pkg.so warning
+- Fix ubuntu default release detection considering "devel" a release
+- Improve hijack warning to better explain what it will do
+
 # 0.7.9
 
 - Ensure bouncer updates do not confuse pre-0.7.8 crossfs builds
