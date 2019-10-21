@@ -77,8 +77,15 @@ sanity_check_grub_mkrelpath() {
 hijack() {
 	printf "\
 ${color_priority}* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *${color_norm}
-${color_priority}*${color_alert} YOU ARE ABOUT TO CONVERT YOUR EXISTING LINUX INSTALL INTO A   ${color_priority}*${color_norm}
+${color_priority}*${color_alert}                                                               ${color_priority}*${color_norm}
+${color_priority}*${color_alert} Continuing will:                                              ${color_priority}*${color_norm}
+${color_priority}*${color_alert} - Move the existing install to a temporary location           ${color_priority}*${color_norm}
+${color_priority}*${color_alert} - Install Bedrock Linux on the root of the filesystem         ${color_priority}*${color_norm}
+${color_priority}*${color_alert} - Add the previous install as a new Bedrock Linux stratum     ${color_priority}*${color_norm}
+${color_priority}*${color_alert}                                                               ${color_priority}*${color_norm}
+${color_priority}*${color_alert} YOU ARE ABOUT TO REPLACE YOUR EXISTING LINUX INSTALL WITH A   ${color_priority}*${color_norm}
 ${color_priority}*${color_alert} BEDROCK LINUX INSTALL! THIS IS NOT INTENDED TO BE REVERSIBLE! ${color_priority}*${color_norm}
+${color_priority}*${color_alert}                                                               ${color_priority}*${color_norm}
 ${color_priority}* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *${color_norm}
 
 Please type \"Not reversible!\" without quotes at the prompt to continue:
