@@ -66,7 +66,6 @@ setup_pacman() {
 	LC_ALL=C chroot "${1}" /usr/bin/update-ca-trust
 	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --init
 	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate manjaro archlinux 
-	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --refresh-keys
 
 	if ! grep -q "^Server" "${1}/etc/pacman.d/mirrorlist"; then
 		echo "### Set by Bedrock Linux when acquiring this stratum" >>"${1}/etc/pacman.d/mirrorlist"
@@ -75,7 +74,7 @@ setup_pacman() {
 }
 
 fetch() {
-	bootstrap_deps="manjaro-tools-base pacman pacman-mirrors ca-certificates ca-certificates-utils"
+	bootstrap_deps="manjaro-tools-base pacman pacman-mirrors ca-certificates ca-certificates-utils awk"
 
 	step "Downloading package information database"
 	wget -O "${bootstrap_dir}/core.db.tar.gz" "${target_mirror}/stable/core/${distro_arch}/core.db.tar.gz"
@@ -116,10 +115,7 @@ fetch() {
 	setup_chroot "${bootstrap_dir}"
 	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/pacman/pkg/"
 	# -a to use the api, -P all protocols, -t 1 timeout if it takes longer than 1 second
-	LC_ALL=C chroot "${bootstrap_dir}" pacman-mirrors -a -P all -t 1
-	# Because there is no default mirrorlist in Manjaro, we have to copy it
-	mkdir -p "${target_dir}/etc/pacman.d"
-	cp "/etc/pacman.d/mirrorlist" "${target_dir}/etc/pacman.d"
+	LC_ALL=C chroot "${bootstrap_dir}" pacman-mirrors -S stable -f 1 -a -P all -t 1
 	setup_pacman "${bootstrap_dir}"
 	LC_ALL=C chroot "${bootstrap_dir}" basestrap "/target-root" base
 
