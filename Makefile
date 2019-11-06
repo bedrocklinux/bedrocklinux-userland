@@ -158,17 +158,19 @@ all: $(INSTALLER)
 remove_vendor_source:
 	rm -rf ./vendor
   
-fetch_vendor_sources: vendor/linux_headers/.success_fetching_source \
-	vendor/musl/.success_fetching_source \
+fetch_vendor_sources: \
+	vendor/busybox/.success_retrieving_source \
+	vendor/libaio/.success_retrieving_source \
+	vendor/libattr/.success_retrieving_source \
 	vendor/libcap/.success_fetching_source \
 	vendor/libfuse/.success_fetching_source \
-	vendor/uthash/.success_fetching_source \
-	vendor/busybox/.success_retrieving_source \
-	vendor/libattr/.success_retrieving_source \
+	vendor/linux_headers/.success_fetching_source \
+	vendor/lvm2/.success_retrieving_source \
+	vendor/musl/.success_fetching_source \
 	vendor/netselect/.success_retrieving_source \
-	vendor/libaio/.success_retrieving_source \
+	vendor/uthash/.success_fetching_source \
 	vendor/util-linux/.success_fetching_source \
-	vendor/lvm2/.success_retrieving_source
+	vendor/zstd/.success_retrieving_source
 
 clean:
 	rm -rf build/*
@@ -594,6 +596,7 @@ netselect: $(SLASHBR)/libexec/netselect
 vendor/lvm2/.success_retrieving_source:
 	rm -rf vendor/lvm2/
 	mkdir -p vendor/lvm2
+	# no `--depth 1` because this repo does not support it
 	git clone \
 		-b `git ls-remote --tags 'https://sourceware.org/git/lvm2.git' | \
 		awk -F/ '{print $$NF}' | \
@@ -620,6 +623,27 @@ $(COMPLETED)/lvm2: vendor/lvm2/.success_retrieving_source $(COMPLETED)/musl $(CO
 $(SLASHBR)/libexec/lvm: $(COMPLETED)/lvm2
 $(SLASHBR)/libexec/dmsetup: $(COMPLETED)/lvm2
 lvm2: $(SLASHBR)/libexec/dmsetup $(SLASHBR)/libexec/lvm
+
+vendor/zstd/.success_retrieving_source:
+	rm -rf vendor/zstd/
+	mkdir -p vendor/zstd
+	git clone --depth 1 \
+		-b `git ls-remote --tags 'https://github.com/facebook/zstd.git' | \
+		awk -F/ '{print $$NF}' | \
+		sed -e 's/^v//g' | \
+		grep '^[0-9.]*$$' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed -e 's/^/v/'` 'https://github.com/facebook/zstd.git' \
+		vendor/zstd
+	touch vendor/zstd/.success_retrieving_source
+$(SLASHBR)/libexec/zstd: vendor/zstd/.success_retrieving_source $(COMPLETED)/musl
+	rm -rf $(VENDOR)/zstd
+	cp -r vendor/zstd $(VENDOR)
+	cd $(VENDOR)/zstd && \
+		make CC=$(MUSLCC) && \
+		cp zstd $(SLASHBR)/libexec/zstd
+zstd: $(SLASHBR)/libexec/zstd
 
 $(SLASHBR)/bin/strat: $(COMPLETED)/builddir $(COMPLETED)/musl $(COMPLETED)/libcap
 	rm -rf $(SRC)/strat
@@ -680,19 +704,20 @@ crossfs: $(SLASHBR)/libexec/crossfs
 
 $(BUILD)/userland.tar: \
 	$(COMPLETED)/builddir \
-	$(SLASHBR)/libexec/busybox \
-	$(SLASHBR)/libexec/getfattr \
-	$(SLASHBR)/libexec/setfattr \
-	$(SLASHBR)/libexec/setcap \
-	$(SLASHBR)/libexec/netselect \
 	$(SLASHBR)/bin/strat \
-	$(SLASHBR)/libexec/manage_tty_lock \
-	$(SLASHBR)/libexec/keyboard_is_present \
 	$(SLASHBR)/libexec/bouncer \
-	$(SLASHBR)/libexec/etcfs \
+	$(SLASHBR)/libexec/busybox \
 	$(SLASHBR)/libexec/crossfs \
 	$(SLASHBR)/libexec/dmsetup \
-	$(SLASHBR)/libexec/lvm
+	$(SLASHBR)/libexec/etcfs \
+	$(SLASHBR)/libexec/getfattr \
+	$(SLASHBR)/libexec/keyboard_is_present \
+	$(SLASHBR)/libexec/lvm \
+	$(SLASHBR)/libexec/manage_tty_lock \
+	$(SLASHBR)/libexec/netselect \
+	$(SLASHBR)/libexec/setcap \
+	$(SLASHBR)/libexec/setfattr \
+	$(SLASHBR)/libexec/zstd
 	# remove symlinks which may have been created in a previous interrupted run
 	rm -f $(SLASHBR)/libexec/brl-strat
 	rm -f $(SLASHBR)/strata/init

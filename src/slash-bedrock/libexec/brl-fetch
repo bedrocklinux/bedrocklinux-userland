@@ -544,32 +544,43 @@ extract_rpms() {
 
 	cat <<EOF >"${dir}/rpm_extractor"
 #!/bin/sh
-# busybox rpm2cpio supports every rpm *except* lzma-compressed ones.  Try
-# rpm2cpio first.  If it works, use it.  Otherwise, we know the rpm is
-# (probably) lzma-compressed, in which we can use the body of the script below.
+#
+# busybox rpm2cpio supports every rpm compression run into in the wild except:
+# - zstd, seen with Fedora 31 packages.  busybox does not provide zstd, have to
+# go external.
+# - lzma, seen with OpenSUSE packages.  busybox provides lzma and we can stick
+# with internal.
 #
 # Thanks to Jeff Johnson and Tim Mooney for the rpm arithmetic:
 # https://www.redhat.com/archives/rpm-list/2003-June/msg00367.html
 pkg=\$1
 (
-	if ! rpm2cpio "\$pkg"
-	then
-		leadsize=96
-		o=\`expr \$leadsize + 8\`
-		set \`od -j \$o -N 8 -t u1 \$pkg\`
-		il=\`expr 256 \\* \\( 256 \\* \\( 256 \\* \$2 + \$3 \\) + \$4 \\) + \$5\`
-		dl=\`expr 256 \\* \\( 256 \\* \\( 256 \\* \$6 + \$7 \\) + \$8 \\) + \$9\`
+	if rpm2cpio "\$pkg"; then
+		return
+	fi
 
-		sigsize=\`expr 8 + 16 \\* \$il + \$dl\`
-		o=\`expr \$o + \$sigsize + \\( 8 - \\( \$sigsize \\% 8 \\) \\) \\% 8 + 8\`
-		set \`od -j \$o -N 8 -t u1 \$pkg\`
-		il=\`expr 256 \\* \\( 256 \\* \\( 256 \\* \$2 + \$3 \\) + \$4 \\) + \$5\`
-		dl=\`expr 256 \\* \\( 256 \\* \\( 256 \\* \$6 + \$7 \\) + \$8 \\) + \$9\`
+	leadsize=96
+	o=\`expr \$leadsize + 8\`
+	set \`od -j \$o -N 8 -t u1 \$pkg\`
+	il=\`expr 256 \\* \\( 256 \\* \\( 256 \\* \$2 + \$3 \\) + \$4 \\) + \$5\`
+	dl=\`expr 256 \\* \\( 256 \\* \\( 256 \\* \$6 + \$7 \\) + \$8 \\) + \$9\`
 
-		hdrsize=\`expr 8 + 16 \\* \$il + \$dl\`
-		o=\`expr \$o + \$hdrsize\`
+	sigsize=\`expr 8 + 16 \\* \$il + \$dl\`
+	o=\`expr \$o + \$sigsize + \\( 8 - \\( \$sigsize \\% 8 \\) \\) \\% 8 + 8\`
+	set \`od -j \$o -N 8 -t u1 \$pkg\`
+	il=\`expr 256 \\* \\( 256 \\* \\( 256 \\* \$2 + \$3 \\) + \$4 \\) + \$5\`
+	dl=\`expr 256 \\* \\( 256 \\* \\( 256 \\* \$6 + \$7 \\) + \$8 \\) + \$9\`
 
-		dd if="\$pkg" ibs=\$o skip=1 | lzma -d
+	hdrsize=\`expr 8 + 16 \\* \$il + \$dl\`
+	o=\`expr \$o + \$hdrsize\`
+
+	if dd if="\$pkg" ibs=\$o skip=1 | /bedrock/libexec/zstd -d 2>/dev/null; then
+		return
+	elif dd if="\$pkg" ibs=\$o skip=1 | lzma -d; then
+		return
+	else
+		# unable to extract
+		false
 	fi
 ) | cpio -id
 EOF
@@ -577,7 +588,7 @@ EOF
 	(
 		cd "${dir}"
 		for file in "${@}"; do
-			sh "${dir}/rpm_extractor" "${file}" >/dev/null 2>&1
+			sh "${dir}/rpm_extractor" "${file}" >/dev/nulll 2>&1
 			echo "${file}"
 		done | progress_bar "${#}"
 	)
