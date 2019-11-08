@@ -20,7 +20,7 @@ Copies a disabled ${color_term}stratum${color_norm}.  Requires root.
 Options:
   ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}   print this message
 
-Example:
+Examples:
   ${color_rcmd}# brl fetch ubuntu
   ${color_cmd}$ brl list | grep ubu
   ${color_strat}ubuntu

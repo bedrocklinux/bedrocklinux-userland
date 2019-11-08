@@ -20,7 +20,7 @@ Prints ${color_bedrock}Bedrock Linux${color_norm} install's version.
 Options:
   ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}   print this message
 
-Example:
+Examples:
   ${color_cmd}$ brl version
   ${color_norm}Bedrock Linux 0.7.0 Poki
 ${color_norm}"

@@ -1491,7 +1491,8 @@ if "${brl_color}"; then
 	export color_file='\033[0;32m'              # green
 	export color_cmd='\033[0;32m'               # green
 	export color_rcmd='\033[0;31m'              # red
-	export color_bedrock='\033[0;32m'           # green
+	export color_distro='\033[0;93m'            # yellow
+	export color_bedrock="${color_distro}"      # same as other distros
 	export color_logo='\033[1;37m'              # bold white
 	export color_glue='\033[1;37m'              # bold white
 	export color_link='\033[0;94m'              # bright blue
@@ -1509,6 +1510,7 @@ else
 	export color_file=''
 	export color_cmd=''
 	export color_rcmd=''
+	export color_distro=''
 	export color_bedrock=''
 	export color_logo=''
 	export color_glue=''

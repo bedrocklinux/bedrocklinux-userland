@@ -49,6 +49,7 @@ Miscellaneous commands:
   ${color_cmd}update    ${color_norm}Update ${color_bedrock}Bedrock Linux${color_norm} system
   ${color_cmd}version   ${color_norm}Query ${color_bedrock}Bedrock Linux${color_norm} version
   ${color_cmd}report    ${color_norm}Generate report
+  ${color_cmd}tutorial  ${color_norm}Run interactive ${color_bedrock}Bedrock Linux${color_norm} tutorial
 
 See ${color_cmd}\`brl ${color_sub}<command>${color_cmd} --help\`${color_norm} for further details per command.
 "
@@ -59,7 +60,7 @@ case "${1:-}" in
 	print_help
 	exit_success
 	;;
-"strat" | "list" | "which" | "fetch" | "remove" | "rename" | "copy" | "status" | "enable" | "disable" | "repair" | "hide" | "show" | "alias" | "deref" | "apply" | "update" | "version" | "report")
+"strat" | "list" | "which" | "fetch" | "remove" | "rename" | "copy" | "status" | "enable" | "disable" | "repair" | "hide" | "show" | "alias" | "deref" | "apply" | "update" | "version" | "report" | "tutorial")
 	backend="/bedrock/libexec/brl-${1}"
 	shift
 	exec "${backend}" "${@}"
