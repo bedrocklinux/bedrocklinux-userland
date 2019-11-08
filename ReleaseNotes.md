@@ -1,12 +1,13 @@
 # 0.7.11
 
+- Add brl tutorial command
 - Add brl-fetch support for Fedora 31
 - Fix brl-fetch debug handling
 
 # 0.7.10
 
-- Add brl-fetch support for Artix
 - Add brl-fetch centos support for CentOS 8 and 8-stream
+- Add brl-fetch support for Artix
 - Fix brl-fetch debian, devuan, raspbian and ubuntu libapt-pkg.so warning
 - Fix brl-fetch ubuntu default release detection considering "devel" a release
 - Improve hijack warning to better explain what it will do
