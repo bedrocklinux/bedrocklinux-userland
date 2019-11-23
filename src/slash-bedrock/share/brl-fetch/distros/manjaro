@@ -25,9 +25,8 @@ list_mirrors() {
 	# All mirrors:
 	# Server-side filtered list of mirrors:
 	mirror_list_url='https://repo.manjaro.org'
-	wget -qO- "${mirror_list_url}" | list_links |
-	# Remove the header links, and only list http/https
-	tail -n +5 | grep '^http'
+	# tail/grep is to remove the header links and only list http/https
+	wget -qO- "${mirror_list_url}" | list_links | tail -n +5 | grep '^http'
 
 }
 
@@ -39,7 +38,6 @@ brl_arch_to_distro() {
 }
 
 list_architectures() {
-	
 	echo "x86_64"
 }
 
@@ -57,15 +55,14 @@ setup_pacman() {
 	#
 	# Also remove CheckSpace, which sometimes gets confused by Bedrock's
 	# mount setup.
-	sed 's/^Architecture[ \t]*=.*$//' "${1}/etc/pacman.conf" | \
-		awk -v"a=${distro_arch}" '{print} $0 == "[options]" {print "Architecture = "a}' | \
-		sed 's/^[ \t]*CheckSpace/# &/' \
-		> "${1}/etc/pacman.conf-new"
+	sed 's/^Architecture[ \t]*=.*$//' "${1}/etc/pacman.conf" |
+		awk -v"a=${distro_arch}" '{print} $0 == "[options]" {print "Architecture = "a}' |
+		sed 's/^[ \t]*CheckSpace/# &/' > "${1}/etc/pacman.conf-new"
 	mv "${1}/etc/pacman.conf-new" "${1}/etc/pacman.conf"
 
 	LC_ALL=C chroot "${1}" /usr/bin/update-ca-trust
 	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --init
-	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate manjaro archlinux 
+	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate manjaro archlinux
 
 	if ! grep -q "^Server" "${1}/etc/pacman.d/mirrorlist"; then
 		echo "### Set by Bedrock Linux when acquiring this stratum" >>"${1}/etc/pacman.d/mirrorlist"
@@ -101,6 +98,7 @@ fetch() {
 	checksum_downloads "${cache}/packages/" "$(awk -v"a=${distro_arch}" -v"m=${target_mirror}" '{sub("/", "/"a"/"); print m"/stable/"$0}' "${bootstrap_dir}/required_packages")"
 	step "Extracting bootstrap packages"
 	bootstrap_packages="$(awk -v"d=${cache}/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
+	# shellcheck disable=SC2086
 	extract_pacman_pkgs "${bootstrap_dir}" ${bootstrap_packages}
 
 	step "Running bootstrap software"

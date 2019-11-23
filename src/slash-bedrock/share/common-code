@@ -112,10 +112,10 @@ fetch_abort() {
 	printf "${color_alert}ERROR: %s\\n${color_norm}" "${@}" >&2
 
 	if cfg_values "miscellaneous" "debug" | grep -q "brl-fetch"; then
-		printf "${color_alert}Skipping cleaning up ${target_dir} due to bedrock.conf debug setting.${color_norm}\n"
-	elif [ -n "${target_dir:-}" ] && [ -d "${target_dir}" ]; then
-		if ! less_lethal_rm_rf "${target_dir}"; then
-			printf "${color_alert}ERROR cleaning up ${target_dir}
+		printf "${color_alert}Skipping cleaning up ${target_dir:-} due to bedrock.conf debug setting.${color_norm}\n"
+	elif [ -n "${target_dir:-}" ] && [ -d "${target_dir:-}" ]; then
+		if ! less_lethal_rm_rf "${target_dir:-}"; then
+			printf "${color_alert}ERROR cleaning up ${target_dir:-}
 You will have to clean up yourself.
 !!! BE CAREFUL !!!
 \`rm\` around mount points may result in accidentally deleting something you wish to keep.
