@@ -37,6 +37,7 @@ _brl_subcommands() {
 		'reload:Reload configuration'
 		'version:Query Bedrock Linux version'
 		'report:Generate report'
+		'tutorial:Run interactive tutorial'
 	)
 	_describe 'brl subcommand' args
 }
@@ -204,6 +205,8 @@ case "${words[2]}" in
 	args+=('(-o --overwrite)'{-o,--overwrite}'[overwrite file at report path]')
 	_arguments "*:report output location:_path_files -f"
 	;;
+"tutorial")
+	;; # no parameters other than -h/--help
 esac
 
 # zsh-ism: we want it to expand here

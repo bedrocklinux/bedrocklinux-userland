@@ -57,7 +57,7 @@ function _brl_which_any
 	return 0
 end
 
-complete -f -c brl -a 'help strat list which fetch remove rename copy status enable disable repair hide show alias deref update reload version report' -d 'brl subcommand' -n "_brl_argnum 1"
+complete -f -c brl -a 'help strat list which fetch remove rename copy status enable disable repair hide show alias deref update reload version report tutorial' -d 'brl subcommand' -n "_brl_argnum 1"
 
 complete -f -c brl -o 'h' -d 'print help message' -n "_brl_argnum 1"
 complete -f -c brl -o 'h' -d 'print help message' -n "_brl_argnum 2"
