@@ -1,7 +1,8 @@
 # 0.7.11
 
-- Add brl tutorial command
+- Add brl-tutorial command
 - Add brl-fetch support for Fedora 31
+- Add brl-fetch support for Manjaro
 - Fix brl-fetch debug handling
 
 # 0.7.10
