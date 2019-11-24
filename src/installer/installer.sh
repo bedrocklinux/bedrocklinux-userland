@@ -295,7 +295,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	step "Finalizing"
 	touch "/bedrock/complete-hijack-install"
 	notice "Reboot to complete installation"
-	notice "After reboot run the tutorial command: ${color_cmd}brl tutorial${color_norm}"
+	notice "After reboot consider trying the Bedrock Linux tutorial command: ${color_cmd}brl tutorial${color_norm}"
 }
 
 update() {
