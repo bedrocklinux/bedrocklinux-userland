@@ -42,7 +42,7 @@ lock
 
 for alias in "${@}"; do
 	if ! is_stratum_or_alias "${alias}"; then
-		abort "No stratum or alias called \"${stratum}\"."
+		abort "No stratum or alias called \"${alias}\"."
 	elif ! stratum="$(deref "${alias}")"; then
 		abort "Unable to dereference \"${alias}\"."
 	elif is_init "${stratum}"; then
