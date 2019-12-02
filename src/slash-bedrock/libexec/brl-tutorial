@@ -357,7 +357,7 @@ $(cmd "strat tut-void ls --help 2>&1 | head -n1 ")
 If you do not specify the desired ${stratum} with ${strat}, ${Bedrock} will try
 to figure one out from context:
 
-- If ${Bedrock} is configured to ensure one ${strautm} always provides the
+- If ${Bedrock} is configured to ensure one ${stratum} always provides the
 given command, it will do so.  For example, init related commands should always
 correspond to the ${stratum} providing PID 1.  This is called ${pinning}.
 - If the command is not ${pinned} to a given ${stratum} but is available
