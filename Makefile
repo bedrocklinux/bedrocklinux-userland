@@ -1067,6 +1067,12 @@ release-build-environment:
 				strat -r brl-build-$${arch} emerge "$${pkg}"; \
 			fi; \
 		done; \
+		# i386 and i486 both need -latomic
+		# https://stackoverflow.com/questions/35884832/compile-error-undefined-reference-to-atomic-fetch-add-4/47498167#47498167
+		if [ "$${arch}" = "i386" ] || [ "$${arch}" = "i486" ] && ! grep -q -- "-latomic" /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf; then \
+			sed "s/COMMON_FLAGS=\"/COMMON_FLAGS=\"-latomic /g" /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf > /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf-new; \
+			mv /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf-new /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf; \
+		fi; \
 		if [ "$${arch}" = i486 ]; then \
 			continue; \
 		fi; \
