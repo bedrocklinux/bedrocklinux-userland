@@ -234,7 +234,7 @@ _brl() {
 		opts="${opts} $(compgen -d -f -- "${cur}")"
 		;;
 	"tutorial") ;;
-		# no parameters other than -h/--help
+		opts="$(ls -1 /bedrock/share/brl-tutorial/lessons/ | sed 's/^[0-9]*_//')"
 	esac
 
 	# Explicitly desire splitting here.

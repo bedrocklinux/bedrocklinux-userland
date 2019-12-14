@@ -206,7 +206,7 @@ case "${words[2]}" in
 	_arguments "*:report output location:_path_files -f"
 	;;
 "tutorial")
-	;; # no parameters other than -h/--help
+	args+=("*:lesson:($(ls -1 /bedrock/share/brl-tutorial/lessons/ | sed 's/^[0-9]*_//'))")
 esac
 
 # zsh-ism: we want it to expand here
