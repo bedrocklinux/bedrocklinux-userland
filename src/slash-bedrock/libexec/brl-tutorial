@@ -8,20 +8,32 @@
 #
 # Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
 #
-# Create stratum aliases.
+# Interactive tutorial front-end
 
 . /bedrock/share/common-code
 
-print_help() {
-	printf "Usage: ${color_cmd}brl tutorial${color_norm}
+lesson_directory="/bedrock/share/brl-tutorial/lessons/"
 
-Provides a tour of Bedrock Linux features suitable for new users.
+print_help() {
+	printf "Usage: ${color_cmd}brl tutorial${color_norm} ${color_sub}<lesson>${color_norm}
+
+Provides an interactive tutorial of various Bedrock Linux features.
+
+Lessons:
+$(
+cd "${lesson_directory}"
+for file in *; do
+	name="$(echo "${file}" | sed 's/^[0-9]*_//')"
+	printf "  ${color_cmd}%-15s${color_norm}%s\n" "${name}" "$(sh "${file}" help)"
+done
+)
+  ${color_sub}(more lessons may be added in the future)${color_norm}
 
 Options:
   ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}   print this message
 
 Examples:
-  ${color_cmd}$ brl tutorial
+  ${color_cmd}$ brl tutorial basics
   ${color_norm}<tutorial interface>
 ${color_norm}"
 }
@@ -34,7 +46,11 @@ rcmd() {
 	printf "\t${color_alert}# $*${color_norm}"
 }
 
-lesson() {
+flag() {
+	printf "${color_cmd}$1${color_norm}"
+}
+
+section() {
 	title="${1}"
 	text="${2}"
 	condition="${3:-}"
@@ -43,7 +59,7 @@ lesson() {
 	cursor="1"
 
 	clear
-	step "Lesson: ${title}"
+	step "Lesson: ${lesson}, section: ${title}"
 	printf "${text}"
 	echo ""
 	if [ -n "${condition:-}" ]; then
@@ -66,78 +82,10 @@ lesson() {
 	printf "\n"
 }
 
-# Create variables representing colorized versions of common terms
-stratum="${color_term}stratum${color_norm}"
-strata="${color_term}strata${color_norm}"
-Strata="${color_term}Strata${color_norm}"
-enabled="${color_term}enabled${color_norm}"
-global="${color_term}global${color_norm}"
-local="${color_term}local${color_norm}"
-locally="${color_term}locally${color_norm}"
-cross="${color_term}cross${color_norm}"
-pinning="${color_term}pinning${color_norm}"
-pinned="${color_term}pinned${color_norm}"
-restriction="${color_term}restriction${color_norm}"
-restrict="${color_term}restrict${color_norm}"
-disable="${color_term}disable${color_norm}"
-hijacked="${color_term}hijacked${color_norm}"
-hijack="${color_term}hijack${color_norm}"
-Bedrock_Linux="${color_bedrock}Bedrock Linux${color_norm}"
-Bedrock="${color_bedrock}Bedrock${color_norm}"
-bedrock="${color_strat}bedrock${color_norm}"
-Alpine="${color_distro}Alpine${color_norm}"
-Arch="${color_distro}Arch${color_norm}"
-Debian="${color_distro}Debian${color_norm}"
-Ubuntu="${color_distro}Ubuntu${color_norm}"
-Void="${color_distro}Void${color_norm}"
-tut_alpine="${color_strat}tut-alpine${color_norm}"
-tut_void="${color_strat}tut-void${color_norm}"
-init_stratum="${color_strat}$(brl deref init)${color_norm}"
-if hijacked_stratum="$(brl deref hijacked)"; then
-	hijacked_stratum="${color_strat}${hijacked_stratum}${color_norm}"
-fi
-brl="${color_cmd}brl${color_norm}"
-brl_fetch="${color_cmd}brl fetch${color_norm}"
-brl_which="${color_cmd}brl which${color_norm}"
-brl_tutorial="${color_cmd}brl tutorial${color_norm}"
-brl_apply="${color_cmd}brl apply${color_norm}"
-bedrock_conf="${color_file}bedrock.conf${color_norm}"
-bedrock_etc_bedrock_conf="${color_file}/bedrock/etc/bedrock.conf${color_norm}"
-sources_list="${color_file}sources.list${color_norm}"
-etc_apt_sources_list="${color_file}/etc/apt/sources.list${color_norm}"
-bedrock_strata="${color_file}/bedrock/strata/${color_norm}"
-strat="${color_cmd}strat${color_norm}"
-apk="${color_cmd}apk${color_norm}"
-xbps_install="${color_cmd}xbps-install${color_norm}"
-sudo="${color_cmd}sudo${color_norm}"
-apt="${color_cmd}apt${color_norm}"
-man="${color_cmd}man${color_norm}"
-jq="${color_cmd}jq${color_norm}"
-jo="${color_cmd}jo${color_norm}"
-ls="${color_cmd}ls${color_norm}"
-hashbang="${color_cmd}#!/bin/sh${color_norm}"
-bash="${color_cmd}bash${color_norm}"
-makepkg="${color_cmd}makepkg${color_norm}"
-home="${color_file}/home${color_norm}"
-tmp="${color_file}/tmp${color_norm}"
-run="${color_file}/run${color_norm}"
-
-handle_help "${@:-}"
-
-tmpfile="$(mktemp)"
-tmpfile2="$(mktemp)"
-trap 'rm -f ${tmpfile} ${tmpfile2}' INT TERM EXIT
-
-step_init "$(grep -c "^lesson " /bedrock/libexec/brl-tutorial)"
-
-lesson "${brl_tutorial}" "
-Welcome to the ${Bedrock_Linux} tutorial.
-
-This tutorial will introduce you to the minimum ${Bedrock_Linux}-specific
-background required to utilize and manage a ${Bedrock} system.  It assumes
-familiarity with common Linux environment concepts such as a bourne shell-like
-command line as well as a working internet connection and a couple gigabytes
-of free disk space.
+standard_intro() {
+	printf "This tutorial assumes familiarity with common Linux environment concepts such
+as a bourne shell-like command line as well as a working internet connection
+and a couple gigabytes of free disk space.
 
 Open another terminal with a bourne-like shell along side this one to follow
 along with the tutorial.
@@ -154,417 +102,110 @@ run the command as root (e.g. ${sudo}, ${color_cmd}su${color_norm}, etc).
 
 You may press ${color_cmd}<ctrl-c>${color_norm} to exit the tutorial at any point.
 "
-
-lesson "${Strata}" "
-A ${Bedrock} system is composed of ${strata}, which are collections of
-interrelated files and processes.  These typically correspond to Linux distro
-installs: one may have a ${Debian} ${stratum}, an ${Arch} ${stratum}, etc.
-${Bedrock} integrates these into a single, largely cohesive system.  Run
-
-$(cmd "brl list")
-
-to see a list of ${strata} currently being integrated together.
-
-$(
-	if [ "$(brl list | wc -l)" -le 2 ]; then
-		printf "This appears to be a fresh Bedrock Linux install with two ${strata}:
-
-- ${bedrock}, which is the ${stratum} providing ${Bedrock}-specific functionality.
-- ${init_stratum} which currently provides everything else.
-
-This isn't much more interesting than ${init_stratum} would have been by itself.
-"
-	else
-		printf "This system appears to already have a number of ${strata}, including:
-
-- ${bedrock}, which is the ${stratum} providing ${Bedrock}-specific functionality.
-- ${init_stratum}, which is currently providing your init system.
-
-amongst others.
-"
-	fi
-)
-
-The ${brl_fetch} command can be used to acquire new ${strata}.  To see distros
-${brl_fetch} knows how to acquire, run
-
-$(cmd "brl fetch --list")
-
-Let's get a couple more ${strata} to experiment with in this tutorial:
-
-$(rcmd "brl fetch -n tut-alpine alpine")
-$(rcmd "brl fetch -n tut-void void")
-" "brl list | grep \"^tut-alpine\$\" && brl list | grep \"^tut-void\$\""
-
-lesson "Cross-${stratum} commands" "
-Many features from the ${strata} we just acquired should work just as they
-would in their normal environments.  For example, since we now have an
-${Alpine} ${stratum}, we can run ${Alpine}'s ${apk} package manager directly on
-the command line:
-
-$(cmd "apk --help")
-
-We also have a ${Void} ${stratum} providing ${xbps_install}:
-
-$(cmd "xbps-install --help")
-
-We can install ${Alpine}'s ${jq} and ${Void}'s ${jo}:
-
-$(rcmd "apk add jq")
-$(rcmd "xbps-install -y jo")
-
-Importantly, the commands can interact just as they would were they from the
-same distro:
-
-$(cmd "jo \"distro=bedrock\" | jq \".distro\" | tee ${tmpfile}")
-" "grep bedrock ${tmpfile}"
-
-lesson "Other cross-${stratum} features" "
-${Bedrock} integrates more than just terminal commands.  It strives to make as
-much as it can work transparently and cohesively across ${strata}, including:
-
-- Graphical application menu contents
-- Shell tab completion
-- Kernel firmware detection
-- Xorg fonts
-- Some themes
-
-Lets try another example: ${man} pages.  We can get ${Alpine}'s ${jq} ${man}
-page and ${Void}'s man executable:
-
-$(rcmd "apk add jq-doc")
-$(rcmd "xbps-install -y man")
-
-Then have ${Void}'s ${man} read ${Alpine}'s ${jq} documentation:
-
-$(cmd "man jq | head | tee ${tmpfile}")
-" "grep jq ${tmpfile}"
-
-lesson "${brl_which}" "
-On a ${Bedrock} system, every file and every process is associated with some
-${stratum}.  The ${brl_which} command can be used to query ${Bedrock} for this
-association.  Lets try it:
-
-Which ${strata} provide the ${apk} and ${xbps_install} commands?
-
-$(cmd "brl which apk")
-$(cmd "brl which xbps-install")
-
-What about commands that multiple ${strata} - ${bedrock}, ${tut_alpine}, ${tut_void},
-$(
-	if strat -r init /bedrock/libexec/busybox which ls >/dev/null 2>&1; then
-		printf "${init_stratum}, "
-	fi
-)etc - all provide, such as ${ls}?
-
-$(cmd "brl which ls")
-
-Makes sense it has to pick a ${stratum} here, but why that one?  Keep this
-question in mind, as it will be answered later in the tutorial.
-
-Which ${strata} provide PID 1 (the init system) and PID $$ (this tutorial)?
-
-$(cmd "brl which 1")
-$(cmd "brl which $$")
-
-Which stratum provides ${color_file}/${color_norm}, the root directory?
-
-$(cmd "brl which /")
-
-Again, sure it has to pick one, but why that specific ${stratum} for the root
-directory that multiple ${strata} provide?  Like the ${ls} situation, this will
-be answered soon enough.
-
-Which ${stratum} provides ${bedrock_etc_bedrock_conf}, the ${Bedrock} configuration
-file?
-
-$(cmd "brl which /bedrock/etc/bedrock.conf")
-
-Wait - that last command output ${global}, but ${color_alert}we do not have a such a ${stratum}:${color_norm}
-
-$(cmd "brl list | grep global")
-
-What's going on here?
-"
-
-lesson "File path types: ${local}" "
-To avoid conflicts, processes from one ${stratum} may see their own
-${stratum}'s instance of a given file (or lack of file) at a given file path.
-
-This is why the ${stratum} providing your shell:
-
-$(cmd "brl which \$\$")
-
-Sees its own root directory instead of another ${stratum}'s:
-
-$(cmd "brl which /")
-
-If your shell ${stratum} has a ${color_file}/etc/os-release${color_norm}, it
-will probably correspond to your shell ${stratum} distro:
-
-$(cmd "cat /etc/os-release")
-
-This is needed to avoid conflicts.  For example, ${Debian}'s ${apt} needs to
-see ${Debian} mirrors at ${etc_apt_sources_list} and ${Ubuntu}'s ${apt} needs
-to see ${Ubuntu}'s mirrors at the same path.  If they saw the same contents in
-${sources_list} these two programs would conflict with each other.
-
-In ${Bedrock} terminology, these file paths are described as ${local}.
-"
-
-lesson "File path types: ${global}" "
-If all paths were ${local}, ${strata} would be unable to interact with each
-other.  For ${strata} to interact, there are also ${global} paths: file paths
-where every ${stratum} sees the same content.  Under-the-hood, these are
-${bedrock} files which are being shared with other ${strata}.
-
-For example, all ${strata} see the same contents in ${run} to communicate over
-common sockets:
-
-$(cmd "brl which /run")
-
-Directories like ${home} and ${tmp} are also ${global} so you can have software
-from one ${stratum}, like ${Alpine}'s ${jq}, read files created by another
-${stratum}, like ${Void}'s ${jo}, provided the file is in a ${global} location:
-
-$(cmd "brl which /tmp")
-$(cmd "jo \"path=global\" > ${tmpfile}")
-$(cmd "jq \".path\" < ${tmpfile} | tee ${tmpfile2}")
-" "grep global ${tmpfile2}"
-
-lesson "File path types: ${cross}" "
-Sometimes processes from one ${stratum} need to access ${local} files from
-another.  This is achieved via ${cross} file paths.
-
-If you want to read or write to a ${local} file specific to a given ${stratum},
-prefix ${bedrock_strata}${color_sub}<stratum>${color_norm} to the file path to ${cross} to that
-${stratum}:
-
-$(cmd "brl which /bedrock/strata/bedrock/etc/os-release")
-$(cmd "cat /bedrock/strata/bedrock/etc/os-release")
-$(cmd "brl which /bedrock/strata/tut-alpine/etc/os-release")
-$(cmd "cat /bedrock/strata/tut-alpine/etc/os-release")
-"
-
-lesson "${strat}" "
-${bedrock_strata} is only suitable for reading and writing ${cross} files.  To
-execute a program from a specific ${stratum}, prefix \`${strat} ${color_sub}<stratum>${color_norm}\`.
-For example, if you care about which ${ls} you want to run:
-
-$(cmd "strat tut-alpine ls --help 2>&1 | head -n1")
-$(cmd "strat tut-void ls --help 2>&1 | head -n1 ")
-
-If you do not specify the desired ${stratum} with ${strat}, ${Bedrock} will try
-to figure one out from context:
-
-- If ${Bedrock} is configured to ensure one ${stratum} always provides the
-given command, it will do so.  For example, init related commands should always
-correspond to the ${stratum} providing PID 1.  This is called ${pinning}.
-- If the command is not ${pinned} to a given ${stratum} but is available
-${locally}, ${Bedrock} will utilize the ${local} one.  This is to ensure
-distro-specific dependency quirks are met.
-- If the command is not ${pinned} and not available ${locally}, ${Bedrock}
-assumes the specific build of the command does not matter.  In these cases
-${Bedrock} will search other ${strata} and supply the first instance of the
-command it finds.
-
-The second bullet point above is why the ${ls} you get if you do not specify
-one with ${strat}:
-
-$(cmd "brl which ls")
-
-is probably from the same ${stratum} providing your shell:
-
-$(cmd "brl which \$\$")
-
-and the third rule above is why ${apk} and ${xbps_install} work despite being
-from different ${strata}:
-
-$(cmd "brl which apk")
-$(cmd "brl which xbps-install")
-"
-
-lesson "${restriction}" "
-Occasionally, software may become confused by ${Bedrock}'s environment.  Most
-notably this occurs when build tools scan the environment for dependencies and
-find them from different distributions.  To handle this situation, ${strat}'s
-${color_cmd}-r${color_norm} flag may be used to ${restrict} the command from
-seeing ${cross}-${stratum} hooks.
-
-For example, normally ${tut_void}'s shell can see ${tut_alpine}'s ${apk}:
-
-$(cmd "strat tut-void sh -c 'apk --help'")
-
-But if you ${restrict} it, it cannot, and this command will fail:
-
-$(cmd "strat -r tut-void sh -c 'apk --help'")
-
-${Bedrock} will automatically ${restrict} some commands that it knows are
-related to compiling, such as ${Arch}'s ${makepkg}.  If this is a problem for
-any reason, you can un-${restrict} with ${strat} ${color_cmd}-u${color_norm}.
-
-In general, if something acts oddly under ${Bedrock}, the first thing you
-should try is to ${restrict} it.  This is especially true when it comes to
-compiling software.
-"
-
-lesson "${stratum} states" "
-It is sometimes useful to have a ${stratum}'s files on disk without them being
-integrated into the rest of the system.  To do this, ${disable} the ${stratum}:
-
-$(rcmd "brl disable tut-void")
-
-This will stop all of the ${stratum}'s running processes and block the ability
-to launch new ones.  This command will now fail:
-
-$(cmd "strat tut-void xbps-install --help")
-
-The ${stratum} may be re-enabled:
-
-$(rcmd "brl enable tut-void")
-
-after which this command will now work:
-
-$(cmd "strat tut-void xbps-install --help")
-"
-
-lesson "Removing ${strata}" "
-
-As a protective measure, ${strata} may not be removed while ${enabled}.  If you
-wish to remove a ${stratum}, first ${disable} it.
-
-$(rcmd "brl disable tut-alpine")
-$(rcmd "brl disable tut-void")
-$(rcmd "brl remove tut-alpine")
-$(rcmd "brl remove tut-void")
-" "! brl list -v | grep -e \"^tut-alpine$\" -e \"^tut-void$\""
-
-lesson "Special ${strata}" "
-The ${stratum} currently providing PID 1 (the init) may not be disabled, as the
-Linux kernel does not respond well to PID 1 dying.  Given
-
-$(cmd "brl which 1")
-
-this command will fail:
-
-$(rcmd "brl disable $(brl deref init)")
-
-If you wish to remove the init-providing ${stratum}, first reboot and select
-another ${stratum} to provide your init for the given session.
-
-The ${bedrock} ${stratum} glues the entire system together.  It is the only
-${stratum} which may not be removed.
-$(
-	if brl deref hijacked >/dev/null 2>&1; then
-		printf "
-When ${Bedrock} ${hijacked} this computer, it:
-
-- Moved the previous install files elsewhere.
-- Installed itself to the root of the system.
-- Added the previous install as a new ${stratum} called ${hijacked_stratum}.
-
-Now that the ${hijack} operation has completed, there is nothing particularly
-special about the ${hijacked_stratum} ${stratum}.  You are free to remove it,
-should you wish to do so.  Just make sure to install anything essential that
-${hijacked_stratum} is providing, such as the bootloader or kernel or ${sudo},
-in another ${stratum}.
-"
-	fi
-)
-"
-
-lesson "Manually adding ${strata}" "
-If you would like to make a ${stratum} from some distro that ${brl_fetch} does not
-support, simply:
-
-- Get that distro's files somehow, such as installing them in a VM and mounting
-the VM image.
-- Copy them into ${color_file}/bedrock/strata/${color_sub}<new-stratum-name>${color_norm}.  Be careful to preserve
-permissions and symbolic links!
-- Run ${color_cmd}brl show ${color_sub}<new-stratum-name>${color_norm} to register the new ${stratum} with ${Bedrock}
-- Run ${color_cmd}brl enable ${color_sub}<new-stratum-name>${color_norm} to begin to use it.
-"
-
-lesson "${bedrock_conf}" "
-All ${Bedrock} configuration is placed in a single file,
-${bedrock_etc_bedrock_conf}.  If it seems like something ${Bedrock} does should
-be configurable, look in there.  After making changes to ${bedrock_conf} run
-${brl_apply} to ensure they take effect.
-
-For example, run
-
-$(cmd "brl --help")
-
-$(
-	if [ "$(cfg_value "miscellaneous" "color")" = "true" ]; then
-		printf "and notice how pretty and colorful the output is.
-Now open ${bedrock_etc_bedrock_conf} and find
-
-	${color_file}color = true${color_norm}
-
-towards the bottom and change it to
-
-	${color_file}color = false${color_norm}
-
-and apply that change:
-
-$(rcmd "brl apply")
-
-Now run
-
-$(cmd "brl --help")
-
-and notice how boring and monotone the output is.
-"
-	else
-		printf "and notice how boring and monotone the output is.
-Now open ${bedrock_etc_bedrock_conf} and find
-
-	${color_file}color = [...]${color_norm}
-
-towards the bottom and change it to
-
-	${color_file}color = true${color_norm}
-
-and apply that change:
-
-$(rcmd "brl apply")
-
-Now run
-
-$(cmd "brl --help")
-
-and notice how pretty and colorful the output is.
-"
-	fi
-)
-
-Finally, change the ${bedrock_conf} setting back and
-
-$(rcmd "brl apply")
-
-again to reset everything to how it was before.
-"
-
-lesson "${brl}" "
-Most operations used to manage ${Bedrock} can be found in the ${brl} command.
-This includes both those discussed earlier in the tutorial as well as some
-which were skipped for brevity.
-
-After this tutorial, consider exploring ${brl}:
-
-$(cmd "brl --help")
-
-reading through ${bedrock_etc_bedrock_conf}.
-"
+}
+
+handle_help "${@:-}"
+
+# Users have complained busybox mktemp output is too difficult to type when
+# following tutorial instructions.  Attempt to generate a more user friendly
+# temporary file names.
+n=0
+tmpfile=""
+while true; do
+	n=$((n + 1))
+	tmpfile="/tmp/tut${n}"
+	touch "${tmpfile}" || continue
+	exec 9>"${tmpfile}" || continue
+	flock -nx 9 && break
+done
+tmpfile2=""
+while true; do
+	n=$((n + 1))
+	tmpfile2="/tmp/tut${n}"
+	touch "${tmpfile2}" || continue
+	exec 8>"${tmpfile2}" || continue
+	flock -nx 8 && break
+done
+echo "" > "${tmpfile}"
+echo "" > "${tmpfile2}"
+trap 'rm -f ${tmpfile} ${tmpfile2}' INT TERM EXIT
+
+# Create variables representing colorized versions of common terms
+if hijacked_stratum="$(brl deref hijacked)"; then
+	hijacked_stratum="${color_strat}${hijacked_stratum}${color_norm}"
+else
+	hijacked_stratum=""
+fi
+Alpine="${color_distro}Alpine${color_norm}"
+Arch="${color_distro}Arch${color_norm}"
+Bedrock="${color_bedrock}Bedrock${color_norm}"
+Bedrock_Linux="${color_bedrock}Bedrock Linux${color_norm}"
+Debian="${color_distro}Debian${color_norm}"
+Strata="${color_term}Strata${color_norm}"
+Ubuntu="${color_distro}Ubuntu${color_norm}"
+Void="${color_distro}Void${color_norm}"
+apk="${color_cmd}apk${color_norm}"
+apt="${color_cmd}apt${color_norm}"
+bash="${color_cmd}bash${color_norm}"
+bedrock="${color_strat}bedrock${color_norm}"
+bedrock_conf="${color_file}bedrock.conf${color_norm}"
+bedrock_etc_bedrock_conf="${color_file}/bedrock/etc/bedrock.conf${color_norm}"
+bedrock_strata="${color_file}/bedrock/strata/${color_norm}"
+brl="${color_cmd}brl${color_norm}"
+brl_apply="${color_cmd}brl apply${color_norm}"
+brl_fetch="${color_cmd}brl fetch${color_norm}"
+brl_tutorial="${color_cmd}brl tutorial${color_norm}"
+brl_which="${color_cmd}brl which${color_norm}"
+cross="${color_term}cross${color_norm}"
+disable="${color_term}disable${color_norm}"
+enable="${color_term}enable${color_norm}"
+enabled="${color_term}enabled${color_norm}"
+etc_apt_sources_list="${color_file}/etc/apt/sources.list${color_norm}"
+global="${color_term}global${color_norm}"
+hashbang="${color_cmd}#!/bin/sh${color_norm}"
+hijack="${color_term}hijack${color_norm}"
+hijacked="${color_term}hijacked${color_norm}"
+home="${color_file}/home${color_norm}"
+init_stratum="${color_strat}$(brl deref init)${color_norm}"
+jo="${color_cmd}jo${color_norm}"
+jq="${color_cmd}jq${color_norm}"
+local="${color_term}local${color_norm}"
+locally="${color_term}locally${color_norm}"
+ls="${color_cmd}ls${color_norm}"
+makepkg="${color_cmd}makepkg${color_norm}"
+man="${color_cmd}man${color_norm}"
+pinned="${color_term}pinned${color_norm}"
+pinning="${color_term}pinning${color_norm}"
+reboot="${color_cmd}reboot${color_norm}"
+restrict="${color_term}restrict${color_norm}"
+restriction="${color_term}restriction${color_norm}"
+run="${color_file}/run${color_norm}"
+show="${color_term}show${color_norm}"
+sources_list="${color_file}sources.list${color_norm}"
+strat="${color_cmd}strat${color_norm}"
+strata="${color_term}strata${color_norm}"
+stratum="${color_term}stratum${color_norm}"
+sudo="${color_cmd}sudo${color_norm}"
+tmp="${color_file}/tmp${color_norm}"
+tut_alpine="${color_strat}tut-alpine${color_norm}"
+tut_void="${color_strat}tut-void${color_norm}"
+xbps_install="${color_cmd}xbps-install${color_norm}"
+
+# Find user specified lesson implementation
+lesson="${@}"
+if [ -z "${lesson}" ]; then
+	abort "No lesson specified, see --help"
+elif ! file="$(ls -1 "${lesson_directory}" | grep "^[0-9]*_${lesson}$")"; then
+	abort "No such lesson \"${lesson}\""
+fi
+
+# Run lesson
+step_init "$(grep -c "^section " "${lesson_directory}/${file}")"
+. "${lesson_directory}/${file}"
 
 clear
-printf "
-
-This completes the tutorial.
-
+printf "This completes the lesson: ${lesson}
 Thank you for taking the time to learn about ${Bedrock_Linux}.
-
 "
 
 exit_success
