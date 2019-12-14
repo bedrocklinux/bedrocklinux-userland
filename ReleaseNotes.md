@@ -1,9 +1,12 @@
 # 0.7.11
 
-- Add brl-tutorial command
-- Add brl-fetch support for Fedora 31
-- Add brl-fetch support for Manjaro
-- Fix brl-fetch debug handling
+- Added brl-tutorial command
+- Added basics tutorial
+- Added brl-fetch tutorial
+- Added brl-fetch support for Fedora 31
+- Added brl-fetch support for Manjaro
+- Fixed brl-fetch debug handling
+- Fixed brl-disable handling of invalid stratum
 
 # 0.7.10
 
