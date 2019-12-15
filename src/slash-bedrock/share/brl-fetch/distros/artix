@@ -99,7 +99,8 @@ fetch() {
 
 	step "Extracting bootstrap packages"
 	bootstrap_packages="$(awk -v"d=${cache}/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
-	extract_pacman_pkgs "${bootstrap_dir}" "${bootstrap_packages}"
+	# shellcheck disable=SC2086
+	extract_pacman_pkgs "${bootstrap_dir}" ${bootstrap_packages}
 
 	step "Running bootstrap software"
 	# pacstrap mounts devtmpfs (which is shared with the host system) and
