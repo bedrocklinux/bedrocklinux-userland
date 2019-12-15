@@ -1,3 +1,7 @@
+# 0.7.12
+
+- Fixed brl-fetch artix
+
 # 0.7.11
 
 - Added brl-tutorial command
