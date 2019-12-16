@@ -1,6 +1,7 @@
 # 0.7.12
 
 - Fixed brl-fetch artix
+- Fixed bash completion for brl-tutorial
 
 # 0.7.11
 
