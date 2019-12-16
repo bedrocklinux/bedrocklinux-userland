@@ -166,19 +166,19 @@ _brl() {
 		;;
 	"rename")
 		if [ "${COMP_CWORD}" -eq 2 ]; then
-			opts="$(/bedrock/bin/brl list -dD | grep -ve "^bedrock$" -ve "^init$")"
+			opts="${opts} $(/bedrock/bin/brl list -dD | grep -ve "^bedrock$" -ve "^init$")"
 		fi
 		;;
 	"copy")
 		if [ "${COMP_CWORD}" -eq 2 ]; then
-			opts="$(/bedrock/bin/brl list -dD)"
+			opts="${opts} $(/bedrock/bin/brl list -dD)"
 		fi
 		;;
 	"status")
-		opts="$(/bedrock/bin/brl list -aA)"
+		opts="${opts} $(/bedrock/bin/brl list -aA)"
 		;;
 	"enable")
-		opts="$(/bedrock/bin/brl list -dD)"
+		opts="${opts} $(/bedrock/bin/brl list -dD)"
 		;;
 	"disable")
 		for stratum in $(brl list -eE); do
@@ -191,30 +191,30 @@ _brl() {
 		done
 		;;
 	"repair")
-		opts="$(/bedrock/bin/brl list -aA)"
+		opts="${opts} $(/bedrock/bin/brl list -aA)"
 		;;
 	"hide")
 		opts="${opts} $(_brl_unused_all "-a --all" "${COMP_WORDS[@]}")"
 		opts="${opts} $(_brl_unused_all "-b --boot" "${COMP_WORDS[@]}")"
 		opts="${opts} $(_brl_unused_all "-c --cross" "${COMP_WORDS[@]}")"
 		opts="${opts} $(_brl_unused_all "-i --init" "${COMP_WORDS[@]}")"
-		opts="$(/bedrock/bin/brl list -aA)"
+		opts="${opts} $(/bedrock/bin/brl list -aA)"
 		;;
 	"show")
 		opts="${opts} $(_brl_unused_all "-a --all" "${COMP_WORDS[@]}")"
 		opts="${opts} $(_brl_unused_all "-b --boot" "${COMP_WORDS[@]}")"
 		opts="${opts} $(_brl_unused_all "-c --cross" "${COMP_WORDS[@]}")"
 		opts="${opts} $(_brl_unused_all "-i --init" "${COMP_WORDS[@]}")"
-		opts="$(/bedrock/bin/brl list -aAi)"
+		opts="${opts} $(/bedrock/bin/brl list -aAi)"
 		;;
 	"alias")
 		if [ "${COMP_CWORD}" -eq 2 ]; then
-			opts="$(/bedrock/bin/brl list -a)"
+			opts="${opts} $(/bedrock/bin/brl list -a)"
 		fi
 		;;
 	"deref")
 		if [ "${COMP_CWORD}" -eq 2 ]; then
-			opts="$(/bedrock/bin/brl list -A)"
+			opts="${opts} $(/bedrock/bin/brl list -A)"
 		fi
 		;;
 	"update")
@@ -233,8 +233,9 @@ _brl() {
 		compopt -o filenames
 		opts="${opts} $(compgen -d -f -- "${cur}")"
 		;;
-	"tutorial") ;;
-		opts="$(ls -1 /bedrock/share/brl-tutorial/lessons/ | sed 's/^[0-9]*_//')"
+	"tutorial")
+		opts="${opts} $(ls -1 /bedrock/share/brl-tutorial/lessons/ | sed 's/^[0-9]*_//')"
+		;;
 	esac
 
 	# Explicitly desire splitting here.
