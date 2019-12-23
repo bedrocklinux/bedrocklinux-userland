@@ -48,8 +48,8 @@ list_releases() {
 
 fetch() {
 	step "Downloading bootstrap software"
-	wget -O "${bootstrap_dir}/checksum" "https://dl.getkiss.org/kiss-chroot.sha256"
-	bootstrap_checksum="$(cat "${bootstrap_dir}/checksum")"
+	wget -O "${bootstrap_dir}/checksum" "https://dl.getkiss.org/kiss-chroot.tar.xz.sha256"
+	bootstrap_checksum="$(awk '{print$1}' "${bootstrap_dir}/checksum")"
 	checksum_download "${cache}/bootstrap.tar.xz" "sha256sum" "${bootstrap_checksum}" "${target_mirror}/kiss-chroot.tar.xz"
 
 	step "Preparing bootstrap software"

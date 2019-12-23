@@ -1,3 +1,7 @@
+# 0.7.13
+
+- Fixed brl-fetch kiss
+
 # 0.7.12
 
 - Fixed brl-fetch artix
