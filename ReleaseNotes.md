@@ -1,5 +1,6 @@
 # 0.7.13
 
+- Fixed brl-fetch arch
 - Fixed brl-fetch kiss
 
 # 0.7.12
