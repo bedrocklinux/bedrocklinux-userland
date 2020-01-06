@@ -19,18 +19,22 @@ Building the installer/updater
 On a Linux system, install the build dependencies:
 
 - Standard UNIX utilities: grep, sed, awk, etc.
+- autoconf
+- autopoint
+- bison
+- fakeroot
 - gcc 4.9.1 or newer
 - git 1.8 or newer
+- gpg (optional)
+- gzip
+- libtool
+- make
 - meson 0.38 or newer
 - ninja-build
-- bison
-- libtool
-- autoconf
 - pkg-config
-- fakeroot
-- make
-- gzip
-- gpg (optional)
+- rsync
+- udev (build-time only)
+- wget
 
 Ensure you have internet access (to fetch upstream dependencies), then run:
 
