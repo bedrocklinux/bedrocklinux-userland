@@ -599,8 +599,13 @@ extract_pacman_pkgs() {
 	dir="${1}"
 	shift
 	for file in "${@}"; do
-		unxz <"${file}" | tar -xf - -C "${dir}"
-		echo "X"
+		if echo "${file}" | grep "[.]xz"; then
+			unxz <"${file}" | tar -xf - -C "${dir}"
+		elif echo "${file}" | grep "[.]zst"; then
+			/bedrock/libexec/zstd -d <"${file}" | tar -xf - -C "${dir}"
+		else
+			abort "Unrecognized file extension: ${file}"
+		fi
 	done | progress_bar "${#}"
 }
 
