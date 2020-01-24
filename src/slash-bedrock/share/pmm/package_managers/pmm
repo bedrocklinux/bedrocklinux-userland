@@ -1,0 +1,84 @@
+#!/bedrock/libexec/busybox awk -f
+#
+# Package Manager Manager pmm-specific operation support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2013-2020 Daniel Thau <danthau@bedrocklinux.org>
+
+#
+# Most of pmm's user interface and operation/flag capabilities mirror those of
+# other package managers.  However, it offers a number of pmm-specific concepts
+# as well.  Those are registered here utilizing "*" to effectively register
+# them with all other package managers.
+#
+
+#
+# pmm specific, operation independent flags
+#
+# Since these are pmm specific, other package managers will not have flags for
+# them.  To make them accessible, use "*" to register them for all package
+# managers.
+#
+user_interfaces["*", "strat"]           = "--strat/--stratum"
+user_interfaces["*", "package-manager"] = "--pm/--package-manager"
+user_interfaces["*", "newest"]          = "--newest"
+user_interfaces["*", "oldest"]          = "--oldest"
+user_interfaces["*", "approx-version"]  = "--approx-version"
+user_interfaces["*", "exact-version"]   = "--exact-version"
+user_interfaces["*", "newer-or-equal"]  = "--newer-or-equal"
+user_interfaces["*", "newer-than"]      = "--newer-than"
+user_interfaces["*", "older-or-equal"]  = "--older-or-equal"
+user_interfaces["*", "older-than"]      = "--older-than"
+user_interfaces["*", "every"]           = "--every"
+
+#
+# Internal pmm operations.
+#
+# Since these are not user facing, use "*" to register that all package
+# managers have empty user interfaces for these items.
+#
+user_interfaces["*", "is-package-installed"]               = ""
+user_interfaces["*", "is-package-available"]               = ""
+user_interfaces["*", "is-file-db-available"]               = ""
+user_interfaces["*", "print-file-db-install-instructions"] = ""
+user_interfaces["*", "print-package-version"]              = ""
+user_interfaces["*", "cache-package-db"]                   = ""
+
+#
+# pmm specific operations.
+#
+# Since these are pmm specific, normal package managers will not have
+# corresponding user interfaces or implementations.  Use "*" to register that
+# all package managers have empty user interfaces for these items.
+#
+# Corresponding implementations[] is ignored and implemented internally to pmm.
+# Include empty items here for completion's sake.
+#
+user_interfaces["*", "update-world-installed"]  = "pmm --update-world-installed"
+user_interfaces["*", "update-world-removed"]    = "pmm --update-world-removed"
+user_interfaces["*", "update-world-sync"]       = "pmm --update-world-sync"
+user_interfaces["*", "apply-world-installed"]   = "pmm --apply-world-installed"
+user_interfaces["*", "apply-world-removed"]     = "pmm --apply-world-removed"
+user_interfaces["*", "apply-world-sync"]        = "pmm --apply-world-sync"
+user_interfaces["*", "diff-world"]              = "pmm --diff-world"
+user_interfaces["*", "check-pmm-configuration"] = "pmm --check-pmm-configuration"
+user_interfaces["*", "list-pmm-ui-files"]       = "pmm --list-pmm-ui-files"
+
+implementations["*", "update-world-installed"]  = ""
+implementations["*", "update-world-removed"]    = ""
+implementations["*", "update-world-sync"]       = ""
+implementations["*", "apply-world-installed"]   = ""
+implementations["*", "apply-world-removed"]     = ""
+implementations["*", "apply-world-sync"]        = ""
+implementations["*", "diff-world"]              = ""
+implementations["*", "check-pmm-configuration"] = ""
+implementations["*", "list-pmm-ui-files"]       = ""
+
+#
+# Errors
+#
+user_interfaces["*", "no-match-error"] = ""
+implementations["*", "no-match-error"] = ""

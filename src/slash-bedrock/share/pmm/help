@@ -1,0 +1,184 @@
+#!/bedrock/libexec/busybox awk -f
+#
+# Package Manager Manager --help documentation
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2020 Daniel Thau <danthau@bedrocklinux.org>
+
+#
+# Contents here populate help[], a map from operations and flags to their
+# --help output.  This is also used as internal documentation for new pmm
+# developers, and so every operation and flag must have a help entry irrelevant
+# of whether or not there is a user interface which would surface it.
+#
+
+#
+# General, operation independent flags.
+#
+# Unlike operations, flags should not have implementations[].
+#
+help["assume-no"]  = "assume no at prompts"
+help["assume-yes"] = "assume yes at prompts"
+help["confirm"]    = "utilize additional confirmation prompts"
+help["quiet"]      = "lessen output verbosity"
+help["verbose"]    = "increase output verbosity"
+
+#
+# Operations which directly forward the underlying command output.
+#
+# The underlying format is forwarded rather than standardized because:
+# - It may prompt the user, and we do not want to obscure the prompt.
+# - Output contents vary too much across package managers to meaningfully
+# standardize beyond trivial things such as "operation completed successfully."
+#
+help["install-packages"]         = "install <pkgs>"
+help["reinstall-packages"]       = "reinstall <pkgs>"
+help["remove-packages-limited"]  = "uninstall <pkgs>"
+help["remove-packages-full"]     = "fully uninstall <pkgs> (e.g. also remove modified config files)"
+help["verify-packages"]          = "verify <pkgs> are installed correctly"
+help["verify-all-packages"]      = "verify all packages are installed correctly"
+help["mark-packages-explicit"]   = "mark <pkgs> as explicitly installed, not (only) to satisfy dependency needs"
+help["mark-packages-implicit"]   = "mark <pkgs> as installed only to satisfy a dependency need"
+help["show-package-information"] = "show information about <pkgs>"
+help["clear-cache"]              = "clear cache files"
+help["remove-orphans"]           = "remove orphans, i.e. packages installed only to fulfill now unneeded dependencies"
+help["update-package-database"]  = "update package database"
+help["update-file-database"]     = "update file database"
+help["upgrade-packages-limited"] = "upgrade installed packages"
+help["upgrade-packages-full"]    = "fully upgrade installed packages (e.g. also remove packages to handle conflicts)"
+
+#
+# Combine operations.
+#
+# Only populate if package manager supports all entries directly in a single
+# operation.  Do not populate by combining components with `&&`.  pmm will
+# automatically check subsets and call individual entries as appropriate.
+#
+# Take care to use `,` to separate operation names _within_ the quoted strings,
+# rather than separating quoted strings themselves.  The latter concept is used
+# to pair package managers with operations and must remain distinct.
+#
+help["clear-cache,remove-orphans"]                                                             = "clear cache files and uninstall orphan packages"
+help["mark-packages-implicit,remove-orphans"]                                                  = "mark <pkgs> as installed only to satisfy dependency then remove orphans"
+help["remove-packages-limited,remove-orphans"]                                                 = "uninstall <pkgs> then uninstall orphans"
+help["remove-packages-full,remove-orphans"]                                                    = "fully uninstall <pkgs> then uninstall orphans"
+help["update-package-database,update-file-database"]                                           = "update all databases"
+help["update-package-database,upgrade-packages-partial"]                                       = "update package database then upgrade installed packages"
+help["update-package-database,upgrade-packages-full"]                                          = "update package database then fully upgrade installed packages"
+help["update-package-database,update-file-database,upgrade-packages-partial"]                  = "update all databases then upgrade installed packages"
+help["update-package-database,update-file-database,upgrade-packages-full"]                     = "update all databases then fully upgrade installed packages"
+help["update-package-database,install-packages"]                                               = "update package database then install packages"
+help["update-package-database,update-file-database,install-packages"]                          = "update all databases then install packages"
+help["upgrade-packages-limited,install-packages"]                                              = "upgrade installed packages then install <pkgs>"
+help["upgrade-packages-full,install-packages"]                                                 = "fully upgrade installed packages then install <pkgs>"
+help["update-package-database,upgrade-packages-partial,install-packages"]                      = "update package database, upgrade packages, install <pkgs>"
+help["update-package-database,upgrade-packages-full,install-packages"]                         = "update package database, fully upgrade packages, install <pkgs>"
+help["update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = "update all databases, upgrade packages, install <pkgs>"
+help["update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = "update all databases, fully upgrade packages, install <pkgs>"
+
+#
+# Operations which have a standardized output format.
+#
+# Output is standardized for these commands because:
+# - The *expected* output content is similar enough across package managers;
+# usually just lists of package names or file names.
+# - The underlying concept being expressed may be cleanly filtered through
+# Bedrock specific concepts such as strata or `/bedrock/strata/.../` paths.
+# - The operation may be used internally within pmm, and thus the underlying
+# command output may be consumed by pmm, and thus it must be standardized.
+#
+# implementation: print full local path, one file per line
+# pmm: print full /bedrock/strata/... path, one file per line
+help["list-installed-package-files"] = "list files owned by installed <pkgs>"
+# implementation: print <package>, one per line.
+# pmm: print "<stratum>:<pm><tab><package>"
+help["list-installed-explicit"]      = "list packages installed explicitly, not (only) to satisfy dependency needs"
+help["list-installed-implicit"]      = "list packages installed only to satisfy dependency needs"
+help["list-installed-packages"]      = "list all installed packages"
+help["list-available-packages"]      = "list all available packages"
+help["search-for-package-by-name"]   = "search for packages with names matching <text>"
+help["search-for-package-by-all"]    = "search for packages matching <text> in name, description, etc"
+help["which-package-owns-file"]      = "query which installed packages own <file>"
+# implementation: print <package><tab><file-path>
+# pmm: print "<stratum>:<pm><tab><package><tab><file-path>"
+help["which-packages-provide-file"]  = "query which available packages provide <file>"
+
+#
+# Internal pmm operations.
+#
+# These operations are used internally within pmm and are not exposed directly
+# via the user interface.  They must have a standardized output to be consumed
+# by pmm.  If support for a package manager which directly exposes these
+# concepts is added, graduate the operation from this category to "Operations
+# which have a standardized output format."
+#
+# Package manager configuration should describe their implementations[] to
+# coordinate with pmm, but since these are not user-facing they should not
+# populate non-empty-string user_interfaces[] values.
+#
+# return 0 if package is installed, non-zero otherwise.  Do not print
+# stdout/stderr.
+help["is-package-installed"] = "query if <pkg> is installed"
+# return 0 if package is available, non-zero otherwise.  Do not print
+# stdout/stderr.
+help["is-package-available"] = "query if <pkg> is available"
+# return 0 if package file database operations are available, non-zero
+# otherwise.  Do not print stdout/stderr.
+help["is-file-db-available"] = "check if file database operations are available"
+# If it is possible to make file-db available such as by installing a package,
+# print instructions to do so to stdout.
+help["print-file-db-install-instructions"] = "instruct user how to make file-db available"
+# print available package version.  Should only be called if package is
+# available.  Strip distro/package-manager specific version information from
+# version such as preceding `2:` or trailing `-5ubuntu2`.  Only `[0-9.]`
+# characters are expected.
+help["print-package-version"] = "print <pkg> version"
+# Print a list of `<package-name><tab><package-version>` pairs, one per line.
+# Strip distro/package-manager specific version information from version such
+# as preceding `2:` or trailing `-5ubuntu2`.  Only `[0-9.]` characters are
+# expected.
+help["cache-package-db"] = "print information needed to cache package database"
+
+#
+# pmm specific, operation independent flags
+#
+# Typical package manager configurations should not describe the
+# user_interfaces[] for these, as they do not correspond to typical package
+# managers.  Since they are flags - not operations - there is no
+# implementations[] to define.
+#
+help["strat"]           = "restrict to <stratum>"
+help["package-manager"] = "restrict to <pm>"
+help["every"]           = "operate on every available instance of <pkgs> (e.g. uninstall all copies)"
+help["newest"]          = "select newest corresponding versions of items"
+help["oldest"]          = "select oldest corresponding versions of items"
+help["approx-version"]  = "only consider items with a version prefixed by <version>"
+help["exact-version"]   = "only consider items that are exactly <version>"
+help["newer-or-equal"]  = "only consider items that are newer than or equal to <version>"
+help["newer-than"]      = "only consider items that are newer than <version>"
+help["older-or-equal"]  = "only consider items that are older than or equal to <version>"
+help["older-than"]      = "only consider items that are older than <version>"
+
+#
+# pmm specific operations.
+#
+# Typical package manager configurations should not describe either the
+# user_interfaces[] or implementations[] for these.
+#
+help["update-world-installed"]  = "populate /bedrock/etc/world with missing explicitly installed packages"
+help["update-world-removed"]    = "remove /bedrock/etc/world items that do not correspond to explicitly installed packages"
+help["update-world-sync"]       = "sync /bedrock/etc/world with explicitly installed package state"
+help["apply-world-installed"]   = "explicitly install /bedrock/etc/world items"
+help["apply-world-removed"]     = "remove packages not in /bedrock/etc/world and resulting orphan packages"
+help["apply-world-sync"]        = "sync explicitly installed package list to /bedrock/etc/world and remove orphans"
+help["diff-world"]              = "print differences between /bedrock/etc/world and explicitly installed packages"
+help["check-pmm-configuration"] = "sanity check pmm configuration"
+help["list-pmm-ui-files"]       = "list expected front-end files with current user interface"
+
+#
+# Errors
+#
+help["no-match-error"] = "unable to match a requested item"

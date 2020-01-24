@@ -1,0 +1,179 @@
+#!/bedrock/libexec/busybox awk -f
+#
+# Package Manager Manager xbps support script
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2018-2020 Daniel Thau <danthau@bedrocklinux.org>
+
+system_package_managers["xbps"]
+package_manager_canary_executables["xbps"] = "xbps-install"
+
+#
+# General, operation independent flags.
+#
+# Unlike operations, flags should not have implementations[].
+#
+user_interfaces["xbps", "assume-no"]  = ""
+user_interfaces["xbps", "assume-yes"] = "-y/--yes"
+user_interfaces["xbps", "confirm"]    = ""
+user_interfaces["xbps", "quiet"]      = ""
+user_interfaces["xbps", "verbose"]    = "-v/--verbose"
+
+#
+# Operations which directly forward the underlying command output.
+#
+user_interfaces["xbps", "install-packages"]         = "pmm-install <pkgs>"
+user_interfaces["xbps", "reinstall-packages"]       = "pmm-install -f/--force <pkgs>"
+user_interfaces["xbps", "remove-packages-limited"]  = "pmm-remove <pkgs>"
+user_interfaces["xbps", "remove-packages-full"]     = "" # default remove command leaves config files
+user_interfaces["xbps", "verify-packages"]          = "pmm-pkgdb <pkgs>"
+user_interfaces["xbps", "verify-all-packages"]      = "pmm-pkgdb -a"
+user_interfaces["xbps", "mark-packages-explicit"]   = "pmm-pkgdb -m manual <pkgs>"
+user_interfaces["xbps", "mark-packages-implicit"]   = "pmm-pkgdb -m auto <pkgs>"
+user_interfaces["xbps", "show-package-information"] = "pmm-query -R <pkgs>"
+user_interfaces["xbps", "clear-cache"]              = "pmm-remove -O/--clean-cache"
+user_interfaces["xbps", "remove-orphans"]           = "pmm-remove -o/--remove-orphans"
+user_interfaces["xbps", "update-package-database"]  = "pmm-install -S/--sync"
+user_interfaces["xbps", "update-file-database"]     = "pmm-xlocate -S"
+user_interfaces["xbps", "upgrade-packages-limited"] = "" # no partial upgrade concept
+user_interfaces["xbps", "upgrade-packages-full"]    = "pmm-install -u/--upgrade"
+
+implementations["xbps", "install-packages"]         = "strat -r ${stratum} xbps-install ${flags} ${items}"
+implementations["xbps", "reinstall-packages"]       = "strat -r ${stratum} xbps-install ${flags} -f ${items}"
+implementations["xbps", "remove-packages-limited"]  = "strat -r ${stratum} xbps-remove ${flags} ${items}"
+implementations["xbps", "remove-packages-full"]     = "strat -r ${stratum} xbps-remove ${flags} ${items}"
+implementations["xbps", "verify-packages"]          = "strat -r ${stratum} xbps-pkgdb ${flags} ${items}"
+implementations["xbps", "verify-all-packages"]      = "strat -r ${stratum} xbps-pkgdb ${flags} -a ${items}"
+implementations["xbps", "mark-packages-explicit"]   = "strat -r ${stratum} xbps-pkgdb ${flags} -m manual ${items}"
+implementations["xbps", "mark-packages-implicit"]   = "strat -r ${stratum} xbps-pkgdb ${flags} -m auto ${items}"
+implementations["xbps", "show-package-information"] = "strat -r ${stratum} xbps-query ${flags} -R ${items}"
+implementations["xbps", "clear-cache"]              = "strat -r ${stratum} xbps-remove ${flags} -O"
+implementations["xbps", "remove-orphans"]           = "strat -r ${stratum} xbps-remove ${flags} -o ${items}"
+implementations["xbps", "update-package-database"]  = "strat -r ${stratum} xbps-install ${flags} -S"
+implementations["xbps", "update-file-database"]     = "strat -r ${stratum} xlocate -S"
+implementations["xbps", "upgrade-packages-limited"] = "strat -r ${stratum} xbps-install ${flags} -u"
+implementations["xbps", "upgrade-packages-full"]    = "strat -r ${stratum} xbps-install ${flags} -u"
+
+#
+# Combine operations.
+#
+user_interfaces["xbps", "clear-cache,remove-orphans"]                                                             = "pmm-remove -O -o"
+user_interfaces["xbps", "mark-packages-implicit,remove-orphans"]                                                  = ""
+user_interfaces["xbps", "remove-packages-limited,remove-orphans"]                                                 = "pmm-remove -R <pkgs>"
+user_interfaces["xbps", "remove-packages-full,remove-orphans"]                                                    = ""
+user_interfaces["xbps", "update-package-database,update-file-database"]                                           = ""
+user_interfaces["xbps", "update-package-database,upgrade-packages-partial"]                                       = ""
+user_interfaces["xbps", "update-package-database,upgrade-packages-full"]                                          = "pmm-install -S/--sync -u/--upgrade"
+user_interfaces["xbps", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""
+user_interfaces["xbps", "update-package-database,update-file-database,upgrade-packages-full"]                     = ""
+user_interfaces["xbps", "update-package-database,install-packages"]                                               = "pmm-install -S/--sync <pkgs>"
+user_interfaces["xbps", "update-package-database,update-file-database,install-packages"]                          = ""
+user_interfaces["xbps", "upgrade-packages-limited,install-packages"]                                              = ""
+user_interfaces["xbps", "upgrade-packages-full,install-packages"]                                                 = ""
+user_interfaces["xbps", "update-package-database,upgrade-packages-partial,install-packages"]                      = ""
+user_interfaces["xbps", "update-package-database,upgrade-packages-full,install-packages"]                         = ""
+user_interfaces["xbps", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+user_interfaces["xbps", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+implementations["xbps", "clear-cache,remove-orphans"]                                                             = "strat -r ${stratum} xbps-remove -Oo"
+implementations["xbps", "mark-packages-implicit,remove-orphans"]                                                  = ""
+implementations["xbps", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} xbps-remove -R ${items}"
+implementations["xbps", "remove-packages-full,remove-orphans"]                                                    = "strat -r ${stratum} xbps-remove -R ${items}"
+implementations["xbps", "update-package-database,update-file-database"]                                           = ""
+implementations["xbps", "update-package-database,upgrade-packages-partial"]                                       = "strat -r ${stratum} xbps-install -Su"
+implementations["xbps", "update-package-database,upgrade-packages-full"]                                          = "strat -r ${stratum} xbps-install -Su"
+implementations["xbps", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""
+implementations["xbps", "update-package-database,update-file-database,upgrade-packages-full"]                     = ""
+implementations["xbps", "update-package-database,install-packages"]                                               = "strat -r ${stratum} xbps-install -S ${items}"
+implementations["xbps", "update-package-database,update-file-database,install-packages"]                          = ""
+implementations["xbps", "upgrade-packages-limited,install-packages"]                                              = ""
+implementations["xbps", "upgrade-packages-full,install-packages"]                                                 = ""
+implementations["xbps", "update-package-database,upgrade-packages-partial,install-packages"]                      = ""
+implementations["xbps", "update-package-database,upgrade-packages-full,install-packages"]                         = ""
+implementations["xbps", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+implementations["xbps", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+#
+# Operations which have a standardized output format.
+#
+user_interfaces["xbps", "list-installed-package-files"] = "pmm-query -R -f/--files <pkg>"
+user_interfaces["xbps", "list-installed-explicit"]      = "pmm-query -m/--list-manual-pkgs"
+user_interfaces["xbps", "list-installed-implicit"]      = ""
+user_interfaces["xbps", "list-installed-packages"]      = "pmm-query -l/--list-pkgs"
+user_interfaces["xbps", "list-available-packages"]      = "pmm-query -R -s/--search *"
+user_interfaces["xbps", "search-for-package-by-name"]   = ""
+user_interfaces["xbps", "search-for-package-by-all"]    = "pmm-query -R -s/--search <text>"
+user_interfaces["xbps", "which-package-owns-file"]      = "pmm-query -o/--ownedby <file>"
+user_interfaces["xbps", "which-packages-provide-file"]  = "pmm-query -R -o/--ownedby <file>"
+
+implementations["xbps", "list-installed-package-files"] = "strat -r ${stratum} xbps-query -f ${items}"
+implementations["xbps", "list-installed-explicit"]      = "strat -r ${stratum} xbps-query -m | sed 's/-[0-9.]\\+_[0-9]\\+$//'"
+implementations["xbps", "list-installed-implicit"]      = "strat -r ${stratum} xbps-query -l |\
+	awk 'BEGIN {\
+		while ((\"strat -r ${stratum} xbps-query -m\" | getline) > 0) {\
+			sub(/-[^-]*$/,\"\");\
+			x[$0]\
+		}\
+	$1 == \"ii\" {\
+		sub(/-[^-]+$/,\"\", $2);\
+		if (!($2 in x)) {\
+			print $2\
+		}\
+	}'\
+	'"
+implementations["xbps", "list-installed-packages"]      = "strat -r ${stratum} xbps-query -l | awk '$1 == \"ii\" {sub(/-[0-9.]+_[0-9]+$/, \"\", $2); print $2}'"
+implementations["xbps", "list-available-packages"]      = "strat -r ${stratum} xbps-query -Rs '*' |\
+	awk '{\
+		sub(/-[0-9.]+_[0-9]+$/, \"\", $2);\
+		x[$2]\
+	}\
+	END {\
+		for (p in x) {\
+			print p\
+		}\
+	}'"
+implementations["xbps", "search-for-package-by-name"]   = "strat -r ${stratum} xbps-query -Rs '*' |\
+	awk -vi=${items} '{\
+		sub(/-[0-9.]+_[0-9]+$/, \"\", $2);\
+		if ($2 ~ i) {\
+			x[$2]\
+		}\
+	}\
+	END {\
+		for (p in x) {\
+			print p\
+		}\
+	}'"
+implementations["xbps", "search-for-package-by-all"]    = "strat -r ${stratum} xbps-query -Rs ${items} |\
+	awk '{\
+		sub(/-[0-9.]+_[0-9]+$/, \"\", $2);\
+		x[$2]\
+	}\
+	END {\
+		for (p in x) {\
+			print p\
+		}\
+	}'"
+implementations["xbps", "which-package-owns-file"]      = "strat -r ${stratum} xbps-query -o \"*${items}*\" | awk '{sub(/-[0-9.]+_.:$/,\"\",$1); print $1\"\t\"$2}'"
+implementations["xbps", "which-packages-provide-file"]  = "strat -r ${stratum} xlocate ${items} | sed 's/-[0-9.]\\+_[^\t]\t/\t/'"
+
+#
+# Internal pmm operations.
+#
+implementations["xbps", "is-package-installed"]               = "strat -r ${stratum} xbps-query ${items} >/dev/null 2>&1"
+implementations["xbps", "is-package-available"]               = "strat -r ${stratum} xbps-query -R ${items} >/dev/null 2>&1"
+implementations["xbps", "is-file-db-available"]               = "strat -r ${stratum} xbps-query xtools >/dev/null 2>&1"
+implementations["xbps", "print-file-db-install-instructions"] = "echo 'Install xlocate in ${stratum}:xbps to perform file-db operations'"
+implementations["xbps", "print-package-version"]              = "strat -r ${stratum} xbps-query ${items} | awk '$1 == \"pkgver:\" {sub(/^.*-/, \"\", $2); sub(/_[0-9]+$/, \"\", $2); print $2}'"
+implementations["xbps", "cache-package-db"]                   = "strat -r ${stratum} xbps-query -Rs '*' |\
+	awk '{\
+		name = $2;\
+		ver = $2;\
+		sub(/-[^-]+$/, \"\",name);\
+		sub(/^.*-/, \"\", ver);\
+		sub(/_[0-9]*$/, \"\", ver);\
+		print name\"\t\"ver\
+	}'"

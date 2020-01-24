@@ -1,0 +1,1653 @@
+#!/bedrock/libexec/busybox sh
+#
+# Package Manager Manager
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2020 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Performs cross-package-manager and multi-package-manager operations.
+
+. /bedrock/share/common-code
+
+#
+# pmm largely revolves around handling strings, arrays, and maps, which awk can
+# do much better than shell.  However, supporting Bedrock library code, such as
+# configuration parsing and strata show/hidden state, is written in shell.
+#
+# Utilize the current shell environment to prepare values for awk's consumption
+# then hand control off to awk.
+#
+initialize_awk_variables=""
+
+#
+# pmm's ability to mimic other package managers is dependent on knowing argv[0]
+# values.  For example, to mimic `apt/apt-file` it must know if it was called
+# as `pmm` or `pmm-file`.  However, hashbang programs do not have access to
+# argv[0].  To work around this, brl-apply creates small pmm wrappers which
+# pass their own file name as the first parameter to this script:
+#
+#      #!/bedrock/libexec/busybox sh
+#      exec /bedrock/libexec/pmm pmm-file "${@}"
+#
+if [ -z "${1:-}" ]; then
+	abort "No user interface specified.  See the [pmm] section of /bedrock/etc/bedrock.conf"
+fi
+initialize_awk_variables="${initialize_awk_variables}
+ui=\"$(echo "x${1:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//" )\""
+shift
+
+#
+# Convert argument list to awk array
+#
+for arg in "${@}"; do
+	initialize_awk_variables="${initialize_awk_variables}
+args[++arg_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//" )\""
+done
+
+#
+# Convert colors to awk
+#
+initialize_awk_variables="${initialize_awk_variables}
+color[\"alert\"] = \"${color_alert}\"
+color[\"cmd\"]   = \"${color_cmd}\"
+color[\"file\"]  = \"${color_file}\"
+color[\"glue\"]  = \"${color_glue}\"
+color[\"misc\"]  = \"${color_misc}\"
+color[\"norm\"]  = \"${color_norm}\"
+color[\"strat\"] = \"${color_strat}\"
+color[\"sub\"]   = \"${color_sub}\"
+color[\"warn\"]  = \"${color_warn}\""
+
+#
+# Check if warnings are desired when skipping package managers.
+#
+if [ "$(cfg_value "pmm" "warn-about-skipping-package-managers")" = "true" ]; then
+	initialize_awk_variables="${initialize_awk_variables}
+cfg_warn_about_skipping_package_managers=1"
+fi
+
+#
+# Gather information needed to determine if package manager list cache is valid.
+#
+# This shell calls awk which calls shell to eventually cache everything.
+# Instead of trying to massage the data through all the abstraction layers,
+# just export the variables that may need to be cached.
+#
+cfg_cache_package_manager_list="$(cfg_value "pmm" "cache-package-manager-list")"
+export strata="$(
+for stratum in $(list_strata); do
+	if is_enabled "${stratum}" && has_attr "/bedrock/strata/${stratum}" "show_pmm"; then
+		echo "strata[\"${stratum}\"]"
+	fi
+done | sort
+)"
+export bedrock_conf_sha1sum="$(cat "/bedrock/etc/bedrock.conf" | sha1sum)"
+
+#
+# If the package manager list cache is requested and passes cache invalidation
+# check, use it.  Otherwise, collect additional information needed to generate
+# the package manager list.
+#
+if [ "${cfg_cache_package_manager_list}" = "true" ] &&
+		[ "$(cat /bedrock/var/cache/pmm/strata 2>/dev/null)" = "${strata}" ] &&
+		[ "$(cat /bedrock/var/cache/pmm/bedrock_conf_sha1sum 2>/dev/null)" = "${bedrock_conf_sha1sum}" ] &&
+		[ -r "/bedrock/var/cache/pmm/package_manager_list" ]; then
+	# Cache is valid and requested, use it
+	initialize_awk_variables="${initialize_awk_variables}
+$(cat /bedrock/var/cache/pmm/package_manager_list)"
+else
+	# A pre-existing package manager list cache is not being used.  Gather
+	# information to determine the package manager list.
+	initialize_awk_variables="${initialize_awk_variables}
+${strata}"
+	for arg in $(cfg_values "pmm" "priority"); do
+		initialize_awk_variables="${initialize_awk_variables}
+cfg_pmm_priority[++pmm_priority_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//" )\""
+	done
+	for arg in $(cfg_values "cross" "priority"); do
+		initialize_awk_variables="${initialize_awk_variables}
+cfg_cross_priority[++cross_priority_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//" )\""
+	done
+	if [ "$(cfg_value "pmm" "ignore-non-system-package-managers")" = "true" ]; then
+		initialize_awk_variables="${initialize_awk_variables}
+cfg_ignore_non_system_package_managers=1"
+	fi
+	if [ "${cfg_cache_package_manager_list}" = "true" ]; then
+		initialize_awk_variables="${initialize_awk_variables}
+cfg_cache_package_manager_list=1"
+		if [ "$(id -u)" -eq 0 ]; then
+			initialize_awk_variables="${initialize_awk_variables}
+am_root=1"
+		fi
+	fi
+fi
+
+#
+# Check if package list cache is requested.
+#
+# It is always assumed to be valid, and is only updated on database update
+# request.
+#
+if [ "$(cfg_value "pmm" "cache-package-database")" = "true" ]; then
+	initialize_awk_variables="${initialize_awk_variables}
+cfg_cache_package_database=1"
+fi
+
+#
+# pmm is designed to be extended via configuration files in
+# `/bedrock/share/pmm`.
+#
+# /bedrock/share/pmm/package_managers/ contains files corresponding to package
+# managers.  Each file could include:
+#
+# - If the package manager is a system package manager, a
+# system_package_managers[] entry which indicates the given package manager is
+# a system package manager and should be utilized even if
+# `[pmm]/ignore-non-system-package-managers` is true.  For example:
+#
+#     system_package_managers["pacman"]
+#
+# - A package_manager_canary_executables[] entry, mapping a package manager
+# name to an executable whose presence indicates the given stratum has the
+# package manager installed.  For most package managers this will simply be the
+# package manager's name, but this is not always the case.  For example:
+#
+#     package_manager_canary_executables["xbps"] = "xbps-install"
+#
+# - user_interfaces[], a map from either a [package-manager, operation] or a
+# [package-manager, flag] to a string representing a user interface call
+# requesting the corresponding operation or flag.  Variable components, such as
+# a lists of packages to operate on, are indicated by terms in angle braces.
+# Terms which take alternatives forms are indicated with forward slashes.  If
+# the package manager does not support the operation, set it to an empty string
+# to indicate so explicitly.  An example operation:
+#
+#     user_interfaces["apt", "install-packages"] = "pmm install <pkgs>"
+#
+# and a flag example:
+#
+#     user_interfaces["apt", "quiet"] = "-q/--quiet"
+#
+# - implementations[], a map from [package-manager, operation] to a string
+# representing shell to implement the operation.  If the package manager does
+# not support the given operation, set the value to an empty string to indicate
+# so explicitly.  pmm will set ${stratum}, ${flags}, and ${items} as
+# appropriate before calling the given command, and thus the command may
+# reference them.  For example:
+#
+#     implementations["apt", "install-packages"] = "strat -r ${stratum} apt ${flags} install ${items}"
+#
+# Both user_interfaces[] and implementations[] may use "*" as the
+# package-manager in the map key to indicate the item is applicable to all
+# package managers.  This is used for pmm-specific operations which do not
+# correspond to a given package manager.  For example, to add a `pmm
+# diff-world` command irrelevant of user interface being mimicked:
+#
+#     user_interfaces["*", "diff-world"] = "pmm diff-world"
+#
+# /bedrock/share/help contains help[], a map from operations and flags to their
+# --help output.  This is also used as internal documentation for new pmm
+# developers, and so every operation and flag must have a help entry irrelevant
+# of whether or not there is a user interface which would surface it.
+#
+# /bedrock/share/pmm/flags contains flags[], a map from the flag name to either
+# "binary" to indicate it does not take a value or "value" to indicate it does.
+#
+# /bedrock/share/pmm/operations contains awk to populate operations[], a map
+# from the operation name to pmm implementation details.
+#
+initialize_awk_variables="${initialize_awk_variables}
+$(cat /bedrock/share/pmm/package_managers/* /bedrock/share/pmm/help /bedrock/share/pmm/flags /bedrock/share/pmm/operations)"
+
+#
+# Execute main awk body of pmm
+#
+# Internal terminology:
+#
+# - "pair" is used to describe a (<stratum>, <package-manager>) tuple.
+#
+# Style notes:
+#
+# Awk makes some choices which aid one-liner simplicity but make large programs
+# awkward:
+# - Single return values
+# - No returning maps
+# - All non-map function parameters are pass-by-value.
+# - All map function parameters are pass-by-reference
+# - Everything not declared in a parameter list is global.
+# - Function calls do not have to populate every function parameter.
+#
+# Given these choices, the following style rules were made to help with program
+# readability:
+# - An unused `_return` parameter is placed before any parameters used as
+# effective return maps.
+# - An unused `_local` parameter is placed before any parameters used as local
+# variables.
+# - Local values are not provided in function calls.  They are only used in
+# function prototypes.
+#
+# To reduce verbosity, variables initialized in `initialize_awk_variables` are treated
+# as global and read-only.  These include:
+#
+# - ui
+# - args[]
+# - colors[]
+# - cfg_pmm_priority
+# - pmm_priority_count
+# - cfg_cross_priority
+# - cfg_include_non_system_package_managers
+# - cfg_cache_package_manager_list
+# - cfg_cache_package_database
+# - user_interfaces[]
+# - implementations[]
+# - help[]
+# - operations[]
+# - system_package_managers[]
+# - package_manager_canary_executables[]
+# - am_root
+#
+# Additional, the following values are gathered while parsing the provided
+# command line input, after which they are treated as global and read-only:
+#
+# - global_flags[]
+# - selected_operation
+#
+
+exec awk '
+function abort(msg) {
+	fflush()
+	printf("%sERROR: %s%s\n", color["alert"], msg, color["norm"]) > "/dev/stderr"
+	exit 1
+}
+
+function warn(msg) {
+	if (!("quiet" in global_flags)) {
+		fflush()
+		printf("%s* %s%s\n", color["warn"], msg, color["norm"]) > "/dev/stderr"
+		fflush()
+	}
+}
+
+function notice(msg) {
+	if (!("quiet" in global_flags)) {
+		fflush()
+		printf("%s* %s%s\n", color["warn"], msg, color["norm"]) > "/dev/stderr"
+		fflush()
+	}
+}
+
+function prompt(msg) {
+	printf "%s Continue? [y/N] ", msg > "/dev/stderr"
+	getline
+	if ($0 !~ /^[yY]/) {
+		abort("User denied confirmation prompt")
+	}
+}
+
+function print_help_line(entry, description, entry_max, _local, arg) {
+	if (entry == "" || description == "") {
+		return
+	}
+	pad = entry_max - length(entry)
+	gsub(/\//, color["norm"] "&" color["cmd"], entry)
+	gsub(/<[a-z_-]*>/, color["sub"] "&" color["norm"], entry)
+	gsub(/<[a-z_-]*>/, color["sub"] "&" color["norm"], description)
+	gsub(/\/bedrock\/etc\/world/, color["file"] "&" color["norm"], description)
+	printf("  %s%s %s%-"pad"s%s\n", color["cmd"], entry, color["norm"], "", description)
+}
+
+function print_help(_local, order, order_count, max, key, line, a) {
+	# awk arrays are unordered.  Force a consistent order by parsing the
+	# help file
+	while ((getline line < "/bedrock/share/pmm/help") != 0) {
+		if (line !~ /^help\["/) {
+			continue
+		}
+		gsub(/", *"/, SUBSEP, line)
+		split(line, a, "\"")
+		order[++order_count] = a[2]
+	}
+
+	# Value flags do not have <arg> in entry.  Grab it from description.
+	for (key in help) {
+		entry = user_interfaces[ui,key]
+		if (entry != "" && help[key] ~ "<" && entry !~ "<") {
+			arg = help[key]
+			sub(/^[^<]*/, "", arg)
+			sub(/[^>]*$/, "", arg)
+			user_interfaces[ui,key] = user_interfaces[ui,key]" "arg
+		}
+		entry = user_interfaces["*",key]
+		if (entry != "" && help[key] ~ "<" && entry !~ "<") {
+			arg = help[key]
+			sub(/^[^<]*/, "", arg)
+			sub(/[^>]*$/, "", arg)
+			user_interfaces["*",key] = user_interfaces["*",key]" "arg
+		}
+	}
+
+	# Get longest entry to calculate alignment padding
+	max = 0
+	for (key in help) {
+		entry = user_interfaces[ui,key]
+		if (length(entry) > max) {
+			max = length(entry)
+		}
+		entry = user_interfaces["*",key]
+		if (length(entry) > max) {
+			max = length(entry)
+		}
+	}
+
+	printf "Usage: "color["sub"]"<command> [flags] <operation> [args]"color["norm"]"\n"
+	printf "\n"
+	printf "Bedrock Linux Package Manager Manager\n"
+	printf "\n"
+	printf "Provides Bedrock-aware abstractions for multi-package-manager and\n"
+	printf "cross-package-manager operations.\n"
+	printf "\n"
+	printf "Currently configured to mimic "color["cmd"]""ui""color["norm"]" user interface.\n"
+	printf "Set "color["file"]"[pmm]"color["glue"]"/"color["file"]"user_interface"color["norm"]" in "color["file"]"/bedrock/etc/bedrock.conf"color["norm"]" and `"color["cmd"]"brl apply"color["norm"]"` to change.\n"
+
+	printf "\nFlags:\n"
+	for (i = 1; i <= order_count; i++) {
+		if (order[i] in flags) {
+			print_help_line(user_interfaces[ui, order[i]], help[order[i]], max)
+			print_help_line(user_interfaces["*", order[i]], help[order[i]], max)
+		}
+	}
+	printf "\nOperations:\n"
+	for (i = 1; i <= order_count; i++) {
+		if (!(order[i] in flags)) {
+			print_help_line(user_interfaces[ui, order[i]], help[order[i]], max)
+			print_help_line(user_interfaces["*", order[i]], help[order[i]], max)
+		}
+	}
+}
+
+function parse_input(_return, global_flags, items,
+		_local, ui_flags, command_flags, command_flag_count, parameters, a, flag, value, c, chars, len, operation, interface, p, i, matched, alternatives) {
+	# Split out `/`-separated user interface flag possibilities
+	for (flag in flags) {
+		if ((ui, flag) in user_interfaces) {
+			split(user_interfaces[ui,flag], alternatives, "/")
+		} else if (("*", flag) in user_interfaces) {
+			split(user_interfaces["*",flag], alternatives, "/")
+		} else {
+			continue
+		}
+		for (a in alternatives) {
+			ui_flags[alternatives[a]] = flag
+		}
+	}
+
+	# Iterate over arguments and categorize each one as:
+	# - A global flag, e.g. the `--quiet` in `pacman -S --quiet vim`
+	# - A command flag, e.g. the `-S` in `pacman -S --quiet vim`
+	# - A non-flag parameter, e.g. the `pacman` and `vim` in `pacman -S --quiet vim`
+	for (a = 1; a in args; a++) {
+		if (args[a] !~ /^-/) {
+			# non-flag parameter
+			parameters[++parameter_count] = args[a]
+			continue
+		} else if (args[a] ~ /^--.*=/) {
+			# --flag=value
+			#
+			# All command flags are treated as binary.  Since this
+			# has a value, it must be a global flag.
+			#
+			# Some may consider the `vim` in `pacman -S vim` as
+			# `-S`s value.  However, the code here treats it as a
+			# parameter of the entire command rather than the flag.
+			# This is done to normalize with things like `apt
+			# install vim` which is functionally the same baring
+			# the idea that one term is a flag.
+			#
+			# Some package managers may have valid commands which
+			# contain multiple argument lists.  These are
+			# unsupported at this time.
+			flag = args[a]
+			value = args[a]
+			sub(/=.*$/, "", flag)
+			sub(/^[^=]*=/, "", value)
+			if (!(flag in ui_flags)) {
+				abort("Unrecognized flag \""flag"\" provided.")
+			} else if (flags[ui_flags[flag]] == "binary") {
+				abort("Binary flag \""flag"\" provided value.")
+			}
+			global_flags[ui_flags[flag]] = value
+			continue
+		} else if (args[a] ~ /^--/) {
+			# One of the following:
+			# --global_flag
+			# --global_flag <value>
+			# --command_flag
+			flag = args[a]
+			if ((flag in ui_flags) && (flags[ui_flags[flag]] == "value")) {
+				# --flag value
+				global_flags[ui_flags[flag]] = args[++a]
+			} else if ((flag in ui_flags)) {
+				# --flag
+				global_flags[ui_flags[flag]]
+			} else if (!(flag in command_flags)) {
+				# new command flag
+				command_flags[flag]
+				command_flag_count++
+			}
+			continue
+		}
+		# Single character flags
+		len = split(substr(args[a],2), chars, "")
+		for (c = 1; c <= len; c++) {
+			flag = "-"chars[c]
+			if ((flag in ui_flags) && flags[ui_flags[flag]] == "value" && c < len) {
+				# Single character value flag followed by value
+				# without space, e.g. -O3 rather than -O 3
+				value = substr(args[a], c)
+				global_flags[flag] = value
+				break
+			} else if ((flag in ui_flags) && flags[ui_flags[flag]] == "value" && c == len) {
+				# Single character value flag followed by value
+				# with space, e.g. -O 3
+				value = args[++arg_i]
+				global_flags[flag] = value
+				break
+			} else {
+				# Single character binary flag.
+				if (flag in ui_flags) {
+					# single character global binary flag
+					global_flags[ui_flags[flag]]
+				} else if (!(flag in command_flags)) {
+					# new single character command flag
+					command_flags[flag]
+					command_flag_count++
+				}
+			}
+		}
+	}
+
+	# Determine which operation corresponds to provided args
+	for (operation in help) {
+		if (operation in flags) {
+			continue
+		}
+		if ((ui, operation) in user_interfaces) {
+			interface = user_interfaces[ui, operation]
+		} else if (("*", operation) in user_interfaces) {
+			interface = user_interfaces["*", operation]
+		}
+		if (interface == "") {
+			continue
+		}
+		split(interface, terms, " ")
+		p = 1 # parameter index
+		i = 1 # item index
+		c = 0 # witnessed command flag count
+		matched = 0
+		for (t in terms) {
+			# split terms which have alternative possibilities,
+			# e.g. for `pacman -S/--sync <pkgs>` consider both `-S`
+			# and `--sync`
+			split(terms[t], alternatives, "/")
+			matched = 0
+			for (a in alternatives) {
+				if (alternatives[a] ~ /^<[^>]*>/ && (p in parameters) && parameters[p] != "" && parameters[p] !~ /^-/) {
+					# Found `<...>` item, e.g. the `<pkgs>`
+					# in `pacman -S <pkgs>`
+					items[i++] = parameters[p++]
+					matched = 1
+					break
+				} else if ((p in parameters) && alternatives[a] == parameters[p]) {
+					# Found non-flag command term, e.g. the
+					# `pacman` in `pacman -S <pkgs>
+					p++
+					matched = 1
+					break
+				} else if (alternatives[a] ~ /^-/) {
+					if (alternatives[a] in command_flags) {
+						# Found command flag, e.g. the `pacman` in `pacman -S <pkgs>`
+						matched = 1
+						c++
+						break
+					}
+				}
+			}
+			if (!matched) {
+				break
+			}
+		}
+		if (!matched) {
+			continue
+		}
+		# Some operation user interfaces are subsets of others.  Ensure
+		# no more parameters or command flags were provided than expected.
+		if (p in parameters && interface !~ /</) {
+			continue
+		}
+		if (c != command_flag_count) {
+			continue
+		}
+		# Ensure remaining items are included in item list
+		while (p in parameters) {
+			items[i++] = parameters[p++]
+		}
+		# success
+		return operation
+	}
+	abort("Unable to determine requested operation from provided input while mimicking \""ui"\" user interface.  See \`--help\`.")
+}
+
+function pair_exists(pair, _local, a) {
+	# This operation is relatively expensive, as it contains many context
+	# switches both between processes:
+	# - awk -> shell
+	# - shell -> strat
+	# - strat -> busybox
+	# and system calls internal to processes:
+	# - strat configuration reading / sanity checks
+	# - busybox $PATH scanning
+	#
+	# Calls to this function should thus be minimized, either by ruling out
+	# the possibility from other internal information or from caching.
+	split(pair, a, ":")
+	return ! system("exec /bedrock/bin/strat -r "shell_escape(a[1])" /bedrock/libexec/busybox which "shell_escape(package_manager_canary_executables[a[2]])" >/dev/null 2>&1")
+}
+
+function cache_package_manager_list(unfiltered_pairs,
+		_local, cmd, p) {
+	cmd = "exec /bedrock/libexec/busybox sh -c \". /bedrock/share/common-code; pmm_cache_package_manager_list\""
+	for (p = 1; p in unfiltered_pairs; p++) {
+		print "unfiltered_pairs["p"] = \""unfiltered_pairs[p]"\"" | cmd
+	}
+	close(cmd)
+}
+
+function cache_package_db(stratum, package_manager,
+		_local, read_cmd, write_cmd, env, empty_list) {
+	if (cfg_warn_about_skipping_package_managers && implementations[package_manager, "cache-package-db"] == "") {
+		notice("Skipping caching "stratum":"package_manager" package database because "package_manager" lacks support")
+		return
+	}
+	notice("Caching "stratum":"package_manager" package database")
+
+	split("", empty_list, "")
+	env = prep_shell_environment(stratum, package_manager, empty_list, empty_list)
+	write_cmd = env " exec /bedrock/libexec/busybox sh -c \". /bedrock/share/common-code; pmm_cache_package_manager_db\""
+	read_cmd = env""implementations[package_manager, "cache-package-db"]
+
+	while ((read_cmd | getline) > 0) {
+		print | write_cmd
+	}
+	close(read_cmd)
+	close(write_cmd)
+}
+
+function clear_old_cache(_local, cmd) {
+	cmd = "exec /bedrock/libexec/busybox sh -c \". /bedrock/share/common-code; clear_old_cache\""
+	system(cmd)
+}
+
+function check_package_cache_available(stratum, package_manager,
+		_local, file) {
+	if (!cfg_cache_package_database) {
+		return 0
+	}
+
+	file = "/bedrock/var/cache/pmm-"stratum":"package_manager"/package-db-ready"
+	getline < file
+	close(file)
+	return $0 == "1"
+}
+
+function brldbpath(name) {
+	if (substr(name,1,3) == "lib") {
+		return substr(name, 4, 2)
+	} else {
+		return substr(name, 1, 2)
+	}
+}
+
+function cache_is_package_available(stratum, package_manager, package) {
+	file = "/bedrock/var/cache/pmm-"stratum":"package_manager"/package-db/"brldbpath(package)
+	while ((getline < file) > 0) {
+		if ($1 == package) {
+			break
+		}
+	}
+	close(file)
+	# This is mimicking a shell script call where returning 0 indicates
+	# success/true.
+	return ($1 != package)
+}
+
+function cache_print_package_version(stratum, package_manager, package,
+		_return, output) {
+	file = "/bedrock/var/cache/pmm-"stratum":"package_manager"/package-db/"brldbpath(package)
+	split("", output, "")
+	while ((getline < file) > 0) {
+		if ($1 == package) {
+			output[1] = $2
+			break
+		}
+	}
+	close(file)
+}
+
+function generate_pairs(_return, unfiltered_pairs,
+		_local, pair_count, partial_considerations, partial_consideration_count, considerations, consideration_count, seen, p, i, s, c, a, pair, package_manager) {
+	# If already cached, skip operation
+	if (1 in unfiltered_pairs) {
+		return
+	}
+
+	if ("verbose" in global_flags && cfg_cache_package_manager_list && am_root) {
+		notice("Generating package manager list cache")
+	} else if ("verbose" in global_flags && cfg_cache_package_manager_list) {
+		notice("Run as root to generate package manager cache")
+	}
+
+	# Get ordered list of everything to consider
+	for (i = 1; i in cfg_pmm_priority; i++) {
+		partial_considerations[++partial_consideration_count] = cfg_pmm_priority[i]
+	}
+	for (i = 1; i in cfg_cross_priority; i++) {
+		partial_considerations[++partial_consideration_count] = cfg_cross_priority[i]":"
+	}
+	for (i in strata) {
+		partial_considerations[++partial_consideration_count] = i":"
+	}
+
+	# Expand partial items into full pairs.  Duplicates will be filtered out later.
+	for (p = 1; p in partial_considerations; p++) {
+		pair = partial_considerations[p]
+		if (pair ~ /.:./) {
+			# full pair
+			considerations[++consideration_count] = pair
+		} else if (pair ~ /^:./) {
+			# just :<package-manager>
+			for (i = 1; i in cfg_cross_priority; i++) {
+				considerations[++consideration_count] = cfg_cross_priority[i] "" pair
+			}
+			for (i in strata) {
+				considerations[++consideration_count] = i "" pair
+			}
+		} else if (pair ~ /.:$/) {
+			# just <stratum>:
+			for (i in package_manager_canary_executables) {
+				if (i in system_package_managers) {
+					considerations[++consideration_count] = pair "" i
+				}
+			}
+			for (i in package_manager_canary_executables) {
+				if (!(i in system_package_managers)) {
+					considerations[++consideration_count] = pair "" i
+				}
+			}
+		} else {
+			abort("Unrecognized [pmm]/priority entry: "partial_considerations[i])
+		}
+	}
+
+	# Build final (unfiltered) pair list.  Remove disallowed and repeated items.
+	for (c = 1; c in considerations; c++) {
+		pair = considerations[c]
+		split(pair, a, ":")
+		package_manager = a[2]
+
+		if (cfg_ignore_non_system_package_managers && !(package_manager in system_package_managers)) {
+			continue
+		}
+		if (pair in seen) {
+			continue
+		}
+		seen[pair]
+		if (!pair_exists(pair)) {
+			continue
+		}
+		unfiltered_pairs[++pair_count] = pair
+	}
+
+	if ("verbose" in global_flags && cfg_cache_package_manager_list && am_root) {
+		cache_package_manager_list(unfiltered_pairs)
+	}
+}
+
+function filter_pairs(unfiltered_pairs,
+		_return, pairs,
+		_local, p, a, stratum, package_manager, pair_count) {
+	for (p = 1; p in unfiltered_pairs; p++) {
+		split(unfiltered_pairs[p], a, ":")
+		stratum = a[1]
+		package_manager = a[2]
+		if ("strat" in global_flags && stratum != global_flags["strat"]) {
+			continue
+		}
+		if ("package-manager" in global_flags && package_manager != global_flags["package-manager"]) {
+			continue
+		}
+		pairs[++pair_count] = unfiltered_pairs[p]
+	}
+}
+
+function shell_escape(string) {
+	gsub(/[^a-zA-Z0-9_\/ -]/,"\\\\&", string)
+	return string
+}
+
+function prep_shell_environment(stratum, package_manager, items,
+		_local, output, f, i, a, count) {
+	output = "export stratum=\""shell_escape(stratum)"\";"
+	output = output " export package_manager=\""shell_escape(package_manager)"\";"
+	output = output " export flags=\""
+	count = 0
+	for (f in global_flags) {
+		if (user_interfaces[package_manager, f] != "") {
+			if ((count++) > 0) {
+				output = output " "
+			}
+			split(user_interfaces[package_manager, f], a, "/")
+			output = output "" shell_escape(a[1])
+		}
+	}
+	output = output "\"; export items=\"" shell_escape(items) "\";"
+	return output
+}
+
+function show_cmd(cmd, env,
+		_local, show, run, output, more, multiline) {
+	show = cmd
+	# If there are multiple lines, only print first but append [...] to
+	# indicate more lines are hidden.
+	if (cmd ~ /\n/) {
+		multiline = 1
+		gsub(/\n.*/, "", show)
+	}
+	# If there are no flags, the evaluated line will have two
+	# sequential spaces.  For example:
+	#
+	#     strat -r ${stratum} apt ${flags} install ${items}
+	#
+	# becomes
+	#
+	#     strat -r debian apt  install vim
+	#                        ^^
+	# This is a dirty hack to remedy the issue.
+	if (env ~ /export flags=""/) {
+		gsub(/ \$\{flags\}/,"", show)
+	}
+	# Escape everything except shell variables to ensure ${stratum} et al
+	# are expanded.
+	gsub(/[^\na-zA-Z0-9_\/${}-]/,"\\\\&", show)
+	# Escape non-shell-variable dollar signs as may be seen in awk
+	# expressions
+	gsub(/\$[^{]/,"\\\\&", show)
+
+	run = env "echo "show
+	run | getline
+	if (multiline) {
+		$0 = $0 " [...]"
+	}
+	fflush()
+	printf("%s* %s%s%s\n", color["glue"], color["cmd"], $0, color["norm"]) > "/dev/stderr"
+	fflush()
+	close(run)
+}
+
+function run_shell(cmd, stratum, package_manager, items, show) {
+	env = prep_shell_environment(stratum, package_manager, items)
+	if (show && (("confirm" in global_flags) || (!("quiet" in global_flags)))) {
+		show_cmd(cmd, env)
+		if ("confirm" in global_flags) {
+			prompt("About to run above command.")
+		}
+	}
+	return system(env""cmd)
+}
+
+function get_shell_output(cmd, stratum, package_manager, items, show,
+		_return, output,
+		_local, output_count) {
+	env = prep_shell_environment(stratum, package_manager, items)
+	if (show && (!("quiet" in global_flags))) {
+		show_cmd(cmd, env)
+		if ("confirm" in global_flags) {
+			prompt("About to run above command.")
+		}
+	}
+	split("", output, "")
+	while ( (env""cmd | getline) > 0) {
+		output[++output_count] = $0
+	}
+	return close(env""cmd)
+}
+
+function get_world(stratum, package_manager,
+		_return, world,
+		_local, n) {
+	split("", world, "")
+	while ((getline < worldfile) != 0) {
+		if ($1 != stratum":"package_manager) {
+			continue
+		}
+		gsub(/#.*$/, "")
+		for (n = 2; n <= NF; n++) {
+			world[$n]
+		}
+	}
+	close(worldfile)
+}
+
+function get_sys(stratum, package_manager,
+		_return, sys,
+		_local, output, o) {
+	get_shell_output(implementations[package_manager, "list-installed-explicit"], stratum, package_manager, "", 0, _return, output)
+	split("", sys, "")
+	for (o = 1; o in output; o++) {
+		sys[output[o]]
+	}
+}
+
+function update_world_installed(_local, p, a, stratum, package_manager, world, sys, i, tmp, additions, addition_count) {
+	notice("Adding system-installed items to "worldfile)
+
+	split("", world, "")
+	for (p = 1; p in pairs; p++) {
+		split(pairs[p], a, ":")
+		stratum = a[1]
+		package_manager = a[2]
+
+		get_world(stratum, package_manager, _return, tmp)
+
+		for (i in tmp) {
+			world[stratum":"package_manager"\t"i]
+		}
+	}
+
+	split("", additions, "")
+	for (p = 1; p in pairs; p++) {
+		split(pairs[p], a, ":")
+		stratum = a[1]
+		package_manager = a[2]
+
+		get_sys(stratum, package_manager, _return, sys)
+
+		for (i in sys) {
+			if (!(pairs[p]"\t"i in world)) {
+				additions[++addition_count] = pairs[p]"\t"i""
+				printf "%s> %s%s\n", color["file"], pairs[p]"\t"i, color["norm"] > "/dev/stderr"
+			}
+		}
+	}
+
+	if (addition_count == 0) {
+		notice("No additions needed")
+		return
+	}
+
+	if (!("assume-yes" in global_flags)) {
+		prompt("About to apply above changes to world file.")
+	}
+
+	for (p = 1; p in additions; p++) {
+		print additions[p] >> worldfile
+	}
+
+	close(worldfile)
+}
+
+function update_world_removed(_local, caches, a, stratum, package_manager, tmp, i, sys, line, new_world_file, new_world_file_count, xpairs, new_line, n, count, changed_something) {
+	notice("Removing items in /bedrock/etc/world which are not installed in system")
+
+	split("", xpairs, "")
+	for (p = 1; p in pairs; p++) {
+		xpairs[pairs[p]]
+		split(pairs[p], a, ":")
+		stratum = a[1]
+		package_manager = a[2]
+
+		get_sys(stratum, package_manager, _return, tmp)
+
+		for (i in tmp) {
+			sys[stratum":"package_manager"\t"i]
+		}
+	}
+
+	split("", new_world_file, "")
+
+	changed_something = 0
+	while ((getline < worldfile) != 0) {
+		line = $0
+		gsub(/#.*$/, "")
+
+		# Line does not contain pair we care about.  Can continue to
+		# use as-is.
+		if ($1 == "" || !($1 in xpairs)) {
+			new_world_file[++new_world_file_count] = line
+			continue
+		}
+
+
+		# Line contains pair we care about.  Check if we can keep line
+		# as-is, including formatting and comments
+		split($1, a, ":")
+		stratum = a[1]
+		package_manager = a[2]
+		keep_line = 1
+		for (n = 2; n <= NF; n++) {
+			if (!($1"\t"$n in sys)) {
+				keep_line = 0
+				break
+			}
+		}
+		if (keep_line) {
+			new_world_file[++new_world_file_count] = line
+			continue
+		}
+
+		# Build new line with undesired items removed
+		changed_something = 1
+		new_line = $1
+		count = 0
+		for (n = 2; n <= NF; n++) {
+			if ($1"\t"$n in sys && count == 0) {
+				count++
+				new_line = new_line "\t"$n
+			} else if ($1"\t"$n in sys) {
+				count++
+				new_line = new_line " "$n
+			}
+		}
+		if (count > 0) {
+			new_world_file[++new_world_file_count] = new_line
+			printf "%s< %s\n%s> %s%s\n", color["alert"], line, color["file"], new_line, color["norm"] > "/dev/stderr"
+		} else {
+			printf "%s< %s%s\n", color["alert"], line, color["norm"] > "/dev/stderr"
+		}
+	}
+	close(worldfile)
+
+	if (!changed_something) {
+		notice("No changes needed")
+		return
+	}
+
+	if (!("assume-yes" in global_flags)) {
+		prompt("About to apply above changes to world file.")
+	}
+
+	print new_world_file[1] > worldfile"-new"
+	for (n = 2; n in new_world_file; n++) {
+		print new_world_file[n] >> worldfile"-new"
+	}
+	close(worldfile"-new")
+
+	system("mv "worldfile"-new "worldfile)
+}
+
+function apply_world_op(install, cmds,
+	_local, items, p, i, c, b, op) {
+
+	for (c = 1; c in cmds; c++) {
+	}
+
+	for (p = 1; p in pairs; p++) {
+		split(pairs[p], a, ":")
+		stratum = a[1]
+		package_manager = a[2]
+
+		get_world(stratum, package_manager, _return, world)
+		get_sys(stratum, package_manager, _return, sys)
+
+		items = ""
+		if (install) {
+			for (i in world) {
+				if (!(i in sys)) {
+					items = items" "i
+				}
+			}
+		} else {
+			for (i in sys) {
+				if (!(i in world)) {
+					items = items" "i
+				}
+			}
+		}
+
+		if (items == "") {
+			continue
+		}
+		sub(/^ /, "", items)
+
+		if (!("assume-yes" in global_flags)) {
+			global_flags["confirm"]
+		}
+
+		if (install) {
+			op = "install-packages"
+		} else if (implementations[package_manager, "mark-packages-implicit,remove-orphans"] != "") {
+			op = "mark-packages-implicit,remove-orphans"
+		} else {
+			op = "mark-packages-implicit"
+		}
+		split(operations[op], b, /, */)
+		cmds[c++] = (op, stratum, package_manager, items, b[4], b[5])
+
+		if (op == "mark-packages-implicit") {
+			op = "remove-orphans"
+			split(operations[op], b, /, */)
+			cmds[c++] = (op, stratum, package_manager, "", b[4], b[5])
+		}
+	}
+}
+
+function diff_world(_local, p, a, stratum, package_manager, world, sys, i) {
+	printf "diff %ssystem %s%s%s\n", color["alert"], color["file"], worldfile, color["norm"]
+	for (p = 1; p in pairs; p++) {
+		split(pairs[p], a, ":")
+		stratum = a[1]
+		package_manager = a[2]
+
+		get_world(stratum, package_manager, _return, world)
+		get_sys(stratum, package_manager, _return, sys)
+
+		for (i in sys) {
+			if (!(i in world)) {
+				printf "%s< %s%s\n", color["alert"], pairs[p]"\t"i, color["norm"] > "/dev/stderr"
+			}
+		}
+		for (i in world) {
+			if (!(i in sys)) {
+				printf "%s> %s%s\n", color["file"], pairs[p]"\t"i, color["norm"] > "/dev/stderr"
+			}
+		}
+	}
+}
+
+function check_pmm_configuration(_local, h, f, o, a, valid_types, valid_checks, valid_counts, valid_pre, valid_post, p, u, i) {
+	split("", valid_types, "")
+	valid_types["first"]
+	valid_types["every"]
+	valid_types["none"]
+	split("", valid_checks, "")
+	valid_checks["is-package-installed"]
+	valid_checks["is-package-available"]
+	valid_checks["is-file-db-available"]
+	valid_checks["brl-which"]
+	valid_checks["-"]
+	split("", valid_counts, "")
+	valid_counts["zero"]
+	valid_counts["one"]
+	valid_counts["many"]
+	split("", valid_pre, "")
+	valid_pre["localize"]
+	valid_pre["-"]
+	split("", valid_post, "")
+	valid_post["prepend-full-path"]
+	valid_post["prepend-pair"]
+	valid_post["update-package-cache"]
+	valid_post["-"]
+
+
+	# Ensure all help[] entries have a flag or operation
+	for (h in help) {
+		if (!(h in flags) && !(h in operations)) {
+			abort("help[] contains \""h"\" which is in neither flags[] nor operations[].  Is it a flag or an operation?")
+		} else if ((h in flags) && (h in operations)) {
+			abort("help[] contains \""h"\" which is in both flags[] and operations[].  Is it a flag or an operation?")
+		}
+	}
+	# Ensure all flags[] have a help[]
+	for (f in flags) {
+		if (!(f in help)) {
+			abort("Flag \""f"\" is missing a help[] entry")
+		}
+	}
+	# Ensure all flags[] have valid values
+	for (f in flags) {
+		if (flags[f] != "value" && flags[f] != "binary") {
+			abort("Flag \""f"\" has invalid value \""flags[f]"\"")
+		}
+	}
+	# Ensure all operations[] have a help[]
+	for (o in operations) {
+		if (!(o in help)) {
+			abort("Operation \""o"\" is missing a help[] entry")
+		}
+	}
+	# Ensure all operations[] have valid values
+	for (o in operations) {
+		split(operations[o], a, /, */)
+		if (!(a[1] in valid_types)) {
+			abort("Operation \""o"\" contains unexpected type \""a[1]"\"")
+		}
+		if (!(a[2] in valid_checks)) {
+			abort("Operation \""o"\" contains unexpected check \""a[2]"\"")
+		}
+		if (!(a[3] in valid_counts)) {
+			abort("Operation \""o"\" contains unexpected count \""a[3]"\"")
+		}
+		if (!(a[4] in valid_pre)) {
+			abort("Operation \""o"\" contains unexpected pre-process \""a[4]"\"")
+		}
+		if (!(a[5] in valid_post)) {
+			abort("Operation \""o"\" contains unexpected post-process \""a[6]"\"")
+		}
+		if (6 in a) {
+			abort("Operation \""o"\" contains too many fields")
+		}
+	}
+
+	# Ensure system package managers all have canaries
+	for (p in system_package_managers) {
+		if (!(p in package_manager_canary_executables)) {
+			abort("system_package_manager[\""p"\"] exists but package_manager_canary_executables[\""p"\"] does not")
+		}
+	}
+	# Ensure all user_interfaces and implementations are populated with
+	# something, if only an empty string.
+	for (p in package_manager_canary_executables) {
+		for (f in flags) {
+			if ((!((p, f) in user_interfaces)) && (!(("*", f) in user_interfaces))) {
+				abort("\""p"\" configuration is missing user_interfaces[\""p"\", \""f"\"]")
+			}
+		}
+		for (o in operations) {
+			if ((!((p, o) in user_interfaces)) && (!(("*", o) in user_interfaces))) {
+				abort("\""p"\" configuration is missing user_interfaces[\""p"\", \""o"\"]")
+			}
+			if ((!((p, o) in implementations)) && (!(("*", o) in implementations))) {
+				abort("\""p"\" configuration is missing implementations[\""p"\", \""o"\"]")
+			}
+		}
+	}
+	# Ensure all populated user_interfaces and implementations correspond
+	# to valid (package_manager, flag) or (package_manager, operation)
+	# sets.
+	for (u in user_interfaces) {
+		split(u, a, SUBSEP)
+		if ((!(a[1] in package_manager_canary_executables)) && a[1] != "*") {
+			abort("user_interfaces[\""a[1]"\", \""a[2]"\"] contains unrecognized package-manager name \""a[1]"\"")
+		}
+		if ((!(a[2] in flags)) && (!(a[2] in operations))) {
+			abort("user_interfaces[\""a[1]"\", \""a[2]"\"] contains unrecognized flag/operation \""a[2]"\"")
+		}
+	}
+
+	notice("All sanity checks passed")
+}
+
+function list_pmm_ui_files(_local, u, a, file, files) {
+	split("", files, "")
+	for (u in user_interfaces) {
+		split(u, a, SUBSEP)
+		if (a[1] != ui && a[1] != "*") {
+			continue
+		}
+		if (a[2] in flags) {
+			continue
+		}
+		split(user_interfaces[u], a, " ")
+		if (a[1] == "") {
+			continue
+		}
+		files[a[1]]
+	}
+	for (file in files) {
+		print file
+	}
+}
+
+function version_cmp(left, right,
+	_local, l, r, i) {
+	split(left, l, ".")
+	split(right, r, ".")
+	for (i = 1; ; i++) {
+		if ((!(i in l)) && (!(i in r))) {
+			return 0
+		}
+		if (i in l) {
+			l[i] = l[i] + 0
+		} else {
+			l[i] = 0
+		}
+		if (i in r) {
+			r[i] = r[i] + 0
+		} else {
+			r[i] = 0
+		}
+		if (l[i] < r[i]) {
+			return -1
+		} else if (l[i] > r[i]) {
+			return 1
+		}
+	}
+}
+
+function check_applicability(check, operation, stratum, package_manager, item,
+		_local, cache_available, output, a, count, i) {
+
+	cache_available = check_package_cache_available(stratum, package_manager)
+
+	# version flag applicability constraints
+	if (item != "" && (("approx-version" in global_flags) ||
+			("exact-version" in global_flags) ||
+			("newer-or-equal" in global_flags) ||
+			("newer-than" in global_flags) ||
+			("older-or-equal" in global_flags) ||
+			("older-than" in global_flags))) {
+		if (cache_available) {
+			if (cache_is_package_available(stratum, package_manager, item) != 0) {
+				return 0
+			}
+			cache_print_package_version(stratum, package_manager, item, _return, output)
+		} else {
+			if (!((package_manager, "print-package-version") in implementations)) {
+				return 0
+			}
+			if (run_shell(implementations[package_manager, "is-package-available"], stratum, package_manager, item, 0) != 0) {
+				return 0
+			}
+			get_shell_output(implementations[package_manager, "print-package-version"], stratum, package_manager, item, 0, _return, output)
+		}
+
+		if ("approx-version" in global_flags) {
+			count = split(global_flags["approx-version"], a, ".")
+			for (i = 0; count > 0; count--) {
+				if (index(substr(output[1], i+1), ".") != 0) {
+					i = index(substr(output[1], i+1), ".") + i
+				} else {
+					i = length(output[1])+1
+				}
+			}
+			if (substr(output[1], 1, i-1) != global_flags["approx-version"]) {
+				return 0
+			}
+		}
+		if ("exact-version" in global_flags && (output[1] != global_flags["exact-version"])) {
+			return 0
+		}
+		if ("newer-or-equal" in global_flags && version_cmp(output[1], global_flags["newer-or-equal"]) < 0) {
+			return 0
+		}
+		if ("newer-than" in global_flags && version_cmp(output[1], global_flags["newer-than"]) <= 0) {
+			return 0
+		}
+		if ("older-or-equal" in global_flags && version_cmp(output[1], global_flags["older-or-equal"]) > 0) {
+			return 0
+		}
+		if ("older-than" in global_flags && version_cmp(output[1], global_flags["older-than"]) >= 0) {
+			return 0
+		}
+	}
+
+	if (check == "-") {
+		return 1
+	} else if (check == "brl-which") {
+		get_shell_output("/bedrock/bin/brl which "shell_escape(item), stratum, package_manager, item, 1, _return, output)
+		return output[1] == stratum
+	} else if ((package_manager, check) in implementations) {
+		return run_shell(implementations[package_manager, check], stratum, package_manager, item, 0) == 0
+	}
+}
+
+function find_applicable_pairs(operation, check, type, item, pre, post, uncollected_cmds, uncollected_cmd_count,
+		_local, p, a, stratum, package_manager, output, best_version, best_stratum, best_package_manager) {
+	for (p = 1; p in pairs; p++) {
+		split(pairs[p], a, ":")
+		stratum = a[1]
+		package_manager = a[2]
+		if (!check_applicability(check, operation, stratum, package_manager, item)) {
+			continue
+		}
+		if (type == "first") {
+			uncollected_cmds[++uncollected_cmd_count] = (operation, stratum, package_manager, item, pre, post)
+			break
+		} else if (type == "every") {
+			uncollected_cmds[++uncollected_cmd_count] = (operation, stratum, package_manager, item, pre, post)
+		} else if (type == "newest" || type == "oldest") {
+			if (check_package_cache_available(stratum, package_manager)) {
+				cache_print_package_version(stratum, package_manager, item, _return, output)
+			} else {
+				get_shell_output(implementations[package_manager,"print-package-version"], stratum, package_manager, item, 0, _return, output)
+			}
+			if (output[1] == "") {
+				continue
+			}
+			if (best_stratum == "" ||
+					(type == "newest" && version_cmp(best_version, output[1]) < 0) ||
+					(type == "oldest" && version_cmp(best_version, output[1]) > 0)) {
+				best_version = output[1]
+				best_stratum = stratum
+				best_package_manager = package_manager
+			}
+		} else {
+			abort("Unrecognized type \""type"\" called in find_applicable_pairs().  Please bug report.")
+		}
+	}
+	if ((type == "newest" || type == "oldest") && best_stratum != "") {
+		uncollected_cmds[++uncollected_cmd_count] = (operation, best_stratum, best_package_manager, item, pre, post)
+	}
+	return uncollected_cmd_count
+}
+
+function generate_cmd_list(_return, uncollected_cmds,
+		_local, a, operation, type, check, count, pre, post, suboperations, s, uncollected_cmd_count, i, items_consumed, p, stratum, package_manager, old_count) {
+	# Generate an ordered list of things to do, where each is composed of:
+	# - operation
+	# - stratum
+	# - package-manager
+	# - items
+	# - pre-process
+	# - post-process
+	#
+	# All fields except operation are optional.
+
+	if (!(selected_operation in operations)) {
+		abort("Unrecognized operation \""operation"\" requested")
+	}
+
+	items_consumed = 0
+
+	split(selected_operation, suboperations, /, */)
+	for (s in suboperations) {
+		operation = suboperations[s]
+		split(operations[operation], a, /, */)
+		type = a[1]
+		check = a[2]
+		count = a[3]
+		pre = a[4]
+		post = a[5]
+
+		# Handle flags changing applicability type
+		if (type == "first" && "every" in global_flags) {
+			type = "every"
+		} else if (type == "first" && "newest" in global_flags) {
+			type = "newest"
+		} else if (type == "first" && "oldest" in global_flags) {
+			type = "oldest"
+		}
+
+		# Sanity check item count expectations
+		if (count == "one" && (!(1 in items))) {
+			abort("Operation \""operation"\" expects one argument but none were provided")
+		} else if (count == "one" && (2 in items)) {
+			abort("Operation \""operation"\" expects one argument but more than one were provided")
+		} else if (count == "many" && (!(1 in items))) {
+			abort("Operation \""operation"\" expects one or more arguments but none were provided")
+		} else if (count != "zero" && items_consumed) {
+			abort("Multiple suboperations in \""selected_operation"\" consumed items.  Please bug report this.")
+		} else if (count != "zero") {
+			items_consumed = 1
+		}
+
+		# Sanity check count/type relationship expectations
+		if (count == "zero" && type != "every" && type != "none") {
+			abort(selected_operation " contains suboperations with zero count but per-item type.  Please bug report this.")
+		} else if (type == "none" && count != "zero") {
+			abort(selected_operation " contains suboperations with none type but non-zero count.  Please bug report this.")
+		}
+
+		if (type == "none" && count == "zero") {
+			uncollected_cmds[++uncollected_cmd_count] = (operation, "", "", "", pre, post)
+		} else if (type == "none") {
+			for (i = 1; i in items; i++) {
+				uncollected_cmds[++uncollected_cmd_count] = (operation, "", "", items[i], pre, post)
+			}
+		} else if (count == "zero") {
+			uncollected_cmd_count = find_applicable_pairs(operation, check, type, "", pre, post, uncollected_cmds, uncollected_cmd_count)
+		} else {
+			for (i = 1; i in items; i++) {
+				old_count = uncollected_cmd_count
+				uncollected_cmd_count = find_applicable_pairs(operation, check, type, items[i], pre, post, uncollected_cmds, uncollected_cmd_count)
+				if (uncollected_cmd_count == old_count) {
+					uncollected_cmds[++uncollected_cmd_count] = ("no-match-error", "", "", items[i], pre, post)
+				}
+			}
+		}
+	}
+
+	if ((1 in items) && !items_consumed) {
+		abort("Unconsumed items remain upon generate_cmd_list() exit.  This should not happen.  Please bug report this with the exact command used to generate it.")
+	}
+
+	return uncollected_cmd_count
+}
+
+function collect_cmds(uncollected_cmds, uncollected_cmd_count,
+		_return, cmds,
+		_local, tmp_cmds, tmp_cmd_count, a, b, c, d, count, max_comma_count, ordered, order_count, pool, subops, o, p, pool_empty, combine_items) {
+	# Collect commands which share items
+	for (c = 1; c <= uncollected_cmd_count; c++) {
+		if (!(c in uncollected_cmds)) {
+			continue
+		}
+		split(uncollected_cmds[c], a, SUBSEP)
+		for (d = c + 1; d <= uncollected_cmd_count; d++) {
+			split(uncollected_cmds[d], b, SUBSEP)
+			if (a[1] == b[1] && a[2] == b[2] && a[3] == b[3] && a[5] == b[5] && a[6] == b[6]) {
+				a[4] = a[4]" "b[4]
+				delete uncollected_cmds[d]
+			}
+		}
+		tmp_cmds[++tmp_cmd_count] = (a[1], a[2], a[3], a[4], a[5], a[6])
+	}
+
+	# Get ordered list of combine operations to consider
+	# Prioritize longer combine items first to ensure they are considered
+	# before their subsets.
+	for (operation in operations) {
+		count = split(operation, a, ",")
+		if (count > max_comma_count) {
+			max_comma_count = count
+		}
+	}
+	for (; max_comma_count > 0; max_comma_count--) {
+		for (operation in operations) {
+			count = split(operation, a, ",")
+			if (count == max_comma_count) {
+				ordered[++order_count] = operation
+			}
+		}
+	}
+
+	# Collect combine commands
+	for (c = 1; c <= tmp_cmd_count; c++) {
+		if (!(c in tmp_cmds)) {
+			continue
+		}
+		split(tmp_cmds[c], a, SUBSEP)
+
+		for (o = 1; o in ordered; o++) {
+			# Skip if non-internal operation and package manager does not support it
+			split(operations[ordered[o]], b, /, */)
+			if (b[1] != "none" && (!((a[3], ordered[o]) in implementations) || implementations[a[3], ordered[o]] == "")) {
+				continue
+			}
+
+			# Create pool of items to match
+			split(ordered[o], subops, /,/)
+			split("", pool, "")
+			for (p in subops) {
+				pool[subops[p]]
+			}
+
+			# Compare pool against current tmp_cmd item
+			if (!(a[1] in pool)) {
+				continue
+			}
+			delete pool[a[1]]
+			combine_items = a[4]
+
+			# Compare pool against upcoming/remaining tmp_cmd items
+			for (d = c + 1; d <= tmp_cmd_count; d++) {
+				if (!(d in tmp_cmds)) {
+					continue
+				}
+
+				split(tmp_cmds[d], b, SUBSEP)
+				if (b[1] in pool && a[2] == b[2] && a[3] == b[3]) {
+					delete pool[b[1]]
+					if (b[4] != "") {
+						combine_items = b[4]
+					}
+				}
+			}
+
+			# If anything is left in the pool, the currently
+			# considered stratum:package_manager cannot implement
+			# the entire combine command
+			pool_empty = 1
+			for (p in pool) {
+				pool_empty = 0
+				break
+			}
+			if (!pool_empty) {
+				continue
+			}
+
+			# Found viable combine command.
+			split(operations[ordered[o]], b, /, */)
+			cmds[++cmd_count] = (ordered[o], a[2], a[3], combine_items, b[4], b[5])
+
+			# Remove sub-commands we have just combined from further consideration
+			for (p in subops) {
+				pool[subops[p]]
+			}
+			for (d = c; d <= tmp_cmd_count; d++) {
+				if (!(d in tmp_cmds)) {
+					continue
+				}
+				split(tmp_cmds[d], b, SUBSEP)
+				if (b[1] in pool && a[2] == b[2] && a[3] == b[3]) {
+					delete tmp_cmds[d]
+					delete pool[b[1]]
+				}
+			}
+			break
+		}
+	}
+}
+
+function execute_cmds(cmds,
+		_local, c, a, operation, stratum, package_manager, items, pre, post, result, o, output, updated_cache) {
+	# If any of the operations are no-match-error, error out early
+	for (c = 1; c in cmds; c++) {
+		split(cmds[c], a, SUBSEP)
+		if (a[1] == "no-match-error") {
+			abort("Unable to find package manager to utilize for \""a[4]"\" given constraints")
+		}
+	}
+
+	for (c = 1; c in cmds; c++) {
+		split(cmds[c], a, SUBSEP)
+		operation = a[1]
+		stratum = a[2]
+		package_manager = a[3]
+		items = a[4]
+		pre = a[5]
+		post = a[6]
+
+		if (pre == "-") {
+		} else if (pre == "localize") {
+			gsub(/(^|\<)\/bedrock\/strata\/[^\/]+/, "", items)
+		} else {
+			abort("Unrecognized pre-process instruction requested: \""pre"\".  Please bug report this.")
+		}
+
+		if (operation == "update-world-installed") {
+			update_world_installed()
+		} else if (operation == "update-world-removed") {
+			update_world_removed()
+		} else if (operation == "update-world-sync") {
+			update_world_installed()
+			update_world_removed()
+		} else if (operation == "apply-world-installed") {
+			apply_world_op(1, cmds)
+		} else if (operation == "apply-world-removed") {
+			apply_world_op(0, cmds)
+		} else if (operation == "apply-world-sync") {
+			apply_world_op(1, cmds)
+			apply_world_op(0, cmds)
+		} else if (operation == "diff-world") {
+			diff_world()
+		} else if (operation == "check-pmm-configuration") {
+			check_pmm_configuration()
+		} else if (operation == "list-pmm-ui-files") {
+			list_pmm_ui_files()
+		} else if (post == "-" || post == "update-package-cache") {
+			# Return value needed, use run_shell()
+			if ((package_manager, operation) in implementations) {
+				if (run_shell(implementations[package_manager, operation], stratum, package_manager, items, 1) != 0) {
+					abort("Underlying package-manager command indicated error")
+				}
+			} else {
+				abort("Unrecognized operation requested: \""operation"\".  Please bug report this.")
+			}
+			if (post == "-") {
+			} else if (post == "update-package-cache") {
+				cache_package_db(stratum, package_manager)
+				updated_cache=1
+			} else {
+				abort("Unrecognized post-process instruction requested: \""post"\".  Please bug report this.")
+			}
+		} else if (post ~ "^prepend-") {
+			# stdout value needed, use get_shell_output()
+			if ((package_manager, operation) in implementations) {
+				get_shell_output(implementations[package_manager, operation], stratum, package_manager, items, 1, _return, output)
+				for (o = 1; o in output; o++) {
+					if (post == "prepend-pair") {
+						print color["strat"]""stratum""color[glue]":"color["cmd"]""package_manager""color["norm"]"\t"output[o]
+					} else if (post == "prepend-full-path") {
+						if (output[o] == "") {
+							continue
+						} else if (output[o] ~ /^[^\/]/) {
+							output[o] = "/"output[o]
+						}
+						print color["file"]"/bedrock/strata/"color["strat"]""stratum""color["norm"]""output[o]
+					} else {
+						abort("Unrecognized post-process instruction requested: \""post"\".  Please bug report this.")
+					}
+				}
+			} else {
+				abort("Unrecognized operation requested: \""operation"\".  Please bug report this.")
+			}
+		} else {
+			abort("Unrecognized post-process instruction requested: \""post"\".  Please bug report this.")
+		}
+	}
+
+	if (updated_cache) {
+		notice "Cleaning up"
+		clear_old_cache()
+	}
+}
+
+BEGIN {
+	'"${initialize_awk_variables}"'
+
+	worldfile = "/bedrock/etc/world"
+
+	# Help should be fast.  Hard code it at the beginning of
+	# execution.
+	if (((1 in args) && (args[1] == "-h" || args[1] == "--help")) ||
+		((2 in args) && (args[2] == "-h" || args[2] == "--help"))) {
+		print_help()
+		exit
+	}
+
+	selected_operation = parse_input(_return, global_flags, items)
+
+	generate_pairs(_return, unfiltered_pairs)
+
+	filter_pairs(unfiltered_pairs, _return, pairs)
+
+	uncollected_cmd_count = generate_cmd_list(_return, uncollected_cmds)
+
+	collect_cmds(uncollected_cmds, uncollected_cmd_count, _return, cmds)
+
+	execute_cmds(cmds)
+}
+'

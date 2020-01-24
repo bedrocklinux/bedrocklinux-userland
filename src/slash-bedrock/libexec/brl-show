@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 # Marks strata to be visible
 
@@ -23,7 +23,8 @@ Options:
   ${color_cmd}-b${color_norm},${color_cmd} --boot   ${color_norm}automatically ${color_term}enable${color_norm} ${color_term}stratum${color_norm} during boot
   ${color_cmd}-c${color_norm},${color_cmd} --cross  ${color_norm}include ${color_term}stratum${color_norm}'s files in ${color_file}/bedrock/cross${color_norm}
   ${color_cmd}-i${color_norm},${color_cmd} --init   ${color_norm}list ${color_term}stratum${color_norm}'s init options during boot
-  ${color_cmd}-l${color_norm},${color_cmd} --list   ${color_norm}list with ${color_cmd}\`brl list\`${color_norm} even without ${color_cmd}\`-i\`${color_norm} flag.
+  ${color_cmd}-l${color_norm},${color_cmd} --list   ${color_norm}list with ${color_cmd}\`brl list\`${color_norm} even without ${color_cmd}\`-i\`${color_norm} flag
+  ${color_cmd}-p${color_norm},${color_cmd} --pmm    ${color_norm}consider for ${color_cmd}\`pmm\`${color_norm} operations
   ${color_cmd}-h${color_norm},${color_cmd} --help   ${color_norm}print this message
 
 Examples:
@@ -44,10 +45,11 @@ show_boot=false
 show_cross=false
 show_init=false
 show_list=false
+show_pmm=false
 strata=""
 
-OPTL="all,boot,cross,init,list,help"
-OPTO="abcil"
+OPTL="all,boot,cross,init,list,pmm,help"
+OPTO="abcilp"
 eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
 saw_non_positional=false
 
@@ -58,6 +60,7 @@ while [ -n "${1:-}" ]; do
 		show_cross=true
 		show_init=true
 		show_list=true
+		show_pmm=true
 		shift
 		;;
 	-b | --boot)
@@ -74,6 +77,10 @@ while [ -n "${1:-}" ]; do
 		;;
 	-l | --list)
 		show_list=true
+		shift
+		;;
+	-p | --pmm)
+		show_pmm=true
 		shift
 		;;
 	--)
@@ -99,14 +106,17 @@ if [ -z "${strata}" ]; then
 	abort "No stratum or alias specified."
 fi
 
+# Default to --all if none are specified
 if ! "${show_boot}" &&
 	! "${show_cross}" &&
 	! "${show_init}" &&
-	! "${show_list}"; then
+	! "${show_list}" &&
+	! "${show_pmm}"; then
 	show_boot=true
 	show_cross=true
 	show_init=true
 	show_list=true
+	show_pmm=true
 fi
 
 lock
@@ -119,6 +129,7 @@ for stratum in ${strata}; do
 	"${show_cross}" && set_attr "/bedrock/strata/${stratum}" "show_cross" ""
 	"${show_init}" && set_attr "/bedrock/strata/${stratum}" "show_init" ""
 	"${show_list}" && set_attr "/bedrock/strata/${stratum}" "show_list" ""
+	"${show_pmm}" && set_attr "/bedrock/strata/${stratum}" "show_pmm" ""
 done
 
 if "${show_cross}"; then

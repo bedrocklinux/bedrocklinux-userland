@@ -1,0 +1,25 @@
+#
+# Package Manager Manager world file
+#
+# This file is expected to contain a list of
+#
+#     <stratum>:<package-manager><whitespace><package-name>
+#
+# entries which `pmm` can utilize synchronize against the system's list of
+# explicitly installed packages.  A given line may contain multiple white space
+# separated package names.  For example:
+#
+#     ### Bedrock Linux `make check` dependencies
+#     # compilers
+#     arch:pacman	gcc clang
+#     # static check tools
+#     arch:pacman	cppcheck shellcheck
+#     # formatting tools
+#     arch:pacman	indent shfmt
+#     # libraries
+#     arch:pacman	fuse3 uthash
+#
+# See `pmm --help | grep world` for a list of world file
+# operations.
+#
+

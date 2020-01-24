@@ -4,7 +4,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2012-2019 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2012-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 # This creates a script which can be used to install or update a Bedrock Linux
 # system.
@@ -201,6 +201,9 @@ $(COMPLETED)/builddir:
 	mv $(SLASHBR)/etc/os-release-new $(SLASHBR)/etc/os-release
 	# create release-specific bedrock.conf
 	mv $(SLASHBR)/etc/bedrock.conf $(SLASHBR)/etc/bedrock.conf-$(BEDROCK_VERSION)
+	# move world file to temporary position so it does not overwrite
+	# preexisting one during update
+	mv $(SLASHBR)/etc/world $(SLASHBR)/etc/.fresh-world
 	# git does not track empty directories.  Ensure known required
 	# directories are created.
 	mkdir -p $(SLASHBR)/bin

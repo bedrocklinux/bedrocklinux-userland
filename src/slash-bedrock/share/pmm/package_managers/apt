@@ -1,0 +1,141 @@
+#!/bedrock/libexec/busybox awk -f
+#
+# Package Manager Manager apt support script
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2013-2020 Daniel Thau <danthau@bedrocklinux.org>
+
+system_package_managers["apt"]
+package_manager_canary_executables["apt"] = "apt"
+
+#
+# General, operation independent flags.
+#
+# Unlike operations, flags should not have implementations[].
+#
+user_interfaces["apt", "assume-no"]  = "--assume-no"
+user_interfaces["apt", "assume-yes"] = "-y/--yes/--assume-yes"
+user_interfaces["apt", "confirm"]    = ""
+user_interfaces["apt", "quiet"]      = "-q/--quiet"
+user_interfaces["apt", "verbose"]    = ""
+
+#
+# Operations which directly forward the underlying command output.
+#
+user_interfaces["apt", "install-packages"]         = "pmm install <pkgs>"
+user_interfaces["apt", "reinstall-packages"]       = "pmm reinstall <pkgs>"
+user_interfaces["apt", "remove-packages-limited"]  = "pmm remove <pkgs>"
+user_interfaces["apt", "remove-packages-full"]     = "pmm purge <pkgs>"
+user_interfaces["apt", "verify-packages"]          = "pmm-dpkg -V <pkgs>"
+user_interfaces["apt", "verify-all-packages"]      = "pmm-dpkg -V"
+user_interfaces["apt", "mark-packages-explicit"]   = "pmm-mark manual <pkgs>"
+user_interfaces["apt", "mark-packages-implicit"]   = "pmm-mark auto <pkgs>"
+user_interfaces["apt", "show-package-information"] = "pmm show <pkgs>"
+user_interfaces["apt", "clear-cache"]              = "pmm clear/autoclean/auto-clean"
+user_interfaces["apt", "remove-orphans"]           = "pmm autoremove"
+user_interfaces["apt", "update-package-database"]  = "pmm update"
+user_interfaces["apt", "update-file-database"]     = "pmm-file update"
+user_interfaces["apt", "upgrade-packages-limited"] = "pmm upgrade"
+user_interfaces["apt", "upgrade-packages-full"]    = "pmm dist-upgrade/full-upgrade"
+
+implementations["apt", "install-packages"]         = "strat -r ${stratum} apt ${flags} install ${items}"
+implementations["apt", "reinstall-packages"]       = "strat -r ${stratum} apt ${flags} reinstall ${items}"
+implementations["apt", "remove-packages-limited"]  = "strat -r ${stratum} apt ${flags} remove ${items}"
+implementations["apt", "remove-packages-full"]     = "strat -r ${stratum} apt ${flags} purge ${items}"
+implementations["apt", "verify-packages"]          = "strat -r ${stratum} dpkg -V ${items}"
+implementations["apt", "verify-all-packages"]      = "strat -r ${stratum} dpkg -V"
+implementations["apt", "mark-packages-explicit"]   = "strat -r ${stratum} apt-mark manual ${items}"
+implementations["apt", "mark-packages-implicit"]   = "strat -r ${stratum} apt-mark auto ${items}"
+implementations["apt", "show-package-information"] = "strat -r ${stratum} apt ${flags} show ${items}"
+implementations["apt", "clear-cache"]              = "strat -r ${stratum} apt ${flags} clean"
+implementations["apt", "remove-orphans"]           = "strat -r ${stratum} apt ${flags} autoremove"
+implementations["apt", "update-package-database"]  = "strat -r ${stratum} apt ${flags} update"
+implementations["apt", "update-file-database"]     = "strat -r ${stratum} apt-file update"
+implementations["apt", "upgrade-packages-limited"] = "strat -r ${stratum} apt ${flags} upgrade"
+implementations["apt", "upgrade-packages-full"]    = "strat -r ${stratum} apt ${flags} full-upgrade"
+
+#
+# Combine operations.
+#
+user_interfaces["apt", "clear-cache,remove-orphans"]                                                             = ""
+user_interfaces["apt", "mark-packages-implicit,remove-orphans"]                                                  = ""
+user_interfaces["apt", "remove-packages-limited,remove-orphans"]                                                 = ""
+user_interfaces["apt", "remove-packages-full,remove-orphans"]                                                    = ""
+user_interfaces["apt", "update-package-database,update-file-database"]                                           = ""
+user_interfaces["apt", "update-package-database,upgrade-packages-partial"]                                       = ""
+user_interfaces["apt", "update-package-database,upgrade-packages-full"]                                          = ""
+user_interfaces["apt", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""
+user_interfaces["apt", "update-package-database,update-file-database,upgrade-packages-full"]                     = ""
+user_interfaces["apt", "update-package-database,install-packages"]                                               = ""
+user_interfaces["apt", "update-package-database,update-file-database,install-packages"]                          = ""
+user_interfaces["apt", "upgrade-packages-limited,install-packages"]                                              = ""
+user_interfaces["apt", "upgrade-packages-full,install-packages"]                                                 = ""
+user_interfaces["apt", "update-package-database,upgrade-packages-partial,install-packages"]                      = ""
+user_interfaces["apt", "update-package-database,upgrade-packages-full,install-packages"]                         = ""
+user_interfaces["apt", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+user_interfaces["apt", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+implementations["apt", "clear-cache,remove-orphans"]                                                             = ""
+implementations["apt", "mark-packages-implicit,remove-orphans"]                                                  = ""
+implementations["apt", "remove-packages-limited,remove-orphans"]                                                 = ""
+implementations["apt", "remove-packages-full,remove-orphans"]                                                    = ""
+implementations["apt", "update-package-database,update-file-database"]                                           = ""
+implementations["apt", "update-package-database,upgrade-packages-partial"]                                       = ""
+implementations["apt", "update-package-database,upgrade-packages-full"]                                          = ""
+implementations["apt", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""
+implementations["apt", "update-package-database,update-file-database,upgrade-packages-full"]                     = ""
+implementations["apt", "update-package-database,install-packages"]                                               = ""
+implementations["apt", "update-package-database,update-file-database,install-packages"]                          = ""
+implementations["apt", "upgrade-packages-limited,install-packages"]                                              = ""
+implementations["apt", "upgrade-packages-full,install-packages"]                                                 = ""
+implementations["apt", "update-package-database,upgrade-packages-partial,install-packages"]                      = ""
+implementations["apt", "update-package-database,upgrade-packages-full,install-packages"]                         = ""
+implementations["apt", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+implementations["apt", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+#
+# Operations which have a standardized output format.
+#
+user_interfaces["apt", "list-installed-package-files"] = "pmm-dpkg -L/--listfiles <pkgs>"
+user_interfaces["apt", "list-installed-explicit"]      = "pmm-mark showmanual"
+user_interfaces["apt", "list-installed-implicit"]      = "pmm-mark showauto"
+user_interfaces["apt", "list-installed-packages"]      = "pmm list --installed"
+user_interfaces["apt", "list-available-packages"]      = "pmm list"
+user_interfaces["apt", "search-for-package-by-name"]   = "pmm search -n/--names-only <text>"
+user_interfaces["apt", "search-for-package-by-all"]    = "pmm search <text>"
+user_interfaces["apt", "which-package-owns-file"]      = "pmm-dpkg -S/--search <file>"
+user_interfaces["apt", "which-packages-provide-file"]  = "pmm-file search <file>"
+
+implementations["apt", "list-installed-package-files"] = "strat -r ${stratum} apt dpkg -L ${items}"
+implementations["apt", "list-installed-explicit"]      = "strat -r ${stratum} apt-mark showmanual"
+implementations["apt", "list-installed-implicit"]      = "strat -r ${stratum} apt-mark showauto"
+implementations["apt", "list-installed-packages"]      = "strat -r ${stratum} dpkg -l | awk '$1 == \"ii\" {sub(/:[0-9]+$/,\"\",$2); print $2}'"
+implementations["apt", "list-available-packages"]      = "strat -r ${stratum} apt-cache pkgnames"
+implementations["apt", "search-for-package-by-name"]   = "strat -r ${stratum} apt-cache search -n ${items} | cut -d' ' -f1"
+implementations["apt", "search-for-package-by-all"]    = "strat -r ${stratum} apt-cache search ${items} | cut -d' ' -f1"
+implementations["apt", "which-package-owns-file"]      = "strat -r ${stratum} dpkg -S ${items} | cut -d: -f1 | sed 's/, /\\n/g'"
+implementations["apt", "which-packages-provide-file"]  = "strat -r ${stratum} apt-file search ${items} | sed 's/: /\t/'"
+
+#
+# Internal pmm operations.
+#
+implementations["apt", "is-package-installed"]               = "strat -r ${stratum} dpkg -l ${items} 2>/dev/null | grep -q '^ii'"
+implementations["apt", "is-package-available"]               = "strat -r ${stratum} apt-cache show ${items} >/dev/null 2>&1"
+implementations["apt", "is-file-db-available"]               = "strat -r ${stratum} dpkg -l apt-file | grep -q '^ii'"
+implementations["apt", "print-file-db-install-instructions"] = "echo 'Install apt-file in ${stratum}:apt to perform file-db operations'"
+implementations["apt", "print-package-version"]              = "strat -r ${stratum} apt-cache show ${items} |\
+	awk '$1 == \"Version:\" {sub(/^[0-9]*:/, \"\"); sub(/[~+-].*$/, \"\"); print $2}'"
+implementations["apt", "cache-package-db"]                   =  "strat -r ${stratum} apt-cache show '*' |\
+	awk '\
+		$1 == \"Package:\" {\
+			name = $2\
+		}\
+		$1 == \"Version:\" {\
+			sub(/^[0-9]*:/, \"\");\
+			sub(/[~+-].*$/, \"\");\
+			print name\"\t\"$2\
+		}\
+	'"

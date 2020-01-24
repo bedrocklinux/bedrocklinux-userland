@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2018-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 # Installs or updates a Bedrock Linux system.
 
@@ -155,7 +155,6 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	rm "${getf}"
 
 	step "Gathering information"
-
 	name=""
 	if [ -n "${1:-}" ]; then
 		name="${1}"
@@ -185,6 +184,23 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		abort "No file detected at /sbin/init.  Unable to hijack init system."
 	fi
 	notice "Using ${color_strat}${name}${color_glue}:${color_cmd}/sbin/init${color_norm} as default init selection"
+
+	pmm_cfgs="$(extract_tarball | tar tf - | grep 'bedrock/share/pmm/package_managers/.')"
+	initialize_awk_variables="$(extract_tarball | tar xOf - ${pmm_cfgs} | grep "^package_manager_canary_executables.\"")"
+	pmm_ui="$(awk 'BEGIN {
+		'"${initialize_awk_variables}"'
+		for (pm in package_manager_canary_executables) {
+			if (system("type "package_manager_canary_executables[pm]" >/dev/null 2>&1") == 0) {
+				print pm
+				exit
+			}
+		}
+	}')"
+	if [ -n "${pmm_ui:-}" ]; then
+		notice "Using ${color_cmd}${pmm_ui}${color_norm} for as pmm user interface"
+	else
+		notice "No recognized system package managers discovered.  Leaving pmm user interface unset."
+	fi
 
 	localegen=""
 	if [ -r "/etc/locale.gen" ]; then
@@ -254,11 +270,13 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		set_attr "${dir}" "show_cross" ""
 		set_attr "${dir}" "show_init" ""
 		set_attr "${dir}" "show_list" ""
+		set_attr "${dir}" "show_pmm" ""
 	done
 
 	notice "Configuring ${color_file}bedrock.conf${color_norm}"
 	mv /bedrock/etc/bedrock.conf-* /bedrock/etc/bedrock.conf
 	sha1sum </bedrock/etc/bedrock.conf >/bedrock/var/conf-sha1sum
+	mv /bedrock/etc/.fresh-world /bedrock/etc/world
 
 	awk -v"value=${name}:/sbin/init" '!/^default =/{print} /^default =/{print "default = "value}' /bedrock/etc/bedrock.conf >/bedrock/etc/bedrock.conf-new
 	mv /bedrock/etc/bedrock.conf-new /bedrock/etc/bedrock.conf
@@ -272,6 +290,10 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	fi
 	if [ -n "${LANG:-}" ]; then
 		awk -v"value=${LANG}" '!/^LANG =/{print} /^LANG =/{print "LANG = "value}' /bedrock/etc/bedrock.conf >/bedrock/etc/bedrock.conf-new
+		mv /bedrock/etc/bedrock.conf-new /bedrock/etc/bedrock.conf
+	fi
+	if [ -n "${pmm_ui:-}" ]; then
+		awk -v"value=${pmm_ui}" '!/^user_interface =/{print} /^user_interface =/{print "user_interface = "value}' /bedrock/etc/bedrock.conf >/bedrock/etc/bedrock.conf-new
 		mv /bedrock/etc/bedrock.conf-new /bedrock/etc/bedrock.conf
 	fi
 
@@ -385,6 +407,12 @@ update() {
 		fi
 	done
 	mv /bedrock/var/bedrock-files-new /bedrock/var/bedrock-files
+	# Handle world file
+	if [ -e /bedrock/etc/world ]; then
+		rm /bedrock/etc/.fresh-world
+	else
+		mv /bedrock/etc/.fresh-world /bedrock/etc/world
+	fi
 
 	step "Handling possible bedrock.conf update"
 	# If bedrock.conf did not change since last update, remove new instance
@@ -457,6 +485,11 @@ update() {
 		rm /bedrock/libexec/bouncer-pre-0.7.9
 	fi
 
+	# Ensure preexisting non-hidden strata are visible to pmm
+	if ver_cmp_first_newer "0.7.14beta1" "${current_version}"; then
+		brl show --pmm $(brl list -ed)
+	fi
+
 
 	notice "Successfully updated to ${new_version}"
 	new_crossfs=false
@@ -504,6 +537,11 @@ update() {
 
 	if ver_cmp_first_newer "0.7.8beta2" "${current_version}"; then
 		new_etcfs=true
+	fi
+
+	if ver_cmp_first_newer "0.7.14beta1" "${current_version}"; then
+		notice "Added new pmm subsystem"
+		notice "Populate new [pmm] section of bedrock.conf \`user_interface\` field then run \`brl update\` as root to create pmm front-end."
 	fi
 
 	if "${new_crossfs}"; then

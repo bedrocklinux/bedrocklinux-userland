@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2018-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 # (re)loads configuration
 
@@ -270,6 +270,39 @@ if "${need_shell_change}"; then
 		enforce_shells
 	else
 		rm /etc/passwd-
+	fi
+fi
+
+# Setup pmm front-end.
+pmm_ui="$(cfg_value pmm user_interface)"
+if [ "${pmm_ui}" = "" ]; then
+	notice "Set [pmm]/user_interface in bedrock.conf and run \`brl apply\` to update pmm front-end(s)"
+else
+	pmm_ui_files="$(/bedrock/libexec/pmm "${pmm_ui}" pmm --list-pmm-ui-files 2>/dev/null)"
+	# Create front-end files
+	for file in ${pmm_ui_files}; do
+		tgt_contents="#!/bedrock/libexec/busybox sh
+exec /bedrock/libexec/pmm ${pmm_ui} ${file} \"\${@}\""
+		tgt_path="/bedrock/bin/${file}"
+
+		if ! echo "${file}" | grep -q "^pmm"; then
+			echo "ERROR: pmm requests non-pmm front-end \"${file}\""
+			continue
+		elif [ -x "${tgt_path}" ] && [ "$(cat "${tgt_path}")" = "${tgt}" ]; then
+			continue
+		else
+			echo "${tgt_contents}" > "${tgt_path}"
+			chmod a+rx "${tgt_path}"
+		fi
+	done
+	# Remove outdated front-end files
+	cd /bedrock/bin/
+	if ls pmm* >/dev/null 2>&1; then
+		for file in pmm*; do
+			if echo "${pmm_ui_files}" | awk -vf="${file}" '$1 == f {exit 1}'; then
+				rm "${file}"
+			fi
+		done
 	fi
 fi
 

@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 # Marks strata to be hidden.
 
@@ -24,6 +24,7 @@ Options:
   ${color_cmd}-c${color_norm},${color_cmd} --cross  ${color_norm}do not include ${color_term}stratum${color_norm}'s files in ${color_file}/bedrock/cross${color_norm}
   ${color_cmd}-i${color_norm},${color_cmd} --init   ${color_norm}do not list ${color_term}stratum${color_norm}'s init options during boot
   ${color_cmd}-l${color_norm},${color_cmd} --list   ${color_norm}do not list with ${color_cmd}\`brl list\`${color_norm} without ${color_cmd}\`-i\`${color_norm} flag.
+  ${color_cmd}-p${color_norm},${color_cmd} --pmm    ${color_norm}do not consider for ${color_cmd}\`pmm\` operations${color_norm}
   ${color_cmd}-h${color_norm},${color_cmd} --help   ${color_norm}print this message
 
 Examples:
@@ -41,10 +42,11 @@ hide_boot=false
 hide_cross=false
 hide_init=false
 hide_list=false
+hide_pmm=false
 strata=""
 
-OPTL="all,boot,cross,init,list,help"
-OPTO="abcil"
+OPTL="all,boot,cross,init,list,pmm,help"
+OPTO="abcilp"
 eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
 saw_non_positional=false
 
@@ -55,6 +57,7 @@ while [ -n "${1:-}" ]; do
 		hide_cross=true
 		hide_init=true
 		hide_list=true
+		hide_pmm=true
 		shift
 		;;
 	-b | --boot)
@@ -71,6 +74,10 @@ while [ -n "${1:-}" ]; do
 		;;
 	-l | --list)
 		hide_list=true
+		shift
+		;;
+	-p | --pmm)
+		hide_pmm=true
 		shift
 		;;
 	--)
@@ -96,14 +103,17 @@ if [ -z "${strata}" ]; then
 	abort "No stratum or alias specified."
 fi
 
+# Default to --all if none are specified
 if ! "${hide_boot}" &&
 	! "${hide_cross}" &&
 	! "${hide_init}" &&
-	! "${hide_list}"; then
+	! "${hide_list}" &&
+	! "${hide_pmm}"; then
 	hide_boot=true
 	hide_cross=true
 	hide_init=true
 	hide_list=true
+	hide_pmm=true
 fi
 
 lock
@@ -118,6 +128,7 @@ for stratum in ${strata}; do
 	"${hide_cross}" && rm_attr "/bedrock/strata/${stratum}" "show_cross"
 	"${hide_init}" && rm_attr "/bedrock/strata/${stratum}" "show_init"
 	"${hide_list}" && rm_attr "/bedrock/strata/${stratum}" "show_list"
+	"${hide_pmm}" && rm_attr "/bedrock/strata/${stratum}" "show_pmm"
 done
 
 if "${hide_cross}"; then

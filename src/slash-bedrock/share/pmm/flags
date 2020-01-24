@@ -1,0 +1,49 @@
+#!/bedrock/libexec/busybox awk -f
+#
+# Package Manager Manager flags
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2013-2020 Daniel Thau <danthau@bedrocklinux.org>
+
+# Map pmm internal name for a flag to either "value" or "binary".
+#
+# "value" indicates it expects a corresponding value.  For example, in:
+#
+#     pmm --stratum ubuntu install vim
+#
+# The flag `--stratum` takes a value, `ubuntu`.
+#
+# "binary" indicates it is a binary flag.  It is either present or it is
+# not.  For example, in:
+#
+#     pmm --quiet install vim
+#
+# The flag `--quiet` is present.  The alternative was it not being present.  It
+# does not take a value.
+
+#
+# General, operation independent flags
+#
+flags["assume-no"]  = "binary"
+flags["assume-yes"] = "binary"
+flags["confirm"]    = "binary"
+flags["quiet"]      = "binary"
+flags["verbose"]    = "binary"
+
+#
+# pmm specific, operation independent flags
+#
+flags["strat"]           = "value"
+flags["package-manager"] = "value"
+flags["every"]           = "binary"
+flags["newest"]          = "binary"
+flags["oldest"]          = "binary"
+flags["approx-version"]  = "value"
+flags["exact-version"]   = "value"
+flags["newer-or-equal"]  = "value"
+flags["newer-than"]      = "value"
+flags["older-or-equal"]  = "value"
+flags["older-than"]      = "value"

@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -69,7 +69,7 @@ default_release() {
 	num="$(wget -O- "${release_list_url}" 2>/dev/null 2>/dev/null |
 		list_links |
 		sed 's,/,,g' |
-		grep '[0-9.]' |
+		grep '^[0-9]*[.][0-9]*$' |
 		sort -rn |
 		head -n1)"
 
@@ -159,6 +159,8 @@ fetch() {
 	esac
 	set +o pipefail
 	setup_chroot "${target_dir}"
+	autopkgs="$(LANG=C chroot "${target_dir}" /usr/bin/apt-mark showmanual)"
+	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-mark auto ${autopkgs}
 	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get update
 	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get install locales-all
 	set -o pipefail

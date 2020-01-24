@@ -1,0 +1,149 @@
+#!/bedrock/libexec/busybox awk -f
+#
+# Package Manager Manager apk support script
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2018-2020 Daniel Thau <danthau@bedrocklinux.org>
+
+system_package_managers["apk"]
+package_manager_canary_executables["apk"] = "apk"
+
+#
+# General, operation independent flags.
+#
+# Unlike operations, flags should not have implementations[].
+#
+user_interfaces["apk", "assume-no"]  = ""
+user_interfaces["apk", "assume-yes"] = ""
+user_interfaces["apk", "confirm"]    = "-i/--interactive"
+user_interfaces["apk", "quiet"]      = "-q/--quiet"
+user_interfaces["apk", "verbose"]    = "-v/--verbose"
+
+#
+# Operations which directly forward the underlying command output.
+#
+user_interfaces["apk", "install-packages"]         = "pmm add <pkgs>"
+user_interfaces["apk", "reinstall-packages"]       = "pmm fix -r/--reinstall <pkgs>"
+user_interfaces["apk", "remove-packages-limited"]  = "" # uses combine remove-packages,remove-orphans
+user_interfaces["apk", "remove-packages-full"]     = "" # uses combine remove-packages,remove-orphans
+user_interfaces["apk", "verify-packages"]          = "" # could not find operation in package manager documentation
+user_interfaces["apk", "verify-all-packages"]      = "pmm audit"
+user_interfaces["apk", "mark-packages-explicit"]   = "" # implicit with apk add
+user_interfaces["apk", "mark-packages-implicit"]   = "" # implicit with apk del
+user_interfaces["apk", "show-package-information"] = "pmm info <pkgs>"
+user_interfaces["apk", "clear-cache"]              = "" # could not find operation in package manager documentation
+user_interfaces["apk", "remove-orphans"]           = "" # implicit with apk del
+user_interfaces["apk", "update-package-database"]  = "" # no separate file database concept, using combine
+user_interfaces["apk", "update-file-database"]     = "" # file search command does online query, no local database
+user_interfaces["apk", "upgrade-packages-limited"] = "" # no limited upgrade concept
+user_interfaces["apk", "upgrade-packages-full"]    = "pmm upgrade"
+
+implementations["apk", "install-packages"]         = "strat -r ${stratum} apk ${flags} add ${items}"
+implementations["apk", "reinstall-packages"]       = "strat -r ${stratum} apk ${flags} fix -r ${items}"
+implementations["apk", "remove-packages-limited"]  = "strat -r ${stratum} apk ${flags} del ${items}"
+implementations["apk", "remove-packages-full"]     = "strat -r ${stratum} apk ${flags} del --purge ${items}"
+implementations["apk", "verify-packages"]          = "" # could not find operation in package manager documentation
+implementations["apk", "verify-all-packages"]      = "strat -r ${stratum} apk ${flags} audit --system --check-permissions ${items}"
+implementations["apk", "mark-packages-explicit"]   = "strat -r ${stratum} apk ${flags} add ${items}"
+implementations["apk", "mark-packages-implicit"]   = "strat -r ${stratum} apk ${flags} del ${items}"
+implementations["apk", "show-package-information"] = "strat -r ${stratum} apk ${flags} info ${items}"
+implementations["apk", "clear-cache"]              = "" # could not find operation in package manager documentation
+implementations["apk", "remove-orphans"]           = "" # implicit with apk del
+implementations["apk", "update-package-database"]  = "strat -r ${stratum} apk ${flags} update"
+implementations["apk", "update-file-database"]     = "" # no file database concept
+implementations["apk", "upgrade-packages-limited"] = "strat -r ${stratum} apk ${flags} upgrade"
+implementations["apk", "upgrade-packages-full"]    = "strat -r ${stratum} apk ${flags} upgrade"
+
+#
+# Combine operations.
+#
+user_interfaces["apk", "clear-cache,remove-orphans"]                                                             = ""
+user_interfaces["apk", "mark-packages-implicit,remove-orphans"]                                                  = "pmm del <pkgs>"
+user_interfaces["apk", "remove-packages-limited,remove-orphans"]                                                 = ""
+user_interfaces["apk", "remove-packages-full,remove-orphans"]                                                    = "pmm del --purge <pkgs>"
+user_interfaces["apk", "update-package-database,update-file-database"]                                           = "pmm update"
+user_interfaces["apk", "update-package-database,upgrade-packages-partial"]                                       = ""
+user_interfaces["apk", "update-package-database,upgrade-packages-full"]                                          = ""
+user_interfaces["apk", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""
+user_interfaces["apk", "update-package-database,update-file-database,upgrade-packages-full"]                     = ""
+user_interfaces["apk", "update-package-database,install-packages"]                                               = ""
+user_interfaces["apk", "update-package-database,update-file-database,install-packages"]                          = ""
+user_interfaces["apk", "upgrade-packages-limited,install-packages"]                                              = ""
+user_interfaces["apk", "upgrade-packages-full,install-packages"]                                                 = ""
+user_interfaces["apk", "update-package-database,upgrade-packages-partial,install-packages"]                      = ""
+user_interfaces["apk", "update-package-database,upgrade-packages-full,install-packages"]                         = ""
+user_interfaces["apk", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+user_interfaces["apk", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+implementations["apk", "clear-cache,remove-orphans"]                                                             = ""
+implementations["apk", "mark-packages-implicit,remove-orphans"]                                                  = "strat -r ${stratum} apk ${flags} del ${items}"
+implementations["apk", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} apk ${flags} del ${items}"
+implementations["apk", "remove-packages-full,remove-orphans"]                                                    = "strat -r ${stratum} apk ${flags} del --purge ${items}"
+implementations["apk", "update-package-database,update-file-database"]                                           = "strat -r ${stratum} apk ${flags} update"
+implementations["apk", "update-package-database,upgrade-packages-partial"]                                       = ""
+implementations["apk", "update-package-database,upgrade-packages-full"]                                          = ""
+implementations["apk", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""
+implementations["apk", "update-package-database,update-file-database,upgrade-packages-full"]                     = ""
+implementations["apk", "update-package-database,install-packages"]                                               = ""
+implementations["apk", "update-package-database,update-file-database,install-packages"]                          = ""
+implementations["apk", "upgrade-packages-limited,install-packages"]                                              = ""
+implementations["apk", "upgrade-packages-full,install-packages"]                                                 = ""
+implementations["apk", "update-package-database,upgrade-packages-partial,install-packages"]                      = ""
+implementations["apk", "update-package-database,upgrade-packages-full,install-packages"]                         = ""
+implementations["apk", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+implementations["apk", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+#
+# Operations which have a standardized output format.
+#
+user_interfaces["apk", "list-installed-package-files"] = "pmm info -L/--contents <pkgs>"
+user_interfaces["apk", "list-installed-explicit"]      = "" # not explicitly raised via user interface
+user_interfaces["apk", "list-installed-implicit"]      = "" # not explicitly raised via user interface
+user_interfaces["apk", "list-installed-packages"]      = "pmm list -I/--installed"
+user_interfaces["apk", "list-available-packages"]      = "pmm list"
+user_interfaces["apk", "search-for-package-by-name"]   = ""
+user_interfaces["apk", "search-for-package-by-all"]    = "pmm search <text>"
+user_interfaces["apk", "which-package-owns-file"]      = "pmm info -W/--who-owns <file>"
+user_interfaces["apk", "which-packages-provide-file"]  = "pmm-file <file>"
+
+implementations["apk", "list-installed-package-files"] = "strat -r ${stratum} apk info -L ${items} | grep -v ' contains:$'"
+implementations["apk", "list-installed-explicit"]      = "cat /bedrock/strata/${stratum}/etc/apk/world"
+implementations["apk", "list-installed-implicit"]      = "strat -r ${stratum} apk info |\
+	awk 'BEGIN {\
+		world=\"/bedrock/strata/\"ENVIRON[\"stratum\"]\"/etc/apk/world\";\
+		while ((getline < world) > 0) {\
+			x[$0]\
+		}\
+	}\
+	(!($0 in x)) {\
+		print\
+	}'"
+implementations["apk", "list-installed-packages"]      = "strat -r ${stratum} apk info"
+implementations["apk", "list-available-packages"]      = "strat -r ${stratum} apk list | awk '{sub(/-[^-]*-[^-]*$/, \"\", $1); print $1}'"
+implementations["apk", "search-for-package-by-name"]   = "strat -r ${stratum} apk search | sed 's/-[^-]*-[^-]*$//' | grep ${items}"
+implementations["apk", "search-for-package-by-all"]    = "strat -r ${stratum} apk search ${items} | sed 's/-[^-]*-[^-]*$//'"
+implementations["apk", "which-package-owns-file"]      = "strat -r ${stratum} apk info -W ${items} 2>/dev/null | awk '{sub(/-[^-]*-[^-]*$/, \"\"); print $NF}'"
+implementations["apk", "which-packages-provide-file"]  = "strat -r ${stratum} apk-file ${items} |\
+	# dedup repeats\
+	awk '\
+	/^[\\/]/ {\
+		x[$1] = $2\
+	}\
+	END{\
+		for (f in x) {\
+			print x[f]\"\t\"f\
+		}\
+	}'"
+
+#
+# Internal pmm operations.
+#
+implementations["apk", "is-package-installed"]               = "strat -r ${stratum} apk info -e ${items} >/dev/null 2>&1"
+implementations["apk", "is-package-available"]               = "strat -r ${stratum} apk info ${items} >/dev/null 2>&1"
+implementations["apk", "is-file-db-available"]               = "strat -r ${stratum} apk info -e apk-file >/dev/null 2>&1"
+implementations["apk", "print-file-db-install-instructions"] = "echo 'Install apk-file from apk community repo in ${stratum}:apk to perform file-db operations'"
+implementations["apk", "print-package-version"]              = "strat -r ${stratum} apk info ${items} | awk -F'[ -]' '{print$(NF-2);exit}'"
+implementations["apk", "cache-package-db"]                   = "strat -r ${stratum} apk list | sed 's/-\\([^-]*\\)-[^-]* .*$/\t\\1/'"

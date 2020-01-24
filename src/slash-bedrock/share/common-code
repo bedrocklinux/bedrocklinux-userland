@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
 
 # Print the Bedrock Linux ASCII logo.
 #
@@ -338,6 +338,52 @@ clear_old_cache() {
 
 		drop_lock "${dir}"
 	done
+}
+
+#
+# pmm locking functions
+#
+# Bedrock lock management code is very shell oriented.   This makes it awkward
+# to use in the awk oriented pmm code.  Place it in the shared shell code for
+# pmm to shell out to.
+#
+
+pmm_cache_package_manager_list() {
+	lock /bedrock/var/cache/pmm
+	# pmm will export these variables
+	echo "${strata}" > /bedrock/var/cache/pmm/strata
+	echo "${bedrock_conf_sha1sum}" > /bedrock/var/cache/pmm/bedrock_conf_sha1sum
+	# pmm provides pair list via pipe
+	cat > /bedrock/var/cache/pmm/package_manager_list
+	exit_success
+}
+
+pmm_cache_package_manager_db() {
+	# pmm will export ${stratum} and ${package_manager}
+	lock "/bedrock/var/cache/pmm-${stratum}:${package_manager}"
+
+	db="/bedrock/var/cache/pmm-${stratum}:${package_manager}/package-db/"
+	ready="/bedrock/var/cache/pmm-${stratum}:${package_manager}/package-db-ready"
+	rm -rf "${db}" "${ready}"
+	mkdir -p "${db}"
+	cd "${db}"
+
+	# pmm provides db information via pipe
+	awk '
+	function brldbpath(name) {
+		if (substr(name,1,3) == "lib") {
+			return substr(name, 4, 2)
+		} else {
+			return substr(name, 1, 2)
+		}
+	}
+	{
+		print >> brldbpath($0)
+	}'
+
+	echo 1 > "${ready}"
+
+	exit_success
 }
 
 # List all strata irrelevant of their state.

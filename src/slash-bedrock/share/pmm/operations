@@ -1,0 +1,142 @@
+#!/bedrock/libexec/busybox awk -f
+#
+# Package Manager Manager apk support script
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2013-2020 Daniel Thau <danthau@bedrocklinux.org>
+
+#
+# Map pmm internal names for operations to a comma-separated list describing
+# how they should be handled.  The fields of the tuple should be, in order:
+#
+# - Applicability-type: This indicates which package manager(s) the given
+# operation should apply to.  It may be overridden by pmm flags such as
+# --every and --newest.  Valid values are:
+#     - "first": Use first package manager which passes applicability-check.
+#     - "every": Use every package manager which which passes
+#     applicability-check
+#     - "none":  No package managers are applicable; used for pmm specific
+#     operations which do not correlate to individual package managers.
+#
+# - Applicability-check: A check to see if a given package manager is
+# applicable for the given operation.  May be extended by pmm flags such as
+# --exact-version.  Valid values are:
+#     - "is-package-installed": Only consider package managers which have
+#     package installed.
+#     - "is-package-available": Only consider package managers which have
+#     package available.
+#     - "is-file-db-installed": Only consider package managers which have file
+#     db capabilities.
+#     - "brl-which": Only consider package managers from stratum which owns
+#     file.
+#     - "-": No applicability check, allow all.
+#
+# - Argument-count: This indicates the expected number of arguments an
+# operation may take.  Valid values are:
+#     - "zero": No arguments expected.
+#     - "one": One argument expected.
+#     - "many": One or more arguments are expected.
+#
+# - Pre-process: Action pmm must take before processing.  Valid values include:
+#     - "localize": Strip "/bedrock/strata/[^/]*" from input.
+#     - "-": No pre-processing.
+#
+# - Post-process: some action to take after process.  Valid values are:
+#     - "prepend-full-path": prepend "/bedrock/strata/<stratum>" to stdout.
+#     - "prepend-pair": prepend "<stratum>:<package-manager>" to stdout.
+#     - "update-package-cache": If the package cache is enabled and running as
+#     root, updated the package cache.
+#     - "-": No post-processing.
+#
+
+
+#
+# Operations which directly forward the underlying command output.
+#
+operations["install-packages"]         = "first, is-package-available, many, -, -"
+operations["reinstall-packages"]       = "first, is-package-installed, many, -, -"
+operations["remove-packages-limited"]  = "first, is-package-installed, many, -, -"
+operations["remove-packages-full"]     = "first, is-package-installed, many, -, -"
+operations["verify-packages"]          = "first, is-package-installed, many, -, -"
+operations["verify-all-packages"]      = "every, -,                    zero, -, -"
+operations["mark-packages-explicit"]   = "first, is-package-installed, many, -, -"
+operations["mark-packages-implicit"]   = "first, is-package-installed, many, -, -"
+operations["show-package-information"] = "first, is-package-available, many, -, -"
+operations["clear-cache"]              = "every, -,                    zero, -, -"
+operations["remove-orphans"]           = "every, -,                    zero, -, -"
+operations["update-package-database"]  = "every, -,                    zero, -, update-package-cache"
+operations["update-file-database"]     = "every, is-file-db-available, zero, -, -"
+operations["upgrade-packages-limited"] = "every, -,                    zero, -, -"
+operations["upgrade-packages-full"]    = "every, -,                    zero, -, -"
+
+#
+# Combine operations.
+#
+# Applicability fields are ignored here, as they're determined from the
+# individual component availability.  They're filled out to make sanity check
+# code happy.
+#
+operations["clear-cache,remove-orphans"]                                                             = "every, -,                    zero, -, -"
+operations["mark-packages-implicit,remove-orphans"]                                                  = "first, is-package-installed, many, -, -"
+operations["remove-packages-limited,remove-orphans"]                                                 = "first, is-package-installed, many, -, -"
+operations["remove-packages-full,remove-orphans"]                                                    = "first, is-package-installed, many, -, -"
+operations["update-package-database,update-file-database"]                                           = "every, -,                    zero, -, update-package-cache"
+operations["update-package-database,upgrade-packages-partial"]                                       = "every, -,                    zero, -, update-package-cache"
+operations["update-package-database,upgrade-packages-full"]                                          = "every, -,                    zero, -, update-package-cache"
+operations["update-package-database,update-file-database,upgrade-packages-partial"]                  = "every, -,                    zero, -, update-package-cache"
+operations["update-package-database,update-file-database,upgrade-packages-full"]                     = "every, -,                    zero, -, update-package-cache"
+operations["update-package-database,install-packages"]                                               = "first, is-package-installed, many, -, update-package-cache"
+operations["update-package-database,update-file-database,install-packages"]                          = "first, is-package-installed, many, -, update-package-cache"
+operations["upgrade-packages-limited,install-packages"]                                              = "first, is-package-installed, many, -, -"
+operations["upgrade-packages-full,install-packages"]                                                 = "first, is-package-installed, many, -, -"
+operations["update-package-database,upgrade-packages-partial,install-packages"]                      = "first, is-package-installed, many, -, update-package-cache"
+operations["update-package-database,upgrade-packages-full,install-packages"]                         = "first, is-package-installed, many, -, update-package-cache"
+operations["update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = "first, is-package-installed, many, -, update-package-cache"
+operations["update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = "first, is-package-installed, many, -, update-package-cache"
+
+#
+# Operations which have a standardized output format.
+#
+operations["list-installed-package-files"] = "every, is-package-installed, one,  -,        prepend-full-path"
+operations["list-installed-explicit"]      = "every, -,                    zero, -,        prepend-pair"
+operations["list-installed-implicit"]      = "every, -,                    zero, -,        prepend-pair"
+operations["list-installed-packages"]      = "every, -,                    zero, -,        prepend-pair"
+operations["list-available-packages"]      = "every, -,                    zero, -,        prepend-pair"
+operations["search-for-package-by-name"]   = "every, -,                    one,  -,        prepend-pair"
+operations["search-for-package-by-all"]    = "every, -,                    one,  -,        prepend-pair"
+operations["which-package-owns-file"]      = "every, brl-which,            one,  localize, prepend-pair"
+operations["which-packages-provide-file"]  = "every, is-file-db-available, one,  -,        prepend-pair"
+
+#
+# Internal pmm operations.
+#
+# All fields are ignored here, as these operations are only used internally.
+# They're filled out to make sanity check code happy.
+#
+operations["is-package-installed"]               = "every, -, one, -, -"
+operations["is-package-available"]               = "every, -, one, -, -"
+operations["is-file-db-available"]               = "every, -, one, -, -"
+operations["print-file-db-install-instructions"] = "every, -, one, -, -"
+operations["print-package-version"]              = "every, -, one, -, -"
+operations["cache-package-db"]                   = "every, -, one, -, -"
+
+#
+# pmm specific operations.
+#
+operations["update-world-installed"]  = "none, -, zero, -, -"
+operations["update-world-removed"]    = "none, -, zero, -, -"
+operations["update-world-sync"]       = "none, -, zero, -, -"
+operations["apply-world-installed"]   = "none, -, zero, -, -"
+operations["apply-world-removed"]     = "none, -, zero, -, -"
+operations["apply-world-sync"]        = "none, -, zero, -, -"
+operations["diff-world"]              = "none, -, zero, -, -"
+operations["check-pmm-configuration"] = "none, -, zero, -, -"
+operations["list-pmm-ui-files"]       = "none, -, zero, -, -"
+
+#
+# Errors
+#
+operations["no-match-error"] = "none, -, zero, -, -"

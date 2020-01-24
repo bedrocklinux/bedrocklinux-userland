@@ -1,0 +1,173 @@
+#!/bedrock/libexec/busybox awk -f
+#
+# Package Manager Manager dnf support script
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
+
+#
+# Typical dnf workflow involves it periodically inserting database update
+# functionality into other commands.  No other pmm-supported package manager
+# does this.  To standardize with other package managers, the `-C` flag is used
+# to disable the auto-update-insertion functionality.
+#
+# `dnf install` does not mark an already installed implicit package as
+# explicit.  Without additional action, attempts to force a package to be
+# explicitly installed by `dnf install`ing it will fail.  We are this required
+# to utilize `&&` for package installation.
+#
+
+system_package_managers["portage"]
+package_manager_canary_executables["portage"] = "emerge"
+
+#
+# General, operation independent flags.
+#
+# Unlike operations, flags should not have implementations[].
+#
+user_interfaces["portage", "assume-no"]  = ""
+user_interfaces["portage", "assume-yes"] = ""
+user_interfaces["portage", "confirm"]    = ""
+user_interfaces["portage", "quiet"]      = "-q/--quiet"
+user_interfaces["portage", "verbose"]    = "-v/--verbose"
+
+#
+# Operations which directly forward the underlying command output.
+#
+user_interfaces["portage", "install-packages"]         = "pmm <pkgs>"
+user_interfaces["portage", "reinstall-packages"]       = "" # not differentiated from install
+user_interfaces["portage", "remove-packages-limited"]  = "" # would be `pmm -C/--unmerge`, but warnings in man page.  Favor remove-packages,remove-prhans
+user_interfaces["portage", "remove-packages-full"]     = "" # Differentiated from non-full via envvar which pmm cannot replicate: https://devmanual.gentoo.org/general-concepts/config-protect/index.html
+user_interfaces["portage", "verify-packages"]          = "pmm-qcheck <pkgs>"
+user_interfaces["portage", "verify-all-packages"]      = "pmm-qcheck"
+user_interfaces["portage", "mark-packages-explicit"]   = "pmm -w/--select <pkgs>"
+user_interfaces["portage", "mark-packages-implicit"]   = "pmm --deselect <pkgs>"
+user_interfaces["portage", "show-package-information"] = "pmm -s/--search <pkgs>"
+user_interfaces["portage", "clear-cache"]              = "pmm-eclean distfiles"
+user_interfaces["portage", "remove-orphans"]           = "pmm -c/--depclean"
+user_interfaces["portage", "update-package-database"]  = "pmm --sync"
+user_interfaces["portage", "update-file-database"]     = "" # file search command does online query, no local database
+user_interfaces["portage", "upgrade-packages-limited"] = "pmm -u/--update -D/--deep @world"
+user_interfaces["portage", "upgrade-packages-full"]    = "pmm -u/--update -D/--deep -N/--newuse @world"
+
+implementations["portage", "install-packages"]         = "strat -r ${stratum} emerge ${flags} ${items}"
+implementations["portage", "reinstall-packages"]       = "strat -r ${stratum} emerge ${flags} ${items}"
+implementations["portage", "remove-packages-limited"]  = "strat -r ${stratum} emerge ${flags} -c ${items}"
+implementations["portage", "remove-packages-full"]     = "strat -r ${stratum} emerge ${flags} -c ${items}"
+implementations["portage", "verify-packages"]          = "strat -r ${stratum} qcheck ${items}"
+implementations["portage", "verify-all-packages"]      = "strat -r ${stratum} qcheck"
+implementations["portage", "mark-packages-explicit"]   = "strat -r ${stratum} emerge ${flags} -w ${items}"
+implementations["portage", "mark-packages-implicit"]   = "strat -r ${stratum} emerge ${flags} --deselect ${items}"
+implementations["portage", "show-package-information"] = "strat -r ${stratum} emerge ${flags} -s ${items}"
+implementations["portage", "clear-cache"]              = "strat -r ${stratum} eclean distfiles"
+implementations["portage", "remove-orphans"]           = "strat -r ${stratum} emerge ${flags} -c"
+implementations["portage", "update-package-database"]  = "strat -r ${stratum} emerge ${flags} --sync"
+implementations["portage", "update-file-database"]     = ""
+implementations["portage", "upgrade-packages-limited"] = "strat -r ${stratum} emerge ${flags} -uD @world"
+implementations["portage", "upgrade-packages-full"]    = "strat -r ${stratum} emerge ${flags} -uDN @world"
+
+#
+# Combine operations.
+#
+user_interfaces["portage", "clear-cache,remove-orphans"]                                                             = ""
+user_interfaces["portage", "mark-packages-implicit,remove-orphans"]                                                  = ""
+user_interfaces["portage", "remove-packages-limited,remove-orphans"]                                                 = "pmm -c/--depclean <pkgs>"
+user_interfaces["portage", "remove-packages-full,remove-orphans"]                                                    = "" # Differentiated from non-full via envvar which pmm cannot replicate: https://devmanual.gentoo.org/general-concepts/config-protect/index.html
+user_interfaces["portage", "update-package-database,update-file-database"]                                           = ""
+user_interfaces["portage", "update-package-database,upgrade-packages-partial"]                                       = ""
+user_interfaces["portage", "update-package-database,upgrade-packages-full"]                                          = ""
+user_interfaces["portage", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""
+user_interfaces["portage", "update-package-database,update-file-database,upgrade-packages-full"]                     = ""
+user_interfaces["portage", "update-package-database,install-packages"]                                               = ""
+user_interfaces["portage", "update-package-database,update-file-database,install-packages"]                          = ""
+user_interfaces["portage", "upgrade-packages-limited,install-packages"]                                              = ""
+user_interfaces["portage", "upgrade-packages-full,install-packages"]                                                 = ""
+user_interfaces["portage", "update-package-database,upgrade-packages-partial,install-packages"]                      = ""
+user_interfaces["portage", "update-package-database,upgrade-packages-full,install-packages"]                         = ""
+user_interfaces["portage", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+user_interfaces["portage", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+implementations["portage", "clear-cache,remove-orphans"]                                                             = ""
+implementations["portage", "mark-packages-implicit,remove-orphans"]                                                  = ""
+implementations["portage", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} emerge ${flags} -c ${items}"
+implementations["portage", "remove-packages-full,remove-orphans"]                                                    = ""
+implementations["portage", "update-package-database,update-file-database"]                                           = ""
+implementations["portage", "update-package-database,upgrade-packages-partial"]                                       = ""
+implementations["portage", "update-package-database,upgrade-packages-full"]                                          = ""
+implementations["portage", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""
+implementations["portage", "update-package-database,update-file-database,upgrade-packages-full"]                     = ""
+implementations["portage", "update-package-database,install-packages"]                                               = ""
+implementations["portage", "update-package-database,update-file-database,install-packages"]                          = ""
+implementations["portage", "upgrade-packages-limited,install-packages"]                                              = ""
+implementations["portage", "upgrade-packages-full,install-packages"]                                                 = ""
+implementations["portage", "update-package-database,upgrade-packages-partial,install-packages"]                      = ""
+implementations["portage", "update-package-database,upgrade-packages-full,install-packages"]                         = ""
+implementations["portage", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+implementations["portage", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+#
+# Operations which have a standardized output format.
+#
+user_interfaces["portage", "list-installed-package-files"] = "pmm-qlist -e <pkg>"
+user_interfaces["portage", "list-installed-explicit"]      = "pmm -p/--pretend @selected"
+user_interfaces["portage", "list-installed-implicit"]      = ""
+user_interfaces["portage", "list-installed-packages"]      = "pmm-qlist -I/--installed"
+user_interfaces["portage", "list-available-packages"]      = "pmm-qsearch -a"
+user_interfaces["portage", "search-for-package-by-name"]   = "pmm -s/--search <text>"
+user_interfaces["portage", "search-for-package-by-all"]    = "pmm -S/--searchdesc <text>"
+user_interfaces["portage", "which-package-owns-file"]      = "pmm-qfile <file>"
+user_interfaces["portage", "which-packages-provide-file"]  = "pmm-e-file <file>"
+
+implementations["portage", "list-installed-package-files"] = "strat -r ${stratum} qlist -e ${items}"
+implementations["portage", "list-installed-explicit"]      = "cat /bedrock/strata/${stratum}/var/lib/portage/world"
+implementations["portage", "list-installed-implicit"]      = "strat -r ${stratum} qlist -IC |\
+	awk 'BEGIN {\
+		world=\"/bedrock/strata/\"ENVIRON[\"stratum\"]\"/var/lib/portage/world\";\
+		while ((getline < world) > 0) {\
+			x[$0]\
+		}\
+	}\
+	(!($0 in x)) {\
+		print\
+	}'"
+implementations["portage", "list-installed-packages"]      = "strat -r ${stratum} qlist -IC"
+implementations["portage", "list-available-packages"]      = "strat -r ${stratum} qsearch -a"
+implementations["portage", "search-for-package-by-name"]   = "strat -r ${stratum} qsearch -sN ${items}"
+implementations["portage", "search-for-package-by-all"]    = "strat -r ${stratum} qsearch -sSN ${items}"
+implementations["portage", "which-package-owns-file"]      = "strat -r qfile -C ${items} | sed 's/: /\t/g'"
+implementations["portage", "which-packages-provide-file"]  = "strat -r e-file ${items} nocolor |\
+	awk '\
+		/^ [*]/ {\
+			name=$2\
+		}\
+		/^[ \t]*Matched Files:/ {\
+			for (f = 3; f <= NF; f++) {\
+				sub(/;$/, \"\", $f)\
+				print name\"\t\"$f\
+			}\
+		}\
+	'"
+
+#
+# Internal pmm operations.
+#
+implementations["portage", "is-package-installed"]               = "strat -r ${stratum} qlist -e ${items} >/dev/null 2>&1"
+implementations["portage", "is-package-available"]               = "! strat -r ${stratum} qatom $(strat -r ${stratum} qsearch -vN ${items}) |\
+	awk -vi=\"${items}\" '\
+		$2 == i || $1\"/\"$2 == i {\
+			exit 1\
+		}\
+	'"
+implementations["portage", "is-file-db-available"]               = "! strat -r ${stratum} emerge -qpO pfl 2>/dev/null | awk '/^\\[/ && $2 == \"R\" {exit 1}'"
+implementations["portage", "print-file-db-install-instructions"] = "echo 'Install app-portage/pfl in ${stratum}:portage to perform file-db operations'"
+implementations["portage", "print-package-version"]              = "strat -r ${stratum} qatom $(strat -r ${stratum} qsearch -vN ${items}) |\
+	awk -vi=\"${items}\" '\
+		$2 == i || $1\"/\"$2 == i {\
+			print $3; exit\
+		}\
+	'"
+# Cache both with prefix and without prefix to ensure availability lookup works with either.
+implementations["portage", "cache-package-db"]                   = "strat -r ${stratum} qatom $(strat -r ${stratum} qsearch -avN) | awk '{print $2\"\t\"$3; print $1\"/\"$2\"\t\"$3}'"
