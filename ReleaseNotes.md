@@ -1,3 +1,7 @@
+# 0.7.14beta1
+
+- Added Package Manager Manager ("pmm")
+
 # 0.7.13
 
 - Fixed brl-fetch arch
