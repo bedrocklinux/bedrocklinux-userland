@@ -1,3 +1,7 @@
+# 0.7.14beta2
+
+- Fixed overzealous pmm runtime check
+
 # 0.7.14beta1
 
 - Added Package Manager Manager ("pmm")
