@@ -586,7 +586,7 @@ function cache_package_db(stratum, package_manager,
 }
 
 function clear_old_cache(_local, cmd) {
-	cmd = "exec /bedrock/libexec/busybox sh -c \". /bedrock/share/common-code; clear_old_cache\""
+	cmd = "exec /bedrock/libexec/busybox sh -c \". /bedrock/share/common-code; clear_old_cache; exit_success\""
 	system(cmd)
 }
 
