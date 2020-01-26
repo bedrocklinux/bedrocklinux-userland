@@ -541,7 +541,7 @@ update() {
 
 	if ver_cmp_first_newer "0.7.14beta1" "${current_version}"; then
 		notice "Added new pmm subsystem"
-		notice "Populate new [pmm] section of bedrock.conf \`user_interface\` field then run \`brl update\` as root to create pmm front-end."
+		notice "Populate new [pmm] section of bedrock.conf \`user_interface\` field then run \`brl apply\` as root to create pmm front-end."
 	fi
 
 	if "${new_crossfs}"; then
