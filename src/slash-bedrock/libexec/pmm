@@ -104,12 +104,22 @@ else
 	initialize_awk_variables="${initialize_awk_variables}
 ${strata}"
 	for arg in $(cfg_values "pmm" "priority"); do
-		initialize_awk_variables="${initialize_awk_variables}
+		if echo "${arg}" | grep -q "^:"; then
+			initialize_awk_variables="${initialize_awk_variables}
 cfg_pmm_priority[++pmm_priority_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//" )\""
+		else
+			stratum="$(echo "${arg}" | sed 's/:.*$//')"
+			if is_enabled "${stratum}" && has_attr "/bedrock/strata/${stratum}" "show_pmm"; then
+				initialize_awk_variables="${initialize_awk_variables}
+cfg_pmm_priority[++pmm_priority_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//" )\""
+			fi
+		fi
 	done
 	for arg in $(cfg_values "cross" "priority"); do
-		initialize_awk_variables="${initialize_awk_variables}
+		if is_enabled "${arg}" && has_attr "/bedrock/strata/${arg}" "show_pmm"; then
+			initialize_awk_variables="${initialize_awk_variables}
 cfg_cross_priority[++cross_priority_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//" )\""
+		fi
 	done
 	if [ "$(cfg_value "pmm" "ignore-non-system-package-managers")" = "true" ]; then
 		initialize_awk_variables="${initialize_awk_variables}
@@ -1286,7 +1296,7 @@ function check_applicability(check, operation, stratum, package_manager, item,
 	if (check == "-") {
 		return 1
 	} else if (check == "brl-which") {
-		get_shell_output("/bedrock/bin/brl which "shell_escape(item), stratum, package_manager, item, 1, _return, output)
+		get_shell_output("/bedrock/bin/brl which "shell_escape(item), stratum, package_manager, item, 0, _return, output)
 		return output[1] == stratum
 	} else if ((package_manager, check) in implementations) {
 		return run_shell(implementations[package_manager, check], stratum, package_manager, item, 0) == 0
