@@ -160,20 +160,22 @@ implementations["dnf", "search-for-package-by-all"]    = "strat -r ${stratum} dn
 implementations["dnf", "which-package-owns-file"]      = "strat -r ${stratum} rpm -qf ${items} | sed 's/-[^-]*-[^-]*$//'"
 implementations["dnf", "which-packages-provide-file"]  = "strat -r ${stratum} dnf -Cq provides ${items} |\
 	awk '\
-		! name && /./{\
+		! name && /./ {\
 			sub(/-[0-9].*/, \"\");\
 			name = $0\
 		}\
+		$1 == \"Filename\" || $1 == \"Provide\" {\
+			file = $3\
+		}\
 		/^$/ {\
-			x[name];\
+			x[name\"\t\"file];\
 			name = \"\"\
 		}\
 		END {\
 			for (p in x) {\
 				print p\
 			}\
-		}\
-	}'"
+		}'"
 
 #
 # Internal pmm operations.
