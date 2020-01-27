@@ -152,7 +152,7 @@ help["cache-package-db"] = "print information needed to cache package database"
 #
 help["strat"]           = "restrict to <stratum>"
 help["package-manager"] = "restrict to <pm>"
-help["every"]           = "operate on every available instance of <pkgs> (e.g. uninstall all copies)"
+help["every"]           = "operate on every available instance of items (e.g. uninstall all copies)"
 help["newest"]          = "select newest corresponding versions of items"
 help["oldest"]          = "select oldest corresponding versions of items"
 help["approx-version"]  = "only consider items with a version prefixed by <version>"
