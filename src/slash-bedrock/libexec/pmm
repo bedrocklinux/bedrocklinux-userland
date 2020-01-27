@@ -1532,7 +1532,7 @@ function collect_cmds(uncollected_cmds, uncollected_cmd_count,
 }
 
 function execute_cmds(cmds,
-		_local, c, a, operation, stratum, package_manager, items, pre, post, result, o, output, updated_cache) {
+		_local, c, a, operation, stratum, package_manager, items, pre, post, result, o, output, updated_cache, ret) {
 	# If any of the operations are no-match-error, error out early
 	for (c = 1; c in cmds; c++) {
 		split(cmds[c], a, SUBSEP)
@@ -1580,8 +1580,9 @@ function execute_cmds(cmds,
 		} else if (post == "-" || post == "update-package-cache") {
 			# Return value needed, use run_shell()
 			if ((package_manager, operation) in implementations) {
-				if (run_shell(implementations[package_manager, operation], stratum, package_manager, items, 1) != 0) {
-					abort("Underlying package-manager command indicated error")
+				ret = run_shell(implementations[package_manager, operation], stratum, package_manager, items, 1)
+				if (ret != 0) {
+					abort(stratum":"package_manager" returned "ret)
 				}
 			} else {
 				abort("Unrecognized operation requested: \""operation"\".  Please bug report this.")
