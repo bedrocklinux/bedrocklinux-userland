@@ -117,13 +117,13 @@ implementations["xbps", "list-installed-implicit"]      = "strat -r ${stratum} x
 			sub(/-[^-]*$/,\"\");\
 			x[$0]\
 		}\
+	}\
 	$1 == \"ii\" {\
 		sub(/-[^-]+$/,\"\", $2);\
 		if (!($2 in x)) {\
 			print $2\
 		}\
-	}'\
-	'"
+	}'"
 implementations["xbps", "list-installed-packages"]      = "strat -r ${stratum} xbps-query -l | awk '$1 == \"ii\" {sub(/-[0-9.]+_[0-9]+$/, \"\", $2); print $2}'"
 implementations["xbps", "list-available-packages"]      = "strat -r ${stratum} xbps-query -Rs '*' |\
 	awk '{\

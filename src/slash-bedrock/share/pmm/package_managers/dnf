@@ -129,10 +129,8 @@ implementations["dnf", "list-installed-implicit"]      = "strat -r ${stratum} dn
 		name = $0;\
 		sub(/-[^-]*-[^-]*$/, \"\", name)\
 		if (!(name in x) && !(name in p)) {\
-			p[name]\
-			sub(/-[^-]*$/, \"\");\
-			sub(/^.*-/, \"\");\
-			print name\"\t\"$0\
+			p[name];\
+			print name\
 		}\n\
 	}'"
 implementations["dnf", "list-installed-packages"]      = "strat -r ${stratum} dnf -Cq repoquery --installed | sed 's/-[^-]*-[^-]*$//'"
