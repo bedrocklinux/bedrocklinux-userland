@@ -1,3 +1,9 @@
+# 0.7.14beta4
+
+- Fix pmm dnf, pacman, portage support
+- Fix pmm --help handling of --every
+- Fix pmm cache utilization
+
 # 0.7.14beta3
 
 - Fix various pmm configuration items
