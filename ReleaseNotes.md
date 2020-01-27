@@ -1,3 +1,9 @@
+# 0.7.14beta3
+
+- Fix various pmm configuration items
+- Prioritize brl-hide --pmm over bedrock.conf pmm configuration
+- Improve pmm error message
+
 # 0.7.14beta2
 
 - Fixed overzealous pmm runtime check
