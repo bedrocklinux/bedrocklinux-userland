@@ -720,7 +720,7 @@ function generate_pairs(_return, unfiltered_pairs,
 		unfiltered_pairs[++pair_count] = pair
 	}
 
-	if ("verbose" in global_flags && cfg_cache_package_manager_list && am_root) {
+	if (cfg_cache_package_manager_list && am_root) {
 		cache_package_manager_list(unfiltered_pairs)
 	}
 }
@@ -1298,6 +1298,8 @@ function check_applicability(check, operation, stratum, package_manager, item,
 	} else if (check == "brl-which") {
 		get_shell_output("/bedrock/bin/brl which "shell_escape(item), stratum, package_manager, item, 0, _return, output)
 		return output[1] == stratum
+	} else if (cache_available && check == "is-package-available") {
+		return cache_is_package_available(stratum, package_manager, item) == 0
 	} else if ((package_manager, check) in implementations) {
 		return run_shell(implementations[package_manager, check], stratum, package_manager, item, 0) == 0
 	}
