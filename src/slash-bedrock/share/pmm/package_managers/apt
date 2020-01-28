@@ -109,7 +109,7 @@ user_interfaces["apt", "search-for-package-by-all"]    = "pmm search <text>"
 user_interfaces["apt", "which-package-owns-file"]      = "pmm-dpkg -S/--search <file>"
 user_interfaces["apt", "which-packages-provide-file"]  = "pmm-file search <file>"
 
-implementations["apt", "list-installed-package-files"] = "strat -r ${stratum} apt dpkg -L ${items}"
+implementations["apt", "list-installed-package-files"] = "strat -r ${stratum} dpkg -L ${items}"
 implementations["apt", "list-installed-explicit"]      = "strat -r ${stratum} apt-mark showmanual"
 implementations["apt", "list-installed-implicit"]      = "strat -r ${stratum} apt-mark showauto"
 implementations["apt", "list-installed-packages"]      = "strat -r ${stratum} dpkg -l | awk '$1 == \"ii\" {sub(/:[0-9]+$/,\"\",$2); print $2}'"
