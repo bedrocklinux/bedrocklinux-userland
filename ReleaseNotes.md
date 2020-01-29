@@ -1,3 +1,7 @@
+# 0.7.14beta5
+
+- Fix pmm apt list-installed-package-files
+
 # 0.7.14beta4
 
 - Fix pmm dnf, pacman, portage support
