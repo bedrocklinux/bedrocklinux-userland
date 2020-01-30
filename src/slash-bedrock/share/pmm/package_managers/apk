@@ -103,6 +103,7 @@ user_interfaces["apk", "list-installed-package-files"] = "pmm info -L/--contents
 user_interfaces["apk", "list-installed-explicit"]      = "" # not explicitly raised via user interface
 user_interfaces["apk", "list-installed-implicit"]      = "" # not explicitly raised via user interface
 user_interfaces["apk", "list-installed-packages"]      = "pmm list -I/--installed"
+user_interfaces["apk", "list-upgradable-packages"]     = ""
 user_interfaces["apk", "list-available-packages"]      = "pmm list"
 user_interfaces["apk", "search-for-package-by-name"]   = ""
 user_interfaces["apk", "search-for-package-by-all"]    = "pmm search <text>"
@@ -122,6 +123,7 @@ implementations["apk", "list-installed-implicit"]      = "strat -r ${stratum} ap
 		print\
 	}'"
 implementations["apk", "list-installed-packages"]      = "strat -r ${stratum} apk info"
+implementations["apk", "list-upgradable-packages"]     = ""
 implementations["apk", "list-available-packages"]      = "strat -r ${stratum} apk list | awk '{sub(/-[^-]*-[^-]*$/, \"\", $1); print $1}'"
 implementations["apk", "search-for-package-by-name"]   = "strat -r ${stratum} apk search | sed 's/-[^-]*-[^-]*$//' | grep ${items}"
 implementations["apk", "search-for-package-by-all"]    = "strat -r ${stratum} apk search ${items} | sed 's/-[^-]*-[^-]*$//'"

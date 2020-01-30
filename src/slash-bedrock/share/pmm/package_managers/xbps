@@ -103,6 +103,7 @@ user_interfaces["xbps", "list-installed-package-files"] = "pmm-query -R -f/--fil
 user_interfaces["xbps", "list-installed-explicit"]      = "pmm-query -m/--list-manual-pkgs"
 user_interfaces["xbps", "list-installed-implicit"]      = ""
 user_interfaces["xbps", "list-installed-packages"]      = "pmm-query -l/--list-pkgs"
+user_interfaces["xbps", "list-upgradable-packages"]     = ""
 user_interfaces["xbps", "list-available-packages"]      = "pmm-query -R -s/--search *"
 user_interfaces["xbps", "search-for-package-by-name"]   = ""
 user_interfaces["xbps", "search-for-package-by-all"]    = "pmm-query -R -s/--search <text>"
@@ -125,6 +126,7 @@ implementations["xbps", "list-installed-implicit"]      = "strat -r ${stratum} x
 		}\
 	}'"
 implementations["xbps", "list-installed-packages"]      = "strat -r ${stratum} xbps-query -l | awk '$1 == \"ii\" {sub(/-[0-9.]+_[0-9]+$/, \"\", $2); print $2}'"
+implementations["xbps", "list-upgradable-packages"]     = ""
 implementations["xbps", "list-available-packages"]      = "strat -r ${stratum} xbps-query -Rs '*' |\
 	awk '{\
 		sub(/-[0-9.]+_[0-9]+$/, \"\", $2);\

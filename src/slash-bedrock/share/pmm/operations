@@ -104,6 +104,7 @@ operations["list-installed-package-files"] = "every, is-package-installed, one, 
 operations["list-installed-explicit"]      = "every, -,                    zero, -,        prepend-pair"
 operations["list-installed-implicit"]      = "every, -,                    zero, -,        prepend-pair"
 operations["list-installed-packages"]      = "every, -,                    zero, -,        prepend-pair"
+operations["list-upgradable-packages"]     = "every, -,                    zero, -,        prepend-pair"
 operations["list-available-packages"]      = "every, -,                    zero, -,        prepend-pair"
 operations["search-for-package-by-name"]   = "every, -,                    one,  -,        prepend-pair"
 operations["search-for-package-by-all"]    = "every, -,                    one,  -,        prepend-pair"

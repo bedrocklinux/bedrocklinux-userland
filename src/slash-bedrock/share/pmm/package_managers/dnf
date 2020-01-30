@@ -110,6 +110,7 @@ user_interfaces["dnf", "list-installed-package-files"] = "pmm-rpm -q/--query -l/
 user_interfaces["dnf", "list-installed-explicit"]      = "pmm history userinstalled"
 user_interfaces["dnf", "list-installed-implicit"]      = ""
 user_interfaces["dnf", "list-installed-packages"]      = "pmm list --installed/installed"
+user_interfaces["dnf", "list-upgradable-packages"]     = ""
 user_interfaces["dnf", "list-available-packages"]      = "pmm list --available/available"
 user_interfaces["dnf", "search-for-package-by-name"]   = ""
 user_interfaces["dnf", "search-for-package-by-all"]    = "pmm search <text>"
@@ -134,6 +135,7 @@ implementations["dnf", "list-installed-implicit"]      = "strat -r ${stratum} dn
 		}\n\
 	}'"
 implementations["dnf", "list-installed-packages"]      = "strat -r ${stratum} dnf -Cq repoquery --installed | sed 's/-[^-]*-[^-]*$//'"
+implementations["dnf", "list-upgradable-packages"]     = ""
 implementations["dnf", "list-available-packages"]      = "strat -r ${stratum} dnf -Cq repoquery |\
 	awk '{\
 		sub(/-[^-]*-[^-]*$/, \"\");\
