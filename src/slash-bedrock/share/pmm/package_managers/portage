@@ -135,7 +135,7 @@ implementations["portage", "list-installed-implicit"]      = "strat -r ${stratum
 		print\
 	}'"
 implementations["portage", "list-installed-packages"]      = "strat -r ${stratum} qlist -IC"
-implementations["portage", "list-upgradable-packages"]     = "strat -r ${stratum} emerge -uDNp @world | awk -F'/' '/\\//{split($2,a,\" \");print a[1]}'"
+implementations["portage", "list-upgradable-packages"]     = "strat -r ${stratum} emerge -uDNp @world | awk -F'/' '/\\//{split($2,a,\"-[0-9]\");print a[1]}'"
 implementations["portage", "list-available-packages"]      = "strat -r ${stratum} qsearch -a"
 implementations["portage", "search-for-package-by-name"]   = "strat -r ${stratum} qsearch -sN ${items}"
 implementations["portage", "search-for-package-by-all"]    = "strat -r ${stratum} qsearch -sSN ${items}"
