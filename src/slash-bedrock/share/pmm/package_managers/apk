@@ -123,7 +123,7 @@ implementations["apk", "list-installed-implicit"]      = "strat -r ${stratum} ap
 		print\
 	}'"
 implementations["apk", "list-installed-packages"]      = "strat -r ${stratum} apk info"
-implementations["apk", "list-upgradable-packages"]     = "strat -r ${stratum} apk version | awk '/</{split($1,a,\"-[0-9]\");print a[1]}'"
+implementations["apk", "list-upgradable-packages"]     = "strat -r ${stratum} apk version -q"
 implementations["apk", "list-available-packages"]      = "strat -r ${stratum} apk list | awk '{sub(/-[^-]*-[^-]*$/, \"\", $1); print $1}'"
 implementations["apk", "search-for-package-by-name"]   = "strat -r ${stratum} apk search | sed 's/-[^-]*-[^-]*$//' | grep ${items}"
 implementations["apk", "search-for-package-by-all"]    = "strat -r ${stratum} apk search ${items} | sed 's/-[^-]*-[^-]*$//'"
