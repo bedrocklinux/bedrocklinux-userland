@@ -1,3 +1,9 @@
+# 0.7.14beta6
+
+- pmm: propose removing pmm-hidden and non-pmm lines from world file
+- pmm: handle world file without ending newline
+- pmm: do not shell escape `+` or `.`
+
 # 0.7.14beta5
 
 - Fix pmm apt list-installed-package-files
