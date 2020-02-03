@@ -901,6 +901,12 @@ function update_world_installed(_local, p, a, stratum, package_manager, world, s
 		prompt("About to apply above changes to world file.")
 	}
 
+	# Handle world file not having trailing newline.  One user reported
+	# running into this issue.
+	if (system("[ -z \"$(/bedrock/libexec/busybox tail -c1 /bedrock/etc/world)\" ]")) {
+		print "" >> worldfile
+	}
+
 	for (p = 1; p in additions; p++) {
 		print additions[p] >> worldfile
 	}
