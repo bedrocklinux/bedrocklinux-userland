@@ -937,20 +937,19 @@ function update_world_removed(_local, caches, a, stratum, package_manager, tmp, 
 	while ((getline < worldfile) != 0) {
 		line = $0
 		gsub(/#.*$/, "")
+		split($1, a, ":")
+		stratum = a[1]
+		package_manager = a[2]
 
 		# Line does not contain pair we care about.  Can continue to
 		# use as-is.
-		if ($1 == "" || !($1 in xpairs)) {
+		if ($1 == "" || (stratum in strata && !($1 in xpairs))) {
 			new_world_file[++new_world_file_count] = line
 			continue
 		}
 
-
 		# Line contains pair we care about.  Check if we can keep line
 		# as-is, including formatting and comments
-		split($1, a, ":")
-		stratum = a[1]
-		package_manager = a[2]
 		keep_line = 1
 		for (n = 2; n <= NF; n++) {
 			if (!($1"\t"$n in sys)) {
