@@ -743,7 +743,7 @@ function filter_pairs(unfiltered_pairs,
 }
 
 function shell_escape(string) {
-	gsub(/[^a-zA-Z0-9_\/ -]/,"\\\\&", string)
+	gsub(/[^a-zA-Z0-9_\/+. -]/,"\\\\&", string)
 	return string
 }
 
