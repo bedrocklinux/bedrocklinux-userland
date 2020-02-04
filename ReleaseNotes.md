@@ -1,3 +1,11 @@
+# 0.7.14beta8
+
+- Improve pmm output differentiation between --diff-world and --update-world*
+- pmm: fixed --diff-world pmm-hidden `<` vs `>` direction.
+- pmm: made --update-world single prompt
+- pmm: removed `-sync` suffix
+- pmm: swapped --diff-world order
+
 # 0.7.14beta7
 
 - pmm: diff-world propose removing non-pmm strata
