@@ -1,3 +1,9 @@
+# 0.7.14beta7
+
+- pmm: diff-world propose removing non-pmm strata
+- pmm: have world ops respect assume-yes/no
+- pmm: remove xbps-pkgdb ${flags}
+
 # 0.7.14beta6
 
 - pmm: propose removing pmm-hidden and non-pmm lines from world file
