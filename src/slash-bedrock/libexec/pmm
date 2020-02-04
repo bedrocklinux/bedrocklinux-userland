@@ -291,7 +291,15 @@ function notice(msg) {
 
 function prompt(msg) {
 	printf "%s Continue? [y/N] ", msg > "/dev/stderr"
-	getline
+	if ("assume-yes" in global_flags) {
+		$0 = "yes"
+		print
+	} else if ("assume-no" in global_flags) {
+		$0 = "no"
+		print
+	} else {
+		getline
+	}
 	if ($0 !~ /^[yY]/) {
 		abort("User denied confirmation prompt")
 	}
@@ -897,9 +905,7 @@ function update_world_installed(_local, p, a, stratum, package_manager, world, s
 		return
 	}
 
-	if (!("assume-yes" in global_flags)) {
-		prompt("About to apply above changes to world file.")
-	}
+	prompt("About to apply above changes to world file.")
 
 	# Handle world file not having trailing newline.  One user reported
 	# running into this issue.
@@ -989,9 +995,7 @@ function update_world_removed(_local, caches, a, stratum, package_manager, tmp, 
 		return
 	}
 
-	if (!("assume-yes" in global_flags)) {
-		prompt("About to apply above changes to world file.")
-	}
+	prompt("About to apply above changes to world file.")
 
 	print new_world_file[1] > worldfile"-new"
 	for (n = 2; n in new_world_file; n++) {
