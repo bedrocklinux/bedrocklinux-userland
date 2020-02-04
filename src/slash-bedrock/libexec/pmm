@@ -895,7 +895,7 @@ function update_world_installed(_local, p, a, stratum, package_manager, world, s
 		for (i in sys) {
 			if (!(pairs[p]"\t"i in world)) {
 				additions[++addition_count] = pairs[p]"\t"i""
-				printf "%s> %s%s\n", color["file"], pairs[p]"\t"i, color["norm"] > "/dev/stderr"
+				printf "%s+ %s%s\n", color["file"], pairs[p]"\t"i, color["norm"] > "/dev/stderr"
 			}
 		}
 	}
@@ -983,9 +983,9 @@ function update_world_removed(_local, caches, a, stratum, package_manager, tmp, 
 		}
 		if (count > 0) {
 			new_world_file[++new_world_file_count] = new_line
-			printf "%s< %s\n%s> %s%s\n", color["alert"], line, color["file"], new_line, color["norm"] > "/dev/stderr"
+			printf "%s- %s\n%s+ %s%s\n", color["alert"], line, color["file"], new_line, color["norm"] > "/dev/stderr"
 		} else {
-			printf "%s< %s%s\n", color["alert"], line, color["norm"] > "/dev/stderr"
+			printf "%s- %s%s\n", color["alert"], line, color["norm"] > "/dev/stderr"
 		}
 	}
 	close(worldfile)
@@ -1092,7 +1092,7 @@ function diff_world(_local, p, a, stratum, package_manager, world, sys, i, n) {
 			continue
 		}
 		for (n = 2; n <= NF; n++) {
-			printf "%s< %s%s\n", color["alert"], stratum":"package_manager"\t"$n, color["norm"] > "/dev/stderr"
+			printf "%s> %s%s\n", color["file"], stratum":"package_manager"\t"$n, color["norm"] > "/dev/stderr"
 		}
 	}
 	close(worldfile)
