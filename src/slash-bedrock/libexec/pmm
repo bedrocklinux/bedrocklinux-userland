@@ -84,6 +84,8 @@ for stratum in $(list_strata); do
 	fi
 done | sort
 )"
+initialize_awk_variables="${initialize_awk_variables}
+${strata}"
 export bedrock_conf_sha1sum="$(cat "/bedrock/etc/bedrock.conf" | sha1sum)"
 
 #
@@ -101,8 +103,6 @@ $(cat /bedrock/var/cache/pmm/package_manager_list)"
 else
 	# A pre-existing package manager list cache is not being used.  Gather
 	# information to determine the package manager list.
-	initialize_awk_variables="${initialize_awk_variables}
-${strata}"
 	for arg in $(cfg_values "pmm" "priority"); do
 		if echo "${arg}" | grep -q "^:"; then
 			initialize_awk_variables="${initialize_awk_variables}
@@ -1062,7 +1062,7 @@ function apply_world_op(install, cmds,
 	}
 }
 
-function diff_world(_local, p, a, stratum, package_manager, world, sys, i) {
+function diff_world(_local, p, a, stratum, package_manager, world, sys, i, n) {
 	printf "diff %ssystem %s%s%s\n", color["alert"], color["file"], worldfile, color["norm"]
 	for (p = 1; p in pairs; p++) {
 		split(pairs[p], a, ":")
@@ -1083,6 +1083,19 @@ function diff_world(_local, p, a, stratum, package_manager, world, sys, i) {
 			}
 		}
 	}
+	while ((getline < worldfile) != 0) {
+		gsub(/#.*$/, "")
+		split($1, a, ":")
+		stratum = a[1]
+		package_manager = a[2]
+		if ($1 == "" || (stratum in strata)) {
+			continue
+		}
+		for (n = 2; n <= NF; n++) {
+			printf "%s< %s%s\n", color["alert"], stratum":"package_manager"\t"$n, color["norm"] > "/dev/stderr"
+		}
+	}
+	close(worldfile)
 }
 
 function check_pmm_configuration(_local, h, f, o, a, valid_types, valid_checks, valid_counts, valid_pre, valid_post, p, u, i) {
