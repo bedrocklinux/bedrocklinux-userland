@@ -226,7 +226,7 @@ builddir: $(COMPLETED)/builddir
 #
 # Support libraries and tools.  Populates $(SUPPORT)
 #
- 
+
 vendor/linux_headers/.success_fetching_source:
 	rm -rf vendor/linux_headers
 	mkdir -p vendor/linux_headers
