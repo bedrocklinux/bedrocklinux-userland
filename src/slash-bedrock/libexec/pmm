@@ -501,6 +501,7 @@ function parse_input(_return, global_flags, items,
 			continue
 		}
 		split(interface, terms, " ")
+		split("", terms, "")
 		p = 1 # parameter index
 		i = 1 # item index
 		c = 0 # witnessed command flag count
