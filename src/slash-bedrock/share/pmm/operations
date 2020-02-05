@@ -126,13 +126,13 @@ operations["cache-package-db"]                   = "every, -, one, -, -"
 #
 # pmm specific operations.
 #
+operations["diff-world"]              = "none, -, zero, -, -"
 operations["update-world-installed"]  = "none, -, zero, -, -"
 operations["update-world-removed"]    = "none, -, zero, -, -"
-operations["update-world-sync"]       = "none, -, zero, -, -"
+operations["update-world"]            = "none, -, zero, -, -"
 operations["apply-world-installed"]   = "none, -, zero, -, -"
 operations["apply-world-removed"]     = "none, -, zero, -, -"
-operations["apply-world-sync"]        = "none, -, zero, -, -"
-operations["diff-world"]              = "none, -, zero, -, -"
+operations["apply-world"]             = "none, -, zero, -, -"
 operations["check-pmm-configuration"] = "none, -, zero, -, -"
 operations["list-pmm-ui-files"]       = "none, -, zero, -, -"
 
