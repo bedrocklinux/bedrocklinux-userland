@@ -84,6 +84,8 @@ for stratum in $(list_strata); do
 	fi
 done | sort
 )"
+initialize_awk_variables="${initialize_awk_variables}
+${strata}"
 export bedrock_conf_sha1sum="$(cat "/bedrock/etc/bedrock.conf" | sha1sum)"
 
 #
@@ -101,8 +103,6 @@ $(cat /bedrock/var/cache/pmm/package_manager_list)"
 else
 	# A pre-existing package manager list cache is not being used.  Gather
 	# information to determine the package manager list.
-	initialize_awk_variables="${initialize_awk_variables}
-${strata}"
 	for arg in $(cfg_values "pmm" "priority"); do
 		if echo "${arg}" | grep -q "^:"; then
 			initialize_awk_variables="${initialize_awk_variables}
@@ -291,7 +291,15 @@ function notice(msg) {
 
 function prompt(msg) {
 	printf "%s Continue? [y/N] ", msg > "/dev/stderr"
-	getline
+	if ("assume-yes" in global_flags) {
+		$0 = "yes"
+		print
+	} else if ("assume-no" in global_flags) {
+		$0 = "no"
+		print
+	} else {
+		getline
+	}
 	if ($0 !~ /^[yY]/) {
 		abort("User denied confirmation prompt")
 	}
@@ -493,6 +501,7 @@ function parse_input(_return, global_flags, items,
 			continue
 		}
 		split(interface, terms, " ")
+		split("", terms, "")
 		p = 1 # parameter index
 		i = 1 # item index
 		c = 0 # witnessed command flag count
@@ -743,7 +752,7 @@ function filter_pairs(unfiltered_pairs,
 }
 
 function shell_escape(string) {
-	gsub(/[^a-zA-Z0-9_\/ -]/,"\\\\&", string)
+	gsub(/[^a-zA-Z0-9_\/+. -]/,"\\\\&", string)
 	return string
 }
 
@@ -860,57 +869,46 @@ function get_sys(stratum, package_manager,
 	}
 }
 
-function update_world_installed(_local, p, a, stratum, package_manager, world, sys, i, tmp, additions, addition_count) {
-	notice("Adding system-installed items to "worldfile)
-
-	split("", world, "")
+function diff_world(_local, p, a, stratum, package_manager, world, sys, i, n) {
+	printf "diff %s%s %ssystem%s\n", color["file"], worldfile, color["warn"], color["norm"]
 	for (p = 1; p in pairs; p++) {
 		split(pairs[p], a, ":")
 		stratum = a[1]
 		package_manager = a[2]
 
-		get_world(stratum, package_manager, _return, tmp)
-
-		for (i in tmp) {
-			world[stratum":"package_manager"\t"i]
-		}
-	}
-
-	split("", additions, "")
-	for (p = 1; p in pairs; p++) {
-		split(pairs[p], a, ":")
-		stratum = a[1]
-		package_manager = a[2]
-
+		get_world(stratum, package_manager, _return, world)
 		get_sys(stratum, package_manager, _return, sys)
 
 		for (i in sys) {
-			if (!(pairs[p]"\t"i in world)) {
-				additions[++addition_count] = pairs[p]"\t"i""
-				printf "%s> %s%s\n", color["file"], pairs[p]"\t"i, color["norm"] > "/dev/stderr"
+			if (!(i in world)) {
+				printf "%s> %s%s\n", color["warn"], pairs[p]"\t"i, color["norm"] > "/dev/stderr"
+			}
+		}
+		for (i in world) {
+			if (!(i in sys)) {
+				printf "%s< %s%s\n", color["file"], pairs[p]"\t"i, color["norm"] > "/dev/stderr"
 			}
 		}
 	}
-
-	if (addition_count == 0) {
-		notice("No additions needed")
-		return
+	while ((getline < worldfile) != 0) {
+		gsub(/#.*$/, "")
+		split($1, a, ":")
+		stratum = a[1]
+		package_manager = a[2]
+		if ($1 == "" || (stratum in strata)) {
+			continue
+		}
+		for (n = 2; n <= NF; n++) {
+			printf "%s< %s%s\n", color["file"], stratum":"package_manager"\t"$n, color["norm"] > "/dev/stderr"
+		}
 	}
-
-	if (!("assume-yes" in global_flags)) {
-		prompt("About to apply above changes to world file.")
-	}
-
-	for (p = 1; p in additions; p++) {
-		print additions[p] >> worldfile
-	}
-
 	close(worldfile)
 }
 
-function update_world_removed(_local, caches, a, stratum, package_manager, tmp, i, sys, line, new_world_file, new_world_file_count, xpairs, new_line, n, count, changed_something) {
-	notice("Removing items in /bedrock/etc/world which are not installed in system")
-
+function update_world(install, remove,
+		_local, world, sys, xpairs, p, stratum, package_manager, a, new, n, new_world_file, new_world_file_count, changed_something, keep_line, s) {
+	split("", world, "")
+	split("", sys, "")
 	split("", xpairs, "")
 	for (p = 1; p in pairs; p++) {
 		xpairs[pairs[p]]
@@ -918,33 +916,42 @@ function update_world_removed(_local, caches, a, stratum, package_manager, tmp, 
 		stratum = a[1]
 		package_manager = a[2]
 
-		get_sys(stratum, package_manager, _return, tmp)
+		get_world(stratum, package_manager, _return, new)
+		for (n in new) {
+			world[stratum":"package_manager"\t"n]
+		}
 
-		for (i in tmp) {
-			sys[stratum":"package_manager"\t"i]
+		get_sys(stratum, package_manager, _return, new)
+		for (n in new) {
+			sys[stratum":"package_manager"\t"n]
 		}
 	}
 
+	# Build a new world file, filtering out undesired items
 	split("", new_world_file, "")
-
 	changed_something = 0
 	while ((getline < worldfile) != 0) {
 		line = $0
 		gsub(/#.*$/, "")
+		split($1, a, ":")
+		stratum = a[1]
+		package_manager = a[2]
 
-		# Line does not contain pair we care about.  Can continue to
-		# use as-is.
-		if ($1 == "" || !($1 in xpairs)) {
+		# Instructed not to remove anything, use line as-is
+		if (!remove) {
+			new_world_file[++new_world_file_count] = line
+			continue
+			break
+		}
+
+		# Line is blank or comments; use as-is.
+		if ($1 == "") {
 			new_world_file[++new_world_file_count] = line
 			continue
 		}
 
-
-		# Line contains pair we care about.  Check if we can keep line
-		# as-is, including formatting and comments
-		split($1, a, ":")
-		stratum = a[1]
-		package_manager = a[2]
+		# Check if we can keep line as-is, including formatting and
+		# comments
 		keep_line = 1
 		for (n = 2; n <= NF; n++) {
 			if (!($1"\t"$n in sys)) {
@@ -972,21 +979,36 @@ function update_world_removed(_local, caches, a, stratum, package_manager, tmp, 
 		}
 		if (count > 0) {
 			new_world_file[++new_world_file_count] = new_line
-			printf "%s< %s\n%s> %s%s\n", color["alert"], line, color["file"], new_line, color["norm"] > "/dev/stderr"
+			printf "%s- %s\n%s+ %s%s\n", color["alert"], line, color["file"], new_line, color["norm"] > "/dev/stderr"
 		} else {
-			printf "%s< %s%s\n", color["alert"], line, color["norm"] > "/dev/stderr"
+			printf "%s- %s%s\n", color["alert"], line, color["norm"] > "/dev/stderr"
 		}
 	}
-	close(worldfile)
+
+	# Append any new desired items to built world file
+	if (install) {
+		for (p = 1; p in pairs; p++) {
+			split(pairs[p], a, ":")
+			stratum = a[1]
+			package_manager = a[2]
+
+			get_sys(stratum, package_manager, _return, new)
+			for (n in new) {
+				if (!(pairs[p]"\t"n in world)) {
+					new_world_file[++new_world_file_count] = pairs[p]"\t"n
+					changed_something = 1
+					printf "%s+ %s%s\n", color["file"], pairs[p]"\t"n, color["norm"] > "/dev/stderr"
+				}
+			}
+		}
+	}
 
 	if (!changed_something) {
 		notice("No changes needed")
 		return
 	}
 
-	if (!("assume-yes" in global_flags)) {
-		prompt("About to apply above changes to world file.")
-	}
+	prompt("About to apply above changes to world file.")
 
 	print new_world_file[1] > worldfile"-new"
 	for (n = 2; n in new_world_file; n++) {
@@ -997,8 +1019,8 @@ function update_world_removed(_local, caches, a, stratum, package_manager, tmp, 
 	system("mv "worldfile"-new "worldfile)
 }
 
-function apply_world_op(install, cmds,
-	_local, items, p, i, c, b, op) {
+function apply_world(install, remove, cmds,
+	_local, install_pkgs, remove_pkgs, p, i, c, b, op) {
 
 	for (c = 1; c in cmds; c++) {
 	}
@@ -1008,69 +1030,44 @@ function apply_world_op(install, cmds,
 		stratum = a[1]
 		package_manager = a[2]
 
+		install_pkgs = ""
+		remove_pkgs = ""
 		get_world(stratum, package_manager, _return, world)
 		get_sys(stratum, package_manager, _return, sys)
-
-		items = ""
-		if (install) {
-			for (i in world) {
-				if (!(i in sys)) {
-					items = items" "i
-				}
+		for (i in world) {
+			if (!(i in sys) && install) {
+				install_pkgs = install_pkgs" "i
 			}
-		} else {
-			for (i in sys) {
-				if (!(i in world)) {
-					items = items" "i
-				}
+		}
+		for (i in sys) {
+			if (!(i in world) && remove) {
+				remove_pkgs = remove_pkgs" "i
 			}
 		}
 
-		if (items == "") {
-			continue
-		}
-		sub(/^ /, "", items)
-
-		if (!("assume-yes" in global_flags)) {
+		if (!("assume-yes" in global_flags) && (install_pkgs != "" || remove_pkgs != "")) {
 			global_flags["confirm"]
 		}
 
-		if (install) {
+		if (install_pkgs != "") {
+			sub(/^ /, "", install_pkgs)
 			op = "install-packages"
-		} else if (implementations[package_manager, "mark-packages-implicit,remove-orphans"] != "") {
-			op = "mark-packages-implicit,remove-orphans"
-		} else {
-			op = "mark-packages-implicit"
-		}
-		split(operations[op], b, /, */)
-		cmds[c++] = (op, stratum, package_manager, items, b[4], b[5])
-
-		if (op == "mark-packages-implicit") {
-			op = "remove-orphans"
 			split(operations[op], b, /, */)
-			cmds[c++] = (op, stratum, package_manager, "", b[4], b[5])
+			cmds[c++] = (op, stratum, package_manager, install_pkgs, b[4], b[5])
 		}
-	}
-}
-
-function diff_world(_local, p, a, stratum, package_manager, world, sys, i) {
-	printf "diff %ssystem %s%s%s\n", color["alert"], color["file"], worldfile, color["norm"]
-	for (p = 1; p in pairs; p++) {
-		split(pairs[p], a, ":")
-		stratum = a[1]
-		package_manager = a[2]
-
-		get_world(stratum, package_manager, _return, world)
-		get_sys(stratum, package_manager, _return, sys)
-
-		for (i in sys) {
-			if (!(i in world)) {
-				printf "%s< %s%s\n", color["alert"], pairs[p]"\t"i, color["norm"] > "/dev/stderr"
+		if (remove_pkgs != "") {
+			if (implementations[package_manager, "mark-packages-implicit,remove-orphans"] != "") {
+				op = "mark-packages-implicit,remove-orphans"
+			} else {
+				op = "mark-packages-implicit"
 			}
-		}
-		for (i in world) {
-			if (!(i in sys)) {
-				printf "%s> %s%s\n", color["file"], pairs[p]"\t"i, color["norm"] > "/dev/stderr"
+			sub(/^ /, "", remove_pkgs)
+			split(operations[op], b, /, */)
+			cmds[c++] = (op, stratum, package_manager, remove_pkgs, b[4], b[5])
+			if (op == "mark-packages-implicit") {
+				op = "remove-orphans"
+				split(operations[op], b, /, */)
+				cmds[c++] = (op, stratum, package_manager, "", b[4], b[5])
 			}
 		}
 	}
@@ -1569,22 +1566,20 @@ function execute_cmds(cmds,
 			abort("Unrecognized pre-process instruction requested: \""pre"\".  Please bug report this.")
 		}
 
-		if (operation == "update-world-installed") {
-			update_world_installed()
-		} else if (operation == "update-world-removed") {
-			update_world_removed()
-		} else if (operation == "update-world-sync") {
-			update_world_installed()
-			update_world_removed()
-		} else if (operation == "apply-world-installed") {
-			apply_world_op(1, cmds)
-		} else if (operation == "apply-world-removed") {
-			apply_world_op(0, cmds)
-		} else if (operation == "apply-world-sync") {
-			apply_world_op(1, cmds)
-			apply_world_op(0, cmds)
-		} else if (operation == "diff-world") {
+		if (operation == "diff-world") {
 			diff_world()
+		} else if (operation == "update-world-installed") {
+			update_world(1, 0)
+		} else if (operation == "update-world-removed") {
+			update_world(0, 1)
+		} else if (operation == "update-world") {
+			update_world(1, 1)
+		} else if (operation == "apply-world-installed") {
+			apply_world(1, 0, cmds)
+		} else if (operation == "apply-world-removed") {
+			apply_world(0, 1, cmds)
+		} else if (operation == "apply-world") {
+			apply_world(1, 1, cmds)
 		} else if (operation == "check-pmm-configuration") {
 			check_pmm_configuration()
 		} else if (operation == "list-pmm-ui-files") {

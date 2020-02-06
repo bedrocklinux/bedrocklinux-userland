@@ -1,3 +1,23 @@
+# 0.7.14beta8
+
+- Improve pmm output differentiation between --diff-world and --update-world*
+- pmm: fixed --diff-world pmm-hidden `<` vs `>` direction.
+- pmm: made --update-world single prompt
+- pmm: removed `-sync` suffix
+- pmm: swapped --diff-world order
+
+# 0.7.14beta7
+
+- pmm: diff-world propose removing non-pmm strata
+- pmm: have world ops respect assume-yes/no
+- pmm: remove xbps-pkgdb ${flags}
+
+# 0.7.14beta6
+
+- pmm: propose removing pmm-hidden and non-pmm lines from world file
+- pmm: handle world file without ending newline
+- pmm: do not shell escape `+` or `.`
+
 # 0.7.14beta5
 
 - Fix pmm apt list-installed-package-files

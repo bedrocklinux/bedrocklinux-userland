@@ -131,7 +131,7 @@
 #
 #     make check
 
-BEDROCK_VERSION=0.7.14beta5
+BEDROCK_VERSION=0.7.14beta8
 CODENAME=Poki
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | tail -1)
@@ -226,7 +226,7 @@ builddir: $(COMPLETED)/builddir
 #
 # Support libraries and tools.  Populates $(SUPPORT)
 #
- 
+
 vendor/linux_headers/.success_fetching_source:
 	rm -rf vendor/linux_headers
 	mkdir -p vendor/linux_headers

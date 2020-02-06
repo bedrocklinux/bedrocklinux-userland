@@ -169,13 +169,13 @@ help["older-than"]      = "only consider items that are older than <version>"
 # Typical package manager configurations should not describe either the
 # user_interfaces[] or implementations[] for these.
 #
+help["diff-world"]              = "print differences between /bedrock/etc/world and system's explicitly installed packages"
 help["update-world-installed"]  = "populate /bedrock/etc/world with missing explicitly installed packages"
 help["update-world-removed"]    = "remove /bedrock/etc/world items that do not correspond to explicitly installed packages"
-help["update-world-sync"]       = "sync /bedrock/etc/world with explicitly installed package state"
+help["update-world"]            = "sync /bedrock/etc/world to system's explicitly installed package list"
 help["apply-world-installed"]   = "explicitly install /bedrock/etc/world items"
 help["apply-world-removed"]     = "remove packages not in /bedrock/etc/world and resulting orphan packages"
-help["apply-world-sync"]        = "sync explicitly installed package list to /bedrock/etc/world and remove orphans"
-help["diff-world"]              = "print differences between /bedrock/etc/world and explicitly installed packages"
+help["apply-world"]             = "sync system's explicitly installed package list to /bedrock/etc/world and remove orphans"
 help["check-pmm-configuration"] = "sanity check pmm configuration"
 help["list-pmm-ui-files"]       = "list expected front-end files with current user interface"
 
