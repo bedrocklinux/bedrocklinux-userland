@@ -114,7 +114,7 @@ implementations["apt", "list-installed-package-files"] = "strat -r ${stratum} dp
 implementations["apt", "list-installed-explicit"]      = "strat -r ${stratum} apt-mark showmanual"
 implementations["apt", "list-installed-implicit"]      = "strat -r ${stratum} apt-mark showauto"
 implementations["apt", "list-installed-packages"]      = "strat -r ${stratum} dpkg -l | awk '$1 == \"ii\" {sub(/:[0-9]+$/,\"\",$2); print $2}'"
-implementations["apt", "list-upgradable-packages"]     = "strat -r ${stratum} apt-get -smV --no-download dist-upgrade | awk '/=>/{print$1}'"
+implementations["apt", "list-upgradable-packages"]     = "strat -r ${stratum} apt-get -smV --no-download dist-upgrade 2>/dev/null | awk '/=>/{print$1}'"
 implementations["apt", "list-available-packages"]      = "strat -r ${stratum} apt-cache pkgnames"
 implementations["apt", "search-for-package-by-name"]   = "strat -r ${stratum} apt-cache search -n ${items} | cut -d' ' -f1"
 implementations["apt", "search-for-package-by-all"]    = "strat -r ${stratum} apt-cache search ${items} | cut -d' ' -f1"
