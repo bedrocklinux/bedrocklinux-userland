@@ -126,7 +126,7 @@ implementations["xbps", "list-installed-implicit"]      = "strat -r ${stratum} x
 		}\
 	}'"
 implementations["xbps", "list-installed-packages"]      = "strat -r ${stratum} xbps-query -l | awk '$1 == \"ii\" {sub(/-[0-9.]+_[0-9]+$/, \"\", $2); print $2}'"
-implementations["xbps", "list-upgradable-packages"]     = "strat -r ${stratum} xbps-install -un | sed -E 's|(.*)-[0-9].*|\\1|'"
+implementations["xbps", "list-upgradable-packages"]     = ""
 implementations["xbps", "list-available-packages"]      = "strat -r ${stratum} xbps-query -Rs '*' |\
 	awk '{\
 		sub(/-[0-9.]+_[0-9]+$/, \"\", $2);\
