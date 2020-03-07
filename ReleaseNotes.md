@@ -1,3 +1,7 @@
+# 0.7.14beta9
+
+- Recover from bad bedrock.conf timezone values
+
 # 0.7.14beta8
 
 - Improve pmm output differentiation between --diff-world and --update-world*

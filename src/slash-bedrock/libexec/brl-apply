@@ -114,7 +114,7 @@ fi
 # /bedrock/cross.
 
 # Set up /etc/localtime
-ln -fs "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/localtime
+ln -fns "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/localtime
 
 # Setup /etc/environment
 (
