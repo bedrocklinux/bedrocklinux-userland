@@ -1,6 +1,7 @@
 # 0.7.14beta9
 
 - Recover from bad bedrock.conf timezone values
+- pmm: various pacman fixes
 
 # 0.7.14beta8
 
