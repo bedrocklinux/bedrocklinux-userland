@@ -1312,6 +1312,11 @@ function find_applicable_pairs(operation, check, type, item, pre, post, uncollec
 		stratum = a[1]
 		package_manager = a[2]
 		if (!check_applicability(check, operation, stratum, package_manager, item)) {
+			if (cfg_warn_about_skipping_package_managers && check == "is-file-db-available" &&
+				(package_manager, "print-file-db-install-instructions") in implementations) {
+				get_shell_output(implementations[package_manager, "print-file-db-install-instructions"], stratum, package_manager, "", 0, _return, output)
+				warn(output[1])
+			}
 			continue
 		}
 		if (type == "first") {

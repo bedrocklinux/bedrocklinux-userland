@@ -144,6 +144,6 @@ implementations["apk", "which-packages-provide-file"]  = "strat -r ${stratum} ap
 implementations["apk", "is-package-installed"]               = "strat -r ${stratum} apk info -e ${items} >/dev/null 2>&1"
 implementations["apk", "is-package-available"]               = "strat -r ${stratum} apk info ${items} >/dev/null 2>&1"
 implementations["apk", "is-file-db-available"]               = "strat -r ${stratum} apk info -e apk-file >/dev/null 2>&1"
-implementations["apk", "print-file-db-install-instructions"] = "echo 'Install apk-file from apk community repo in ${stratum}:apk to perform file-db operations'"
+implementations["apk", "print-file-db-install-instructions"] = "echo \"Install apk-file from apk community repo in ${stratum}:apk to perform file-db operations\""
 implementations["apk", "print-package-version"]              = "strat -r ${stratum} apk info ${items} | awk -F'[ -]' '{print$(NF-2);exit}'"
 implementations["apk", "cache-package-db"]                   = "strat -r ${stratum} apk list | sed 's/-\\([^-]*\\)-[^-]* .*$/\t\\1/'"
