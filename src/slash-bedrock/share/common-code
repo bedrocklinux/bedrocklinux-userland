@@ -1521,6 +1521,12 @@ set -eu
 set -o pipefail
 umask 022
 
+# This can trip up software which does not expect it.
+unset CDPATH
+# Some software set TMPDIR to stratum-local locations which can break Bedrock
+# code.  Unset it.
+unset TMPDIR
+
 brl_color=true
 if ! [ -t 1 ]; then
 	brl_color=false
