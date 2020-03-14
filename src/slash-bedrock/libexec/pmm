@@ -586,6 +586,9 @@ function cache_package_manager_list(unfiltered_pairs,
 
 function cache_package_db(stratum, package_manager,
 		_local, read_cmd, write_cmd, env, empty_list) {
+	if (!cfg_cache_package_database) {
+		return
+	}
 	if (cfg_warn_about_skipping_package_managers && implementations[package_manager, "cache-package-db"] == "") {
 		notice("Skipping caching "stratum":"package_manager" package database because "package_manager" lacks support")
 		return
