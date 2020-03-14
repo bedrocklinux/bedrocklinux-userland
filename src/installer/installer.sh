@@ -117,6 +117,8 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		abort "Embedded tarball is corrupt.  Did you edit this script with software that does not support null characters?"
 	elif ! sanity_check_grub_mkrelpath; then
 		abort "grub-mkrelpath/grub2-mkrelpath --relative does not support bind-mounts on /boot.  Continuing may break the bootloader on a kernel update.  This is a known Bedrock issue with OpenSUSE+btrfs/GRUB."
+	elif [ -r /boot/grub/grub.cfg ] && { grep -q 'subvol=' /boot/grub/grub.cfg || grep -q 'ZFS=' /boot/grub/grub.cfg; }; then
+		abort '`subvol=` or `ZFS=` detected in `/boot/grub/grub.cfg` indicating GRUB usage on either BTRFS or ZFS.  GRUB can get confused when updating this content on Bedrock which results in a non-booting system.  Either use another filesystem or another bootloader.'
 	elif [ -e /bedrock/ ]; then
 		# Prefer this check at end of sanity check list so other sanity
 		# checks can be tested directly on a Bedrock system.
