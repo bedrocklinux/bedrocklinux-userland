@@ -185,7 +185,7 @@ fetch() {
 	fi
 
 	LC_ALL=C chroot "${bootstrap_dir}" rpm -i --root=/target-root --nodeps ./packages/centos-release-*.rpm 2>/dev/null || true
-	if [ "$(echo "${target_release}" | sed 's/-[a-z]*$//')" -ge 8 ]; then
+	if [ "$(echo "${target_release}" | sed 's/-[a-z]*$//')" -lt 8 ]; then
 		LC_ALL=C chroot "${bootstrap_dir}" "${package_manager}" --installroot=/target-root install -y rpm-build "${package_manager}"
 	else
 		LC_ALL=C chroot "${bootstrap_dir}" "${package_manager}" --installroot=/target-root install -y rpm-build "${package_manager}" centos-repos

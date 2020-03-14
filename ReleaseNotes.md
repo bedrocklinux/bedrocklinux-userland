@@ -2,6 +2,7 @@
 
 - Recover from bad bedrock.conf timezone values
 - pmm: various pacman fixes
+- Fix brl-fetch centos
 
 # 0.7.14beta8
 
