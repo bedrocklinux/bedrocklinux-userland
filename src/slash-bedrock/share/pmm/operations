@@ -28,7 +28,7 @@
 #     package installed.
 #     - "is-package-available": Only consider package managers which have
 #     package available.
-#     - "is-file-db-installed": Only consider package managers which have file
+#     - "is-file-db-available": Only consider package managers which have file
 #     db capabilities.
 #     - "brl-which": Only consider package managers from stratum which owns
 #     file.

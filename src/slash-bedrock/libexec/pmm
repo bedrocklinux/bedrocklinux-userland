@@ -501,7 +501,7 @@ function parse_input(_return, global_flags, items,
 			continue
 		}
 		split(interface, terms, " ")
-		split("", terms, "")
+		split("", items, "")
 		p = 1 # parameter index
 		i = 1 # item index
 		c = 0 # witnessed command flag count
@@ -586,6 +586,9 @@ function cache_package_manager_list(unfiltered_pairs,
 
 function cache_package_db(stratum, package_manager,
 		_local, read_cmd, write_cmd, env, empty_list) {
+	if (!cfg_cache_package_database) {
+		return
+	}
 	if (cfg_warn_about_skipping_package_managers && implementations[package_manager, "cache-package-db"] == "") {
 		notice("Skipping caching "stratum":"package_manager" package database because "package_manager" lacks support")
 		return
@@ -752,7 +755,7 @@ function filter_pairs(unfiltered_pairs,
 }
 
 function shell_escape(string) {
-	gsub(/[^a-zA-Z0-9_\/+. -]/,"\\\\&", string)
+	gsub(/[^a-zA-Z0-9_\/+.: -]/,"\\\\&", string)
 	return string
 }
 
@@ -1309,6 +1312,11 @@ function find_applicable_pairs(operation, check, type, item, pre, post, uncollec
 		stratum = a[1]
 		package_manager = a[2]
 		if (!check_applicability(check, operation, stratum, package_manager, item)) {
+			if (cfg_warn_about_skipping_package_managers && check == "is-file-db-available" &&
+				(package_manager, "print-file-db-install-instructions") in implementations) {
+				get_shell_output(implementations[package_manager, "print-file-db-install-instructions"], stratum, package_manager, "", 0, _return, output)
+				warn(output[1])
+			}
 			continue
 		}
 		if (type == "first") {

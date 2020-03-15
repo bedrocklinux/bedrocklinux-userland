@@ -151,4 +151,9 @@ fetch() {
 
 	LC_ALL=C chroot "${bootstrap_dir}" rpm -i --root=/target-root --nodeps ./packages/fedora-release-*.rpm 2>/dev/null || true
 	LC_ALL=C chroot "${bootstrap_dir}" "${package_manager}" --installroot=/target-root install -y rpm-build "${package_manager}" fedora-repos
+	# Need to set database timestamps for pmm due to `dnf -C` usage
+	umount -l "${bootstrap_dir}/var/cache/dnf" >/dev/null 2>&1 || true
+	umount -l "${bootstrap_dir}/var/cache/yum" >/dev/null 2>&1 || true
+	setup_chroot "${target_dir}"
+	LC_ALL=C chroot "${target_dir}" "${package_manager}" -y update
 }

@@ -159,7 +159,7 @@ implementations["portage", "which-packages-provide-file"]  = "strat -r ${stratum
 implementations["portage", "is-package-installed"]               = "strat -r ${stratum} qdepends -i ${items} >/dev/null 2>&1"
 implementations["portage", "is-package-available"]               = "strat -r ${stratum} portageq ${items} | grep -q ."
 implementations["portage", "is-file-db-available"]               = "strat -r ${stratum} qdepends -i app-portage/pfl | grep -q ."
-implementations["portage", "print-file-db-install-instructions"] = "echo 'Install app-portage/pfl in ${stratum}:portage to perform file-db operations'"
-implementations["portage", "print-package-version"]              = "strat -r ${stratum} qatom $(strat -r ${stratum} portageq ${items})"
+implementations["portage", "print-file-db-install-instructions"] = "echo \"Install app-portage/pfl in ${stratum}:portage to perform file-db operations\""
+implementations["portage", "print-package-version"]              = "strat -r ${stratum} qatom $(strat -r ${stratum} portageq ${items}) | awk '{print $3;exit}'"
 # Cache both with prefix and without prefix to ensure availability lookup works with either.
 implementations["portage", "cache-package-db"]                   = "strat -r ${stratum} qatom $(strat -r ${stratum} portageq all_best_visible /) | awk '{print $2\"\t\"$3; print $1\"/\"$2\"\t\"$3}'"

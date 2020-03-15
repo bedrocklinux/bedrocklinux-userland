@@ -1,3 +1,12 @@
+# 0.7.14beta9
+
+- Added sanity check against GRUB+BTRFS/ZFS issue
+- Fix brl-fetch centos, kiss, void, void-musl
+- Recover from bad bedrock.conf timezone values
+- pmm: respect bedrock.conf cache-package-database value
+- pmm: various pacman, portage fixes
+- pmm: warn if file-db utility is missing
+
 # 0.7.14beta8
 
 - Improve pmm output differentiation between --diff-world and --update-world*

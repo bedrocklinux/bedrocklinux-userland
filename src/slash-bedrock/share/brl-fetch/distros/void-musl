@@ -77,10 +77,10 @@ fetch() {
 	"aarch64") prefix="aarch64" ;;
 	*) prefix="musl" ;;
 	esac
-	wget -O "${bootstrap_dir}/repodata.tar.gz" "${target_mirror}/current/${prefix}/${distro_arch}-musl-repodata"
+	wget -O "${bootstrap_dir}/repodata.tar.zstd" "${target_mirror}/current/${prefix}/${distro_arch}-musl-repodata"
 
 	step "Downloading bootstrap software"
-	pair="$(tar xf "${bootstrap_dir}/repodata.tar.gz" -O "index.plist" | awk -F'[<>]' '
+	pair="$(cat "${bootstrap_dir}/repodata.tar.zstd" | /bedrock/libexec/zstd -d | tar xf - -O "index.plist" | awk -F'[<>]' '
 		/^\t<key>/ {
 			section=$3
 		}
@@ -102,10 +102,10 @@ fetch() {
 	bootstrap_checksum="$(echo "${pair}" | awk '{print$1}')"
 	bootstrap_name="$(echo "${pair}" | awk '{print$2}')"
 	bootstrap_url="${target_mirror}/current/${prefix}/${bootstrap_name}.${distro_arch}-musl.xbps"
-	checksum_download "${cache}/xbps.tar.xz" "sha256sum" "${bootstrap_checksum}" "${bootstrap_url}"
+	checksum_download "${cache}/xbps.tar.zstd" "sha256sum" "${bootstrap_checksum}" "${bootstrap_url}"
 
 	step "Preparing bootstrap software"
-	tar xf "${cache}/xbps.tar.xz" -C "${bootstrap_dir}"
+	cat "${cache}/xbps.tar.zstd" | /bedrock/libexec/zstd -d | tar xf - -C "${bootstrap_dir}"
 
 	step "Running bootstrap software"
 	set +o pipefail
@@ -125,8 +125,6 @@ fetch() {
 	"void-musl:x86_64") prefix="musl" ;;
 	*) abort "unrecognized distro:architecture pair \"${distro}:${distro_arch}\"" ;;
 	esac
-	echo "${prefix}"
-	echo PAUSE
 	mkdir -p "${target_dir}/var/db/xbps/https___alpha_de_repo_voidlinux_org_current"
 	yes "" | LC_ALL=C XBPS_ARCH="${distro_arch}-musl" chroot "${bootstrap_dir}" "/usr/bin/xbps-install.static" -S -R "${target_mirror}/current/${prefix}" -r /target-root/ base-voidstrap
 	set -o pipefail

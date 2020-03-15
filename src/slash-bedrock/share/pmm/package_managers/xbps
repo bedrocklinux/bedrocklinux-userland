@@ -168,7 +168,7 @@ implementations["xbps", "which-packages-provide-file"]  = "strat -r ${stratum} x
 implementations["xbps", "is-package-installed"]               = "strat -r ${stratum} xbps-query ${items} >/dev/null 2>&1"
 implementations["xbps", "is-package-available"]               = "strat -r ${stratum} xbps-query -R ${items} >/dev/null 2>&1"
 implementations["xbps", "is-file-db-available"]               = "strat -r ${stratum} xbps-query xtools >/dev/null 2>&1"
-implementations["xbps", "print-file-db-install-instructions"] = "echo 'Install xlocate in ${stratum}:xbps to perform file-db operations'"
+implementations["xbps", "print-file-db-install-instructions"] = "echo \"Install xtools in ${stratum}:xbps to perform file-db operations\""
 implementations["xbps", "print-package-version"]              = "strat -r ${stratum} xbps-query ${items} | awk '$1 == \"pkgver:\" {sub(/^.*-/, \"\", $2); sub(/_[0-9]+$/, \"\", $2); print $2}'"
 implementations["xbps", "cache-package-db"]                   = "strat -r ${stratum} xbps-query -Rs '*' |\
 	awk '{\

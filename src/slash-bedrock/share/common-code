@@ -1000,31 +1000,35 @@ disable_stratum() {
 less_lethal_rm_rf() {
 	dir="${1}"
 
-	kill_chroot_procs "${dir}"
-	umount_r "${dir}"
+	count=1
+	while ! rmdir "${dir}" 2>/dev/null && [ "${count}" -le 3 ]; do
+		count=$((count + 1))
+		kill_chroot_procs "${dir}"
+		umount_r "${dir}"
 
-	# Busybox ignores -xdev when combine with -delete and/or -depth, and
-	# thus -delete and -depth must not be used.
-	# http://lists.busybox.net/pipermail/busybox-cvs/2012-December/033720.html
+		# Busybox ignores -xdev when combine with -delete and/or -depth, and
+		# thus -delete and -depth must not be used.
+		# http://lists.busybox.net/pipermail/busybox-cvs/2012-December/033720.html
 
-	# Remove all non-directories.  Transversal order does not matter.
-	cp /proc/self/exe "${dir}/busybox"
-	chroot "${dir}" ./busybox find / -xdev -mindepth 1 ! -type d -exec rm {} \; || true
+		# Remove all non-directories.  Transversal order does not matter.
+		cp /proc/self/exe "${dir}/busybox"
+		chroot "${dir}" ./busybox find / -xdev -mindepth 1 ! -type d -exec rm {} \; || true
 
-	# Remove all directories.
-	# We cannot force `find` to traverse depth-first.  We also cannot rely
-	# on `sort` in case a directory has a newline in it.  Instead, retry while tracking how much is left
-	cp /proc/self/exe "${dir}/busybox"
-	current="$(chroot "${dir}" ./busybox find / -xdev -mindepth 1 -type d -exec echo x \; | wc -l)"
-	prev=$((current + 1))
-	while [ "${current}" -lt "${prev}" ]; do
-		chroot "${dir}" ./busybox find / -xdev -mindepth 1 -type d -exec rmdir {} \; 2>/dev/null || true
-		prev="${current}"
+		# Remove all directories.
+		# We cannot force `find` to traverse depth-first.  We also cannot rely
+		# on `sort` in case a directory has a newline in it.  Instead, retry while tracking how much is left
+		cp /proc/self/exe "${dir}/busybox"
 		current="$(chroot "${dir}" ./busybox find / -xdev -mindepth 1 -type d -exec echo x \; | wc -l)"
-	done
+		prev=$((current + 1))
+		while [ "${current}" -lt "${prev}" ]; do
+			chroot "${dir}" ./busybox find / -xdev -mindepth 1 -type d -exec rmdir {} \; 2>/dev/null || true
+			prev="${current}"
+			current="$(chroot "${dir}" ./busybox find / -xdev -mindepth 1 -type d -exec echo x \; | wc -l)"
+		done
 
-	rm "${dir}/busybox"
-	rmdir "${dir}"
+		rm "${dir}/busybox"
+	done
+	! [ -e "${dir}" ]
 }
 
 # Prints colon-separated information about stratum's given mount point:
@@ -1516,6 +1520,12 @@ trap 'abort "Unexpected error occurred."' EXIT
 set -eu
 set -o pipefail
 umask 022
+
+# This can trip up software which does not expect it.
+unset CDPATH
+# Some software set TMPDIR to stratum-local locations which can break Bedrock
+# code.  Unset it.
+unset TMPDIR
 
 brl_color=true
 if ! [ -t 1 ]; then

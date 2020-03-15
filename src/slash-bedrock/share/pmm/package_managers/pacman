@@ -44,7 +44,7 @@ user_interfaces["pacman", "show-package-information"] = "pmm -S/--sync -i/--info
 user_interfaces["pacman", "clear-cache"]              = "pmm -S/--sync -c/--clean"
 user_interfaces["pacman", "remove-orphans"]           = "" # no user facing command
 user_interfaces["pacman", "update-package-database"]  = "" # no separate file database concept, uses combine
-user_interfaces["pacman", "update-file-database"]     = "" # no separate file database concept, uses combine
+user_interfaces["pacman", "update-file-database"]     = "pmm -F/--files -y/--refresh"
 user_interfaces["pacman", "upgrade-packages-limited"] = "" # no partial upgrade concept
 user_interfaces["pacman", "upgrade-packages-full"]    = "pmm -S/--sync -u/--sysupgrade"
 
@@ -60,7 +60,7 @@ implementations["pacman", "show-package-information"] = "strat -r ${stratum} pac
 implementations["pacman", "clear-cache"]              = "strat -r ${stratum} pacman ${flags} -Sc ${items}"
 implementations["pacman", "remove-orphans"]           = "! strat -r ${stratum} pacman -Qdtq >/dev/null || strat -r ${stratum} pacman -Qdtq | strat -r ${stratum} pacman ${flags} -Rs -"
 implementations["pacman", "update-package-database"]  = "strat -r ${stratum} pacman ${flags} -Sy"
-implementations["pacman", "update-file-database"]     = "strat -r ${stratum} pacman ${flags} -Sy"
+implementations["pacman", "update-file-database"]     = "strat -r ${stratum} pacman ${flags} -Fy"
 implementations["pacman", "upgrade-packages-limited"] = "strat -r ${stratum} pacman ${flags} -Su"
 implementations["pacman", "upgrade-packages-full"]    = "strat -r ${stratum} pacman ${flags} -Su"
 
@@ -87,21 +87,21 @@ user_interfaces["pacman", "update-package-database,update-file-database,upgrade-
 
 implementations["pacman", "clear-cache,remove-orphans"]                                                             = ""
 implementations["pacman", "mark-packages-implicit,remove-orphans"]                                                  = ""
-implementations["pacman", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} pacman -Rs ${items}"
-implementations["pacman", "remove-packages-full,remove-orphans"]                                                    = "strat -r ${stratum} pacman -Rs ${items}"
-implementations["pacman", "update-package-database,update-file-database"]                                           = "strat -r ${stratum} pacman -Sy"
-implementations["pacman", "update-package-database,upgrade-packages-partial"]                                       = "strat -r ${stratum} pacman -Syu"
-implementations["pacman", "update-package-database,upgrade-packages-full"]                                          = "strat -r ${stratum} pacman -Syu"
-implementations["pacman", "update-package-database,update-file-database,upgrade-packages-partial"]                  = "strat -r ${stratum} pacman -Syu"
-implementations["pacman", "update-package-database,update-file-database,upgrade-packages-full"]                     = "strat -r ${stratum} pacman -Syu"
-implementations["pacman", "update-package-database,install-packages"]                                               = "strat -r ${stratum} pacman -Sy --asexplicit ${items}"
-implementations["pacman", "update-package-database,update-file-database,install-packages"]                          = "strat -r ${stratum} pacman -Sy --asexplicit ${items}"
-implementations["pacman", "upgrade-packages-limited,install-packages"]                                              = "strat -r ${stratum} pacman -Su --asexplicit ${items}"
-implementations["pacman", "upgrade-packages-full,install-packages"]                                                 = "strat -r ${stratum} pacman -Su --asexplicit ${items}"
-implementations["pacman", "update-package-database,upgrade-packages-partial,install-packages"]                      = "strat -r ${stratum} pacman -Syu --asexplicit ${items}"
-implementations["pacman", "update-package-database,upgrade-packages-full,install-packages"]                         = "strat -r ${stratum} pacman -Syu --asexplicit ${items}"
-implementations["pacman", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = "strat -r ${stratum} pacman -Syu --asexplicit ${items}"
-implementations["pacman", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = "strat -r ${stratum} pacman -Syu --asexplicit ${items}"
+implementations["pacman", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} pacman ${flags} -Rs ${items}"
+implementations["pacman", "remove-packages-full,remove-orphans"]                                                    = "strat -r ${stratum} pacman ${flags} -Rs ${items}"
+implementations["pacman", "update-package-database,update-file-database"]                                           = "strat -r ${stratum} pacman ${flags} -Sy"
+implementations["pacman", "update-package-database,upgrade-packages-partial"]                                       = "strat -r ${stratum} pacman ${flags} -Syu"
+implementations["pacman", "update-package-database,upgrade-packages-full"]                                          = "strat -r ${stratum} pacman ${flags} -Syu"
+implementations["pacman", "update-package-database,update-file-database,upgrade-packages-partial"]                  = "strat -r ${stratum} pacman ${flags} -Syu"
+implementations["pacman", "update-package-database,update-file-database,upgrade-packages-full"]                     = "strat -r ${stratum} pacman ${flags} -Syu"
+implementations["pacman", "update-package-database,install-packages"]                                               = "strat -r ${stratum} pacman ${flags} -Sy --asexplicit ${items}"
+implementations["pacman", "update-package-database,update-file-database,install-packages"]                          = "strat -r ${stratum} pacman ${flags} -Sy --asexplicit ${items}"
+implementations["pacman", "upgrade-packages-limited,install-packages"]                                              = "strat -r ${stratum} pacman ${flags} -Su --asexplicit ${items}"
+implementations["pacman", "upgrade-packages-full,install-packages"]                                                 = "strat -r ${stratum} pacman ${flags} -Su --asexplicit ${items}"
+implementations["pacman", "update-package-database,upgrade-packages-partial,install-packages"]                      = "strat -r ${stratum} pacman ${flags} -Syu --asexplicit ${items}"
+implementations["pacman", "update-package-database,upgrade-packages-full,install-packages"]                         = "strat -r ${stratum} pacman ${flags} -Syu --asexplicit ${items}"
+implementations["pacman", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = "strat -r ${stratum} pacman ${flags} -Syu --asexplicit ${items}"
+implementations["pacman", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = "strat -r ${stratum} pacman ${flags} -Syu --asexplicit ${items}"
 
 #
 # Operations which have a standardized output format.
@@ -126,7 +126,7 @@ implementations["pacman", "list-available-packages"]      = "strat -r ${stratum}
 implementations["pacman", "search-for-package-by-name"]   = "strat -r ${stratum} pacman -Sl | cut -d' ' -f2 | grep ${items}"
 implementations["pacman", "search-for-package-by-all"]    = "strat -r ${stratum} pacman -Ss ${items} | awk -F'[ /]' '/^[^ ]/{print$2}'"
 implementations["pacman", "which-package-owns-file"]      = "strat -r ${stratum} pacman -Qo ${items} | awk '{print$(NF-1)}'"
-implementations["pacman", "which-packages-provide-file"]  = "strat -r arch pacman -F ${items} |\
+implementations["pacman", "which-packages-provide-file"]  = "strat -r ${stratum} pacman -F ${items} |\
 	awk '/^[^ ]/ {\
 		split($(NF-1), a, \"/\");\
 		print a[2]\"\t/\"$1\
