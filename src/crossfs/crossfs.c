@@ -110,6 +110,13 @@
 #define STRAT_PATH_LEN strlen(STRAT_PATH)
 
 /*
+ * If XDG .desktop TryExec= values are full paths, they must be adjusted to
+ * their explicit path to work cross-stratum.
+ */
+#define TRY_EXEC "TryExec="
+#define TRY_EXEC_LEN strlen(TRY_EXEC)
+
+/*
  * Bouncer, like strat, redirects to the appropriate stratum's instance of an
  * executable.  It differs from strat in that it determines which executable by
  * looking at its extended filesystem attributes rather than its arguments.
@@ -269,7 +276,7 @@ enum filter {
 	/*
 	 * Files are expected to be in ini-format.
 	 *
-	 * Wrap [Try]Exec[Start|Stop|Reload]= ini key-value pairs with strat.
+	 * Wrap Exec[Start|Stop|Reload]= ini key-value pairs with strat.
 	 *
 	 * For example:
 	 *     Exec=/usr/bin/vim
@@ -303,7 +310,11 @@ const char *const ini_exec_str[] = {
 	"ExecStartPre=",
 	"ExecStop=",
 	"ExecStopPost=",
-	"TryExec=",
+	/*
+	 * "TryExec=" needs to have the explicit path prefixed.  This is
+	 * different from the rest of the list which prefix a call to strat.
+	 * "TryExec=" should not be included here.
+	 */
 };
 
 const size_t ini_exec_len[] = {
@@ -314,7 +325,6 @@ const size_t ini_exec_len[] = {
 	13,
 	9,
 	13,
-	8,
 };
 
 struct stratum {
@@ -1560,7 +1570,7 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 				 * No ini_exec_len will exceed line's PATH_MAX,
 				 * this should be safe.
 				 */
-				if (memcmp(line, ini_exec_str[i],
+				if (strncmp(line, ini_exec_str[i],
 						ini_exec_len[i]) != 0) {
 					continue;
 				}
@@ -1569,6 +1579,11 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 				stbuf->st_size += deref(back)->name_len;
 				stbuf->st_size += strlen(" ");
 				break;
+			}
+			if (strncmp(line, TRY_EXEC, TRY_EXEC_LEN) == 0 &&
+				line[TRY_EXEC_LEN] == '/') {
+				stbuf->st_size += STRATA_ROOT_LEN;
+				stbuf->st_size += deref(back)->name_len;
 			}
 		}
 		fclose(fp);
@@ -1914,6 +1929,20 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 					&off, &wrote, size);
 				found = 1;
 				break;
+			}
+			if (strncmp(line, TRY_EXEC, TRY_EXEC_LEN) == 0 &&
+				line[TRY_EXEC_LEN] == '/') {
+				strcatoff(buf, TRY_EXEC, TRY_EXEC_LEN,
+					&off, &wrote, size);
+				strcatoff(buf, STRATA_ROOT, STRATA_ROOT_LEN,
+					&off, &wrote, size);
+				strcatoff(buf, deref(back)->name,
+					deref(back)->name_len, &off, &wrote,
+					size);
+				strcatoff(buf, line + TRY_EXEC_LEN,
+					strlen(line + TRY_EXEC_LEN),
+					&off, &wrote, size);
+				found = 1;
 			}
 			if (!found) {
 				strcatoff(buf, line, strlen(line), &off,
