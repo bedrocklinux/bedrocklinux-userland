@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -57,7 +57,7 @@ setup_pacman() {
 	# mount setup.
 	sed 's/^Architecture[ \t]*=.*$//' "${1}/etc/pacman.conf" |
 		awk -v"a=${distro_arch}" '{print} $0 == "[options]" {print "Architecture = "a}' |
-		sed 's/^[ \t]*CheckSpace/# &/' > "${1}/etc/pacman.conf-new"
+		sed 's/^[ \t]*CheckSpace/# &/' >"${1}/etc/pacman.conf-new"
 	mv "${1}/etc/pacman.conf-new" "${1}/etc/pacman.conf"
 
 	LC_ALL=C chroot "${1}" /usr/bin/update-ca-trust

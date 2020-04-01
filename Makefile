@@ -157,7 +157,7 @@ all: $(INSTALLER)
 
 remove_vendor_source:
 	rm -rf ./vendor
-  
+
 fetch_vendor_sources: \
 	vendor/busybox/.success_retrieving_source \
 	vendor/libaio/.success_retrieving_source \
@@ -1056,7 +1056,7 @@ release-build-environment:
 			brl fetch -n "brl-build-$${arch}" -a "$${arch}" -s debian; \
 			brl show -b "brl-build-$${arch}"; \
 		fi; \
-		strat -r "brl-build-$${arch}" apt -y install autoconf autopoint bison build-essential fakeroot gpg libtool meson ninja-build pkg-config rsync udev; \
+		strat -r "brl-build-$${arch}" apt -y install autoconf autopoint automake bison build-essential fakeroot gpg libtool meson ninja-build pkg-config rsync udev; \
 	done
 	# Debian does not offer i386, i486, or i586.  Gentoo does, either directly or by re-compiling.
 	for arch in i386 i486 i586; do \

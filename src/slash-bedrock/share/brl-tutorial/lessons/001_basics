@@ -6,11 +6,14 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2019-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 # Bedrock Linux basics tutorial
 
-if [ "${@}" = "help" ]; then
+# shellcheck source=src/slash-bedrock/share/brl-tutorial/common
+. /bedrock/share/brl-tutorial/common
+
+if [ "${*}" = "help" ]; then
 	echo "Bare minimum users are expected to know about Bedrock Linux"
 	return
 fi
@@ -343,7 +346,8 @@ another ${stratum} to provide your init for the given session.
 The ${bedrock} ${stratum} glues the entire system together.  It is the only
 ${stratum} which may not be removed.
 $(
-	if brl deref hijacked >/dev/null 2>&1; then
+	if hijacked_stratum="$(brl deref hijacked 2>&1)"; then
+		hijacked_stratum="${color_strat}${hijacked_stratum}${color_norm}"
 		printf "
 When ${Bedrock} ${hijacked} this computer, it:
 

@@ -5,7 +5,7 @@
  *      modify it under the terms of the GNU General Public License
  *      version 2 as published by the Free Software Foundation.
  *
- * Copyright (c) 2015 Daniel Thau <danthau@bedrocklinux.org>
+ * Copyright (c) 2015-2018 Daniel Thau <danthau@bedrocklinux.org>
  *
  * This program sets/unsets the locks on a given terminal.  See tty_ioctl(4).
  */

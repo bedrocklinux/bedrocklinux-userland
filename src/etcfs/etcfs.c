@@ -5,7 +5,7 @@
  *      modify it under the terms of the GNU General Public License
  *      version 2 as published by the Free Software Foundation.
  *
- * Copyright (c) 2013-2018 Daniel Thau <danthau@bedrocklinux.org>
+ * Copyright (c) 2013-2020 Daniel Thau <danthau@bedrocklinux.org>
  *
  * This program will pass filesystem requests through to either the global
  * stratum's instance of a file, or the calling process' local stratum instance
@@ -1219,7 +1219,7 @@ static int m_readlink(const char *path, char *buf, size_t size)
 	DISALLOW_ON_CFG(rpath);
 
 	ssize_t bytes_read = readlinkat(ref_fd, rpath, buf, size);
-	if (bytes_read < 0 || (size_t) bytes_read >= size) {
+	if (bytes_read < 0 || (size_t)bytes_read >= size) {
 		rv = -1;
 	} else {
 		rv = 0;
@@ -1520,7 +1520,7 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 			rv = bytes_read;
 			goto clean_up_and_return;
 		}
-		if ((size_t) bytes_read >= sizeof(buf)) {
+		if ((size_t)bytes_read >= sizeof(buf)) {
 			rv = -1;
 			errno = ENAMETOOLONG;
 			goto clean_up_and_return;

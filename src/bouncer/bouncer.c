@@ -5,7 +5,7 @@
  *      modify it under the terms of the GNU General Public License
  *      version 2 as published by the Free Software Foundation.
  *
- * Copyright (c) 2017-2018 Daniel Thau <danthau@bedrocklinux.org>
+ * Copyright (c) 2017-2019 Daniel Thau <danthau@bedrocklinux.org>
  *
  * This program redirects to the specified executable in the specified stratum
  * via strat.  The appropriate stratum and executable are determined by the

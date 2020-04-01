@@ -6,11 +6,12 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2019-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 # Interactive tutorial front-end
 
-. /bedrock/share/common-code
+# shellcheck source=src/slash-bedrock/share/brl-tutorial/common
+. /bedrock/share/brl-tutorial/common
 
 lesson_directory="/bedrock/share/brl-tutorial/lessons/"
 
@@ -21,12 +22,12 @@ Provides an interactive tutorial of various Bedrock Linux features.
 
 Lessons:
 $(
-cd "${lesson_directory}"
-for file in *; do
-	name="$(echo "${file}" | sed 's/^[0-9]*_//')"
-	printf "  ${color_cmd}%-15s${color_norm}%s\n" "${name}" "$(sh "${file}" help)"
-done
-)
+		cd "${lesson_directory}"
+		for file in *; do
+			name="$(echo "${file}" | sed 's/^[0-9]*_//')"
+			printf "  ${color_cmd}%-15s${color_norm}%s\n" "${name}" "$(sh "${file}" help)"
+		done
+	)
   ${color_sub}(more lessons may be added in the future)${color_norm}
 
 Options:
@@ -69,7 +70,7 @@ section() {
 				cursor=1
 			fi
 			c="$(echo "${spinner}" | head -c "${cursor}" | tail -c1)"
-			printf "\r[Run specified commands to continue ${c}]"
+			printf "\r[Run specified commands in another terminal to continue ${c}]"
 			sleep 1
 		done
 	else
@@ -98,7 +99,7 @@ run the command as your normal, non-root user.  If you see a \`${color_alert}#${
 
 $(rcmd "whoami")
 
-run the command as root (e.g. ${sudo}, ${color_cmd}su${color_norm}, etc).
+run the command as root (e.g. ${color_alert}sudo${color_norm}, ${color_cmd}su${color_norm}, etc).
 
 You may press ${color_cmd}<ctrl-c>${color_norm} to exit the tutorial at any point.
 "
@@ -106,102 +107,17 @@ You may press ${color_cmd}<ctrl-c>${color_norm} to exit the tutorial at any poin
 
 handle_help "${@:-}"
 
-# Users have complained busybox mktemp output is too difficult to type when
-# following tutorial instructions.  Attempt to generate a more user friendly
-# temporary file names.
-n=0
-tmpfile=""
-while true; do
-	n=$((n + 1))
-	tmpfile="/tmp/tut${n}"
-	touch "${tmpfile}" || continue
-	exec 9>"${tmpfile}" || continue
-	flock -nx 9 && break
-done
-tmpfile2=""
-while true; do
-	n=$((n + 1))
-	tmpfile2="/tmp/tut${n}"
-	touch "${tmpfile2}" || continue
-	exec 8>"${tmpfile2}" || continue
-	flock -nx 8 && break
-done
-echo "" > "${tmpfile}"
-echo "" > "${tmpfile2}"
-trap 'rm -f ${tmpfile} ${tmpfile2}' INT TERM EXIT
-
-# Create variables representing colorized versions of common terms
-if hijacked_stratum="$(brl deref hijacked)"; then
-	hijacked_stratum="${color_strat}${hijacked_stratum}${color_norm}"
-else
-	hijacked_stratum=""
-fi
-Alpine="${color_distro}Alpine${color_norm}"
-Arch="${color_distro}Arch${color_norm}"
-Bedrock="${color_bedrock}Bedrock${color_norm}"
-Bedrock_Linux="${color_bedrock}Bedrock Linux${color_norm}"
-Debian="${color_distro}Debian${color_norm}"
-Strata="${color_term}Strata${color_norm}"
-Ubuntu="${color_distro}Ubuntu${color_norm}"
-Void="${color_distro}Void${color_norm}"
-apk="${color_cmd}apk${color_norm}"
-apt="${color_cmd}apt${color_norm}"
-bash="${color_cmd}bash${color_norm}"
-bedrock="${color_strat}bedrock${color_norm}"
-bedrock_conf="${color_file}bedrock.conf${color_norm}"
-bedrock_etc_bedrock_conf="${color_file}/bedrock/etc/bedrock.conf${color_norm}"
-bedrock_strata="${color_file}/bedrock/strata/${color_norm}"
-brl="${color_cmd}brl${color_norm}"
-brl_apply="${color_cmd}brl apply${color_norm}"
-brl_fetch="${color_cmd}brl fetch${color_norm}"
-brl_tutorial="${color_cmd}brl tutorial${color_norm}"
-brl_which="${color_cmd}brl which${color_norm}"
-cross="${color_term}cross${color_norm}"
-disable="${color_term}disable${color_norm}"
-enable="${color_term}enable${color_norm}"
-enabled="${color_term}enabled${color_norm}"
-etc_apt_sources_list="${color_file}/etc/apt/sources.list${color_norm}"
-global="${color_term}global${color_norm}"
-hashbang="${color_cmd}#!/bin/sh${color_norm}"
-hijack="${color_term}hijack${color_norm}"
-hijacked="${color_term}hijacked${color_norm}"
-home="${color_file}/home${color_norm}"
-init_stratum="${color_strat}$(brl deref init)${color_norm}"
-jo="${color_cmd}jo${color_norm}"
-jq="${color_cmd}jq${color_norm}"
-local="${color_term}local${color_norm}"
-locally="${color_term}locally${color_norm}"
-ls="${color_cmd}ls${color_norm}"
-makepkg="${color_cmd}makepkg${color_norm}"
-man="${color_cmd}man${color_norm}"
-pinned="${color_term}pinned${color_norm}"
-pinning="${color_term}pinning${color_norm}"
-reboot="${color_cmd}reboot${color_norm}"
-restrict="${color_term}restrict${color_norm}"
-restriction="${color_term}restriction${color_norm}"
-run="${color_file}/run${color_norm}"
-show="${color_term}show${color_norm}"
-sources_list="${color_file}sources.list${color_norm}"
-strat="${color_cmd}strat${color_norm}"
-strata="${color_term}strata${color_norm}"
-stratum="${color_term}stratum${color_norm}"
-sudo="${color_cmd}sudo${color_norm}"
-tmp="${color_file}/tmp${color_norm}"
-tut_alpine="${color_strat}tut-alpine${color_norm}"
-tut_void="${color_strat}tut-void${color_norm}"
-xbps_install="${color_cmd}xbps-install${color_norm}"
-
 # Find user specified lesson implementation
-lesson="${@}"
+lesson="${*}"
 if [ -z "${lesson}" ]; then
 	abort "No lesson specified, see --help"
-elif ! file="$(ls -1 "${lesson_directory}" | grep "^[0-9]*_${lesson}$")"; then
+elif ! file="$(echo "${lesson_directory}"*"_${lesson}")"; then
 	abort "No such lesson \"${lesson}\""
 fi
 
 # Run lesson
-step_init "$(grep -c "^section " "${lesson_directory}/${file}")"
-. "${lesson_directory}/${file}"
+step_init "$(grep -c "^section " "${file}")"
+. "${file}"
 
 clear
 printf "This completes the lesson: ${lesson}

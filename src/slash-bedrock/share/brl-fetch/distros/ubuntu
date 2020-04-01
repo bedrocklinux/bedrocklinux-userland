@@ -160,6 +160,8 @@ fetch() {
 	set +o pipefail
 	setup_chroot "${target_dir}"
 	autopkgs="$(LANG=C chroot "${target_dir}" /usr/bin/apt-mark showmanual)"
+	# word splitting is desired here
+	# shellcheck disable=SC2086
 	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-mark auto ${autopkgs}
 	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get update
 	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get install locales-all

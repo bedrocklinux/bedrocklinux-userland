@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2012-2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 # Detects which CPU architecture Bedrock Linux's build system is producing.
 # Outputs two lines:

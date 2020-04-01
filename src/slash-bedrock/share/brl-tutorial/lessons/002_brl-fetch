@@ -6,11 +6,14 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2019-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 # brl-fetch tutorial
 
-if [ "${@}" = "help" ]; then
+# shellcheck source=src/slash-bedrock/share/brl-tutorial/common
+. /bedrock/share/brl-tutorial/common
+
+if [ "${*}" = "help" ]; then
 	echo "The brl fetch command"
 	return
 fi
@@ -59,26 +62,26 @@ as \"buster\" for a ${Debian} 10, codenamed \"buster,\" ${stratum}.
 a \"xorg\" ${stratum} which provides X.org functionality
 
 $(
-found=""
-for cur in $(brl list); do
-	for avail in $(brl fetch --list); do
-		if [ "${cur}" = "${avail}" ]; then
-			found="${cur}"
-			break;
+	found=""
+	for cur in $(brl list); do
+		for avail in $(brl fetch --list); do
+			if [ "${cur}" = "${avail}" ]; then
+				found="${cur}"
+				break
+			fi
+		done
+		if [ -n "${found}" ]; then
+			break
 		fi
 	done
 	if [ -n "${found}" ]; then
-		break;
-	fi
-done
-if [ -n "${found}" ]; then
-	printf "Since you already have a(n) ${color_strat}${found}${color_norm} ${stratum},
+		printf "Since you already have a(n) ${color_strat}${found}${color_norm} ${stratum},
 ${brl_fetch} will be unable to fetch another one without specifying a new name
 and this command will fail:
 
 	${color_alert}# brl fetch ${found}${color_norm}
 "
-fi
+	fi
 )
 
 Lets grab an ${Alpine} stratum and prefix \"tut-\" to the name to clarify it is
@@ -111,7 +114,6 @@ different versions:
 $(cmd "cat /bedrock/strata/tut-alpine/etc/alpine-release | tee ${tmpfile}")
 $(cmd "cat /bedrock/strata/tut-edge/etc/alpine-release | tee ${tmpfile2}")
 " "grep [.] ${tmpfile} && grep [.] ${tmpfile2}"
-
 
 alpine_mirror="$(sed 's,/edge/main,,' /bedrock/strata/tut-edge/etc/apk/repositories)"
 

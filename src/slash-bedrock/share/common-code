@@ -351,15 +351,18 @@ clear_old_cache() {
 pmm_cache_package_manager_list() {
 	lock /bedrock/var/cache/pmm
 	# pmm will export these variables
-	echo "${strata}" > /bedrock/var/cache/pmm/strata
-	echo "${bedrock_conf_sha1sum}" > /bedrock/var/cache/pmm/bedrock_conf_sha1sum
+	echo "${strata}" >/bedrock/var/cache/pmm/strata
+	# variable is inherited from function caller
+	# shellcheck disable=SC2154
+	echo "${bedrock_conf_sha1sum}" >/bedrock/var/cache/pmm/bedrock_conf_sha1sum
 	# pmm provides pair list via pipe
-	cat > /bedrock/var/cache/pmm/package_manager_list
+	cat >/bedrock/var/cache/pmm/package_manager_list
 	exit_success
 }
 
 pmm_cache_package_manager_db() {
 	# pmm will export ${stratum} and ${package_manager}
+	# shellcheck disable=SC2154
 	lock "/bedrock/var/cache/pmm-${stratum}:${package_manager}"
 
 	db="/bedrock/var/cache/pmm-${stratum}:${package_manager}/package-db/"
@@ -381,7 +384,7 @@ pmm_cache_package_manager_db() {
 		print >> brldbpath($0)
 	}'
 
-	echo 1 > "${ready}"
+	echo 1 >"${ready}"
 
 	exit_success
 }

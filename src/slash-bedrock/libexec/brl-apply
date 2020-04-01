@@ -291,7 +291,7 @@ exec /bedrock/libexec/pmm ${pmm_ui} ${file} \"\${@}\""
 		elif [ -x "${tgt_path}" ] && [ "$(cat "${tgt_path}")" = "${tgt}" ]; then
 			continue
 		else
-			echo "${tgt_contents}" > "${tgt_path}"
+			echo "${tgt_contents}" >"${tgt_path}"
 			chmod a+rx "${tgt_path}"
 		fi
 	done

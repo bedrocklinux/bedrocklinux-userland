@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2018-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch

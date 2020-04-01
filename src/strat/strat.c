@@ -5,7 +5,7 @@
  *      modify it under the terms of the GNU General Public License
  *      version 2 as published by the Free Software Foundation.
  *
- * Copyright (c) 2012-2018 Daniel Thau <danthau@bedrocklinux.org>
+ * Copyright (c) 2012-2020 Daniel Thau <danthau@bedrocklinux.org>
  *
  * This program is a derivative work of capchroot 0.1, and thus:
  * Copyright (c) 2009 Thomas Bächler <thomas@archlinux.org>
@@ -635,7 +635,7 @@ int main(int argc, char *argv[])
 		/*
 		 * No command specified.  Try $SHELL.
 		 */
-		char **arglist = (char *[]){ NULL, NULL };
+		char **arglist = (char *[]) { NULL, NULL };
 		file = getenv("SHELL");
 		/*
 		 * Strip the path, leaving only the filename itself.  The same

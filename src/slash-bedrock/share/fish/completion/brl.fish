@@ -4,7 +4,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2018-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 function _brl_argnum
 	if [ (count (commandline -opc)) -eq "$argv" ]
@@ -163,4 +163,4 @@ complete -f -c brl -n '_brl_arg_is 2 fetch' -l 'force-check' -d 'skip warnings w
 complete -f -c brl -n '_brl_arg_is 2 report; and _brl_argnum 2' -o 'o' -d 'overwrite file at report path'
 complete -f -c brl -n '_brl_arg_is 2 report; and _brl_argnum 2' -l 'overwrite' -d 'overwrite file at report path'
 
-complete -f -c brl -n '_brl_arg_is 2 tutorial' -a '(ls -1 /bedrock/share/brl-tutorial/lessons/ | sed "s/^[0-9]*_//")' -d 'strata or aliases'
+complete -f -c brl -n '_brl_arg_is 2 tutorial' -a '(find /bedrock/share/brl-tutorial/lessons/ -mindepth 1 | sed "s/^.*[0-9][0-9]*_//")' -d 'strata or aliases'

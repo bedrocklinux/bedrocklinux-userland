@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -80,7 +80,7 @@ fetch() {
 	wget -O "${bootstrap_dir}/repodata.tar.zstd" "${target_mirror}/current/${prefix}/${distro_arch}-musl-repodata"
 
 	step "Downloading bootstrap software"
-	pair="$(cat "${bootstrap_dir}/repodata.tar.zstd" | /bedrock/libexec/zstd -d | tar xf - -O "index.plist" | awk -F'[<>]' '
+	pair="$(/bedrock/libexec/zstd -d <"${bootstrap_dir}/repodata.tar.zstd" | tar xf - -O "index.plist" | awk -F'[<>]' '
 		/^\t<key>/ {
 			section=$3
 		}
@@ -105,7 +105,7 @@ fetch() {
 	checksum_download "${cache}/xbps.tar.zstd" "sha256sum" "${bootstrap_checksum}" "${bootstrap_url}"
 
 	step "Preparing bootstrap software"
-	cat "${cache}/xbps.tar.zstd" | /bedrock/libexec/zstd -d | tar xf - -C "${bootstrap_dir}"
+	/bedrock/libexec/zstd -d <"${cache}/xbps.tar.zstd" | tar xf - -C "${bootstrap_dir}"
 
 	step "Running bootstrap software"
 	set +o pipefail

@@ -36,7 +36,7 @@ if [ -z "${1:-}" ]; then
 	abort "No user interface specified.  See the [pmm] section of /bedrock/etc/bedrock.conf"
 fi
 initialize_awk_variables="${initialize_awk_variables}
-ui=\"$(echo "x${1:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//" )\""
+ui=\"$(echo "x${1:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//")\""
 shift
 
 #
@@ -44,7 +44,7 @@ shift
 #
 for arg in "${@}"; do
 	initialize_awk_variables="${initialize_awk_variables}
-args[++arg_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//" )\""
+args[++arg_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//")\""
 done
 
 #
@@ -77,16 +77,18 @@ fi
 # just export the variables that may need to be cached.
 #
 cfg_cache_package_manager_list="$(cfg_value "pmm" "cache-package-manager-list")"
-export strata="$(
-for stratum in $(list_strata); do
-	if is_enabled "${stratum}" && has_attr "/bedrock/strata/${stratum}" "show_pmm"; then
-		echo "strata[\"${stratum}\"]"
-	fi
-done | sort
+strata="$(
+	for stratum in $(list_strata); do
+		if is_enabled "${stratum}" && has_attr "/bedrock/strata/${stratum}" "show_pmm"; then
+			echo "strata[\"${stratum}\"]"
+		fi
+	done | sort
 )"
+export strata
 initialize_awk_variables="${initialize_awk_variables}
 ${strata}"
-export bedrock_conf_sha1sum="$(cat "/bedrock/etc/bedrock.conf" | sha1sum)"
+bedrock_conf_sha1sum="$(sha1sum <"/bedrock/etc/bedrock.conf")"
+export bedrock_conf_sha1sum
 
 #
 # If the package manager list cache is requested and passes cache invalidation
@@ -94,9 +96,9 @@ export bedrock_conf_sha1sum="$(cat "/bedrock/etc/bedrock.conf" | sha1sum)"
 # the package manager list.
 #
 if [ "${cfg_cache_package_manager_list}" = "true" ] &&
-		[ "$(cat /bedrock/var/cache/pmm/strata 2>/dev/null)" = "${strata}" ] &&
-		[ "$(cat /bedrock/var/cache/pmm/bedrock_conf_sha1sum 2>/dev/null)" = "${bedrock_conf_sha1sum}" ] &&
-		[ -r "/bedrock/var/cache/pmm/package_manager_list" ]; then
+	[ "$(cat /bedrock/var/cache/pmm/strata 2>/dev/null)" = "${strata}" ] &&
+	[ "$(cat /bedrock/var/cache/pmm/bedrock_conf_sha1sum 2>/dev/null)" = "${bedrock_conf_sha1sum}" ] &&
+	[ -r "/bedrock/var/cache/pmm/package_manager_list" ]; then
 	# Cache is valid and requested, use it
 	initialize_awk_variables="${initialize_awk_variables}
 $(cat /bedrock/var/cache/pmm/package_manager_list)"
@@ -106,19 +108,19 @@ else
 	for arg in $(cfg_values "pmm" "priority"); do
 		if echo "${arg}" | grep -q "^:"; then
 			initialize_awk_variables="${initialize_awk_variables}
-cfg_pmm_priority[++pmm_priority_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//" )\""
+cfg_pmm_priority[++pmm_priority_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//")\""
 		else
 			stratum="$(echo "${arg}" | sed 's/:.*$//')"
 			if is_enabled "${stratum}" && has_attr "/bedrock/strata/${stratum}" "show_pmm"; then
 				initialize_awk_variables="${initialize_awk_variables}
-cfg_pmm_priority[++pmm_priority_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//" )\""
+cfg_pmm_priority[++pmm_priority_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//")\""
 			fi
 		fi
 	done
 	for arg in $(cfg_values "cross" "priority"); do
 		if is_enabled "${arg}" && has_attr "/bedrock/strata/${arg}" "show_pmm"; then
 			initialize_awk_variables="${initialize_awk_variables}
-cfg_cross_priority[++cross_priority_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//" )\""
+cfg_cross_priority[++cross_priority_count]=\"$(echo "x${arg:-}" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//")\""
 		fi
 	done
 	if [ "$(cfg_value "pmm" "ignore-non-system-package-managers")" = "true" ]; then
@@ -266,6 +268,8 @@ $(cat /bedrock/share/pmm/package_managers/* /bedrock/share/pmm/help /bedrock/sha
 # - selected_operation
 #
 
+# Single quotes are most definitely desired here
+# shellcheck disable=SC2016
 exec awk '
 function abort(msg) {
 	fflush()

@@ -5,7 +5,7 @@
  *      modify it under the terms of the GNU General Public License
  *      version 2 as published by the Free Software Foundation.
  *
- * Copyright (c) 2014-2018 Daniel Thau <danthau@bedrocklinux.org>
+ * Copyright (c) 2014-2020 Daniel Thau <danthau@bedrocklinux.org>
  *
  * This program implements a filesystem which provides cross-stratum file
  * access.  It fulfills filesystem requests by forwarding the appropriate
@@ -883,7 +883,7 @@ static inline int filldir_all_bpath(struct cfg_entry *cfg, const char *ipath,
  * - Skip set number of input bytes before writing into buffer
  */
 void strcatoff(char *buf, const char *const str, size_t str_len,
-	size_t * offset, size_t * wrote, size_t max)
+	size_t *offset, size_t *wrote, size_t max)
 {
 	if ((*offset) >= str_len) {
 		(*offset) -= str_len;

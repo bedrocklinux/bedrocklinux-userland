@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2018-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # If none of the $1 have been used, include all of them as possibilities
@@ -234,7 +234,7 @@ _brl() {
 		opts="${opts} $(compgen -d -f -- "${cur}")"
 		;;
 	"tutorial")
-		opts="${opts} $(ls -1 /bedrock/share/brl-tutorial/lessons/ | sed 's/^[0-9]*_//')"
+		opts="${opts} $(find /bedrock/share/brl-tutorial/lessons/ -mindepth 1 | sed 's/^.*[0-9][0-9]*_//')"
 		;;
 	esac
 
