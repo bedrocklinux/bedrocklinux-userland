@@ -134,7 +134,8 @@
 BEDROCK_VERSION=0.7.14beta9
 CODENAME=Poki
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
-FILE_ARCH_NAME=$(shell ./detect_arch.sh | tail -1)
+FILE_ARCH_NAME=$(shell ./detect_arch.sh | awk 'NR==2')
+ARCH_BIT_DEPTH=$(shell ./detect_arch.sh | tail -1)
 RELEASE=Bedrock Linux $(BEDROCK_VERSION) $(CODENAME)
 INSTALLER=bedrock-linux-$(BEDROCK_VERSION)-$(ARCHITECTURE).sh
 
@@ -532,6 +533,15 @@ $(SLASHBR)/libexec/busybox: vendor/busybox/.success_retrieving_source build/all/
 	cd $(SUPPORT)/include/linux/ && \
 		echo '' > in6.h
 	cp $(SUPPORT)/include/linux/if_slip.h $(SUPPORT)/include/net/
+	# http://git.musl-libc.org/cgit/musl/commit/?id=5a105f19b5aae79dd302899e634b6b18b3dcd0d6
+	# This will be needed with musl at or after 1.2.0 and busybox preceding 1.32
+	cd $(VENDOR)/busybox && \
+		if [ "${ARCH_BIT_DEPTH}" = "32" ]; then \
+			for file in libbb/time.c runit/runsv.c coreutils/date.c; do \
+				sed -e 's/__NR_clock_gettime\>/__NR_clock_gettime32/g' $${file} > .time-tmp && \
+				mv .time-tmp $${file}; \
+			done; \
+		fi
 	cd $(VENDOR)/busybox && \
 		$(MAKE) CC=$(MUSLCC) && \
 		cp busybox $(SLASHBR)/libexec/busybox
@@ -933,10 +943,10 @@ release-build-environment:
 	# friendly while running performance sensitive components such as the
 	# compiler with the native ISA configured to cross compile.
 	#
-	# This recipe fetches and sets up one stratum per ISA to run the scripts and
-	# makefiles (brl-build-<arch>), one stratum to provide most of the
-	# cross-compile tools (brl-build-cross), and one stratum to special
-	# case ppc64le cross-compile tools (brl-build-cross-ppc).
+	# This recipe fetches and sets up one stratum per ISA to run the
+	# scripts and makefiles (brl-build-<arch>), one stratum to provide most
+	# of the cross-compile tools (brl-build-cross), and one stratum to
+	# special case ppc family cross-compile tools (brl-build-cross-ppc).
 	#
 	# These strata are hidden from everything but boot-time-enable to avoid
 	# polluting the PATH.
@@ -944,30 +954,25 @@ release-build-environment:
 	# Fetching strata and installing packages requires root.
 	[ $$(id -u) = 0 ]
 	# Fetch and setup cross compile tool stratum.  It requires
-	# cross-compile tools for every supported architecture except ppc64le,
-	# which needs to be special cased, and the x86/x86_64 family, due to
-	# the expectation that the build machine will support them natively.
+	# cross-compile tools for every supported architecture except the ppc
+	# family, which needs to be special cased, and the x86/x86_64 family,
+	# due to the expectation that the build machine will support them
+	# natively.
 	if ! /bedrock/libexec/getfattr -d /bedrock/strata/brl-build-cross 2>/dev/null | grep -q user.bedrock.show_boot; then \
 		brl remove -d brl-build-cross 2>/dev/null || true; \
 		brl fetch -s -n brl-build-cross debian; \
 		brl show -b brl-build-cross; \
 	fi
 	strat -r brl-build-cross apt -y install \
-			gcc-aarch64-linux-gnu \
-			binutils-aarch64-linux-gnu \
-			gcc-arm-linux-gnueabihf \
-			binutils-arm-linux-gnueabihf \
-			gcc-arm-linux-gnueabi \
-			binutils-arm-linux-gnueabi \
-			gcc-mips-linux-gnu \
-			binutils-mips-linux-gnu \
-			gcc-mipsel-linux-gnu \
-			binutils-mipsel-linux-gnu \
-			gcc-mips64el-linux-gnuabi64 \
-			binutils-mips64el-linux-gnuabi64 \
-			gcc-s390x-linux-gnu \
-			binutils-s390x-linux-gnu
-	for target in aarch64-linux-gnu \
+			gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+			gcc-arm-linux-gnueabihf binutils-arm-linux-gnueabihf \
+			gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi \
+			gcc-mips-linux-gnu binutils-mips-linux-gnu \
+			gcc-mipsel-linux-gnu binutils-mipsel-linux-gnu \
+			gcc-mips64el-linux-gnuabi64 binutils-mips64el-linux-gnuabi64 \
+			gcc-s390x-linux-gnu binutils-s390x-linux-gnu
+	for target in \
+			aarch64-linux-gnu \
 			arm-linux-gnueabihf \
 			arm-linux-gnueabi \
 			mips-linux-gnu \
@@ -990,10 +995,20 @@ release-build-environment:
 			chmod a+rx "/bedrock/strata/brl-build-cross/usr/local/bin/brl-$${target}-ar"; \
 		fi; \
 	done
-	# ppc64le does not use IEEE long double floating point, and musl is
-	# fastidious towards following proper standards.  To get the two to
-	# play long, build a ppc64le targeted gcc which restricts long double
-	# float accuracy to something that makes both ppc64le and musl happy.
+	# musl requires various compile-time flags when building a compiler to
+	# work with ppc.  To resolve this, build our own tool chains for the
+	# ppc family via gentoo.
+	# https://wiki.musl-libc.org/faq.html
+	# > Q: My dynamically linked program crashes on PowerPC!
+	# > Make sure you pass -Wl,--secure-plt when you use dynamic linking
+	# > Further, you should build gcc with the option --with-long-double-64 --enable-secureplt
+	# https://git.musl-libc.org/cgit/musl/tree/INSTALL
+	# > * PowerPC64
+	# >     * Both little and big endian variants are supported
+	# >     * Compiler toolchain must provide 64-bit long double, not IBM
+	# >       double-double or IEEE quad
+	# >     * Compiler toolchain must use the new (ELFv2) ABI regardless of
+	# >       whether it is for little or big endian
 	if ! /bedrock/libexec/getfattr -d /bedrock/strata/brl-build-cross-ppc 2>/dev/null | grep -q user.bedrock.show_boot; then \
 		brl remove -d brl-build-cross-ppc 2>/dev/null || true; \
 		brl fetch -n brl-build-cross-ppc -s gentoo; \
@@ -1002,53 +1017,48 @@ release-build-environment:
 	if ! grep -q "sys-devel/crossdev" /bedrock/strata/brl-build-cross-ppc/var/lib/portage/world; then \
 		strat -r brl-build-cross-ppc emerge "sys-devel/crossdev"; \
 	fi
-	if ! [ -d /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/profiles ]; then \
-		mkdir -p /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/profiles; \
-	fi
-	if ! [ -d /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/metadata ]; then \
-		mkdir -p /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/metadata; \
-	fi
-	if ! [ -e /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/metadata/layout.conf ]; then \
-		touch /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/metadata/layout.conf; \
-	fi
-	if ! grep -q "masters = gentoo" /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/metadata/layout.conf; then \
-		echo 'masters = gentoo' >> /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/metadata/layout.conf; \
-	fi
 	if ! [ -e /bedrock/strata/brl-build-cross-ppc/etc/portage/make.conf ]; then \
 		touch /bedrock/strata/brl-build-cross-ppc/etc/portage/make.conf; \
 	fi
-	if ! grep -q "PORTDIR_OVERLAY=.*/usr/local/portage-crossdev-powerpc64le-linux-gnu" "/bedrock/strata/brl-build-cross-ppc/etc/portage/make.conf"; then \
-		echo "PORTDIR_OVERLAY=\"\$${PORTDIR_OVERLAY} /usr/local/portage-crossdev-powerpc64le-linux-gnu\"" >> "/bedrock/strata/brl-build-cross-ppc/etc/portage/make.conf"; \
-	fi
-	if ! [ -e /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/.set-permissions ]; then \
-		chown -R portage:portage /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu; \
-		touch /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-powerpc64le-linux-gnu/.set-permissions; \
-	fi
-	strat -r brl-build-cross-ppc crossdev --stable --target "powerpc64le-linux-gnu" --genv 'EXTRA_ECONF="--without-long-double-128 --with-long-double-64"' --ov-output /usr/local/portage-crossdev-powerpc64le-linux-gnu; \
-	if ! grep -q 'CFLAGS=.*-mlong-double-64"' "/bedrock/strata/brl-build-cross-ppc/usr/powerpc64le-linux-gnu/etc/portage/make.conf"; then \
-		echo 'CFLAGS="$${CFLAGS} -mlong-double-64"' >> "/bedrock/strata/brl-build-cross-ppc/usr/powerpc64le-linux-gnu/etc/portage/make.conf"; \
-	fi
-	if ! grep -q 'CXXFLAGS=.*-mlong-double-64"' "/bedrock/strata/brl-build-cross-ppc/usr/powerpc64le-linux-gnu/etc/portage/make.conf"; then \
-		echo 'CXXFLAGS="$${CXXFLAGS} -mlong-double-64"' >> "/bedrock/strata/brl-build-cross-ppc/usr/powerpc64le-linux-gnu/etc/portage/make.conf"; \
-	fi
-	if ! grep -q "EXTRA_ECONF=.*long-double-64" "/bedrock/strata/brl-build-cross-ppc/usr/powerpc64le-linux-gnu/etc/portage/bashrc"; then \
-		echo 'EXTRA_ECONF="$${EXTRA_ECONF} --without-long-double-128 --with-long-double-64"' >> /bedrock/strata/brl-build-cross-ppc/usr/powerpc64le-linux-gnu/etc/portage/bashrc; \
-	fi
-	if ! [ -x "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-gcc" ] && [ -h /bedrock/strata/brl-build-cross-ppc/usr/bin/powerpc64le-linux-gnu-gcc ]; then \
-		printf '#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/strat -r brl-build-cross-ppc /usr/bin/powerpc64le-linux-gnu-gcc "$${@}"\n' > \
-			"/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-gcc"; \
-		chmod a+rx "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-gcc"; \
-	fi
-	if ! [ -x "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ld" ] && [ -h /bedrock/strata/brl-build-cross-ppc/usr/bin/powerpc64le-linux-gnu-ld ]; then \
-		printf '#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/strat -r brl-build-cross-ppc /usr/bin/powerpc64le-linux-gnu-ld "$${@}"\n' > \
-			"/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ld"; \
-		chmod a+rx "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ld"; \
-	fi
-	if ! [ -x "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ar" ] && [ -h /bedrock/strata/brl-build-cross-ppc/usr/bin/powerpc64le-linux-gnu-ar ]; then \
-		printf '#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/strat -r brl-build-cross-ppc /usr/bin/powerpc64le-linux-gnu-ar "$${@}"\n' > \
-			"/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ar"; \
-		chmod a+rx "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ar"; \
-	fi
+	for arch in powerpc powerpc64 powerpc64le; do \
+		mkdir -p /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-$${arch}-linux-gnu/profiles; \
+		mkdir -p /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-$${arch}-linux-gnu/metadata; \
+		if ! grep -q "masters = gentoo" /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-$${arch}-linux-gnu/metadata/layout.conf 2>/dev/null; then \
+			echo 'masters = gentoo' >> /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-$${arch}-linux-gnu/metadata/layout.conf; \
+		fi; \
+		if ! grep -q "PORTDIR_OVERLAY=.*/usr/local/portage-crossdev-$${arch}-linux-gnu" "/bedrock/strata/brl-build-cross-ppc/etc/portage/make.conf" 2>/dev/null; then \
+			echo "PORTDIR_OVERLAY=\"\$${PORTDIR_OVERLAY} /usr/local/portage-crossdev-$${arch}-linux-gnu\"" >> "/bedrock/strata/brl-build-cross-ppc/etc/portage/make.conf"; \
+		fi; \
+		if ! [ -e /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-$${arch}-linux-gnu/.set-permissions ]; then \
+			chown -R portage:portage /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-$${arch}-linux-gnu; \
+			touch /bedrock/strata/brl-build-cross-ppc/usr/local/portage-crossdev-$${arch}-linux-gnu/.set-permissions; \
+		fi; \
+		strat -r brl-build-cross-ppc crossdev --stable --target "$${arch}-linux-gnu" --genv 'EXTRA_ECONF="--without-long-double-128 --with-long-double-64 --with-abi=elfv2 --enable-secureplt --enable-decimal-float=no"' --ov-output /usr/local/portage-crossdev-$${arch}-linux-gnu; \
+		if ! grep -q 'CFLAGS=.*-mlong-double-64"' "/bedrock/strata/brl-build-cross-ppc/usr/$${arch}-linux-gnu/etc/portage/make.conf" 2>/dev/null; then \
+			echo 'CFLAGS="$${CFLAGS} -mlong-double-64 -Wl,--secure-plt"' >> "/bedrock/strata/brl-build-cross-ppc/usr/$${arch}-linux-gnu/etc/portage/make.conf"; \
+		fi; \
+		if ! grep -q 'CXXFLAGS=.*-mlong-double-64"' "/bedrock/strata/brl-build-cross-ppc/usr/$${arch}-linux-gnu/etc/portage/make.conf" 2>/dev/null; then \
+			echo 'CXXFLAGS="$${CXXFLAGS} -mlong-double-64 -Wl,--secure-plt"' >> "/bedrock/strata/brl-build-cross-ppc/usr/$${arch}-linux-gnu/etc/portage/make.conf"; \
+		fi; \
+		if ! grep -q "EXTRA_ECONF=.*long-double-64" "/bedrock/strata/brl-build-cross-ppc/usr/$${arch}-linux-gnu/etc/portage/bashrc" 2>/dev/null; then \
+			echo 'EXTRA_ECONF="$${EXTRA_ECONF} --without-long-double-128 --with-long-double-64 --with-abi=elfv2 --enable-secureplt --enable-decimal-float=no"' >> /bedrock/strata/brl-build-cross-ppc/usr/$${arch}-linux-gnu/etc/portage/bashrc; \
+		fi; \
+		if ! [ -x "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-$${arch}-linux-gnu-gcc" ] && [ -h /bedrock/strata/brl-build-cross-ppc/usr/bin/$${arch}-linux-gnu-gcc ]; then \
+			printf '#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/strat -r brl-build-cross-ppc /usr/bin/'"$${arch}"'-linux-gnu-gcc "$${@}"\n' > \
+				"/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-$${arch}-linux-gnu-gcc"; \
+			chmod a+rx "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-$${arch}-linux-gnu-gcc"; \
+		fi; \
+		if ! [ -x "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-$${arch}-linux-gnu-ld" ] && [ -h /bedrock/strata/brl-build-cross-ppc/usr/bin/$${arch}-linux-gnu-ld ]; then \
+			printf '#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/strat -r brl-build-cross-ppc /usr/bin/'"$${arch}"'-linux-gnu-ld "$${@}"\n' > \
+				"/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-$${arch}-linux-gnu-ld"; \
+			chmod a+rx "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-$${arch}-linux-gnu-ld"; \
+		fi; \
+		if ! [ -x "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-$${arch}-linux-gnu-ar" ] && [ -h /bedrock/strata/brl-build-cross-ppc/usr/bin/$${arch}-linux-gnu-ar ]; then \
+			printf '#!/bedrock/libexec/busybox sh\nexec /bedrock/bin/strat -r brl-build-cross-ppc /usr/bin/'"$${arch}"'-linux-gnu-ar "$${@}"\n' > \
+				"/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-$${arch}-linux-gnu-ar"; \
+			chmod a+rx "/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-$${arch}-linux-gnu-ar"; \
+		fi; \
+	done
 	# Fetch and setup Debian per-arch strata.
 	for arch in aarch64 armv7hl armv7l i686 mips mipsel mips64el ppc64le s390x x86_64; do \
 		if ! /bedrock/libexec/getfattr -d /bedrock/strata/brl-build-$${arch} 2>/dev/null | grep -q user.bedrock.show_boot; then \
@@ -1058,25 +1068,33 @@ release-build-environment:
 		fi; \
 		strat -r "brl-build-$${arch}" apt -y install autoconf autopoint automake bison build-essential fakeroot gpg libtool meson ninja-build pkg-config rsync udev; \
 	done
-	# Debian does not offer i386, i486, or i586.  Gentoo does, either directly or by re-compiling.
-	for arch in i386 i486 i586; do \
+	# Debian does not offer architectures listed below.  Gentoo does, either directly or by re-compiling.
+	for arch in i386 i486 i586 ppc ppc64; do \
 		if ! /bedrock/libexec/getfattr -d /bedrock/strata/brl-build-$${arch} 2>/dev/null | grep -q user.bedrock.show_boot; then \
 			brl remove -d "brl-build-$${arch}" 2>/dev/null || true; \
-			brl fetch -n "brl-build-$${arch}" -a "i486" -s gentoo; \
-			brl show -b "brl-build-$${arch}"; \
+			if echo "$${arch}" | grep -q 'i.86'; then \
+				brl fetch -n "brl-build-$${arch}" -a "i486" -s gentoo; \
+			else \
+				brl fetch -n "brl-build-$${arch}" -a "$${arch}" -s gentoo; \
+			fi; \
 		fi; \
+		# qemu does not seem to support portage pid-standbox \
+		# https://bugs.launchpad.net/qemu/+bug/1829459 \
+		echo 'FEATURES="-pid-sandbox"' >> /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf; \
 		for pkg in dev-util/meson dev-util/ninja fakeroot; do \
 			if ! grep -q "$${pkg}" /bedrock/strata/brl-build-$${arch}/var/lib/portage/world; then \
 				strat -r brl-build-$${arch} emerge "$${pkg}"; \
 			fi; \
 		done; \
-		# i386 and i486 both need -latomic
-		# https://stackoverflow.com/questions/35884832/compile-error-undefined-reference-to-atomic-fetch-add-4/47498167#47498167
+		# i386 and i486 both need -latomic \
+		# https://stackoverflow.com/questions/35884832/compile-error-undefined-reference-to-atomic-fetch-add-4/47498167#47498167 \
 		if [ "$${arch}" = "i386" ] || [ "$${arch}" = "i486" ] && ! grep -q -- "-latomic" /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf; then \
 			sed "s/COMMON_FLAGS=\"/COMMON_FLAGS=\"-latomic /g" /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf > /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf-new; \
 			mv /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf-new /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf; \
 		fi; \
-		if [ "$${arch}" = i486 ]; then \
+		# Remaining commands are to recompile to target architecture \
+		if [ "$${arch}" != i386 ] && [ "$${arch}" != "i586" ] && [ "$${arch}" != "i686" ]; then \
+			brl show -b "brl-build-$${arch}"; \
 			continue; \
 		fi; \
 		if grep -q "i486" /bedrock/strata/brl-build-$${arch}/etc/portage/make.conf; then \
@@ -1108,6 +1126,7 @@ release-build-environment:
 			strat -r brl-build-$${arch} emerge --emptytree @world; \
 			touch /bedrock/strata/brl-build-$${arch}/.brl-build-world; \
 		fi; \
+		brl show -b "brl-build-$${arch}"; \
 	done
 	@ printf "\e[32m\n"
 	@ echo "===================================="
@@ -1115,96 +1134,101 @@ release-build-environment:
 	@ echo "===================================="
 	@ printf "\e[39m\n"
 
-# Make job coordination gets confused across `strat`, and thus a job count must
-# be explicitly set for each item here.  This limits parallelization
-# opportunities.  If your system has more cores than then number of installers
-# being built, set SUBJOBS to the per-ISA invocation of make its own job count.
-# For example, if you have a 24 thread CPU, you can run:
+# Parallelizing release builds fails for a reason that has yet to be debugged.
+# Assume they're made in series.  Do not create a target that parallelizes them.
 #
-#     make -j8 SUBJOBS=3 GPGID=... release
-#
-# to make eight installers at a time with a max of three jobs for each.
-#
-# Some resources are arch-agnostic and shared across implementations.  Make
-# everything dependent on those so they only run once.
-SUBJOBS=1
+# Additionally, separately, note that the job server does not work across `strat`.
 release-aarch64: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-aarch64 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-aarch64 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-aarch64-linux-gnu-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-aarch64-linux-gnu-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-aarch64-linux-gnu-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-aarch64.sh
 release-armv7hl: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-armv7hl make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-armv7hl make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabihf-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabihf-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabihf-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-armv7hl.sh
 release-armv7l: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-armv7l make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-armv7l make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabi-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabi-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabi-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-armv7l.sh
 release-i386: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i386 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-i386 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		bedrock-linux-$(BEDROCK_VERSION)-i386.sh
 release-i486: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i486 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-i486 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		bedrock-linux-$(BEDROCK_VERSION)-i486.sh
 release-i586: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i586 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-i586 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		bedrock-linux-$(BEDROCK_VERSION)-i586.sh
 release-i686: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i686 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-i686 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		bedrock-linux-$(BEDROCK_VERSION)-i686.sh
 release-mips: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-mips make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-mips make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips-linux-gnu-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips-linux-gnu-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips-linux-gnu-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-mips.sh
 release-mipsel: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-mipsel make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-mipsel make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mipsel-linux-gnu-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mipsel-linux-gnu-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mipsel-linux-gnu-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-mipsel.sh
 release-mips64el: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-mips64el make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-mips64el make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips64el-linux-gnuabi64-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips64el-linux-gnuabi64-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips64el-linux-gnuabi64-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-mips64el.sh
+release-ppc: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-ppc make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc-linux-gnu-ar' \
+		CC='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc-linux-gnu-gcc' \
+		LD='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc-linux-gnu-ld' \
+		bedrock-linux-$(BEDROCK_VERSION)-ppc.sh
+release-ppc64: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-ppc64 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64-linux-gnu-ar' \
+		CC='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64-linux-gnu-gcc' \
+		LD='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64-linux-gnu-ld' \
+		bedrock-linux-$(BEDROCK_VERSION)-ppc64.sh
 release-ppc64le: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-ppc64le make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-ppc64le make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ar' \
 		CC='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-gcc' \
 		LD='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-ppc64le.sh
 release-s390x: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-s390x make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-s390x make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-s390x-linux-gnu-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-s390x-linux-gnu-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-s390x-linux-gnu-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-s390x.sh
 release-x86_64: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-x86_64 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-x86_64 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		bedrock-linux-$(BEDROCK_VERSION)-x86_64.sh
-release: \
-	release-aarch64 \
-	release-armv7hl \
-	release-armv7l \
-	release-i386 \
-	release-i486 \
-	release-i586 \
-	release-i686 \
-	release-mips \
-	release-mipsel \
-	release-mips64el \
-	release-ppc64le \
-	release-s390x \
-	release-x86_64
+release:
+	$(MAKE) release-aarch64
+	$(MAKE) release-armv7hl
+	$(MAKE) release-armv7l
+	$(MAKE) release-i386
+	$(MAKE) release-i486
+	$(MAKE) release-i586
+	$(MAKE) release-i686
+	$(MAKE) release-mips
+	$(MAKE) release-mips64el
+	$(MAKE) release-mipsel
+	$(MAKE) release-ppc
+	$(MAKE) release-ppc64
+	$(MAKE) release-ppc64le
+	$(MAKE) release-s390x
+	$(MAKE) release-x86_64
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-aarch64.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-armv7hl.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-armv7l.sh ]
@@ -1215,6 +1239,8 @@ release: \
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-mips.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-mips64el.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-mipsel.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-ppc.sh ]
+	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-ppc64.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-ppc64le.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-s390x.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-x86_64.sh ]

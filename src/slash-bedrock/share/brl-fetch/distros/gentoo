@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -33,6 +33,8 @@ brl_arch_to_distro() {
 	case "${1}" in
 	"armv7hl") echo "armv7a_hardfp" ;;
 	"armv7l") echo "armv7a" ;;
+	"ppc") echo "ppc" ;;
+	"ppc64") echo "ppc64" ;;
 	"ppc64le") echo "ppc64le" ;;
 	"s390x") echo "s3960x" ;;
 	"i486") echo "i486" ;;
@@ -46,6 +48,8 @@ list_architectures() {
 	cat <<EOF
 armv7hl
 armv7l
+ppc
+ppc64
 ppc64le
 s390x
 i486

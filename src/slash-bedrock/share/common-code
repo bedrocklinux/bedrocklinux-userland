@@ -653,6 +653,8 @@ armv7l
 mips
 mipsel
 mips64el
+ppc
+ppc64
 ppc64le
 s390x
 i386
@@ -679,7 +681,9 @@ standardize_architecture() {
 	mips | mipsbe | mipseb) echo "mips" ;;
 	mipsel | mipsle) echo "mipsel" ;;
 	mips64el | mips64le) echo "mips64el" ;;
-	ppc64el | ppc64le) echo "ppc64le" ;;
+	ppc | ppc32 | powerpc | powerpc32) echo "ppc" ;;
+	ppc64 | powerpc64) echo "ppc64" ;;
+	ppc64el | ppc64le | powerpc64el | powerpc64le) echo "ppc64le" ;;
 	s390x) echo "s390x" ;;
 	amd64 | x86_64) echo "x86_64" ;;
 	esac
@@ -708,6 +712,8 @@ check_arch_supported_natively() {
 	armv7hl:armv7l) return ;;
 	# Not technically true, but binfmt does not differentiate
 	armv7l:armv7hl) return ;;
+	ppc64:ppc) return ;;
+	ppc64le:ppc) return ;;
 	x86_64:i386) return ;;
 	x86_64:i486) return ;;
 	x86_64:i586) return ;;
@@ -715,7 +721,6 @@ check_arch_supported_natively() {
 	esac
 
 	false
-	return
 }
 
 qemu_binary_for_arch() {
@@ -730,6 +735,8 @@ qemu_binary_for_arch() {
 	mips) echo "qemu-mips-static" ;;
 	mipsel) echo "qemu-mipsel-static" ;;
 	mips64el) echo "qemu-mips64el-static" ;;
+	ppc) echo "qemu-ppc-static" ;;
+	ppc64) echo "qemu-ppc64-static" ;;
 	ppc64le) echo "qemu-ppc64le-static" ;;
 	s390x) echo "qemu-s390x-static" ;;
 	x86_64) echo "qemu-x86_64-static" ;;
@@ -792,6 +799,16 @@ setup_binfmt_misc() {
 		name="qemu-mips64el"
 		sum="ed9513fa110eed9085cf21a789a55e047f660237"
 		reg=':qemu-mips64el:M:0:\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x08\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xfe\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-mips64el-static:OC'
+		;;
+	ppc)
+		name="qemu-ppc"
+		sum="da30ac101e6b9b5abeb975542c4420ad4e1a38a9"
+		reg=':qemu-ppc:M:0:\x7fELF\x01\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x14:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff:/usr/bin/qemu-ppc-static:OC'
+		;;
+	ppc64)
+		name="qemu-ppc64"
+		sum="92eedc92be15ada7ee3d5703253f4e7744021a73"
+		reg=':qemu-ppc64:M:0:\x7fELF\x02\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x15:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff:/usr/bin/qemu-ppc64-static:OC'
 		;;
 	ppc64le)
 		name="qemu-ppc64le"
