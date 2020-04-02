@@ -1,3 +1,9 @@
+# 0.7.14beta10
+
+- Add ppc and ppc64 support
+- Fix TryExec handling in crossfs ini filter
+- Fix brl-fetch debian sid support
+
 # 0.7.14beta9
 
 - Added sanity check against GRUB+BTRFS/ZFS issue

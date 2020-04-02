@@ -546,6 +546,10 @@ update() {
 		notice "Populate new [pmm] section of bedrock.conf \`user_interface\` field then run \`brl apply\` as root to create pmm front-end."
 	fi
 
+	if ver_cmp_first_newer "0.7.14beta10" "${current_version}"; then
+		new_crossfs=true
+	fi
+
 	if "${new_crossfs}"; then
 		notice "Updated crossfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
 	fi

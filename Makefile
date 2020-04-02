@@ -131,7 +131,7 @@
 #
 #     make check
 
-BEDROCK_VERSION=0.7.14beta9
+BEDROCK_VERSION=0.7.14beta10
 CODENAME=Poki
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | awk 'NR==2')
@@ -1137,81 +1137,82 @@ release-build-environment:
 # Parallelizing release builds fails for a reason that has yet to be debugged.
 # Assume they're made in series.  Do not create a target that parallelizes them.
 #
-# Additionally, separately, note that the job server does not work across `strat`.
+# Additionally, separately, note that the job server does not work across
+# `strat`.  To pass a job count, populate SUBJOBS.
 release-aarch64: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-aarch64 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-aarch64 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-aarch64-linux-gnu-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-aarch64-linux-gnu-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-aarch64-linux-gnu-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-aarch64.sh
 release-armv7hl: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-armv7hl make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-armv7hl make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabihf-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabihf-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabihf-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-armv7hl.sh
 release-armv7l: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-armv7l make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-armv7l make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabi-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabi-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-arm-linux-gnueabi-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-armv7l.sh
 release-i386: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i386 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-i386 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		bedrock-linux-$(BEDROCK_VERSION)-i386.sh
 release-i486: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i486 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-i486 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		bedrock-linux-$(BEDROCK_VERSION)-i486.sh
 release-i586: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i586 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-i586 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		bedrock-linux-$(BEDROCK_VERSION)-i586.sh
 release-i686: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i686 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-i686 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		bedrock-linux-$(BEDROCK_VERSION)-i686.sh
 release-mips: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-mips make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-mips make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips-linux-gnu-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips-linux-gnu-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips-linux-gnu-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-mips.sh
 release-mipsel: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-mipsel make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-mipsel make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mipsel-linux-gnu-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mipsel-linux-gnu-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mipsel-linux-gnu-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-mipsel.sh
 release-mips64el: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-mips64el make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-mips64el make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips64el-linux-gnuabi64-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips64el-linux-gnuabi64-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-mips64el-linux-gnuabi64-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-mips64el.sh
 release-ppc: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-ppc make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-ppc make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc-linux-gnu-ar' \
 		CC='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc-linux-gnu-gcc' \
 		LD='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc-linux-gnu-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-ppc.sh
 release-ppc64: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-ppc64 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-ppc64 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64-linux-gnu-ar' \
 		CC='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64-linux-gnu-gcc' \
 		LD='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64-linux-gnu-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-ppc64.sh
 release-ppc64le: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-ppc64le make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-ppc64le make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ar' \
 		CC='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-gcc' \
 		LD='/bedrock/strata/brl-build-cross-ppc/usr/local/bin/brl-powerpc64le-linux-gnu-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-ppc64le.sh
 release-s390x: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-s390x make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-s390x make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-s390x-linux-gnu-ar' \
 		CC='/bedrock/strata/brl-build-cross/usr/local/bin/brl-s390x-linux-gnu-gcc' \
 		LD='/bedrock/strata/brl-build-cross/usr/local/bin/brl-s390x-linux-gnu-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-s390x.sh
 release-x86_64: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-x86_64 make -j CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
+	strat -r brl-build-x86_64 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		bedrock-linux-$(BEDROCK_VERSION)-x86_64.sh
 release:
 	$(MAKE) release-aarch64
