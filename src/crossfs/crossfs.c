@@ -110,13 +110,6 @@
 #define STRAT_PATH_LEN strlen(STRAT_PATH)
 
 /*
- * If XDG .desktop TryExec= values are full paths, they must be adjusted to
- * their explicit path to work cross-stratum.
- */
-#define TRY_EXEC "TryExec="
-#define TRY_EXEC_LEN strlen(TRY_EXEC)
-
-/*
  * Bouncer, like strat, redirects to the appropriate stratum's instance of an
  * executable.  It differs from strat in that it determines which executable by
  * looking at its extended filesystem attributes rather than its arguments.
@@ -274,14 +267,9 @@ enum filter {
 	 */
 	FILTER_BIN_RESTRICT,
 	/*
-	 * Files are expected to be in ini-format.
-	 *
-	 * Wrap Exec[Start|Stop|Reload]= ini key-value pairs with strat.
-	 *
-	 * For example:
-	 *     Exec=/usr/bin/vim
-	 * becomes
-	 *     Exec=/bedrock/bin/strat opensuse /usr/bin/vim
+	 * Files are expected to be in ini-format.  Performs various
+	 * transformations such as injecting calls to strat or stratum root
+	 * paths.
 	 */
 	FILTER_INI,
 	/*
@@ -302,7 +290,15 @@ const char *const filter_str[] = {
 	"pass",
 };
 
-const char *const ini_exec_str[] = {
+/*
+ * Wrap ini values with strat calls.
+ *
+ * For example:
+ *     Exec=/usr/bin/vim
+ * becomes
+ *     Exec=/bedrock/bin/strat opensuse /usr/bin/vim
+ */
+const char *const ini_inject_strat_str[] = {
 	"Exec=",
 	"ExecReload=",
 	"ExecStart=",
@@ -310,14 +306,9 @@ const char *const ini_exec_str[] = {
 	"ExecStartPre=",
 	"ExecStop=",
 	"ExecStopPost=",
-	/*
-	 * "TryExec=" needs to have the explicit path prefixed.  This is
-	 * different from the rest of the list which prefix a call to strat.
-	 * "TryExec=" should not be included here.
-	 */
 };
 
-const size_t ini_exec_len[] = {
+const size_t ini_inject_strat_len[] = {
 	5,
 	11,
 	10,
@@ -325,6 +316,25 @@ const size_t ini_exec_len[] = {
 	13,
 	9,
 	13,
+};
+
+/*
+ * Expand ini value absolute paths to stratum paths.  Ignores non-absolute path
+ * values.
+ *
+ * For example:
+ *     TryExec=/usr/bin/vim
+ * becomes
+ *     TryExec=/bedrock/strata/opensuse/usr/bin/vim
+ */
+const char *const ini_expand_path_str[] = {
+	"TryExec=",
+	"Icon=",
+};
+
+const size_t ini_expand_path_len[] = {
+	8,
+	5,
 };
 
 struct stratum {
@@ -1565,13 +1575,14 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 
 		char line[PATH_MAX];
 		while (fgets(line, sizeof(line), fp) != NULL) {
-			for (size_t i = 0; i < ARRAY_LEN(ini_exec_str); i++) {
+			for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
+				i++) {
 				/*
-				 * No ini_exec_len will exceed line's PATH_MAX,
+				 * No ini_inject_strat_len will exceed line's PATH_MAX,
 				 * this should be safe.
 				 */
-				if (strncmp(line, ini_exec_str[i],
-						ini_exec_len[i]) != 0) {
+				if (strncmp(line, ini_inject_strat_str[i],
+						ini_inject_strat_len[i]) != 0) {
 					continue;
 				}
 				stbuf->st_size += STRAT_PATH_LEN;
@@ -1580,8 +1591,14 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 				stbuf->st_size += strlen(" ");
 				break;
 			}
-			if (strncmp(line, TRY_EXEC, TRY_EXEC_LEN) == 0 &&
-				line[TRY_EXEC_LEN] == '/') {
+			for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
+				i++) {
+				if (strncmp(line, ini_expand_path_str[i],
+						ini_expand_path_len[i]) != 0
+					|| line[ini_expand_path_len[i]] !=
+					'/') {
+					continue;
+				}
 				stbuf->st_size += STRATA_ROOT_LEN;
 				stbuf->st_size += deref(back)->name_len;
 			}
@@ -1910,37 +1927,46 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 		size_t off = offset;
 		while (fgets(line, sizeof(line), fp) != NULL) {
 			int found = 0;
-			for (size_t i = 0; i < ARRAY_LEN(ini_exec_str); i++) {
-				if (strncmp(line, ini_exec_str[i],
-						ini_exec_len[i]) != 0) {
+			for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
+				i++) {
+				if (strncmp(line, ini_inject_strat_str[i],
+						ini_inject_strat_len[i]) != 0) {
 					continue;
 				}
-				strcatoff(buf, ini_exec_str[i], ini_exec_len[i],
-					&off, &wrote, size);
-				strcatoff(buf, STRAT_PATH, STRAT_PATH_LEN,
-					&off, &wrote, size);
+				strcatoff(buf, ini_inject_strat_str[i],
+					ini_inject_strat_len[i], &off, &wrote,
+					size);
+				strcatoff(buf, STRAT_PATH, STRAT_PATH_LEN, &off,
+					&wrote, size);
 				strcatoff(buf, " ", 1, &off, &wrote, size);
 				strcatoff(buf, deref(back)->name,
 					deref(back)->name_len, &off, &wrote,
 					size);
 				strcatoff(buf, " ", 1, &off, &wrote, size);
-				strcatoff(buf, line + ini_exec_len[i],
-					strlen(line + ini_exec_len[i]),
+				strcatoff(buf, line + ini_inject_strat_len[i],
+					strlen(line + ini_inject_strat_len[i]),
 					&off, &wrote, size);
 				found = 1;
 				break;
 			}
-			if (strncmp(line, TRY_EXEC, TRY_EXEC_LEN) == 0 &&
-				line[TRY_EXEC_LEN] == '/') {
-				strcatoff(buf, TRY_EXEC, TRY_EXEC_LEN,
-					&off, &wrote, size);
+			for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
+				i++) {
+				if (strncmp(line, ini_expand_path_str[i],
+						ini_expand_path_len[i]) != 0
+					|| line[ini_expand_path_len[i]] !=
+					'/') {
+					continue;
+				}
+				strcatoff(buf, ini_expand_path_str[i],
+					ini_expand_path_len[i], &off, &wrote,
+					size);
 				strcatoff(buf, STRATA_ROOT, STRATA_ROOT_LEN,
 					&off, &wrote, size);
 				strcatoff(buf, deref(back)->name,
 					deref(back)->name_len, &off, &wrote,
 					size);
-				strcatoff(buf, line + TRY_EXEC_LEN,
-					strlen(line + TRY_EXEC_LEN),
+				strcatoff(buf, line + ini_expand_path_len[i],
+					strlen(line + ini_expand_path_len[i]),
 					&off, &wrote, size);
 				found = 1;
 			}
