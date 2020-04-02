@@ -85,7 +85,15 @@ list_releases() {
 }
 
 fetch() {
-	bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv libapt-pkg5.0 debian-archive-keyring"
+	bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv debian-archive-keyring"
+	case "${target_release}" in
+	stretch | buster)
+		bootstrap_deps="${bootstrap_deps} libapt-pkg5.0"
+		;;
+	*)
+		bootstrap_deps="${bootstrap_deps} libapt-pkg6.0"
+		;;
+	esac
 
 	step "Downloading package information database"
 	wget -O "${bootstrap_dir}/Packages.gz" "${target_mirror}/dists/${target_release}/main/binary-${distro_arch}/Packages.gz"
@@ -117,7 +125,7 @@ fetch() {
 	set -o pipefail
 
 	step "Configuring"
-	if [ "${target_release}" != "sid" ] && [ "${target_release}" != "unstable" ]; then
+	if [ "${target_release}" != "sid" ] && [ "${target_release}" != "unstable" ] && [ "${target_release}" != "testing" ]; then
 		echo "deb http://security.debian.org/ ${target_release}/updates main" >>"${target_dir}/etc/apt/sources.list"
 	fi
 	set +o pipefail
