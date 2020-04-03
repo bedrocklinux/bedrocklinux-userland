@@ -1134,11 +1134,29 @@ release-build-environment:
 	@ echo "===================================="
 	@ printf "\e[39m\n"
 
-# Parallelizing release builds fails for a reason that has yet to be debugged.
-# Assume they're made in series.  Do not create a target that parallelizes them.
+# Make job coordination gets confused across `strat`, and thus a job count must
+# be explicitly set for each item here.  This limits parallelization
+# opportunities.  If your system has more cores than then number of installers
+# being built, set SUBJOBS to the per-ISA invocation of make its own job count.
+# For example, if you have a 24 thread CPU, you can run:
 #
-# Additionally, separately, note that the job server does not work across
-# `strat`.  To pass a job count, populate SUBJOBS.
+#     make -j8 SUBJOBS=3 GPGID=... release
+#
+# to make eight installers at a time with a max of three jobs for each.
+#
+# At the time of writing, there are five items which can be compiled natively
+# on x8_64 which take a relatively negligible amount of time, and ten items
+# that have to be run through qemu and compose the majority of the build time.
+# Consider optimizing the job distribution with this in mind.  For example, a
+# 24 thread CPU may get better build times if slightly over registered to
+#
+#     make -j10 SUBJOBS=3 GPGID=... release
+#
+# than with the more natural 8-by-3 split.
+#
+# Some resources are arch-agnostic and shared across implementations.  Make
+# everything dependent on those so they only run once.
+SUBJOBS=1
 release-aarch64: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-aarch64 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross/usr/local/bin/brl-aarch64-linux-gnu-ar' \
@@ -1214,22 +1232,22 @@ release-s390x: fetch_vendor_sources build/all/busybox/bedrock-config
 release-x86_64: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-x86_64 make -j$(SUBJOBS) CFLAGS='$(CFLAGS) $(RELEASE_CFLAGS)' GPGID='$(GPGID)' \
 		bedrock-linux-$(BEDROCK_VERSION)-x86_64.sh
-release:
-	$(MAKE) release-aarch64
-	$(MAKE) release-armv7hl
-	$(MAKE) release-armv7l
-	$(MAKE) release-i386
-	$(MAKE) release-i486
-	$(MAKE) release-i586
-	$(MAKE) release-i686
-	$(MAKE) release-mips
-	$(MAKE) release-mips64el
-	$(MAKE) release-mipsel
-	$(MAKE) release-ppc
-	$(MAKE) release-ppc64
-	$(MAKE) release-ppc64le
-	$(MAKE) release-s390x
-	$(MAKE) release-x86_64
+release: \
+	release-aarch64 \
+	release-armv7hl \
+	release-armv7l \
+	release-i386 \
+	release-i486 \
+	release-i586 \
+	release-i686 \
+	release-mips \
+	release-mips64el \
+	release-mipsel \
+	release-ppc \
+	release-ppc64 \
+	release-ppc64le \
+	release-s390x \
+	release-x86_64
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-aarch64.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-armv7hl.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-armv7l.sh ]
