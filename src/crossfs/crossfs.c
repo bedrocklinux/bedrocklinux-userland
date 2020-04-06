@@ -328,13 +328,15 @@ const size_t ini_inject_strat_len[] = {
  *     TryExec=/bedrock/strata/opensuse/usr/bin/vim
  */
 const char *const ini_expand_path_str[] = {
-	"TryExec=",
 	"Icon=",
+	"Path=",
+	"TryExec=",
 };
 
 const size_t ini_expand_path_len[] = {
-	8,
 	5,
+	5,
+	8,
 };
 
 struct stratum {

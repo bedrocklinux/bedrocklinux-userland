@@ -1,3 +1,7 @@
+# 0.7.14beta11
+
+- Fix Path handling in crossfs ini filter
+
 # 0.7.14beta10
 
 - Add ppc and ppc64 support
