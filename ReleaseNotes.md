@@ -1,3 +1,7 @@
+# 0.7.14beta12
+
+- Add pmm yay support
+
 # 0.7.14beta11
 
 - Fix Path handling in crossfs ini filter

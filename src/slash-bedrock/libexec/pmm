@@ -61,6 +61,18 @@ color[\"strat\"] = \"${color_strat}\"
 color[\"sub\"]   = \"${color_sub}\"
 color[\"warn\"]  = \"${color_warn}\""
 
+# Check if running as root user
+if [ "$(id -u)" -eq 0 ]; then
+	initialize_awk_variables="${initialize_awk_variables}
+am_root=1"
+fi
+
+#
+# Gather unprivileged user
+#
+initialize_awk_variables="${initialize_awk_variables}
+unprivileged_user=\"$(cfg_value "pmm" "unprivileged-user" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//")\""
+
 #
 # Check if warnings are desired when skipping package managers.
 #
@@ -130,10 +142,6 @@ cfg_ignore_non_system_package_managers=1"
 	if [ "${cfg_cache_package_manager_list}" = "true" ]; then
 		initialize_awk_variables="${initialize_awk_variables}
 cfg_cache_package_manager_list=1"
-		if [ "$(id -u)" -eq 0 ]; then
-			initialize_awk_variables="${initialize_awk_variables}
-am_root=1"
-		fi
 	fi
 fi
 
@@ -675,7 +683,7 @@ function generate_pairs(_return, unfiltered_pairs,
 		notice("Run as root to generate package manager cache")
 	}
 
-	# Get ordered list of everything to consider
+	# Get ordered list of everything to consider.  Duplicates will be filtered out later.
 	for (i = 1; i in cfg_pmm_priority; i++) {
 		partial_considerations[++partial_consideration_count] = cfg_pmm_priority[i]
 	}
@@ -707,9 +715,11 @@ function generate_pairs(_return, unfiltered_pairs,
 					considerations[++consideration_count] = pair "" i
 				}
 			}
-			for (i in package_manager_canary_executables) {
-				if (!(i in system_package_managers)) {
-					considerations[++consideration_count] = pair "" i
+			if (!cfg_ignore_non_system_package_managers) {
+				for (i in package_manager_canary_executables) {
+					if (!(i in system_package_managers)) {
+						considerations[++consideration_count] = pair "" i
+					}
 				}
 			}
 		} else {
@@ -717,7 +727,8 @@ function generate_pairs(_return, unfiltered_pairs,
 		}
 	}
 
-	# Build final (unfiltered) pair list.  Remove disallowed and repeated items.
+	# Build final (unfiltered) pair list.  Remove repeated items and items
+	# which do not exist on disk.
 	for (c = 1; c in considerations; c++) {
 		pair = considerations[c]
 		split(pair, a, ":")
@@ -767,6 +778,11 @@ function prep_shell_environment(stratum, package_manager, items,
 		_local, output, f, i, a, count) {
 	output = "export stratum=\""shell_escape(stratum)"\";"
 	output = output " export package_manager=\""shell_escape(package_manager)"\";"
+	if (am_root && unprivileged_user) {
+		output = output " export unprivileged_user=\"sudo -u " unprivileged_user "\";"
+	} else {
+		output = output " export unprivileged_user=\"\";"
+	}
 	output = output " export flags=\""
 	count = 0
 	for (f in global_flags) {
