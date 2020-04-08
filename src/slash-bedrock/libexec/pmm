@@ -608,7 +608,7 @@ function cache_package_db(stratum, package_manager,
 	notice("Caching "stratum":"package_manager" package database")
 
 	split("", empty_list, "")
-	env = prep_shell_environment(stratum, package_manager, empty_list, empty_list)
+	env = prep_shell_environment(stratum, package_manager, empty_list, "")
 	write_cmd = env " exec /bedrock/libexec/busybox sh -c \". /bedrock/share/common-code; pmm_cache_package_manager_db\""
 	read_cmd = env""implementations[package_manager, "cache-package-db"]
 
@@ -671,7 +671,7 @@ function cache_print_package_version(stratum, package_manager, package,
 }
 
 function generate_pairs(_return, unfiltered_pairs,
-		_local, pair_count, partial_considerations, partial_consideration_count, considerations, consideration_count, seen, p, i, s, c, a, pair, package_manager) {
+		_local, pair_count, partial_considerations, partial_consideration_count, considerations, consideration_count, seen, p, i, j, s, c, a, b, skip, pair, package_manager) {
 	# If already cached, skip operation
 	if (1 in unfiltered_pairs) {
 		return
@@ -727,23 +727,41 @@ function generate_pairs(_return, unfiltered_pairs,
 		}
 	}
 
-	# Build final (unfiltered) pair list.  Remove repeated items and items
-	# which do not exist on disk.
+	# Build final (unfiltered) pair list.
 	for (c = 1; c in considerations; c++) {
 		pair = considerations[c]
-		split(pair, a, ":")
-		package_manager = a[2]
 
-		if (cfg_ignore_non_system_package_managers && !(package_manager in system_package_managers)) {
-			continue
-		}
+		# remove repeated entries
 		if (pair in seen) {
 			continue
 		}
 		seen[pair]
+
+		# remove entries that do not exist on disk
 		if (!pair_exists(pair)) {
 			continue
 		}
+
+		# remove superseded entries
+		split(pair, a, ":");
+		skip = 0;
+		for (p = 1; p <= pair_count; p++) {
+			split(unfiltered_pairs[p], b, ":");
+			if (a[1] == b[1] && supersedes[b[2]] == a[2]) {
+				skip = 1
+				break
+			} else if (a[1] == b[1] && supersedes[a[2]] == b[2]) {
+				for (j = p; j <= pair_count; j++) {
+					unfiltered_pairs[j] = unfiltered_pairs[j+1]
+				}
+				pair_count--
+				break
+			}
+		}
+		if (skip) {
+			continue
+		}
+
 		unfiltered_pairs[++pair_count] = pair
 	}
 
@@ -774,15 +792,21 @@ function shell_escape(string) {
 	return string
 }
 
-function prep_shell_environment(stratum, package_manager, items,
+function prep_shell_environment(stratum, package_manager, items, cmd,
 		_local, output, f, i, a, count) {
 	output = "export stratum=\""shell_escape(stratum)"\";"
 	output = output " export package_manager=\""shell_escape(package_manager)"\";"
-	if (am_root && unprivileged_user) {
-		output = output " export unprivileged_user=\"sudo -u " unprivileged_user "\";"
-	} else {
+
+	if (!am_root || cmd !~ /[$]\{unprivileged_user\}/) {
 		output = output " export unprivileged_user=\"\";"
+	} else if (unprivileged_user == "") {
+		abort("/bedrock/etc/bedrock.conf [pmm]/unprivileged-user is unset but `"cmd"` requires it.")
+	} else if (unprivileged_user ~ /^[$]/ && ENVIRON[substr(unprivileged_user,2)] == "") {
+		abort("/bedrock/etc/bedrock.conf [pmm]/unprivileged-user is set to "unprivileged_user" but that envvar is empty/unset.\nEither populate envvar or change bedrock.conf [pmm]/unprivileged-user to run `"cmd"`")
+	} else {
+		output = output " export unprivileged_user=\"sudo -u " unprivileged_user "\";"
 	}
+
 	output = output " export flags=\""
 	count = 0
 	for (f in global_flags) {
@@ -807,7 +831,7 @@ function show_cmd(cmd, env,
 		multiline = 1
 		gsub(/\n.*/, "", show)
 	}
-	# If there are no flags, the evaluated line will have two
+	# If some variables are empty, the evaluated line will have two
 	# sequential spaces.  For example:
 	#
 	#     strat -r ${stratum} apt ${flags} install ${items}
@@ -819,6 +843,9 @@ function show_cmd(cmd, env,
 	# This is a dirty hack to remedy the issue.
 	if (env ~ /export flags=""/) {
 		gsub(/ \$\{flags\}/,"", show)
+	}
+	if (env ~ /export unprivileged_user=""/) {
+		gsub(/\$\{unprivileged_user\} /,"", show)
 	}
 	# Escape everything except shell variables to ensure ${stratum} et al
 	# are expanded.
@@ -839,7 +866,7 @@ function show_cmd(cmd, env,
 }
 
 function run_shell(cmd, stratum, package_manager, items, show) {
-	env = prep_shell_environment(stratum, package_manager, items)
+	env = prep_shell_environment(stratum, package_manager, items, cmd)
 	if (show && (("confirm" in global_flags) || (!("quiet" in global_flags)))) {
 		show_cmd(cmd, env)
 		if ("confirm" in global_flags) {
@@ -852,7 +879,7 @@ function run_shell(cmd, stratum, package_manager, items, show) {
 function get_shell_output(cmd, stratum, package_manager, items, show,
 		_return, output,
 		_local, output_count) {
-	env = prep_shell_environment(stratum, package_manager, items)
+	env = prep_shell_environment(stratum, package_manager, items, cmd)
 	if (show && (!("quiet" in global_flags))) {
 		show_cmd(cmd, env)
 		if ("confirm" in global_flags) {
