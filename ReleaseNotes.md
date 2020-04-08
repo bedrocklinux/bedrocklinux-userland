@@ -1,3 +1,7 @@
+# 0.7.14beta13
+
+- Improve pmm handling of strata with both pacman and yay
+
 # 0.7.14beta12
 
 - Add pmm yay support
