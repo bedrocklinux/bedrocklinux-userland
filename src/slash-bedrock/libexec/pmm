@@ -608,14 +608,14 @@ function cache_package_db(stratum, package_manager,
 	notice("Caching "stratum":"package_manager" package database")
 
 	split("", empty_list, "")
-	env = prep_shell_environment(stratum, package_manager, empty_list, "")
+	read_cmd = implementations[package_manager, "cache-package-db"]
+	env = prep_shell_environment(stratum, package_manager, empty_list, read_cmd)
 	write_cmd = env " exec /bedrock/libexec/busybox sh -c \". /bedrock/share/common-code; pmm_cache_package_manager_db\""
-	read_cmd = env""implementations[package_manager, "cache-package-db"]
 
-	while ((read_cmd | getline) > 0) {
+	while ((env""read_cmd | getline) > 0) {
 		print | write_cmd
 	}
-	close(read_cmd)
+	close(env""read_cmd)
 	close(write_cmd)
 }
 
