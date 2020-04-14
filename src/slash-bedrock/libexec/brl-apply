@@ -274,9 +274,9 @@ if "${need_shell_change}"; then
 fi
 
 # Setup pmm front-end.
-pmm_ui="$(cfg_value pmm user_interface)"
+pmm_ui="$(cfg_value pmm user-interface)"
 if [ "${pmm_ui}" = "" ]; then
-	notice "Set [pmm]/user_interface in bedrock.conf and run \`brl apply\` to update pmm front-end(s)"
+	notice "Set [pmm]/user-interface in bedrock.conf and run \`brl apply\` to update pmm front-end(s)"
 else
 	pmm_ui_files="$(/bedrock/libexec/pmm "${pmm_ui}" pmm --list-pmm-ui-files 2>/dev/null)"
 	# Create front-end files
