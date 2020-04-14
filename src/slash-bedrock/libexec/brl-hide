@@ -24,7 +24,7 @@ Options:
   ${color_cmd}-c${color_norm},${color_cmd} --cross  ${color_norm}do not include ${color_term}stratum${color_norm}'s files in ${color_file}/bedrock/cross${color_norm}
   ${color_cmd}-i${color_norm},${color_cmd} --init   ${color_norm}do not list ${color_term}stratum${color_norm}'s init options during boot
   ${color_cmd}-l${color_norm},${color_cmd} --list   ${color_norm}do not list with ${color_cmd}\`brl list\`${color_norm} without ${color_cmd}\`-i\`${color_norm} flag.
-  ${color_cmd}-p${color_norm},${color_cmd} --pmm    ${color_norm}do not consider for ${color_cmd}\`pmm\` operations${color_norm}
+  ${color_cmd}-p${color_norm},${color_cmd} --pmm    ${color_norm}do not consider for ${color_cmd}\`pmm\`${color_norm} operations
   ${color_cmd}-h${color_norm},${color_cmd} --help   ${color_norm}print this message
 
 Examples:
