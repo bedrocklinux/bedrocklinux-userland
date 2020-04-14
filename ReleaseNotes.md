@@ -1,73 +1,11 @@
-# 0.7.14beta13
-
-- Improve pmm handling of strata with both pacman and yay
-
-# 0.7.14beta12
-
-- Add pmm yay support
-
-# 0.7.14beta11
-
-- Fix Path handling in crossfs ini filter
-
-# 0.7.14beta10
+# 0.7.14
 
 - Add ppc and ppc64 support
-- Fix TryExec handling in crossfs ini filter
-- Fix brl-fetch debian sid support
-
-# 0.7.14beta9
-
-- Added sanity check against GRUB+BTRFS/ZFS issue
-- Fix brl-fetch centos, kiss, void, void-musl
-- Recover from bad bedrock.conf timezone values
-- pmm: respect bedrock.conf cache-package-database value
-- pmm: various pacman, portage fixes
-- pmm: warn if file-db utility is missing
-
-# 0.7.14beta8
-
-- Improve pmm output differentiation between --diff-world and --update-world*
-- pmm: fixed --diff-world pmm-hidden `<` vs `>` direction.
-- pmm: made --update-world single prompt
-- pmm: removed `-sync` suffix
-- pmm: swapped --diff-world order
-
-# 0.7.14beta7
-
-- pmm: diff-world propose removing non-pmm strata
-- pmm: have world ops respect assume-yes/no
-- pmm: remove xbps-pkgdb ${flags}
-
-# 0.7.14beta6
-
-- pmm: propose removing pmm-hidden and non-pmm lines from world file
-- pmm: handle world file without ending newline
-- pmm: do not shell escape `+` or `.`
-
-# 0.7.14beta5
-
-- Fix pmm apt list-installed-package-files
-
-# 0.7.14beta4
-
-- Fix pmm dnf, pacman, portage support
-- Fix pmm --help handling of --every
-- Fix pmm cache utilization
-
-# 0.7.14beta3
-
-- Fix various pmm configuration items
-- Prioritize brl-hide --pmm over bedrock.conf pmm configuration
-- Improve pmm error message
-
-# 0.7.14beta2
-
-- Fixed overzealous pmm runtime check
-
-# 0.7.14beta1
-
-- Added Package Manager Manager ("pmm")
+- Add Package Manager Manager ("pmm")
+- Add code to recover from bad bedrock.conf timezone values
+- Add sanity check against GRUB+BTRFS/ZFS issue
+- Fix Path, TryExec handling in crossfs ini filter
+- Fix brl-fetch centos, kiss, void, void-musl, debian sid,
 
 # 0.7.13
 
