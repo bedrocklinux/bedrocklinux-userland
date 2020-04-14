@@ -326,12 +326,15 @@ wish to remove a ${stratum}, first ${disable} it.
 
 $(rcmd "brl disable tut-alpine")
 $(rcmd "brl disable tut-void")
-$(rcmd "brl remove tut-alpine")
-$(rcmd "brl remove tut-void")
+
+If you know the target ${stratum} is ${enabled}, ${brl_remove} takes a
+${color_cmd}-d${color_norm} flag to ${disable} prior to removing:
+
+$(rcmd "brl remove -d tut-alpine")
 " "! brl list -v | grep -e \"^tut-alpine$\" -e \"^tut-void$\""
 
 section "Special ${strata}" "
-The ${stratum} currently providing PID 1 (the init) may not be disabled, as the
+The ${stratum} currently providing PID 1 (the init) may not be ${disabled}, as the
 Linux kernel does not respond well to PID 1 dying.  Given
 
 $(cmd "brl which 1")
