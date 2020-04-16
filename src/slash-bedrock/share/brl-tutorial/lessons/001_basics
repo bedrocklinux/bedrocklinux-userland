@@ -325,12 +325,12 @@ As a protective measure, ${strata} may not be removed while ${enabled}.  If you
 wish to remove a ${stratum}, first ${disable} it.
 
 $(rcmd "brl disable tut-alpine")
-$(rcmd "brl disable tut-void")
+$(rcmd "brl remove tut-alpine")
 
 If you know the target ${stratum} is ${enabled}, ${brl_remove} takes a
 ${color_cmd}-d${color_norm} flag to ${disable} prior to removing:
 
-$(rcmd "brl remove -d tut-alpine")
+$(rcmd "brl remove -d tut-void")
 " "! brl list -v | grep -e \"^tut-alpine$\" -e \"^tut-void$\""
 
 section "Special ${strata}" "
