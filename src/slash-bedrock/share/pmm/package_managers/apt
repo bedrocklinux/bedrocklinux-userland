@@ -123,7 +123,7 @@ implementations["apt", "which-packages-provide-file"]  = "strat -r ${stratum} ap
 # Internal pmm operations.
 #
 implementations["apt", "is-package-installed"]               = "strat -r ${stratum} dpkg -l ${items} 2>/dev/null | grep -q '^ii'"
-implementations["apt", "is-package-available"]               = "strat -r ${stratum} apt-cache show ${items} >/dev/null 2>&1"
+implementations["apt", "is-package-available"]               = "strat -r ${stratum} apt-cache show ${items} 2>/dev/null | grep -q '^Package:'"
 implementations["apt", "is-file-db-available"]               = "strat -r ${stratum} dpkg -l apt-file 2>/dev/null | grep -q '^ii'"
 implementations["apt", "print-file-db-install-instructions"] = "echo \"Install apt-file in ${stratum}:apt to perform file-db operations\""
 implementations["apt", "print-package-version"]              = "strat -r ${stratum} apt-cache show ${items} |\
