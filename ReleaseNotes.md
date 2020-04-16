@@ -1,3 +1,9 @@
+# 0.7.15
+
+- Add pmm to brl-tutorial
+- Fix brl-tutorial typo
+- Fix pmm apt no-cache package availability check
+
 # 0.7.14
 
 - Add ppc and ppc64 support
