@@ -319,6 +319,33 @@ ${bedrock} can be updated via ${brl}:
 $(rcmd "brl update")
 "
 
+section "pmm" "
+Manually updating all package managers as show in the previous section may be a
+bit tedious.  Other multi-package-manager workflows, such as searching multiple
+package managers to see which provides a package, that can also be tedious to
+do by hand.
+
+To resolve this, Bedrock provides a utility called ${pmm} which abstracts
+multi-package-manager and cross-package-manager workflows.
+
+pmm mimics the user interface of other package managers.  Open
+${bedrock_etc_bedrock_conf}
+as root and find the user-interface field under the [pmm] section.  Populate it
+according to the surrounding comments if it is empty then run
+
+$(rcmd "brl apply")
+
+to set ${pmm}s user interface.  Now explore
+
+$(cmd "pmm --help")
+
+or potentially
+
+$(cmd "pmm-install --help")
+
+depending on your configuration.
+"
+
 section "Removing ${strata}" "
 
 As a protective measure, ${strata} may not be removed while ${enabled}.  If you
