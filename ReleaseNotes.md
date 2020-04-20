@@ -1,11 +1,12 @@
 # 0.7.16
 
 - Add cross-stratum /etc/crypttab support
-- Add cross-stratum dkms support
 - Add cross-stratum /etc/profile.d/*.sh support
+- Add cross-stratum dkms support
 - Fix brl-fetch fedora, void, void-musl
 - Improve brl-fetch error messages
 - Improve pmm pacman/yay handling to only supersede identical commands
+- Restrict kiss package manager
 
 # 0.7.15
 
