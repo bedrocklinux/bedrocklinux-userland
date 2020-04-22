@@ -671,7 +671,7 @@ function cache_print_package_version(stratum, package_manager, package,
 }
 
 function generate_pairs(_return, unfiltered_pairs,
-		_local, pair_count, partial_considerations, partial_consideration_count, considerations, consideration_count, seen, p, i, j, s, c, a, b, skip, pair, package_manager) {
+		_local, pair_count, partial_considerations, partial_consideration_count, considerations, consideration_count, seen, p, i, s, c, a, pair, package_manager) {
 	# If already cached, skip operation
 	if (1 in unfiltered_pairs) {
 		return
@@ -727,7 +727,8 @@ function generate_pairs(_return, unfiltered_pairs,
 		}
 	}
 
-	# Build final (unfiltered) pair list.
+	# Build final (unfiltered) pair list.  Remove repeated items and items
+	# which do not exist on disk.
 	for (c = 1; c in considerations; c++) {
 		pair = considerations[c]
 
@@ -739,26 +740,6 @@ function generate_pairs(_return, unfiltered_pairs,
 
 		# remove entries that do not exist on disk
 		if (!pair_exists(pair)) {
-			continue
-		}
-
-		# remove superseded entries
-		split(pair, a, ":");
-		skip = 0;
-		for (p = 1; p <= pair_count; p++) {
-			split(unfiltered_pairs[p], b, ":");
-			if (a[1] == b[1] && supersedes[b[2]] == a[2]) {
-				skip = 1
-				break
-			} else if (a[1] == b[1] && supersedes[a[2]] == b[2]) {
-				for (j = p; j <= pair_count; j++) {
-					unfiltered_pairs[j] = unfiltered_pairs[j+1]
-				}
-				pair_count--
-				break
-			}
-		}
-		if (skip) {
 			continue
 		}
 
@@ -1483,7 +1464,7 @@ function generate_cmd_list(_return, uncollected_cmds,
 function collect_cmds(uncollected_cmds, uncollected_cmd_count,
 		_return, cmds,
 		_local, tmp_cmds, tmp_cmd_count, a, b, c, d, count, max_comma_count, ordered, order_count, pool, subops, o, p, pool_empty, combine_items) {
-	# Collect commands which share items
+	# Collect commands which share items and remove superseded duplicates
 	for (c = 1; c <= uncollected_cmd_count; c++) {
 		if (!(c in uncollected_cmds)) {
 			continue
@@ -1491,8 +1472,17 @@ function collect_cmds(uncollected_cmds, uncollected_cmd_count,
 		split(uncollected_cmds[c], a, SUBSEP)
 		for (d = c + 1; d <= uncollected_cmd_count; d++) {
 			split(uncollected_cmds[d], b, SUBSEP)
+			# collect shared items
 			if (a[1] == b[1] && a[2] == b[2] && a[3] == b[3] && a[5] == b[5] && a[6] == b[6]) {
 				a[4] = a[4]" "b[4]
+				delete uncollected_cmds[d]
+			}
+			# drop superseded duplicate
+			if (a[1] == b[1] && a[2] == b[2] && supersedes[a[3]] == b[3] && a[5] == b[5] && a[6] == b[6]) {
+				delete uncollected_cmds[d]
+			}
+			if (a[1] == b[1] && a[2] == b[2] && a[3] == supersedes[b[3]] && a[5] == b[5] && a[6] == b[6]) {
+				a[3] = b[3]
 				delete uncollected_cmds[d]
 			}
 		}
