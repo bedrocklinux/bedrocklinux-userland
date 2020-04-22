@@ -1,3 +1,11 @@
+# 0.7.16beta1
+
+- Add cross-stratum /etc/crypttab support
+- Add cross-stratum dkms support
+- Improve brl-fetch error messages
+- Improve pmm pacman/yay handling to only supersede identical commands
+- Improve brl-update detection of crossfs and etcfs changes
+
 # 0.7.15
 
 - Add pmm to brl-tutorial
