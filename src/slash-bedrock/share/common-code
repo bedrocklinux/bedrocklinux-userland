@@ -110,6 +110,7 @@ abort() {
 fetch_abort() {
 	trap '' EXIT
 	printf "${color_alert}ERROR: %s\\n${color_norm}" "${@}" >&2
+	printf "${color_alert}If you let brl-fetch automatically choose a mirror, it may have chosen a bad one.  Try manually providing a mirror with --mirror\\n${color_norm}" >&2
 
 	if cfg_values "miscellaneous" "debug" | grep -q "brl-fetch"; then
 		printf "${color_alert}Skipping cleaning up ${target_dir:-} due to bedrock.conf debug setting.${color_norm}\n"
