@@ -840,10 +840,9 @@ function show_cmd(cmd, env,
 	if (multiline) {
 		$0 = $0 " [...]"
 	}
-	fflush()
-	printf("%s* %s%s%s\n", color["glue"], color["cmd"], $0, color["norm"]) > "/dev/stderr"
-	fflush()
 	close(run)
+	printf("%s* %s%s%s\n", color["glue"], color["cmd"], $0, color["norm"]) > "/dev/stderr"
+	fflush("/dev/stderr")
 }
 
 function run_shell(cmd, stratum, package_manager, items, show) {
@@ -874,110 +873,130 @@ function get_shell_output(cmd, stratum, package_manager, items, show,
 	return close(env""cmd)
 }
 
-function get_world(stratum, package_manager,
-		_return, world,
-		_local, n) {
+function world_func_prep(_output, world_missing, sys_missing,
+	_local, a, b, n, p, q, superceded, stratum, package_manager) {
+	# Generate inverse of supersedes[] for quick look ups in the other direction
+	split("", superseded, "")
+	for (n in supersedes) {
+		superseded[supersedes[n]] = n
+	}
+
+	# Get the world file (stratum, package-manager, package-name) set
 	split("", world, "")
 	while ((getline < worldfile) != 0) {
-		if ($1 != stratum":"package_manager) {
+		gsub(/#.*$/, "")
+		if ($1 == "") {
 			continue
 		}
-		gsub(/#.*$/, "")
+		split($1, a, ":")
 		for (n = 2; n <= NF; n++) {
-			world[$n]
+			world[a[1],a[2],$n]
 		}
 	}
 	close(worldfile)
-}
 
-function get_sys(stratum, package_manager,
-		_return, sys,
-		_local, output, o) {
-	get_shell_output(implementations[package_manager, "list-installed-explicit"], stratum, package_manager, "", 0, _return, output)
+	# Get the system file (stratum, package-manager, package-name) set
 	split("", sys, "")
-	for (o = 1; o in output; o++) {
-		sys[output[o]]
-	}
-}
-
-function diff_world(_local, p, a, stratum, package_manager, world, sys, i, n) {
-	printf "diff %s%s %ssystem%s\n", color["file"], worldfile, color["warn"], color["norm"]
 	for (p = 1; p in pairs; p++) {
 		split(pairs[p], a, ":")
 		stratum = a[1]
 		package_manager = a[2]
-
-		get_world(stratum, package_manager, _return, world)
-		get_sys(stratum, package_manager, _return, sys)
-
-		for (i in sys) {
-			if (!(i in world)) {
-				printf "%s> %s%s\n", color["warn"], pairs[p]"\t"i, color["norm"] > "/dev/stderr"
-			}
+		if (package_manager in superseded) {
+			package_manager = superseded[package_manager]
 		}
-		for (i in world) {
-			if (!(i in sys)) {
-				printf "%s< %s%s\n", color["file"], pairs[p]"\t"i, color["norm"] > "/dev/stderr"
-			}
+		get_shell_output(implementations[package_manager, "list-installed-explicit"], stratum, package_manager, "", 0, _return, output)
+		for (n = 1; n in output; n++) {
+			sys[stratum, package_manager, output[n]]
 		}
 	}
-	while ((getline < worldfile) != 0) {
-		gsub(/#.*$/, "")
-		split($1, a, ":")
-		stratum = a[1]
-		package_manager = a[2]
-		if ($1 == "" || (stratum in strata)) {
+
+	# Calculate diffs
+	split("", world_missing, "")
+	for (n in sys) {
+		if (n in world) {
 			continue
 		}
-		for (n = 2; n <= NF; n++) {
-			printf "%s< %s%s\n", color["file"], stratum":"package_manager"\t"$n, color["norm"] > "/dev/stderr"
+		split(n, a, SUBSEP)
+		if ( a[2] in supersedes && (a[1], supersedes[a[2]], a[3]) in world) {
+			continue
 		}
+		if ( a[2] in superseded && (a[1], superseded[a[2]], a[3]) in world) {
+			continue
+		}
+		world_missing[n]
 	}
-	close(worldfile)
+	split("", sys_missing, "")
+	for (n in world) {
+		if (n in sys) {
+			continue
+		}
+		split(n, a, SUBSEP)
+		if ( (a[1], supersedes[a[2]], a[3]) in sys) {
+			continue
+		}
+		if ( (a[1], superseded[a[2]], a[3]) in sys) {
+			continue
+		}
+		sys_missing[n]
+	}
+}
+
+function diff_world(_local, n, a, world_missing, sys_missing, cmd, separator) {
+	world_func_prep(_output, world_missing, sys_missing)
+
+	printf "diff %s%s %ssystem%s\n", color["file"], worldfile, color["warn"], color["norm"]
+
+	separator = 0
+	for (n in sys_missing) {
+		separator++
+		break
+	}
+	for (n in world_missing) {
+		separator++
+		break
+	}
+
+	cmd = "/bedrock/libexec/busybox sort"
+	for (n in sys_missing) {
+		split(n, a, SUBSEP)
+		printf "%s< %s%s\n", color["file"], a[1]":"a[2]"\t"a[3], color["norm"] | cmd
+	}
+	close(cmd)
+	if (separator == 2) {
+		printf "---\n"
+	}
+	for (n in world_missing) {
+		split(n, a, SUBSEP)
+		printf "%s> %s%s\n", color["warn"], a[1]":"a[2]"\t"a[3], color["norm"] | cmd
+	}
+	close(cmd)
 }
 
 function update_world(install, remove,
-		_local, world, sys, xpairs, p, stratum, package_manager, a, new, n, new_world_file, new_world_file_count, changed_something, keep_line, s) {
-	split("", world, "")
-	split("", sys, "")
-	split("", xpairs, "")
-	for (p = 1; p in pairs; p++) {
-		xpairs[pairs[p]]
-		split(pairs[p], a, ":")
-		stratum = a[1]
-		package_manager = a[2]
-
-		get_world(stratum, package_manager, _return, new)
-		for (n in new) {
-			world[stratum":"package_manager"\t"n]
-		}
-
-		get_sys(stratum, package_manager, _return, new)
-		for (n in new) {
-			sys[stratum":"package_manager"\t"n]
-		}
-	}
+	_local, world_missing, sys_missing, a, n, new_world_file, new_world_file_count, changed_something, keep_line, orig_line, comments, glue) {
+	world_func_prep(_output, world_missing, sys_missing)
 
 	# Build a new world file, filtering out undesired items
 	split("", new_world_file, "")
 	changed_something = 0
-	while ((getline < worldfile) != 0) {
-		line = $0
-		gsub(/#.*$/, "")
-		split($1, a, ":")
-		stratum = a[1]
-		package_manager = a[2]
 
-		# Instructed not to remove anything, use line as-is
+	while ((getline < worldfile) != 0) {
+		orig_line = $0
+		comments = $0
+		gsub(/#.*$/, "")
+		sub(/^[^#]*/, "", comments)
+		split($1, a, ":")
+
+		# Instructed not to remove anything; this will be append only.
+		# Use line as-is.
 		if (!remove) {
-			new_world_file[++new_world_file_count] = line
+			new_world_file[++new_world_file_count] = orig_line
 			continue
-			break
 		}
 
 		# Line is blank or comments; use as-is.
-		if ($1 == "") {
-			new_world_file[++new_world_file_count] = line
+		if (a[1] == "") {
+			new_world_file[++new_world_file_count] = orig_line
 			continue
 		}
 
@@ -985,52 +1004,45 @@ function update_world(install, remove,
 		# comments
 		keep_line = 1
 		for (n = 2; n <= NF; n++) {
-			if (!($1"\t"$n in sys)) {
+			if ((a[1], a[2], $n) in sys_missing) {
 				keep_line = 0
 				break
 			}
 		}
 		if (keep_line) {
-			new_world_file[++new_world_file_count] = line
+			new_world_file[++new_world_file_count] = orig_line
 			continue
 		}
 
 		# Build new line with undesired items removed
 		changed_something = 1
 		new_line = $1
-		count = 0
+		glue = "\t"
+		keep_line = 0
 		for (n = 2; n <= NF; n++) {
-			if ($1"\t"$n in sys && count == 0) {
-				count++
-				new_line = new_line "\t"$n
-			} else if ($1"\t"$n in sys) {
-				count++
-				new_line = new_line " "$n
+			if (!((a[1], a[2], $n) in sys_missing)) {
+				new_line = new_line "" glue "" $n
+				glue = " "
+				keep_line = 1
 			}
 		}
-		if (count > 0) {
+		new_line = new_line " " comments
+		if (keep_line) {
 			new_world_file[++new_world_file_count] = new_line
-			printf "%s- %s\n%s+ %s%s\n", color["alert"], line, color["file"], new_line, color["norm"] > "/dev/stderr"
+			printf "%s- %s\n%s+ %s%s\n", color["alert"], orig_line, color["file"], new_line, color["norm"] > "/dev/stderr"
 		} else {
-			printf "%s- %s%s\n", color["alert"], line, color["norm"] > "/dev/stderr"
+			printf "%s- %s%s\n", color["alert"], orig_line, color["norm"] > "/dev/stderr"
 		}
 	}
 
 	# Append any new desired items to built world file
 	if (install) {
-		for (p = 1; p in pairs; p++) {
-			split(pairs[p], a, ":")
-			stratum = a[1]
-			package_manager = a[2]
-
-			get_sys(stratum, package_manager, _return, new)
-			for (n in new) {
-				if (!(pairs[p]"\t"n in world)) {
-					new_world_file[++new_world_file_count] = pairs[p]"\t"n
-					changed_something = 1
-					printf "%s+ %s%s\n", color["file"], pairs[p]"\t"n, color["norm"] > "/dev/stderr"
-				}
-			}
+		for (n in world_missing) {
+			split(n, a, SUBSEP)
+			new_line = a[1] ":" a[2] "\t" a[3]
+			new_world_file[++new_world_file_count] = new_line
+			changed_something = 1
+			printf "%s+ %s%s\n", color["file"], new_line, color["norm"] > "/dev/stderr"
 		}
 	}
 
@@ -1051,7 +1063,8 @@ function update_world(install, remove,
 }
 
 function apply_world(install, remove, cmds,
-	_local, install_pkgs, remove_pkgs, p, i, c, b, op) {
+	_local, world_missing, sys_missing, p, a, b, i, stratum, package_manager, pkgs, op) {
+	world_func_prep(_output, world_missing, sys_missing)
 
 	for (c = 1; c in cmds; c++) {
 	}
@@ -1061,40 +1074,42 @@ function apply_world(install, remove, cmds,
 		stratum = a[1]
 		package_manager = a[2]
 
-		install_pkgs = ""
-		remove_pkgs = ""
-		get_world(stratum, package_manager, _return, world)
-		get_sys(stratum, package_manager, _return, sys)
-		for (i in world) {
-			if (!(i in sys) && install) {
-				install_pkgs = install_pkgs" "i
+		pkgs = ""
+		for (i in sys_missing) {
+			split(i, a, SUBSEP)
+			if (a[1] == stratum && a[2] == package_manager) {
+				pkgs = pkgs" "a[3]
 			}
 		}
-		for (i in sys) {
-			if (!(i in world) && remove) {
-				remove_pkgs = remove_pkgs" "i
+		if (install && pkgs != "") {
+			if (!("assume-yes" in global_flags)) {
+				global_flags["confirm"]
 			}
-		}
-
-		if (!("assume-yes" in global_flags) && (install_pkgs != "" || remove_pkgs != "")) {
-			global_flags["confirm"]
-		}
-
-		if (install_pkgs != "") {
-			sub(/^ /, "", install_pkgs)
+			sub(/^ /, "", pkgs)
 			op = "install-packages"
 			split(operations[op], b, /, */)
-			cmds[c++] = (op, stratum, package_manager, install_pkgs, b[4], b[5])
+			cmds[c++] = (op, stratum, package_manager, pkgs, b[4], b[5])
 		}
-		if (remove_pkgs != "") {
+
+		pkgs = ""
+		for (i in world_missing) {
+			split(i, a, SUBSEP)
+			if (a[1] == stratum && a[2] == package_manager) {
+				pkgs = pkgs" "a[3]
+			}
+		}
+		if (remove && pkgs != "") {
+			if (!("assume-yes" in global_flags)) {
+				global_flags["confirm"]
+			}
+			sub(/^ /, "", pkgs)
 			if (implementations[package_manager, "mark-packages-implicit,remove-orphans"] != "") {
 				op = "mark-packages-implicit,remove-orphans"
 			} else {
 				op = "mark-packages-implicit"
 			}
-			sub(/^ /, "", remove_pkgs)
 			split(operations[op], b, /, */)
-			cmds[c++] = (op, stratum, package_manager, remove_pkgs, b[4], b[5])
+			cmds[c++] = (op, stratum, package_manager, pkgs, b[4], b[5])
 			if (op == "mark-packages-implicit") {
 				op = "remove-orphans"
 				split(operations[op], b, /, */)
@@ -1472,16 +1487,20 @@ function collect_cmds(uncollected_cmds, uncollected_cmd_count,
 		split(uncollected_cmds[c], a, SUBSEP)
 		for (d = c + 1; d <= uncollected_cmd_count; d++) {
 			split(uncollected_cmds[d], b, SUBSEP)
-			# collect shared items
 			if (a[1] == b[1] && a[2] == b[2] && a[3] == b[3] && a[5] == b[5] && a[6] == b[6]) {
+				# same package manager but different items
+				# collect shared items into one command
 				a[4] = a[4]" "b[4]
 				delete uncollected_cmds[d]
-			}
-			# drop superseded duplicate
-			if (a[1] == b[1] && a[2] == b[2] && supersedes[a[3]] == b[3] && a[5] == b[5] && a[6] == b[6]) {
+			} else if (a[1] == b[1] && a[2] == b[2] && supersedes[a[3]] == b[3] && a[5] == b[5] && a[6] == b[6]) {
+				# superseded package manager
+				# collect shared items and remove superseded package manager
+				a[4] = a[4]" "b[4]
 				delete uncollected_cmds[d]
-			}
-			if (a[1] == b[1] && a[2] == b[2] && a[3] == supersedes[b[3]] && a[5] == b[5] && a[6] == b[6]) {
+			} else if (a[1] == b[1] && a[2] == b[2] && a[3] == supersedes[b[3]] && a[5] == b[5] && a[6] == b[6]) {
+				# superseded package manager
+				# collect shared items and remove superseded package manager
+				a[4] = a[4]" "b[4]
 				a[3] = b[3]
 				delete uncollected_cmds[d]
 			}
