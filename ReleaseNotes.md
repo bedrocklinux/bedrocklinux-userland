@@ -1,3 +1,7 @@
+# 0.7.16beta2
+
+- Fix pmm supersede world file handling
+
 # 0.7.16beta1
 
 - Add cross-stratum /etc/crypttab support
