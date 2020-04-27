@@ -22,12 +22,10 @@ speed_test_url() {
 }
 
 list_mirrors() {
-	mirror_list_url='https://voidlinux.org/download/'
+	mirror_list_url='https://docs.voidlinux.org/xbps/repositories/mirrors/index.html'
 	wget -O- "${mirror_list_url}" 2>/dev/null |
-		awk '/id="tier-1-mirrors"/,/<\/ul>/' |
-		awk '-F[<>()]' '{print$3}' |
-		grep "^http" |
-		sed 's, ,,'
+		awk '/Tier 1 mirrors are/,/<\/table>/' |
+		list_links
 }
 
 brl_arch_to_distro() {

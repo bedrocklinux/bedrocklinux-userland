@@ -1,14 +1,10 @@
-# 0.7.16beta2
-
-- Fix pmm supersede world file handling
-
-# 0.7.16beta1
+# 0.7.16
 
 - Add cross-stratum /etc/crypttab support
 - Add cross-stratum dkms support
+- Fix brl-fetch void, void-musl
 - Improve brl-fetch error messages
 - Improve pmm pacman/yay handling to only supersede identical commands
-- Improve brl-update detection of crossfs and etcfs changes
 
 # 0.7.15
 
