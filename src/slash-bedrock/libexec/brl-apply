@@ -129,6 +129,7 @@ ln -fns "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/
 # Setup /etc/profile
 (
 	echo "[ -n \"\${BEDROCK_RESTRICT:-}\" ] && return"
+	echo ""
 	echo "unset TZ"
 	echo "export LANG=$(cfg_value "locale" "LANG")"
 	echo "export PATH=$(cfg_value "env-vars" "PATH")"
@@ -136,6 +137,13 @@ ln -fns "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/
 	echo "export INFOPATH=$(cfg_value "env-vars" "INFOPATH")"
 	echo "export XDG_DATA_DIRS=$(cfg_value "env-vars" "XDG_DATA_DIRS")"
 	echo "export TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
+	echo ""
+	echo "for s in \$(/bedrock/bin/brl list); do"
+	echo "	(ls /bedrock/strata/\${s}/etc/profile.d/*.sh) >/dev/null 2>&1 || continue"
+	echo "	for f in /bedrock/strata/\${s}/etc/profile.d/*.sh; do"
+	echo "		. \${f} >/dev/null 2>&1 || true"
+	echo "	done"
+	echo "done"
 ) >/bedrock/run/profile
 
 # Setup /etc/zsh/zprofile, /etc/zprofile
