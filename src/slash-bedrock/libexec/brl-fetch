@@ -393,6 +393,7 @@ pick_mirror() {
 		}
 		END {
 			print best_mirror > out
+			fflush(out)
 		}
 	' | progress_bar "${count}" >&2
 
@@ -721,7 +722,7 @@ rpmdb_to_brldb() {
 			for (i=1; i <= NF; i++) {
 				if (index($i, "name=\"") == 1) {
 					entry = $i
-					sub(/^name="/, "", entry)
+					sub(/^name="\(?/, "", entry)
 					sub(/"\/?$/, "", entry)
 					depends[entry] = entry
 					break
@@ -732,7 +733,7 @@ rpmdb_to_brldb() {
 			for (i=1; i <= NF; i++) {
 				if (index($i, "name=\"") == 1) {
 					entry = $i
-					sub(/^name="/, "", entry)
+					sub(/^name="\(?/, "", entry)
 					sub(/"\/?$/, "", entry)
 					provides[entry] = entry
 					break

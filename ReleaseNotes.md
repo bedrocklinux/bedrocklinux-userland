@@ -2,7 +2,7 @@
 
 - Add cross-stratum /etc/crypttab support
 - Add cross-stratum dkms support
-- Fix brl-fetch void, void-musl
+- Fix brl-fetch fedora, void, void-musl
 - Improve brl-fetch error messages
 - Improve pmm pacman/yay handling to only supersede identical commands
 
