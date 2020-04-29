@@ -37,42 +37,26 @@
 # Current release #
 ###################
 
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-x86_64.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-s390x.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-ppc64le.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-ppc64.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-ppc.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-mipsel.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-mips64el.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-mips.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-i686.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-i586.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-i486.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-i386.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-armv7l.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-armv7hl.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta2/bedrock-linux-0.7.16beta2-aarch64.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-x86_64.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-s390x.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-ppc64le.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-ppc64.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-ppc.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-mipsel.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-mips64el.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-mips.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-i686.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-i586.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-i486.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-i386.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-armv7l.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-armv7hl.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16/bedrock-linux-0.7.16-aarch64.sh
 
 #################
 # Past releases #
 #################
 
-
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-x86_64.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-s390x.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-ppc64le.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-ppc64.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-ppc.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-mipsel.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-mips64el.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-mips.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-i686.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-i586.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-i486.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-i386.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-armv7l.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-armv7hl.sh
-https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.16beta1/bedrock-linux-0.7.16beta1-aarch64.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.15/bedrock-linux-0.7.15-x86_64.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.15/bedrock-linux-0.7.15-s390x.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.15/bedrock-linux-0.7.15-ppc64le.sh
