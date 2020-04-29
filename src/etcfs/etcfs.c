@@ -409,6 +409,36 @@ static inline int get_ref_fd(const char *const path)
 }
 
 /*
+ * Search for string in a file.
+ *
+ * To remain performant, minimizes number of read() calls for a given buffer
+ * size.
+ *
+ * Supports files and search strings that contain null bytes.
+ */
+int file_search(int fd, const char *str, const size_t len)
+{
+	size_t buf_size = PATH_MAX;
+	if (len > buf_size) {
+		buf_size = len;
+	}
+
+	char buf[buf_size];
+	size_t off = 0;
+	size_t bytes_read;
+
+	while ((bytes_read = read(fd, buf + off, buf_size - off)) > 0) {
+		if (memmem(buf, off + bytes_read, str, len) != NULL) {
+			return 1;
+		}
+		memmove(buf, buf + off + bytes_read - (len - 1), len - 1);
+		off = len - 1;
+	}
+
+	return 0;
+}
+
+/*
  * Linux fails to provide system calls which apply to file descriptors and
  * directly (without following) on symlinks.  For example, neither lgetxattr()
  * nor fgetxattr() have both of these attributes.
@@ -462,26 +492,14 @@ static int inject(int ref_fd, const char *rpath, const char *inject,
 	 * If the file already contains the target contents, we can skip
 	 * writing to disk.
 	 */
-	if (init_len >= inject_len) {
-		char *content = mmap(NULL, init_len, PROT_READ, MAP_SHARED,
-			fd, 0);
-		if (content == MAP_FAILED) {
-			goto clean_up_and_return;
-		}
-
-		char *match = memmem(content, init_len, inject,
-			inject_len);
-		munmap(content, init_len);
-
-		if (match != NULL) {
-			rv = 0;
-			goto clean_up_and_return;
-		}
+	if (init_len >= inject_len && file_search(fd, inject, inject_len)) {
+		goto clean_up_and_return;
 	}
 
 	/*
 	 * File lacks intended content.  Add it atomically.
 	 */
+	DEBUG("injecting", rpath);
 
 	/*
 	 * Create a temporary file
