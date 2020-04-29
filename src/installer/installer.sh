@@ -392,21 +392,11 @@ update() {
 	fi
 
 	step "Installing new files and updating existing ones"
-	old_crossfs_sha1sum="$(sha1sum <"/bedrock/libexec/crossfs")"
-	old_etcfs_sha1sum="$(sha1sum <"/bedrock/libexec/etcfs")"
 	extract_tarball | (
 		cd /
 		/bedrock/bin/strat bedrock /bedrock/libexec/busybox tar xf -
 	)
 	/bedrock/libexec/setcap cap_sys_chroot=ep /bedrock/bin/strat
-	new_crossfs=true
-	new_etcfs=true
-	if [ "${old_crossfs_sha1sum}" = "$(sha1sum <"/bedrock/libexec/crossfs")" ]; then
-		new_crossfs=false
-	fi
-	if [ "${old_etcfs_sha1sum}" = "$(sha1sum <"/bedrock/libexec/etcfs")" ]; then
-		new_etcfs=false
-	fi
 
 	new_crossfs_sha1sum="$(sha1sum <"/bedrock/libexec/crossfs")"
 	new_etcfs_sha1sum="$(sha1sum <"/bedrock/libexec/etcfs")"
@@ -511,22 +501,18 @@ update() {
 	if ver_cmp_first_newer "0.7.0beta3" "${current_version}"; then
 		notice "Added brl-fetch-mirrors section to bedrock.conf.  This can be used to specify preferred mirrors to use with brl-fetch."
 	fi
-
 	if ver_cmp_first_newer "0.7.0beta4" "${current_version}"; then
 		notice "Added ${color_cmd}brl copy${color_norm}."
 		notice "${color_alert}New, required section added to bedrock.conf.  Merge new config with existing and reboot.${color_norm}"
 	fi
-
 	if ver_cmp_first_newer "0.7.0beta6" "${current_version}"; then
 		notice "Reworked ${color_cmd}brl retain${color_norm} options."
 		notice "Made ${color_cmd}brl status${color_norm} more robust.  Many strata may now report as broken.  Reboot to remedy."
 	fi
-
 	if ver_cmp_first_newer "0.7.14beta1" "${current_version}"; then
 		notice "Added new pmm subsystem"
 		notice "Populate new [pmm] section of bedrock.conf \`user_interface\` field then run \`brl apply\` as root to create pmm front-end."
 	fi
-
 	if ver_cmp_first_newer "0.7.16beta1" "${current_version}" && ! [ -e "/bedrock/strata/bedrock/etc/crypttab" ]; then
 		for s in $(/bedrock/bin/brl list -i); do
 			if [ "$(/bedrock/bin/brl deref "${s}")" = "bedrock" ]; then
@@ -538,10 +524,10 @@ update() {
 		done
 	fi
 
-	if "${new_crossfs}"; then
+	if ver_cmp_first_newer "0.7.14beta10" "${current_version}"; then
 		notice "Updated crossfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
 	fi
-	if "${new_etcfs}"; then
+	if ver_cmp_first_newer "0.7.16" "${current_version}"; then
 		notice "Updated etcfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
 	fi
 	if "${new_conf}"; then
