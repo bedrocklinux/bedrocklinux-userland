@@ -1,3 +1,7 @@
+# 0.7.17
+
+- Fix sudoers injection return value
+
 # 0.7.16
 
 - Add cross-stratum /etc/crypttab support
