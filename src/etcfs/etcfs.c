@@ -484,6 +484,7 @@ static int inject(int ref_fd, const char *rpath, const char *inject,
 	 * inject non-empty files.
 	 */
 	if (init_len == 0) {
+		DEBUG("skipping injection, empty file", rpath);
 		rv = 0;
 		goto clean_up_and_return;
 	}
@@ -493,6 +494,8 @@ static int inject(int ref_fd, const char *rpath, const char *inject,
 	 * writing to disk.
 	 */
 	if (init_len >= inject_len && file_search(fd, inject, inject_len)) {
+		DEBUG("skipping injection, already injected", rpath);
+		rv = 0;
 		goto clean_up_and_return;
 	}
 
@@ -599,6 +602,7 @@ static int uninject(int ref_fd, const char *rpath, const char *inject,
 	ssize_t multiple = 0;
 	off_t offset = -1;
 
+	/* TODO: replace with file_search() */
 	while ((bytes_read = read(fd, buf, sizeof(buf))) > 0) {
 		char *start = strstr(buf, inject);
 		if (start) {
