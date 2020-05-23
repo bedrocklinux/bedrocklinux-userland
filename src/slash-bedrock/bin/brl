@@ -62,7 +62,7 @@ case "${1:-}" in
 	;;
 *)
 	backend="/bedrock/libexec/brl-${1}"
-	if [ -f $backend ]; then
+	if [ -f "$backend" ]; then
 		shift
 		exec "${backend}" "${@}"
 		abort "Unable to execute \`${backend}\`"
