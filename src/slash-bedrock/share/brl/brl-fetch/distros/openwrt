@@ -1,0 +1,98 @@
+#!/bedrock/libexec/busybox sh
+#
+# OpenWrt bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2018-2019 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+# shellcheck source=src/slash-bedrock/share/brl/backends/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	false
+}
+
+speed_test_url() {
+	echo "releases/${target_release}/targets/x86/64/sha256sums"
+}
+
+list_mirrors() {
+	# main mirror
+	echo 'https://downloads.openwrt.org'
+
+	# additional mirrors
+	mirror_list_url='https://openwrt.org/downloads'
+	wget -O- "${mirror_list_url}" 2>/dev/null |
+		awk '/id="mirrors"/,/<\/table>/' |
+		list_links |
+		grep "^http"
+}
+
+brl_arch_to_distro() {
+	case "${1}" in
+	"aarch64") echo "armvirt-64" ;;
+	"armv7l") echo "armvirt-32" ;;
+	"i486") echo "x86-generic" ;;
+	"x86_64") echo "x86-64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+	esac
+}
+
+list_architectures() {
+	cat <<EOF
+aarch64
+armv7l
+i486
+x86_64
+EOF
+}
+
+default_release() {
+	list_releases |
+		sort -n |
+		tail -n1
+}
+
+list_releases() {
+	for mirror in "${flag_mirror}" $(list_mirrors); do
+		if wget -O- "${mirror}/releases/" 2>/dev/null |
+			list_links |
+			grep '^[0-9][0-9.]*/$' |
+			sed 's,/$,,'; then
+			break
+		fi
+	done
+}
+
+fetch() {
+	step "Downloading bootstrap software"
+
+	case "${target_arch}" in
+	"aarch64") bootstrap_url="$(find_link "${target_mirror}/releases/${target_release}/targets/armvirt/64/" "^openwrt-${target_release}-${distro_arch}-default-rootfs.tar.gz$")" ;;
+	"armv7l") bootstrap_url="$(find_link "${target_mirror}/releases/${target_release}/targets/armvirt/32/" "^openwrt-${target_release}-${distro_arch}-default-rootfs.tar.gz$")" ;;
+	"i486") bootstrap_url="$(find_link "${target_mirror}/releases/${target_release}/targets/x86/generic/" "^openwrt-${target_release}-${distro_arch}-generic-rootfs.tar.gz$")" ;;
+	"x86_64") bootstrap_url="$(find_link "${target_mirror}/releases/${target_release}/targets/x86/64/" "^openwrt-${target_release}-${distro_arch}-generic-rootfs.tar.gz$")" ;;
+	esac
+
+	bootstrap_name="$(echo "${bootstrap_url}" | sed 's,^.*/,,')"
+	wget -O "${bootstrap_dir}/checksum" "$(echo "${bootstrap_url}" | sed 's,/[^/]*$,sha256sums,')"
+	bootstrap_checksum="$(awk -vname="${bootstrap_name}" '$2 == "*"name {print$1}' "${bootstrap_dir}/checksum")"
+
+	checksum_download "${cache}/bootstrap.tar.gz" "sha256sum" "${bootstrap_checksum}" "${bootstrap_url}"
+
+	step "Extracting bootstrap software"
+	tar -xv -f "${cache}/bootstrap.tar.gz" -C "${target_dir}" | awk 'NR%100==0' | progress_unknown
+
+	step "Configuring"
+	# OpenWrt defaults to /var being a symlink to /tmp.  This makes /var
+	# shared on Bedrock when it should be private.  Disconnect /tmp from /var.
+	if [ -h "${target_dir}/var" ]; then
+		rm "${target_dir}/var"
+	fi
+	mkdir -p "${target_dir}/var/lock"
+}

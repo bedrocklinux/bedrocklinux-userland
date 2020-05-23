@@ -163,4 +163,4 @@ complete -f -c brl -n '_brl_arg_is 2 fetch' -l 'force-check' -d 'skip warnings w
 complete -f -c brl -n '_brl_arg_is 2 report; and _brl_argnum 2' -o 'o' -d 'overwrite file at report path'
 complete -f -c brl -n '_brl_arg_is 2 report; and _brl_argnum 2' -l 'overwrite' -d 'overwrite file at report path'
 
-complete -f -c brl -n '_brl_arg_is 2 tutorial' -a '(find /bedrock/share/brl-tutorial/lessons/ -mindepth 1 | sed "s/^.*[0-9][0-9]*_//")' -d 'strata or aliases'
+complete -f -c brl -n '_brl_arg_is 2 tutorial' -a '(find /bedrock/share/brl/brl-tutorial/lessons/ -mindepth 1 | sed "s/^.*[0-9][0-9]*_//")' -d 'strata or aliases'

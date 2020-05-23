@@ -1,0 +1,127 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl tutorial
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2019-2020 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Interactive tutorial front-end
+
+# shellcheck source=src/slash-bedrock/share/brl/brl-tutorial/common
+. /bedrock/share/brl/brl-tutorial/common
+
+lesson_directory="/bedrock/share/brl/brl-tutorial/lessons/"
+
+print_help() {
+	printf "Usage: ${color_cmd}brl tutorial${color_norm} ${color_sub}<lesson>${color_norm}
+
+Provides an interactive tutorial of various Bedrock Linux features.
+
+Lessons:
+$(
+		cd "${lesson_directory}"
+		for file in *; do
+			name="$(echo "${file}" | sed 's/^[0-9]*_//')"
+			printf "  ${color_cmd}%-15s${color_norm}%s\n" "${name}" "$(sh "${file}" help)"
+		done
+	)
+  ${color_sub}(more lessons may be added in the future)${color_norm}
+
+Options:
+  ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}   print this message
+
+Examples:
+  ${color_cmd}$ brl tutorial basics
+  ${color_norm}<tutorial interface>
+${color_norm}"
+}
+
+cmd() {
+	printf "\t${color_cmd}\$ $*${color_norm}"
+}
+
+rcmd() {
+	printf "\t${color_alert}# $*${color_norm}"
+}
+
+flag() {
+	printf "${color_cmd}$1${color_norm}"
+}
+
+section() {
+	title="${1}"
+	text="${2}"
+	condition="${3:-}"
+
+	spinner="|/-\\"
+	cursor="1"
+
+	clear
+	step "Lesson: ${lesson}, section: ${title}"
+	printf "${text}"
+	echo ""
+	if [ -n "${condition:-}" ]; then
+		while ! sh -c "${condition}" >/dev/null 2>&1; do
+			cursor="$((cursor + 1))"
+			if [ "${cursor}" -gt 4 ]; then
+				cursor=1
+			fi
+			c="$(echo "${spinner}" | head -c "${cursor}" | tail -c1)"
+			printf "\r[Run specified commands in another terminal to continue ${c}]"
+			sleep 1
+		done
+	else
+		printf "[Press ${color_cmd}<ENTER>${color_norm} to continue]"
+		# Prompt is just used to block.  We're purposefully not using
+		# populated variable.
+		# shellcheck disable=SC2034
+		read -r PAUSE
+	fi
+	printf "\n"
+}
+
+standard_intro() {
+	printf "This tutorial assumes familiarity with common Linux environment concepts such
+as a bourne shell-like command line as well as a working internet connection
+and a couple gigabytes of free disk space.
+
+Open another terminal with a bourne-like shell along side this one to follow
+along with the tutorial.
+
+If you see a \`${color_cmd}\$${color_norm}\` prompt:
+
+$(cmd "ls")
+
+run the command as your normal, non-root user.  If you see a \`${color_alert}#${color_norm}\` prompt:
+
+$(rcmd "whoami")
+
+run the command as root (e.g. ${color_alert}sudo${color_norm}, ${color_cmd}su${color_norm}, etc).
+
+You may press ${color_cmd}<ctrl-c>${color_norm} to exit the tutorial at any point.
+"
+}
+
+handle_help "${@:-}"
+
+# Find user specified lesson implementation
+lesson="${*}"
+if [ -z "${lesson}" ]; then
+	abort "No lesson specified, see --help"
+elif ! file="$(echo "${lesson_directory}"*"_${lesson}")"; then
+	abort "No such lesson \"${lesson}\""
+fi
+
+# Run lesson
+step_init "$(grep -c "^section " "${file}")"
+. "${file}"
+
+clear
+printf "This completes the lesson: ${lesson}
+Thank you for taking the time to learn about ${Bedrock_Linux}.
+"
+
+exit_success

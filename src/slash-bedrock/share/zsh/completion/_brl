@@ -207,7 +207,7 @@ case "${words[2]}" in
 	_arguments "*:report output location:_path_files -f"
 	;;
 "tutorial")
-	args+=("*:lesson:($(find /bedrock/share/brl-tutorial/lessons/ -mindepth 1 | sed 's/^.*[0-9][0-9]*_//'))")
+	args+=("*:lesson:($(find /bedrock/share/brl/brl-tutorial/lessons/ -mindepth 1 | sed 's/^.*[0-9][0-9]*_//'))")
 esac
 
 # zsh-ism: we want it to expand here

@@ -420,10 +420,10 @@ touch /bedrock/strata/bedrock/bedrock/run/enabled_strata/bedrock
 ln -s "/bedrock/strata/${init_stratum}" "/bedrock/strata/bedrock/bedrock/run/init-alias"
 touch "/bedrock/strata/bedrock/bedrock/run/enabled_strata/${init_stratum}"
 
-/bedrock/libexec/brl-repair "bedrock"
+/bedrock/share/brl/backends/brl-repair "bedrock"
 
 notice "Enabling ${color_strat}${init_stratum}${color_norm}"
-/bedrock/libexec/brl-repair "${init_stratum}"
+/bedrock/share/brl/backends/brl-repair "${init_stratum}"
 
 for stratum in $(list_strata); do
 	if is_bedrock "${stratum}" ||
@@ -432,11 +432,11 @@ for stratum in $(list_strata); do
 		continue
 	fi
 	notice "Enabling ${color_strat}${stratum}${color_norm}"
-	/bedrock/libexec/brl-enable "${stratum}"
+	/bedrock/share/brl/backends/brl-enable "${stratum}"
 done
 
 step "Applying configuration"
-/bedrock/libexec/brl-apply --skip-repair
+/bedrock/share/brl/backends/brl-apply --skip-repair
 
 step "Handing control off to ${color_strat}${init_stratum}${color_glue}:${color_cmd}${init_cmd}${color_norm}"
 

@@ -732,7 +732,7 @@ $(BUILD)/userland.tar: \
 	$(SLASHBR)/libexec/setfattr \
 	$(SLASHBR)/libexec/zstd
 	# remove symlinks which may have been created in a previous interrupted run
-	rm -f $(SLASHBR)/libexec/brl-strat
+	rm -f $(SLASHBR)/share/brl/backends/brl-strat
 	rm -f $(SLASHBR)/strata/init
 	rm -f $(SLASHBR)/strata/local
 	# ensure static
@@ -768,7 +768,7 @@ $(BUILD)/userland.tar: \
 	chmod 755 $(SLASHBR)/share/resolvconf/00bedrock
 	chmod 755 $(BUILD)/sbin/init
 	# create symlinks
-	ln -s ../bin/strat $(SLASHBR)/libexec/brl-strat
+	ln -s ../bin/strat $(SLASHBR)/share/brl/backends/brl-strat
 	ln -s /bedrock/run/init-alias $(SLASHBR)/strata/init
 	ln -s ../cross/.local-alias $(SLASHBR)/strata/local
 	# create a tarball

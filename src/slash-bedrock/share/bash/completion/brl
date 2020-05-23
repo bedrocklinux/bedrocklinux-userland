@@ -234,7 +234,7 @@ _brl() {
 		opts="${opts} $(compgen -d -f -- "${cur}")"
 		;;
 	"tutorial")
-		opts="${opts} $(find /bedrock/share/brl-tutorial/lessons/ -mindepth 1 | sed 's/^.*[0-9][0-9]*_//')"
+		opts="${opts} $(find /bedrock/share/brl/brl-tutorial/lessons/ -mindepth 1 | sed 's/^.*[0-9][0-9]*_//')"
 		;;
 	esac
 

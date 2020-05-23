@@ -1,0 +1,140 @@
+#!/bedrock/libexec/busybox sh
+#
+# Void Linux (musl) bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+# shellcheck source=src/slash-bedrock/share/brl/backends/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	true
+}
+
+speed_test_url() {
+	echo "static/sha256sums.txt"
+}
+
+list_mirrors() {
+	mirror_list_url='https://docs.voidlinux.org/xbps/repositories/mirrors/index.html'
+	wget -O- "${mirror_list_url}" 2>/dev/null |
+		awk '/Tier 1 mirrors are/,/<\/table>/' |
+		list_links
+}
+
+brl_arch_to_distro() {
+	# while static mips/mipsel xbps shows up in the mirrors, the mirrors
+	# do not provide binary packages for it.
+	case "${1}" in
+	"aarch64") echo "aarch64" ;;
+	"armv7hl") echo "armv7l" ;;
+		# Void does offer i686, but glibc-only.  The fetch strategy below is
+		# based on leveraging static xbps.  Thus, at least for now, brl-fetch
+		# does not support either flavor of i686 Void.
+	"x86_64") echo "x86_64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+	esac
+}
+
+list_architectures() {
+	cat <<EOF
+aarch64
+armv7hl
+x86_64
+EOF
+}
+
+default_release() {
+	echo "rolling"
+}
+
+list_releases() {
+	echo "rolling"
+}
+
+fetch() {
+	# void repo data found at:
+	# ${mirror}/current/aarch64/aarch64-repodata
+	# ${mirror}/current/armv7l-repodata
+	# ${mirror}/current/x86_64-repodata
+	# void-musl repo data found at:
+	# ${mirror}/current/aarch64/aarch64-musl-repodata
+	# ${mirror}/current/musl/armv7l-musl-repodata
+	# ${mirror}/current/musl/x86_64-musl-repodata
+
+	step "Downloading package information database"
+	# Using musl version of tools for both void flavors due to static
+	# linking.
+	case "${distro_arch}" in
+	"aarch64") prefix="aarch64" ;;
+	*) prefix="musl" ;;
+	esac
+	wget -O "${bootstrap_dir}/repodata.tar.zstd" "${target_mirror}/current/${prefix}/${distro_arch}-musl-repodata"
+
+	step "Downloading bootstrap software"
+	pair="$(/bedrock/libexec/zstd -d <"${bootstrap_dir}/repodata.tar.zstd" | tar xf - -O "index.plist" | awk -F'[<>]' '
+		/^\t<key>/ {
+			section=$3
+		}
+		section == "xbps-static" && /^\t\t<key>/ {
+			subsection=$3
+		}
+		section == "xbps-static" && subsection == "filename-sha256"  && /^\t\t<string>/ {
+			checksum=$3
+		}
+		section == "xbps-static" && subsection == "pkgver"  && /^\t\t<string>/ {
+			filename=$3
+		}
+		checksum != "" && filename != "" {
+			print checksum"\t"filename
+			checksum=""
+			filename=""
+		}
+	')"
+	bootstrap_checksum="$(echo "${pair}" | awk '{print$1}')"
+	bootstrap_name="$(echo "${pair}" | awk '{print$2}')"
+	bootstrap_url="${target_mirror}/current/${prefix}/${bootstrap_name}.${distro_arch}-musl.xbps"
+	checksum_download "${cache}/xbps.tar.zstd" "sha256sum" "${bootstrap_checksum}" "${bootstrap_url}"
+
+	step "Preparing bootstrap software"
+	/bedrock/libexec/zstd -d <"${cache}/xbps.tar.zstd" | tar xf - -C "${bootstrap_dir}"
+
+	step "Running bootstrap software"
+	set +o pipefail
+	cp /bedrock/libexec/busybox "${bootstrap_dir}"
+	for dir in bin sbin usr/bin usr/sbin; do
+		mkdir -p "${bootstrap_dir}/${dir}"
+	done
+	chroot "${bootstrap_dir}" /busybox --install
+	setup_chroot "${bootstrap_dir}"
+	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/xbps"
+	case "${distro}:${distro_arch}" in
+	"void:aarch64") prefix="aarch64" ;;
+	"void:armv7l") prefix="" ;;
+	"void:x86_64") prefix="" ;;
+	"void-musl:aarch64") prefix="aarch64" ;;
+	"void-musl:armv7l") prefix="musl" ;;
+	"void-musl:x86_64") prefix="musl" ;;
+	*) abort "unrecognized distro:architecture pair \"${distro}:${distro_arch}\"" ;;
+	esac
+	mkdir -p "${target_dir}/var/db/xbps/https___alpha_de_repo_voidlinux_org_current"
+	yes "" | LC_ALL=C XBPS_ARCH="${distro_arch}-musl" chroot "${bootstrap_dir}" "/usr/bin/xbps-install.static" -S -R "${target_mirror}/current/${prefix}" -r /target-root/ base-voidstrap
+	set -o pipefail
+
+	step "Configuring"
+	if [ -d "${target_dir}/usr/share/xbps.d/" ]; then
+		echo "repository=${target_mirror}/current/${prefix}" >>"${target_dir}/usr/share/xbps.d/00-brl-fetch.conf"
+	fi
+	# Void's zsh package does not create /etc/zsh/zshenv but it is needed
+	# for various Bedrock hooks
+	if ! [ -e "${target_dir}/etc/zsh/zshenv" ]; then
+		mkdir -p "${target_dir}/etc/zsh/"
+		echo "# File created by Bedrock Linux during stratum fetch" >"${target_dir}/etc/zsh/zshenv"
+	fi
+}

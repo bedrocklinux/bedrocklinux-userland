@@ -1,0 +1,90 @@
+#!/bedrock/libexec/busybox sh
+#
+# Exherbo Linux bootstrap support
+# Copyright 2019 Wulf C. Krueger <philantrop@exherbo.org>
+# Distributed under the terms of the GNU General Public License v2
+#
+# based in part upon "Gentoo Linux bootstrap support" which is:
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+#	Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
+
+# shellcheck source=src/slash-bedrock/share/brl/backends/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	true
+}
+
+speed_test_url() {
+	echo "/stages/sha1sum"
+}
+
+list_mirrors() {
+	echo "https://dev.exherbo.org/"
+}
+
+brl_arch_to_distro() {
+	case "${1}" in
+	"armv7hl") echo "armv7" ;;
+	"i686") echo "i686" ;;
+	"x86_64") echo "x86_64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+	esac
+}
+
+list_architectures() {
+	cat <<EOF
+armv7hl
+i686
+x86_64
+EOF
+}
+
+default_release() {
+	echo "rolling"
+}
+
+list_releases() {
+	echo "rolling"
+}
+
+fetch() {
+	paludis_builddir=/var/tmp/paludis/build
+	paludis_user=paludisbuild
+	paludis_group=paludisbuild
+
+	case "${target_arch}" in
+	"armv7hl") ex_stage="exherbo-armv7-unknown-linux-gnueabihf-current.tar.xz" ;;
+	"i686") ex_stage="exherbo-i686-pc-linux-gnu-current.tar.xz" ;;
+	"x86_64") ex_stage="exherbo-x86_64-pc-linux-gnu-current.tar.xz" ;;
+	esac
+	ex_checksum_fn=sha1sum
+
+	step "Downloading & verifying bootstrap software"
+	wget -O "${bootstrap_dir}/${ex_checksum_fn}" "${target_mirror}"/stages/"${ex_checksum_fn}"
+	ex_sha1sum="$(awk -v"name=${ex_stage}" '/^# .* HASH$/ {hash=$1;next} $2 == name {print$1;exit}' "${bootstrap_dir}/${ex_checksum_fn}")"
+	checksum_download "${cache}/${ex_stage}" "sha1sum" "${ex_sha1sum}" "${target_mirror}"/stages/"${ex_stage}"
+
+	step "Preparing bootstrap software"
+	tar xvJp -C "${bootstrap_dir}" -f "${cache}"/"${ex_stage}" | awk 'NR%100==0' | progress_unknown
+
+	step "Running bootstrap software"
+	setup_chroot "${bootstrap_dir}"
+	share_cache "." "${bootstrap_dir}/tarballs"
+	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xvJpf /tarballs/${ex_stage}" | awk 'NR%100==0' | progress_unknown
+
+	step "Configuring"
+	setup_chroot "${target_dir}"
+
+	step "Creating Paludis' build-dir & fixing permissions"
+	mkdir -p "${target_dir}/${paludis_builddir}/"
+	chroot "${target_dir}" chown -R "${paludis_user}":"${paludis_group}" "${paludis_builddir}"
+	chroot "${target_dir}" chmod -R g+rwx "${paludis_builddir}"
+
+	step "Modifying ${paludis_user}"
+	chroot "${target_dir}" usermod -a -G "$(stat -c %G /dev/tty)" ${paludis_user}
+}

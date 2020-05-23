@@ -1,0 +1,317 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl apply
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2018-2020 Daniel Thau <danthau@bedrocklinux.org>
+#
+# (re)loads configuration
+
+. /bedrock/share/common-code
+# Remove typical runtime sanity checks, as leaving a system half-configured is
+# worse than aborting mid-configure.
+set +eu
+trap '' EXIT
+
+print_help() {
+	printf "Usage: ${color_cmd}brl apply ${color_sub}[options]${color_norm}
+
+Apply ${color_file}/bedrock/etc/bedrock.conf${color_norm} configuration changes.  Requires root.
+
+Options:
+  ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}   print this message
+
+Example:
+  ${color_cmd}$ brl which startx
+  ${color_strat}debian
+  ${color_rcmd}# vim /bedrock/etc/bedrock.conf
+  ${color_sub}<pin startx to arch>
+  ${color_cmd}$ brl which startx
+  ${color_strat}debian
+  ${color_rcmd}# brl apply
+  ${color_cmd}$ brl which startx
+  ${color_strat}arch
+${color_norm}"
+}
+
+handle_help "${@:-}"
+
+require_root
+
+if [ "${1:-}" != "--skip-repair" ]; then
+	# Repair strata to apply stratum-status changing configuration
+	/bedrock/share/brl/backends/brl-repair "bedrock"
+	/bedrock/share/brl/backends/brl-repair "init"
+	for stratum in $(list_strata); do
+		is_bedrock "${stratum}" && continue
+		is_init "${stratum}" && continue
+		is_enabled "${stratum}" || continue
+		/bedrock/share/brl/backends/brl-repair "${stratum}"
+	done
+fi
+
+# lock after brl-repair above, as it locks
+lock
+
+# Configure crossfs.  Items below reference crossfs, and so this should be done
+# early.
+cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
+
+# configure etcfs
+for stratum in $(/bedrock/bin/brl list -ei); do
+	root="$(stratum_root "${stratum}")"
+	cfg_etcfs "/proc/1/root${root}/etc"
+done
+
+# Configure cross firmware.
+if [ -w /sys/module/firmware_class/parameters/path ] && [ -d /bedrock/cross/firmware ]; then
+	printf "/bedrock/cross/firmware" >/sys/module/firmware_class/parameters/path
+fi
+
+# Specify commands which should automatically be restricted in an easily parsed
+# format for strat.
+mkdir -p /bedrock/run/restricted_cmds/
+for cmd in $(cfg_values "restriction" "restrict"); do
+	touch "/bedrock/run/restricted_cmds/${cmd}"
+done
+if echo /bedrock/run/restricted_cmds/* >/dev/null 2>&1; then
+	for file in /bedrock/run/restricted_cmds/*; do
+		found=false
+		for cmd in $(cfg_values "restriction" "restrict"); do
+			if [ "$(basename "${file}")" = "${cmd}" ]; then
+				found=true
+				break
+			fi
+		done
+		if ! "${found}"; then
+			rm "${file}"
+		fi
+	done
+fi
+
+# Various fields below manage the timezone.  Timezone information should not be
+# read from /usr/share/zoneinfo because:
+# - It is a local file and different strata could have differing values, which
+# would result in subtle time issues which would be difficult for users to
+# detect or debug.  Using /bedrock/cross ensures a consistent timezone value
+# across all strata.
+# - Some strata may not have a locale zoneinfo database, which means they must
+# look into /bedrock/cross.
+#
+# We cannot use TZ=:/etc/localtime or TZ=:/bedrock/cross/zoneinfo/<timezone>
+# because of a bug in chromium and the many programs which build off of
+# chromium:
+# https://bugs.chromium.org/p/chromium/issues/detail?id=811403
+# https://github.com/signalapp/Signal-Desktop/issues/3085
+# https://github.com/ValveSoftware/steam-for-linux/issues/5612
+# https://chromium-review.googlesource.com/c/chromium/deps/icu/+/1006219/
+#
+# By ensuring TZ is unset, all tested software including chromium, glibc, and
+# musl, fall back to /etc/localtime, which is symlinked (eventually) to
+# /bedrock/cross.
+
+# Set up /etc/localtime
+ln -fns "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/localtime
+
+# Setup /etc/environment
+(
+	echo "LANG=$(cfg_value "locale" "LANG")"
+	echo "PATH=$(cfg_value "env-vars" "PATH")"
+	echo "MANPATH=$(cfg_value "env-vars" "MANPATH")"
+	echo "INFOPATH=$(cfg_value "env-vars" "INFOPATH")"
+	echo "XDG_DATA_DIRS=$(cfg_value "env-vars" "XDG_DATA_DIRS")"
+	echo "TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
+) >/bedrock/run/environment
+
+# Setup /etc/profile
+(
+	echo "[ -n \"\${BEDROCK_RESTRICT:-}\" ] && return"
+	echo ""
+	echo "unset TZ"
+	echo "export LANG=$(cfg_value "locale" "LANG")"
+	echo "export PATH=$(cfg_value "env-vars" "PATH")"
+	echo "export MANPATH=$(cfg_value "env-vars" "MANPATH")"
+	echo "export INFOPATH=$(cfg_value "env-vars" "INFOPATH")"
+	echo "export XDG_DATA_DIRS=$(cfg_value "env-vars" "XDG_DATA_DIRS")"
+	echo "export TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
+	echo ""
+	echo "for s in \$(/bedrock/bin/brl list); do"
+	echo "	(ls /bedrock/strata/\${s}/etc/profile.d/*.sh) >/dev/null 2>&1 || continue"
+	echo "	for f in /bedrock/strata/\${s}/etc/profile.d/*.sh; do"
+	echo "		. \${f} >/dev/null 2>&1 || true"
+	echo "	done"
+	echo "done"
+) >/bedrock/run/profile
+
+# Setup /etc/zsh/zprofile, /etc/zprofile
+(
+	echo "[ -n \"${BEDROCK_RESTRICT:-}\" ] && return"
+	echo ". /bedrock/run/profile"
+	echo "export fpath=(/bedrock/share/zsh/completion/ \$fpath /bedrock/cross/zsh-completion/)"
+) >/bedrock/run/zprofile
+
+# Setup /etc/fish/conf.d/ configuration
+(
+	echo "[ -n \"\$BEDROCK_RESTRICT\" ]; and exit 0"
+	echo "set -e TZ"
+	echo "set LANG $(cfg_value "locale" "LANG")"
+	echo "set PATH $(cfg_value "env-vars" "PATH" | sed 's/:/ /g')"
+	echo "set MANPATH $(cfg_value "env-vars" "MANPATH" | sed 's/:/ /g')"
+	echo "set INFOPATH $(cfg_value "env-vars" "INFOPATH")"
+	echo "set XDG_DATA_DIRS $(cfg_value "env-vars" "XDG_DATA_DIRS")"
+	echo "set TERMINFO_DIRS $(cfg_value "env-vars" "TERMINFO_DIRS")"
+) >/bedrock/run/fprofile
+
+# Setup /etc/sudoers configuration
+(
+	echo "Defaults secure_path=\"$(cfg_value "env-vars" "PATH")\""
+) >/bedrock/run/sudoers
+
+# Setup xorg.conf configuration
+if [ -d /bedrock/cross/fonts ]; then
+	(
+		echo "Section \"Files\""
+		find /bedrock/cross/fonts -mindepth 1 -type d -exec echo "    FontPath \"{}\"" \;
+		echo "EndSection"
+	) >/bedrock/run/xorg-fonts
+fi
+
+# Configure /etc/login.defs
+if [ -r /etc/login.defs ] && awk -F'=' -v"path=$(cfg_value "env-vars" "PATH")" '
+	# Ensure login.defs uses Bedrock $PATH.
+	#
+	/^[ \t]*ENV_SUPATH[ \t][ \t]*PATH=/ && $2 == path {s=1}
+	/^[ \t]*ENV_PATH[ \t][ \t]*PATH=/ && $2 == path {n=1}
+	END {exit (s+n==2)}' /etc/login.defs; then
+	awk -F'=' -v"path=$(cfg_value "env-vars" "PATH")" '
+	/^[ \t]*ENV_SUPATH[ \t][ \t]*PATH=/ {
+		print "ENV_SUPATH\tPATH="path
+		s=1
+		next
+	}
+	/^[ \t]*ENV_PATH[ \t][ \t]*PATH=/ {
+		print "ENV_PATH\tPATH="path
+		n=1
+		next
+	}
+	1
+	END {
+		if(s == 0) {
+			print "ENV_SUPATH\tPATH="path
+		}
+		if(n == 0) {
+			print "ENV_PATH\tPATH="path
+		}
+	}
+	' /etc/login.defs >/etc/login.defs-new
+	mv /etc/login.defs-new /etc/login.defs
+fi
+
+# Configure /etc/fstab
+if [ -r /etc/fstab ] && awk '$1$2$3$4$5$6 !~ "#" && $6 != "" && $6 != 0 {x=1} END {exit !x}' /etc/fstab; then
+	# Bedrock creates bind mounts referencing the root directory which
+	# confuse various init systems attempts to fsck the root directory.
+	# Thus, disable configuration indicating the root directory should be
+	# fscked.
+	awk '
+		$1$2$3$4$5$6 !~ "#" && $6 != "" && $6 != 0 {
+			$6 = "0"
+		}
+		{
+			print
+		}
+	' /etc/fstab >/etc/fstab-new && mv /etc/fstab-new /etc/fstab
+fi
+
+# Disable SELinux
+for stratum in $(/bedrock/bin/brl list -ei); do
+	root="$(stratum_root --empty "${stratum}")"
+	seconfig="/proc/1/root${root}/etc/selinux/config"
+	if grep -q '^SELINUX=enforcing' "${seconfig}" 2>/dev/null || grep -q '^SELINUX=permissive' "${seconfig}" 2>/dev/null; then
+		sed 's/^SELINUX=/SELINUX=disabled/' "${seconfig}" >"${seconfig}-"
+		mv "${seconfig}-" "${seconfig}"
+	fi
+done
+
+# Force login shells to use cross path to ensure they are available to all
+# programs which may call them.  This is particularly important to allow users
+# to login when the login software comes from a stratum which does not directly
+# provide the user's configured shell.
+need_shell_change=false
+while read -r line; do
+	shell="$(echo "${line}" | awk -F":" '{print$7}')"
+	subline="$(echo "${line}" | awk -F":" -vOFS=":" '{$7="";print}')"
+	name="$(basename "${shell}")"
+	crosspath="/bedrock/cross/bin/$(basename "${shell}")"
+
+	if echo "${shell}" | grep -q '^/bedrock/cross/'; then
+		true
+	elif ! [ -x "${crosspath}" ]; then
+		true
+	else
+		need_shell_change=true
+		break
+	fi
+done </etc/passwd
+if "${need_shell_change}"; then
+	cp -a /etc/passwd /etc/passwd-
+	while read -r line; do
+		shell="$(echo "${line}" | awk -F":" '{print$7}')"
+		subline="$(echo "${line}" | awk -F":" -vOFS=":" '{$7="";print}')"
+		name="$(basename "${shell}")"
+		crosspath="/bedrock/cross/bin/$(basename "${shell}")"
+
+		if echo "${shell}" | grep -q '^/bedrock/cross/'; then
+			echo "${line}"
+		elif ! [ -x "${crosspath}" ]; then
+			echo "${line}"
+		else
+			echo "${subline}/bedrock/cross/bin/${name}"
+		fi
+	done </etc/passwd >/etc/passwd-
+	if [ "$(cat /etc/passwd)" != "$(cat /etc/passwd-)" ] &&
+		[ "$(wc -l /etc/passwd | cut -d' ' -f1)" = "$(wc -l /etc/passwd- | cut -d' ' -f1)" ]; then
+		mv /etc/passwd- /etc/passwd
+		enforce_shells
+	else
+		rm /etc/passwd-
+	fi
+fi
+
+# Setup pmm front-end.
+pmm_ui="$(cfg_value pmm user-interface)"
+if [ "${pmm_ui}" = "" ]; then
+	notice "Set [pmm]/user-interface in bedrock.conf and run \`brl apply\` to update pmm front-end(s)"
+else
+	pmm_ui_files="$(/bedrock/libexec/pmm "${pmm_ui}" pmm --list-pmm-ui-files 2>/dev/null)"
+	# Create front-end files
+	for file in ${pmm_ui_files}; do
+		tgt_contents="#!/bedrock/libexec/busybox sh
+exec /bedrock/libexec/pmm ${pmm_ui} ${file} \"\${@}\""
+		tgt_path="/bedrock/bin/${file}"
+
+		if ! echo "${file}" | grep -q "^pmm"; then
+			echo "ERROR: pmm requests non-pmm front-end \"${file}\""
+			continue
+		elif [ -x "${tgt_path}" ] && [ "$(cat "${tgt_path}")" = "${tgt}" ]; then
+			continue
+		else
+			echo "${tgt_contents}" >"${tgt_path}"
+			chmod a+rx "${tgt_path}"
+		fi
+	done
+	# Remove outdated front-end files
+	cd /bedrock/bin/
+	if ls pmm* >/dev/null 2>&1; then
+		for file in pmm*; do
+			if echo "${pmm_ui_files}" | awk -vf="${file}" '$1 == f {exit 1}'; then
+				rm "${file}"
+			fi
+		done
+	fi
+fi
+
+exit_success

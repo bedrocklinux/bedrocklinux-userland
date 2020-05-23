@@ -61,7 +61,7 @@ case "${1:-}" in
 	exit_success
 	;;
 *)
-	backend="/bedrock/libexec/brl-${1}"
+	backend="/bedrock/share/brl/backends/brl-${1}"
 	if [ -f "${backend}" ]; then
 		shift
 		exec "${backend}" "${@}"

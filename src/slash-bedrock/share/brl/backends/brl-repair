@@ -1,0 +1,321 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl repair
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2018-2019 Daniel Thau <danthau@bedrocklinux.org>
+# Repairs broken strata
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl repair ${color_sub}[options] <strata>${color_norm}
+
+Repairs broken ${color_term}strata${color_norm}.  Requires root.
+
+Options:
+  ${color_sub}<none>${color_norm}         defaults to ${color_cmd}--retain${color_norm}
+  ${color_cmd}-n${color_norm},${color_cmd} --new      ${color_norm}only add new mounts, do not remove anything
+                   ${color_norm}only fixes trivially broken ${color_term}strata
+  ${color_cmd}-r${color_norm},${color_cmd} --retain   ${color_norm}try to retain as much as possible except problematic mount points
+                   ${color_norm}fixes most ${color_term}strata${color_norm} but risks losing some state
+  ${color_cmd}-c${color_norm},${color_cmd} --clear    ${color_norm}clears ${color_term}strata${color_norm} processes and mount points
+                   ${color_norm}should fix almost all ${color_term}strata${color_norm} but loses all state
+  ${color_cmd}-h${color_norm}, ${color_cmd}--help${color_norm}     print this message
+
+Examples:
+  ${color_cmd}$ brl status ubuntu
+  ${color_strat}ubuntu${color_norm}: ${color_okay}enabled
+  ${color_rcmd}# strat ubuntu umount /proc
+  ${color_cmd}$ brl status ubuntu
+  ${color_strat}ubuntu${color_norm}: ${color_alert}broken
+  ${color_rcmd}# brl repair --new ubuntu
+  ${color_cmd}$ brl status ubuntu
+  ${color_strat}ubuntu${color_norm}: ${color_okay}enabled
+  ${color_rcmd}# strat ubuntu sshfs 192.168.1.199:/home/ /etc
+  ${color_cmd}$ brl status ubuntu
+  ${color_strat}ubuntu${color_norm}: ${color_alert}broken
+  ${color_rcmd}# brl repair --new ubuntu
+  ${color_alert}ERROR: Cannot repair \"ubuntu\" with --new strategy due to problematic mount at \"/etc\".
+  ${color_rcmd}# brl repair --retain ubuntu
+  ${color_cmd}$ brl status ubuntu
+  ${color_strat}ubuntu${color_norm}: ${color_okay}enabled
+${color_norm}"
+}
+
+ensure_mnt() {
+	stratum="${1}"
+	root="$(stratum_root --empty "${stratum}")"
+	br_root="/bedrock/strata/bedrock"
+	mnt="${2}"
+	tgt_type="${3}"
+	tgt_share="${4}"
+	tgt_cmd="${5}"
+
+	details="$(mount_details "${stratum}" "${mnt}")"
+	type="$(echo "${details}" | cut -d: -f1)"
+	global="$(echo "${details}" | cut -d: -f2)"
+	shared="$(echo "${details}" | cut -d: -f3)"
+
+	# If a non-global mount exists, unmount it.
+	if [ "${type}" != "missing" ] && ! "${global}"; then
+		if [ "${strategy}" == "new" ]; then
+			abort "Cannot repair \"$stratum\" with --new strategy due to problematic mount at \"${mnt}\""
+		fi
+		umount_r --init "${root}${mnt}"
+		type="missing"
+		shared=false
+	fi
+
+	# If a mount exists but it is the incorrect filesystem type, unmount it.
+	if [ "${type}" != "missing" ] && [ -n "$tgt_type" ] && [ "${type}" != "${tgt_type}" ]; then
+		if [ "${strategy}" == "new" ]; then
+			abort "Cannot repair \"$stratum\" with --new strategy due to problematic mount at \"${mnt}\""
+		fi
+		umount_r --init "${root}${mnt}"
+		type="missing"
+		shared=false
+	fi
+
+	# If a mount point is private but needs to be shared, we need to
+	# re-mount it with shared set on the source.
+	if ! is_bedrock "${stratum}" && ! "${shared}" && "${tgt_share}"; then
+		if [ "${strategy}" == "new" ]; then
+			abort "Cannot repair \"$stratum\" with --new strategy due to problematic mount at \"${mnt}\""
+		fi
+		umount_r --init "${root}${mnt}"
+		type="missing"
+		shared=false
+	fi
+
+	# If the stratum is not Bedrock, ensure Bedrock's equivalent is set up
+	# to share the subtree.  This ensures that when we create the new mount
+	# we share the subtree with Bedrock's mount.
+	if ! is_bedrock "${stratum}" && "${tgt_share}"; then
+		if ! stinit busybox mount --make-rshared "${br_root}${mnt}" 2>/dev/null; then
+			stinit busybox mkdir -p "${br_root}${mnt}"
+			stinit busybox mount --bind "${br_root}${mnt}" "${br_root}${mnt}"
+			stinit busybox mount --make-rshared "${br_root}${mnt}"
+		fi
+	fi
+
+	# If no mount exists at the target location (possibly because we
+	# removed it above), create it.
+	if [ "${type}" = "missing" ]; then
+		stinit busybox mkdir -p "${br_root}${mnt}" "${root}${mnt}"
+		eval "${tgt_cmd}"
+	fi
+
+	# If the stratum is Bedrock, ensure the new mount is shared such any
+	# new bind mounts to it share its subtree.
+	if is_bedrock "${stratum}" && "${shared}"; then
+		stinit busybox mount --make-rshared "${br_root}${mnt}" 2>/dev/null
+	fi
+
+	# If the mount point is shared but we want it private, make it private.
+	if "${shared}" && ! "${tgt_share}"; then
+		stinit busybox mount --make-private "${br_root}${mnt}" 2>/dev/null || true
+		stinit busybox mount --make-private "${root}${mnt}"
+	fi
+
+	setup_binfmt_misc "${stratum}"
+}
+
+repair_bedrock() {
+	stratum="${1}"
+	root="$(stratum_root --empty "${stratum}")"
+
+	# Set an attribute on the stratum's root indicating to which stratum it
+	# belongs.  This allows processes to look up their stratum by reading
+	# the attribute off of their root directory.
+	if ! cur_attr="$(get_attr "/proc/1/root/${root}" "stratum" 2>/dev/null)" || [ "${cur_attr}" != "${stratum}" ]; then
+		set_attr "/proc/1/root/${root}" "stratum" "${stratum}"
+	fi
+
+	mnt="/proc"
+	ensure_mnt "${stratum}" "${mnt}" "proc" "true" "
+		stinit busybox mount -t proc proc \"${root}${mnt}\"
+	"
+
+	mnt="/etc"
+	ensure_mnt "${stratum}" "${mnt}" "fuse.etcfs" "false" "
+		(
+		drop_lock;
+		mkdir -p \"/proc/1/root${root}${mnt}\";
+		if cfg_value \"miscellaneous\" \"debug\" | grep -q etcfs; then
+			cache=\"/bedrock/var/cache/etcfs-${stratum}\";
+			lock --nonblock \"\${cache}\" || true;
+			rm -f \"\${cache}/log\";
+			touch \"\${cache}/log\";
+			chmod go-rwx \"\${cache}/log\";
+			chroot \"/proc/1/root${root}\" /bedrock/libexec/etcfs -d -o allow_other \"${mnt}\" >>\"\${cache}/log\" 2>&1 &
+			sleep 1;
+		else
+			chroot \"/proc/1/root${root}\" /bedrock/libexec/etcfs -o allow_other \"${mnt}\";
+		fi
+		cfg_etcfs \"/proc/1/root${root}${mnt}\";
+		)
+	"
+
+	mnt="/bedrock/run"
+	ensure_mnt "${stratum}" "${mnt}" "tmpfs" "false" "
+		stinit busybox mount -t tmpfs bedrock_run \"${root}${mnt}\";
+		stinit busybox chmod go-w \"${root}\";
+		stinit busybox chmod go-w \"${root}/bedrock\";
+		stinit busybox chmod go-w \"${root}/bedrock/run\";
+	"
+
+	mnt="/bedrock/strata/bedrock"
+	ensure_mnt "${stratum}" "${mnt}" "" "false" "
+		stinit busybox mount --bind \"${root}\" \"${root}${root}\"
+	"
+
+	# crossfs below depends on init stratum having stratum xattr set
+	init="$(/bedrock/bin/brl deref init)"
+	if ! init_attr="$(get_attr "/proc/1/root" "stratum" 2>/dev/null)" || [ "${init_attr}" != "${init}" ]; then
+		set_attr "/proc/1/root" "stratum" "${init}"
+	fi
+
+	mnt="/bedrock/cross"
+	ensure_mnt "${stratum}" "${mnt}" "fuse.crossfs" "false" "
+		(
+		drop_lock;
+		mkdir -p \"/proc/1/root${root}${mnt}\";
+		chroot \"/proc/1/root${root}\" /bedrock/libexec/crossfs -o allow_other \"${mnt}\";
+		)
+	"
+
+	enforce_symlinks "${stratum}"
+	enforce_shells
+	enforce_id_ranges
+
+	cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
+}
+
+repair_stratum() {
+	stratum="${1}"
+	root="$(stratum_root --empty "${stratum}")"
+	br_root="/bedrock/strata/bedrock"
+
+	# Set an attribute on the stratum's root indicating to which stratum it
+	# belongs.  This allows processes to look up their stratum by reading
+	# the attribute off of their root directory.
+	if ! cur_attr="$(get_attr "/proc/1/root/${root}" "stratum" 2>/dev/null)" || [ "${cur_attr}" != "${stratum}" ]; then
+		set_attr "/proc/1/root/${root}" "stratum" "${stratum}"
+	fi
+
+	for mnt in $(cfg_values "global" "share"); do
+		ensure_mnt "${stratum}" "${mnt}" "" "true" "
+			stinit busybox mount --rbind \"${br_root}${mnt}\" \"${root}${mnt}\"
+		"
+	done
+
+	for mnt in $(cfg_values "global" "bind"); do
+		ensure_mnt "${stratum}" "${mnt}" "" "false" "
+			stinit busybox mount --bind \"${br_root}${mnt}\" \"${root}${mnt}\"
+		"
+	done
+
+	mnt="/etc"
+	ensure_mnt "${stratum}" "${mnt}" "fuse.etcfs" "false" "
+		(
+		drop_lock;
+		mkdir -p \"/proc/1/root${root}${mnt}\";
+		if cfg_value \"miscellaneous\" \"debug\" | grep -q etcfs; then
+			cache=\"/bedrock/var/cache/etcfs-${stratum}\";
+			lock --nonblock \"\${cache}\" || true;
+			rm -f \"\${cache}/log\";
+			touch \"\${cache}/log\";
+			chmod go-rwx \"\${cache}/log\";
+			chroot \"/proc/1/root${root}\" /bedrock/libexec/etcfs -d -o allow_other \"${mnt}\" >>\"\${cache}/log\" 2>&1 &
+			sleep 1;
+		else
+			chroot \"/proc/1/root${root}\" /bedrock/libexec/etcfs -o allow_other \"${mnt}\";
+		fi
+		cfg_etcfs \"/proc/1/root${root}${mnt}\";
+		)
+	"
+
+	enforce_symlinks "${stratum}"
+
+	enforce_shells
+
+	cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
+}
+
+handle_help "${@:-}"
+min_args "${#}" "1"
+
+require_root
+lock
+
+strategy="retain"
+strata=""
+
+OPTL="new,retain,clear"
+OPTO="nrc"
+eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
+saw_non_positional=false
+
+while [ -n "${1:-}" ]; do
+	case "${1}" in
+	-n | --new)
+		strategy="new"
+		shift
+		;;
+	-r | --retain)
+		strategy="retain"
+		shift
+		;;
+	-c | --clear)
+		strategy="clear"
+		shift
+		;;
+	--)
+		shift
+		;;
+	-*)
+		if "${saw_non_positional}"; then
+			eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
+			saw_non_positional=false
+		else
+			abort "Unrecognized argument: ${1}"
+		fi
+		;;
+	*)
+		saw_non_positional=true
+		strata="${strata} ${1}"
+		shift
+		;;
+	esac
+done
+
+for alias in ${strata}; do
+	if ! is_stratum_or_alias "${alias}"; then
+		abort "No stratum or alias called \"${alias}\"."
+	elif ! stratum="$(deref "${alias}")"; then
+		abort "Unable to dereference \"${alias}\"."
+	elif ! is_enabled "${stratum}"; then
+		abort "\`brl repair\` is intended for enabled strata.  Enable disabled strata with \`brl enable\`."
+	elif is_bedrock "${stratum}" && [ "${strategy}" = "clear" ]; then
+		abort "Unable to --clear bedrock stratum"
+	elif is_init "${stratum}" && [ "${strategy}" = "clear" ]; then
+		abort "Unable to --clear init-providing stratum"
+	elif is_bedrock "${stratum}"; then
+		repair_bedrock "${stratum}"
+	else
+		if [ "${strategy}" = "clear" ]; then
+			disable_stratum "${stratum}"
+			drop_lock
+			/bedrock/share/brl/backends/brl-enable "${stratum}"
+			lock
+		else
+			repair_stratum "${stratum}"
+		fi
+	fi
+done
+
+exit_success

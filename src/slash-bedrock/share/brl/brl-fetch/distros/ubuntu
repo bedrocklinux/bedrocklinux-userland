@@ -1,0 +1,169 @@
+#!/bedrock/libexec/busybox sh
+#
+# Ubuntu bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+# shellcheck source=src/slash-bedrock/share/brl/backends/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	true
+}
+
+speed_test_url() {
+	echo "dists/${target_release}/Release"
+}
+
+list_mirrors() {
+	case "${target_arch}" in
+	"x86_64")
+		echo 'http://archive.ubuntu.com/ubuntu'
+		mirror_list_url='https://launchpad.net/ubuntu/+archivemirrors'
+		wget -O- "${mirror_list_url}" 2>/dev/null |
+			awk '/mirrors_list/,/<\/div/' |
+			list_links |
+			grep "^http"
+		;;
+	*)
+		echo 'http://ports.ubuntu.com/ubuntu-ports/'
+		;;
+	esac
+}
+
+brl_arch_to_distro() {
+	case "${1}" in
+	"aarch64") echo "arm64" ;;
+	"armv7hl") echo "armhf" ;;
+	"ppc64le") echo "ppc64el" ;;
+	"s390x") echo "s390x" ;;
+		# Cannot find 32-bit x86 in Ubuntu 19.04.  Apparently it was dropped.
+	"x86_64") echo "amd64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+	esac
+}
+
+list_architectures() {
+	cat <<EOF
+aarch64
+armv7hl
+ppc64le
+s390x
+x86_64
+EOF
+}
+
+default_release() {
+	# cdimage is (1) updated to include the latest stable release, (2) does
+	# not include any unstable releases, and (3) has a relatively stable
+	# format that is relatively unlikely to update in a way that breaks
+	# parsing.
+	release_list_url='http://cdimage.ubuntu.com/releases/'
+	set +o pipefail
+	num="$(wget -O- "${release_list_url}" 2>/dev/null 2>/dev/null |
+		list_links |
+		sed 's,/,,g' |
+		grep '^[0-9]*[.][0-9]*$' |
+		sort -rn |
+		head -n1)"
+
+	codenames="$(wget -O- "http://archive.ubuntu.com/ubuntu/dists" 2>/dev/null 2>/dev/null |
+		list_links |
+		grep '/$' |
+		grep -v -- '-' |
+		grep -v -- '^devel/$' |
+		grep -ve '[.]' -ve '^/' |
+		sed 's,/$,,g')"
+
+	for codename in ${codenames}; do
+		if ! wget -O- "http://archive.ubuntu.com/ubuntu/dists/${codename}/Release" 2>/dev/null |
+			awk -v"n=${num}" '$1 == "Version:" && $2 == n {exit 1}'; then
+			echo "${codename}"
+			set +o pipefail
+			return
+		fi
+	done
+	set -o pipefail
+}
+
+list_releases() {
+	for mirror in "${flag_mirror}" $(list_mirrors); do
+		if wget -O- "${mirror}/dists" 2>/dev/null |
+			list_links |
+			grep '/$' |
+			grep -v -- '-' |
+			grep -ve '[.]' -ve '^/' |
+			sed 's,/$,,g'; then
+			break
+		fi
+	done
+}
+
+fetch() {
+	bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv ubuntu-keyring"
+	# libapt-pkg.so.5.X provider changed from libapt-pkg5.0 in pre-eoan to libapt-pkg-dev in eoan
+	if [ "$( (
+		echo "${target_release:-}"
+		echo "eoan"
+	) | sort | head -n1)" != "eoan" ]; then
+		bootstrap_deps="${bootstrap_deps} libapt-pkg5.0"
+	else
+		bootstrap_deps="${bootstrap_deps} libapt-pkg-dev"
+	fi
+
+	step "Downloading package information database"
+	wget -O "${bootstrap_dir}/Packages.gz" "${target_mirror}/dists/${target_release}/main/binary-${distro_arch}/Packages.gz"
+	gunzip "${bootstrap_dir}/Packages.gz"
+
+	step "Converting distro package information database to brl format"
+	debdb_to_brldb "${bootstrap_dir}/Packages" "${bootstrap_dir}/brldb"
+
+	step "Calculating required bootstrap packages"
+	brldb_calculate_required_packages "${bootstrap_dir}/brldb" "${bootstrap_dir}/required_packages" "${bootstrap_deps}"
+
+	step "Downloading bootstrap packages"
+	checksum_downloads "${cache}/packages/" "$(awk -v"m=${target_mirror}" '{print m"/"$0}' "${bootstrap_dir}/required_packages")"
+
+	step "Extracting bootstrap packages"
+	bootstrap_packages="$(awk -v"d=${cache}/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
+	# shellcheck disable=SC2086
+	extract_debs "${bootstrap_dir}" ${bootstrap_packages}
+
+	step "Running bootstrap software"
+	setup_chroot "${bootstrap_dir}"
+	set +o pipefail
+	if LANG=C chroot "${bootstrap_dir}" debootstrap --help | grep -q "cache-dir"; then
+		share_cache "packages" "${bootstrap_dir}/packages"
+		yes "" | LANG=C chroot "${bootstrap_dir}" debootstrap --variant=minbase --cache-dir="/packages" "${target_release}" "/target-root" "${target_mirror}"
+	else
+		yes "" | LANG=C chroot "${bootstrap_dir}" debootstrap --variant=minbase "${target_release}" "/target-root" "${target_mirror}"
+	fi
+	set -o pipefail
+
+	step "Configuring"
+	if grep -q "\<main\>" "${target_dir}/etc/apt/sources.list" && ! grep -q "\<universe\>" "${target_dir}/etc/apt/sources.list"; then
+		# universe contains locales-all package needed below
+		sed 's/\<main\>/main universe/' "${target_dir}/etc/apt/sources.list" >"${target_dir}/etc/apt/sources.list-new"
+		mv "${target_dir}/etc/apt/sources.list-new" "${target_dir}/etc/apt/sources.list"
+	fi
+	case "${distro_arch}" in
+	"amd64")
+		echo "deb http://archive.ubuntu.com/ubuntu/ ${target_release}-security main universe" >>"${target_dir}/etc/apt/sources.list"
+		;;
+	esac
+	set +o pipefail
+	setup_chroot "${target_dir}"
+	autopkgs="$(LANG=C chroot "${target_dir}" /usr/bin/apt-mark showmanual)"
+	# word splitting is desired here
+	# shellcheck disable=SC2086
+	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-mark auto ${autopkgs}
+	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get update
+	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get install locales-all
+	set -o pipefail
+}
