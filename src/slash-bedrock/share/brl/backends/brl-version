@@ -8,6 +8,8 @@
 #
 # Copyright (c) 2016-2018 Daniel Thau <danthau@bedrocklinux.org>
 #
+# brl help::6::${color_cmd}version   ${color_norm}Query ${color_bedrock}Bedrock Linux${color_norm} version
+#
 # Prints current install's Bedrock Linux version
 
 . /bedrock/share/common-code

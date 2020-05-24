@@ -8,6 +8,8 @@
 #
 # Copyright (c) 2019-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
+# brl help::6::${color_cmd}tutorial  ${color_norm}Run interactive ${color_bedrock}Bedrock Linux${color_norm} tutorial
+#
 # Interactive tutorial front-end
 
 # shellcheck source=src/slash-bedrock/share/brl/brl-tutorial/common

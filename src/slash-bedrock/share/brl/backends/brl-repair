@@ -7,6 +7,9 @@
 #      version 2 as published by the Free Software Foundation.
 #
 # Copyright (c) 2018-2019 Daniel Thau <danthau@bedrocklinux.org>
+#
+# brl help::3::${color_cmd}repair    ${color_norm}Repairs ${color_term}broken${color_norm} ${color_term}strata${color_norm}
+#
 # Repairs broken strata
 
 . /bedrock/share/common-code

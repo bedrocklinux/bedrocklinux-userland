@@ -14,6 +14,25 @@
 . /bedrock/share/common-code
 
 print_help() {
+	# Parse and sort help information from backend files
+	help_msg="$(cat <<EOF | sort
+$(find /bedrock/share/brl/backends/ -mindepth 1 -maxdepth 1 -type f -exec awk -F'::' '/brl help:/{print $(NF-1), "", $NF}' {} \;)
+EOF
+	)"
+
+	# Expand color information
+	help_msg="$(eval "cat <<EOF
+${help_msg}
+EOF")"
+
+	# Divide help information into designated section
+	s1="$(echo "${help_msg}" | awk '/^1/' | cut -c 2-)"
+	s2="$(echo "${help_msg}" | awk '/^2/' | cut -c 2-)"
+	s3="$(echo "${help_msg}" | awk '/^3/' | cut -c 2-)"
+	s4="$(echo "${help_msg}" | awk '/^4/' | cut -c 2-)"
+	s5="$(echo "${help_msg}" | awk '/^5/' | cut -c 2-)"
+	s6="$(echo "${help_msg}" | awk '/^6/' | cut -c 2-)"
+
 	printf "Usage: ${color_cmd}brl ${color_sub}<command> [arguments]${color_norm}
 
 ${color_bedrock}Bedrock Linux${color_norm} system management and introspection.
@@ -21,35 +40,22 @@ ${color_bedrock}Bedrock Linux${color_norm} system management and introspection.
 Common commands:
   ${color_cmd}strat     ${color_norm}Run specified ${color_term}stratum${color_norm}'s executable
   ${color_cmd}          ${color_norm}Note: ${color_cmd}\`strat\`${color_norm} is available without the ${color_cmd}\`brl\`${color_norm} prefix
-  ${color_cmd}list      ${color_norm}List ${color_term}strata${color_norm}
-  ${color_cmd}which     ${color_norm}Query which ${color_term}stratum${color_norm} provides object
+${s1}
 
 ${color_term}Strata${color_norm} management commands:
-  ${color_cmd}fetch     ${color_norm}${color_term}Fetch${color_norm} new ${color_term}strata${color_norm}
-  ${color_cmd}remove    ${color_norm}Remove ${color_term}strata${color_norm} (or ${color_term}aliases${color_norm})
-  ${color_cmd}rename    ${color_norm}Rename a ${color_term}stratum${color_norm}
-  ${color_cmd}copy      ${color_norm}Copy a ${color_term}stratum${color_norm}
+${s2}
 
 ${color_term}Strata${color_norm} status management commands:
-  ${color_cmd}status    ${color_norm}Query ${color_term}stratum${color_norm} status
-  ${color_cmd}enable    ${color_norm}${color_term}Enable${color_norm} ${color_term}strata${color_norm}
-  ${color_cmd}disable   ${color_norm}${color_term}Disable${color_norm} ${color_term}strata${color_norm}
-  ${color_cmd}repair    ${color_norm}Repairs ${color_term}broken${color_norm} ${color_term}strata${color_norm}
+${s3}
 
 ${color_term}Strata${color_norm} visibility management commands:
-  ${color_cmd}hide      ${color_norm}${color_term}Hide${color_norm} ${color_term}strata${color_norm}
-  ${color_cmd}show      ${color_norm}${color_term}Show${color_norm} ${color_term}strata${color_norm}
+${s4}
 
 ${color_term}Alias${color_norm} management commands:
-  ${color_cmd}alias     ${color_norm}Create a ${color_term}stratum${color_norm} ${color_term}alias${color_norm}
-  ${color_cmd}deref     ${color_norm}Dereference ${color_term}stratum${color_norm} ${color_term}aliases${color_norm}
+${s5}
 
 Miscellaneous commands:
-  ${color_cmd}apply     ${color_norm}Apply configuration changes
-  ${color_cmd}update    ${color_norm}Update ${color_bedrock}Bedrock Linux${color_norm} system
-  ${color_cmd}version   ${color_norm}Query ${color_bedrock}Bedrock Linux${color_norm} version
-  ${color_cmd}report    ${color_norm}Generate report
-  ${color_cmd}tutorial  ${color_norm}Run interactive ${color_bedrock}Bedrock Linux${color_norm} tutorial
+${s6}
 
 See ${color_cmd}\`brl ${color_sub}<command>${color_cmd} --help\`${color_norm} for further details per command.
 "

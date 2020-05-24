@@ -8,6 +8,8 @@
 #
 # Copyright (c) 2019 Daniel Thau <danthau@bedrocklinux.org>
 #
+# brl help::6::${color_cmd}update    ${color_norm}Update ${color_bedrock}Bedrock Linux${color_norm} system
+#
 # Updates Bedrock Linux system
 
 . /bedrock/share/common-code
