@@ -148,7 +148,7 @@ ln -fns "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/
 
 # Setup /etc/zsh/zprofile, /etc/zprofile
 (
-	echo "[ -n \"${BEDROCK_RESTRICT:-}\" ] && return"
+	echo "[ -n \"\${BEDROCK_RESTRICT:-}\" ] && return"
 	echo ". /bedrock/run/profile"
 	echo "export fpath=(/bedrock/share/zsh/completion/ \$fpath /bedrock/cross/zsh-completion/)"
 ) >/bedrock/run/zprofile
