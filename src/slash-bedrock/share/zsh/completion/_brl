@@ -67,6 +67,7 @@ fi
 case "${words[2]}" in
 "strat")
 	args+=('2:brl subcommand:_brl_strat')
+	args+=('*::brl subcommand:_normal')
 	;;
 "list")
 	args+=('(-e --enabled-strata)'{-e,--enabled-strata}'[list enabled strata]')
