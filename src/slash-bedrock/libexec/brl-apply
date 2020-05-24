@@ -168,6 +168,7 @@ ln -fns "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/
 # Setup /etc/sudoers configuration
 (
 	echo "Defaults secure_path=\"$(cfg_value "env-vars" "PATH")\""
+	echo "Defaults env_keep+=\"BEDROCK_RESTRICT\""
 ) >/bedrock/run/sudoers
 
 # Setup xorg.conf configuration
