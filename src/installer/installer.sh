@@ -295,7 +295,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		mv /bedrock/etc/bedrock.conf-new /bedrock/etc/bedrock.conf
 	fi
 	if [ -n "${pmm_ui:-}" ]; then
-		awk -v"value=${pmm_ui}" '!/^user_interface =/{print} /^user_interface =/{print "user_interface = "value}' /bedrock/etc/bedrock.conf >/bedrock/etc/bedrock.conf-new
+		awk -v"value=${pmm_ui}" '!/^user-interface =/{print} /^user-interface =/{print "user-interface = "value}' /bedrock/etc/bedrock.conf >/bedrock/etc/bedrock.conf-new
 		mv /bedrock/etc/bedrock.conf-new /bedrock/etc/bedrock.conf
 	fi
 
