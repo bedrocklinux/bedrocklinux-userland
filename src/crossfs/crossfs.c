@@ -49,14 +49,9 @@
  *   to do this very early/late in the function.  Careful not to early return
  *   before unlocking.
  * - File system calls relative to the root or cwd are not thread safe.  Use
- *   fchroot_* wrappers which internally lock.  Filesystem calls relative to a
- *   file descriptor (e.g. readlinkat()) are thread safe.
- *
- * Having to lock around chroot() calls is obviously undesirable.  The
- * alternative is to write our own function to walk a path as though it was
- * chrooted, resolving to the ultimate path.  In practice, such attempts were
- * found to be slower than the lock-and-chroot method used here, primarily due
- * to the large number of expensive system calls (repeated readlink()).
+ *   fchroot_* wrappers which internally either lock or use thread safe
+ *   alternatives such as openat2() with RESOLVE_IN_ROOT.  Filesystem calls
+ *   relative to a file descriptor (e.g. readlinkat()) are thread safe.
  *
  * Another obviously undesirable performance hit revolves around repeated work
  * between readdir() and getattr().  readdir() does a lot of work to find the
@@ -73,7 +68,7 @@
  * calculation.  Cache invalidation may be tricky.
  */
 
-#define FUSE_USE_VERSION 32
+#define FUSE_USE_VERSION 39
 #define _GNU_SOURCE
 
 #include <dirent.h>
@@ -86,6 +81,8 @@
 #include <stdio.h>
 #include <sys/fsuid.h>
 #include <unistd.h>
+#include <linux/openat2.h>
+#include <asm-generic/unistd.h> /* __NR_openat2 */
 
 #include <uthash.h>
 
@@ -118,6 +115,11 @@
  */
 #define BOUNCER_PATH "/bedrock/libexec/bouncer"
 #define BOUNCER_PATH_LEN strlen(BOUNCER_PATH)
+
+/*
+ * The root of the procfs filesystem
+ */
+#define PROCFS_ROOT "/proc"
 
 /*
  * Surface the associated stratum and file path for files via xattrs.
@@ -423,9 +425,9 @@ struct h_kv {
  *
  * Access should be locked with cfg_lock.
  */
-struct cfg_entry *cfgs = NULL;
-size_t cfg_cnt = 0;
-size_t cfg_alloc = 0;
+static struct cfg_entry *cfgs = NULL;
+static size_t cfg_cnt = 0;
+static size_t cfg_alloc = 0;
 
 /*
  * Per-thread information about calling process' stratum.
@@ -437,24 +439,34 @@ static __thread struct stratum local_stratum;
  * Reference file descriptors.  Used as fixed reference points while
  * chroot()'ing around.
  */
-int init_root_fd;
-int strata_root_fd;
-int current_root_fd;
-int bouncer_fd;
+static int init_root_fd;
+static int strata_root_fd;
+static int current_root_fd;
+static int procfs_fd;
+static int bouncer_fd;
+
+/*
+ * Linux 5.6 adds openat2() which can be used to open file descriptors as
+ * though they were chrooted.  On systems where this is available, it removes
+ * the need to lock around chroot() calls.
+ *
+ * Initialization code sets openat2_available if available.
+ */
+static int openat2_available = 0;
 
 /*
  * Locks
  */
-pthread_rwlock_t cfg_lock;
-pthread_mutex_t root_lock;
+static pthread_rwlock_t cfg_lock;
+static pthread_mutex_t root_lock;
 
 /*
  * Pre-calculated stat information.
  */
-struct stat vdir_stat;
-struct stat cfg_stat;
-struct stat local_stat;
-off_t bouncer_size;
+static struct stat vdir_stat;
+static struct stat cfg_stat;
+static struct stat local_stat;
+static off_t bouncer_size;
 
 /*
  * Set the fsuid and fsgid to that of the calling function.  setfsuid/setfsgid
@@ -467,6 +479,33 @@ static inline void set_caller_fsid()
 	struct fuse_context *context = fuse_get_context();
 	setfsuid(context->uid);
 	setfsgid(context->gid);
+}
+
+/*
+ * Linux 5.6 adds openat2() which can be used to open file descriptors as
+ * though they were chrooted.  On systems where this is available, it removes
+ * the need to lock around chroot() calls.
+ *
+ * Initialization code sets openat2_available if available.  Only call this
+ * function if openat2_available is set.
+ */
+static inline int openat2_fchroot_open(int dirfd, const char *pathname, uint64_t flags, uint64_t mode) {
+	/*
+	 * `man 2 openat` indicates:
+	 *
+	 *     Whereas openat(2) ignores unknown bits in its flags argument,
+	 *     openat2() returns an error if unknown or conflicting flags are
+	 *     specified in how.flags.
+	 *
+	 * libfuse sometimes passes 040 in the flags for some reason.  This
+	 * does not correspond to any Linux O_* flags at the time of writing.
+	 */
+	struct open_how how = {
+		flags & ~(040),
+		mode,
+		RESOLVE_IN_ROOT,
+	};
+	return syscall(__NR_openat2, dirfd, pathname, &how, sizeof(how));
 }
 
 /*
@@ -682,6 +721,10 @@ static inline int insert_h_kv(struct h_kv **kvs, char *key, size_t key_len,
  */
 static inline int fchroot_open(int root_fd, const char *bpath, int flags)
 {
+	if (openat2_available) {
+		return openat2_fchroot_open(root_fd, bpath, flags, 0);
+	}
+
 	int rv = -EINVAL;
 	pthread_mutex_lock(&root_lock);
 
@@ -701,6 +744,25 @@ static inline int fchroot_open(int root_fd, const char *bpath, int flags)
  */
 static inline int fchroot_stat(int root_fd, const char *bpath, struct stat *buf)
 {
+	if (openat2_available) {
+		/*
+		 * According to `man 2 open`, fstat() supports O_PATH since
+		 * 2.6.39.  This is before openat2() addition in 5.6 which
+		 * openat2_available guarantees.  Thus, O_PATH should be safe
+		 * here.
+		 *
+		 * This is fchroot_stat(), not fchroot_lstat(); thus, leave off
+		 * O_NOFOLLOW.
+		 */
+		int fd = openat2_fchroot_open(root_fd, bpath, O_RDONLY | O_PATH, 0);
+		if (fd < 0) {
+			return fd;
+		}
+		int rv = fstat(fd, buf);
+		close(fd);
+		return rv;
+	}
+
 	int rv = -EAGAIN;
 	pthread_mutex_lock(&root_lock);
 
@@ -716,11 +778,61 @@ static inline int fchroot_stat(int root_fd, const char *bpath, struct stat *buf)
 }
 
 /*
+ * Returns non-zero if something (except dangling symlink) exists at
+ * specified location, and returns zero otherwise.
+ */
+static inline int fchroot_file_exists(int root_fd, const char *bpath)
+{
+	if (openat2_available) {
+		int fd = openat2_fchroot_open(root_fd, bpath, O_PATH, 0);
+		if (fd >= 0) {
+			close(fd);
+		}
+		return (fd >= 0 || errno != ENOENT);
+	}
+
+	int rv = -EINVAL;
+	pthread_mutex_lock(&root_lock);
+
+	if ((current_root_fd == root_fd)
+		|| (fchdir(root_fd) >= 0 && chroot(".") >= 0)) {
+		current_root_fd = root_fd;
+
+		struct stat stbuf;
+		rv = stat(bpath, &stbuf) >= 0;
+	}
+
+	pthread_mutex_unlock(&root_lock);
+	return rv;
+}
+
+/*
  * Perform readlink() with a given chroot()
  */
 static inline int fchroot_readlink(int root_fd, const char *bpath, char *buf,
 	size_t size)
 {
+	if (openat2_available) {
+		int fd = openat2_fchroot_open(root_fd, bpath, O_NOFOLLOW | O_PATH, 0);
+		if (fd < 0) {
+			return fd;
+		}
+		int rv = readlinkat(fd, "", buf, size);
+		/*
+		 * On Linux 5.6, readlinkat(fd,"",...) appears to return ENOENT
+		 * if the fd is not a symlink, even if it exists.  Compensate
+		 * so the openat2 code path acts the same as the chroot code
+		 * path.  There is no way to false-positive this check, as we
+		 * would not have a valid fd from openat2() if the file did not
+		 * exist.
+		 */
+		if (rv < 0 && errno == ENOENT) {
+			errno = EINVAL;
+		}
+		close(fd);
+		return rv;
+	}
+
 	int rv = -EINVAL;
 	pthread_mutex_lock(&root_lock);
 
@@ -737,10 +849,24 @@ static inline int fchroot_readlink(int root_fd, const char *bpath, char *buf,
 
 /*
  * Perform fopen() with a given chroot()
+ *
+ * Only use case in this code base is read-only.  Limit accordingly to avoid
+ * having to translate between openat2() and fopen() mode descriptions.
  */
-static inline FILE *fchroot_fopen(int root_fd, const char *bpath,
-	const char *mode)
+static inline FILE *fchroot_fopen_rdonly(int root_fd, const char *bpath)
 {
+	if (openat2_available) {
+		int fd = openat2_fchroot_open(root_fd, bpath, O_RDONLY, 0);
+		if (fd < 0) {
+			return NULL;
+		}
+		/*
+		 * `man 2 fdopen` indicates fdopen() does not dup, and so
+		 * closing fdopen() return value also closes underlying fd.
+		 */
+		return fdopen(fd, "r");
+	}
+
 	FILE *rv = NULL;
 	pthread_mutex_lock(&root_lock);
 
@@ -748,7 +874,7 @@ static inline FILE *fchroot_fopen(int root_fd, const char *bpath,
 		|| (fchdir(root_fd) >= 0 && chroot(".") >= 0)) {
 		current_root_fd = root_fd;
 
-		rv = fopen(bpath, mode);
+		rv = fopen(bpath, "r");
 	}
 
 	pthread_mutex_unlock(&root_lock);
@@ -761,6 +887,59 @@ static inline FILE *fchroot_fopen(int root_fd, const char *bpath,
 static inline int fchroot_filldir(int root_fd, const char *const bpath,
 	struct h_str *files)
 {
+	/*
+	 * The openat2_available code path here was found to be slower on
+	 * average than the chroot code path on large directories, even in
+	 * heavily multithreaded workflows.
+	 *
+	 * This is likely because the no-chroot check to see if any given
+	 * directory entry is a dangling symbolic link takes two system calls,
+	 * openat2() and close(), rather than the one stat() call used in the
+	 * chroot path.  The chroot() overhead is amortized away.
+	 *
+	 * Note this reasoning does not apply to the other fchroot_*()
+	 * functions which perform far fewer internal system calls.
+	 *
+	 * if (openat2_available) {
+	 * 	DIR *d = NULL;
+	 * 	char buf[2];
+	 * 	int fd = -1;
+	 * 	int rv = 0;
+	 * 	if (fchroot_readlink(root_fd, bpath, buf, sizeof(buf)) == 1 && buf[0] == '.') {
+	 * 		// skip the common /usr/bin/X11 symlink to `.`
+	 * 	} else if ((fd = openat2_fchroot_open(root_fd, bpath, O_RDONLY | O_DIRECTORY, 0)) >= 0 && (d = fdopendir(fd)) != NULL) {
+	 * 		struct dirent *dir;
+	 * 		while ((dir = readdir(d)) != NULL) {
+	 * 			struct h_str *e = NULL;
+	 * 			size_t len = strlen(dir->d_name);
+	 * 			HASH_FIND(hh, files, dir->d_name, len, e);
+	 * 			if (e != NULL) {
+	 * 				continue;
+	 * 			}
+	 * 
+	 * 			char tmp[PATH_MAX];
+	 * 			int s = snprintf(tmp, PATH_MAX, "%s/%s", bpath, dir->d_name);
+	 * 			if (s < 0 || s >= (int)sizeof(tmp)) {
+	 * 				continue;
+	 * 			}
+	 * 			if (!fchroot_file_exists(root_fd, tmp)) {
+	 * 				continue;
+	 * 			}
+	 * 
+	 * 			rv |= insert_h_str(&files, dir->d_name, len);
+	 * 		}
+	 * 	} else if (errno != ENOENT) {
+	 * 		rv = -errno;
+	 * 	}
+	 * 	if (d != NULL) {
+	 * 		closedir(d);
+	 * 	} else if (fd >= 0) {
+	 * 		close(fd);
+	 * 	}
+	 * 	return rv;
+	 * }
+	*/
+
 	int rv = 0;
 	pthread_mutex_lock(&root_lock);
 
@@ -770,11 +949,7 @@ static inline int fchroot_filldir(int root_fd, const char *const bpath,
 
 		DIR *d = NULL;
 		char buf[2];
-		struct stat stbuf;
-		if (lstat(bpath, &stbuf) >= 0 &&
-				S_ISLNK(stbuf.st_mode) &&
-				readlink(bpath, buf, sizeof(buf)) == 1 &&
-				buf[0] == '.') {
+		if (readlink(bpath, buf, sizeof(buf)) == 1 && buf[0] == '.') {
 			// skip self-symlinks such as the common /usr/bin/X11
 		} else if (chdir(bpath) >= 0 && (d = opendir(".")) != NULL) {
 			struct dirent *dir;
@@ -852,8 +1027,8 @@ static inline int open_first_bpath(struct cfg_entry *entry, const char *ipath,
 }
 
 /*
- * Retrieves the location of the first non-ENOENT file for the given
- * ipath/entry.
+ * Retrieves the location of the first file (except dangling symlinks) for the
+ * given ipath/entry.
  */
 static inline int loc_first_bpath(struct cfg_entry *cfg,
 	const char *ipath, size_t ipath_len, struct back_entry **back,
@@ -867,10 +1042,7 @@ static inline int loc_first_bpath(struct cfg_entry *cfg,
 			continue;
 		}
 
-		char c;
-		rv = fchroot_readlink(deref(&cfg->back[i])->root_fd, bpath, &c,
-			1);
-		if (rv >= 0 || errno != ENOENT) {
+		if (fchroot_file_exists(deref(&cfg->back[i])->root_fd, bpath)) {
 			*back = &cfg->back[i];
 			obpath[PATH_MAX - 1] = '\0';
 			strncpy(obpath, bpath, PATH_MAX);
@@ -900,8 +1072,7 @@ static inline int filldir_all_bpath(struct cfg_entry *cfg, const char *ipath,
 			continue;
 		}
 
-		rv |= fchroot_filldir(deref(&cfg->back[i])->root_fd, bpath,
-			files);
+		(void) fchroot_filldir(deref(&cfg->back[i])->root_fd, bpath, files);
 	}
 	return rv;
 }
@@ -1371,8 +1542,7 @@ static inline int font_merge_kv(struct cfg_entry *cfg, const char *ipath,
 			continue;
 		}
 
-		FILE *fp = fchroot_fopen(deref(&cfg->back[i])->root_fd, bpath,
-			"r");
+		FILE *fp = fchroot_fopen_rdonly(deref(&cfg->back[i])->root_fd, bpath);
 		if (fp == NULL) {
 			continue;
 		}
@@ -1495,13 +1665,21 @@ static inline int set_local_stratum(void)
 	}
 
 	char procroot[PATH_MAX];
-	int s = snprintf(procroot, PATH_MAX, "/proc/%d/root", context->pid);
+	int s = snprintf(procroot, PATH_MAX, "%d/root", context->pid);
 	if (s < 0 || s >= (int)sizeof(procroot)) {
 		goto fallback_virtual;
 	}
 
-	local_stratum.root_fd =
-		fchroot_open(init_root_fd, procroot, O_DIRECTORY);
+	/*
+	 * openat2(), and consequently openat2_fchroot_open(), may refuse to
+	 * open /proc even if RESOLVE_NO_MAGIC_LINKS is unset.  From `man 2 openat`:
+	 *
+	 *     RESOLVE_IN_ROOT [...] Currently, this flag also disables
+	 *     magic-link resolution.  However, this may change in the future.
+	 *
+	 * Happily, openat() is sufficient for our needs here.
+	 */
+	local_stratum.root_fd = openat(procfs_fd, procroot, O_DIRECTORY);
 	if (local_stratum.root_fd < 0) {
 		goto fallback_virtual;
 	}
@@ -1576,7 +1754,7 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 			break;
 		}
 
-		FILE *fp = fchroot_fopen(deref(back)->root_fd, bpath, "r");
+		FILE *fp = fchroot_fopen_rdonly(deref(back)->root_fd, bpath);
 		if (fp == NULL) {
 			rv = -errno;
 			break;
@@ -1921,7 +2099,7 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 			break;
 		}
 
-		FILE *fp = fchroot_fopen(deref(back)->root_fd, bpath, "r");
+		FILE *fp = fchroot_fopen_rdonly(deref(back)->root_fd, bpath);
 		if (fp == NULL) {
 			rv = -errno;
 			break;
@@ -2290,6 +2468,18 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "crossfs: unable to open \"" BOUNCER_PATH
 			"\".\n");
 		return 1;
+	}
+	if ((procfs_fd = open(PROCFS_ROOT, O_RDONLY)) < 0) {
+		fprintf(stderr, "crossfs: unable to open \"" PROCFS_ROOT
+			"\".\n");
+		return 1;
+	}
+
+	/*
+	 * Check if openat2() is available
+	 */
+	if (openat2_fchroot_open(init_root_fd, "/", O_DIRECTORY, 0) > 0) {
+		openat2_available = 1;
 	}
 
 	/*
