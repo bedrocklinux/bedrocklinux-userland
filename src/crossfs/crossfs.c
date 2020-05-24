@@ -769,7 +769,14 @@ static inline int fchroot_filldir(int root_fd, const char *const bpath,
 		current_root_fd = root_fd;
 
 		DIR *d = NULL;
-		if (chdir(bpath) >= 0 && (d = opendir(".")) != NULL) {
+		char buf[2];
+		struct stat stbuf;
+		if (lstat(bpath, &stbuf) >= 0 &&
+				S_ISLNK(stbuf.st_mode) &&
+				readlink(bpath, buf, sizeof(buf)) == 1 &&
+				buf[0] == '.') {
+			// skip self-symlinks such as the common /usr/bin/X11
+		} else if (chdir(bpath) >= 0 && (d = opendir(".")) != NULL) {
 			struct dirent *dir;
 			while ((dir = readdir(d)) != NULL) {
 				struct h_str *e = NULL;
