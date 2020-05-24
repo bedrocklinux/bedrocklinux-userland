@@ -874,11 +874,16 @@ function get_shell_output(cmd, stratum, package_manager, items, show,
 }
 
 function world_func_prep(_output, world_missing, sys_missing,
-	_local, a, b, n, p, q, superceded, stratum, package_manager) {
+	_local, a, b, n, p, q, superceded, available, stratum, package_manager) {
 	# Generate inverse of supersedes[] for quick look ups in the other direction
 	split("", superseded, "")
 	for (n in supersedes) {
 		superseded[supersedes[n]] = n
+	}
+	# Generate an available pair set for quick look ups
+	split("", available, "")
+	for (n in pairs) {
+		available[pairs[n]]
 	}
 
 	# Get the world file (stratum, package-manager, package-name) set
@@ -901,7 +906,7 @@ function world_func_prep(_output, world_missing, sys_missing,
 		split(pairs[p], a, ":")
 		stratum = a[1]
 		package_manager = a[2]
-		if (package_manager in superseded) {
+		if (package_manager in superseded && stratum":"superseded[package_manager] in available) {
 			package_manager = superseded[package_manager]
 		}
 		get_shell_output(implementations[package_manager, "list-installed-explicit"], stratum, package_manager, "", 0, _return, output)
@@ -917,10 +922,10 @@ function world_func_prep(_output, world_missing, sys_missing,
 			continue
 		}
 		split(n, a, SUBSEP)
-		if ( a[2] in supersedes && (a[1], supersedes[a[2]], a[3]) in world) {
+		if (a[2] in supersedes && (a[1], supersedes[a[2]], a[3]) in world) {
 			continue
 		}
-		if ( a[2] in superseded && (a[1], superseded[a[2]], a[3]) in world) {
+		if (a[2] in superseded && (a[1], superseded[a[2]], a[3]) in world) {
 			continue
 		}
 		world_missing[n]
