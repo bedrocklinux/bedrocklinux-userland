@@ -15,8 +15,8 @@
 
 print_help() {
 	# Parse and sort help information from backend files
-	help_msg="$(cat <<EOF | sort -t " " -k1,1 -k3,3
-$(find /bedrock/share/brl/backends/ -mindepth 1 -maxdepth 1 -type f -exec awk -F'::' '/brl help:/{print $(NF-2), $(NF-1), "", $NF}' {} \;)
+	help_msg="$(cat <<EOF | sort
+$(find /bedrock/share/brl/backends/ -mindepth 1 -maxdepth 1 -type f -exec awk -F'::' '/brl help:/{OFS = FS; print $(NF-2), $(NF-1),"  "$NF}' {} \;)
 EOF
 	)"
 
@@ -26,12 +26,12 @@ ${help_msg}
 EOF")"
 
 	# Divide help information into designated section
-	s1="$(echo "${help_msg}" | awk '/^1/' | cut -c 4-)"
-	s2="$(echo "${help_msg}" | awk '/^2/' | cut -c 4-)"
-	s3="$(echo "${help_msg}" | awk '/^3/' | cut -c 4-)"
-	s4="$(echo "${help_msg}" | awk '/^4/' | cut -c 4-)"
-	s5="$(echo "${help_msg}" | awk '/^5/' | cut -c 4-)"
-	s6="$(echo "${help_msg}" | awk '/^6/' | cut -c 4-)"
+	s1="$(echo "${help_msg}" | awk -F'::' '/^1/{print $3}')"
+	s2="$(echo "${help_msg}" | awk -F'::' '/^2/{print $3}')"
+	s3="$(echo "${help_msg}" | awk -F'::' '/^3/{print $3}')"
+	s4="$(echo "${help_msg}" | awk -F'::' '/^4/{print $3}')"
+	s5="$(echo "${help_msg}" | awk -F'::' '/^5/{print $3}')"
+	s6="$(echo "${help_msg}" | awk -F'::' '/^6/{print $3}')"
 
 	printf "Usage: ${color_cmd}brl ${color_sub}<command> [arguments]${color_norm}
 
