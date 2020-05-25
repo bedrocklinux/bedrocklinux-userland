@@ -39,6 +39,8 @@ _brl_subcommands() {
 		'report:Generate report'
 		'tutorial:Run interactive tutorial'
 	)
+	[[ "${(c)#dropin_comps[@]}" -gt 0 ]] && args+=("${dropin_comps[@]}")
+
 	_describe 'brl subcommand' args
 }
 
@@ -47,6 +49,16 @@ _brl_subcommands() {
 _brl_strat() {
 	words[1]=() CURRENT=$((CURRENT - 1)) _normal
 }
+
+# Find drop in completions
+local -a dropin_comps dropin_comps_short
+dropin_comps=(
+	"${(@f)$(find /bedrock/share/zsh/completion/brl.d/ -mindepth 1 -maxdepth 1 -type f -exec awk -F'::' '/brl comp:/{print $NF}' {} +)}"
+)
+
+for comp in ${dropin_comps}; do
+	dropin_comps_short+=("${comp%:*}")
+done
 
 # zsh-ism: this file is effectively a function.
 # shellcheck disable=SC2168
@@ -75,7 +87,7 @@ case "${words[2]}" in
 	args+=('(-d --disabled-strata)'{-d,--disabled-strata}'[list disabled strata]')
 	args+=('(-D --disabled-aliases)'{-D,--disabled-aliases}'[list aliases to disabled strata]')
 	args+=('(-a --all-strata)'{-a,--all-strata}'[list all strata]')
-	args+=('(-A --all-aliases)'{-A,--all-aliases}'[list all aliases')
+	args+=('(-A --all-aliases)'{-A,--all-aliases}'[list all aliases]')
 	;;
 "which")
 	if [[ "${CURRENT}" -eq 3 ]]; then
@@ -208,8 +220,14 @@ case "${words[2]}" in
 	;;
 "tutorial")
 	args+=("*:lesson:($(find /bedrock/share/brl/brl-tutorial/lessons/ -mindepth 1 | sed 's/^.*[0-9][0-9]*_//'))")
+	;;
+*)
+	if [[ "${(c)#dropin_comps[@]}" -gt 0 ]] && [[ "${dropin_comps_short[(i)${words[2]}]}" -le ${#dropin_comps_short} ]]; then
+		source "/bedrock/share/zsh/completion/brl.d/_brl-${words[2]}"
+	fi
 esac
 
 # zsh-ism: we want it to expand here
 # shellcheck disable=SC2128,SC2086
 _arguments ${args}
+
