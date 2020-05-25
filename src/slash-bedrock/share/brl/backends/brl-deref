@@ -8,7 +8,7 @@
 #
 # Copyright (c) 2018 Daniel Thau <danthau@bedrocklinux.org>
 #
-# brl help::5::${color_cmd}deref     ${color_norm}Dereference ${color_term}stratum${color_norm} ${color_term}aliases${color_norm}
+# brl help::5::2::${color_cmd}deref     ${color_norm}Dereference ${color_term}stratum${color_norm} ${color_term}aliases${color_norm}
 #
 # Dereference stratum aliases.
 

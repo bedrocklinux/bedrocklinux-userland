@@ -8,7 +8,7 @@
 #
 # Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
-# brl help::2::${color_cmd}remove    ${color_norm}Remove ${color_term}strata${color_norm} (or ${color_term}aliases${color_norm})
+# brl help::2::2::${color_cmd}remove    ${color_norm}Remove ${color_term}strata${color_norm} (or ${color_term}aliases${color_norm})
 #
 # Removes strata and aliases.
 

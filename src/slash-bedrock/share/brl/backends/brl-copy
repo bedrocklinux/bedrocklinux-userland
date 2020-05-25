@@ -8,7 +8,7 @@
 #
 # Copyright (c) 2018-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
-# brl help::2::${color_cmd}copy      ${color_norm}Copy a ${color_term}stratum${color_norm}
+# brl help::2::4::${color_cmd}copy      ${color_norm}Copy a ${color_term}stratum${color_norm}
 #
 # Copies strata.
 
