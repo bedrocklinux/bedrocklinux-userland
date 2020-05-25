@@ -116,60 +116,165 @@ fi
 # Set up /etc/localtime
 ln -fns "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/localtime
 
+# TODO: un-generalize if not needed after only-add-when-needed changes
+cfg_envvar() {
+	var="${1}"
+
+	# Retain backwards compatibility with non-prefix/infix/suffix config
+	# system.
+	whole="$(cfg_value "env-vars" "${1}")"
+	if [ -n "${whole}" ] && [ "${sep}" = ":" ]; then
+		echo "${whole}"
+		return
+	fi
+
+	prefix="$(cfg_value "env-vars" "PREFIX:${1}")"
+	infix="$(cfg_value "env-vars" "INFIX:${1}")"
+	suffix="$(cfg_value "env-vars" "SUFFIX:${1}")"
+	echo "${prefix}:${infix}:${suffix}"
+}
+
 # Setup /etc/environment
-(
-	echo "LANG=$(cfg_value "locale" "LANG")"
-	echo "PATH=$(cfg_value "env-vars" "PATH")"
-	echo "MANPATH=$(cfg_value "env-vars" "MANPATH")"
-	echo "INFOPATH=$(cfg_value "env-vars" "INFOPATH")"
-	echo "XDG_DATA_DIRS=$(cfg_value "env-vars" "XDG_DATA_DIRS")"
-	echo "TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
-) >/bedrock/run/environment
+cat <<EOF >/bedrock/run/environment
+LANG=$(cfg_value "locale" "LANG")
+PATH=$(cfg_envvar "PATH")
+MANPATH=$(cfg_envvar "MANPATH")
+INFOPATH=$(cfg_envvar "INFOPATH")
+XDG_DATA_DIRS=$(cfg_envvar "XDG_DATA_DIRS")
+TERMINFO_DIRS=$(cfg_envvar "TERMINFO_DIRS")
+EOF
 
 # Setup /etc/profile
-(
-	echo "[ -n \"\${BEDROCK_RESTRICT:-}\" ] && return"
-	echo ""
-	echo "unset TZ"
-	echo "export LANG=$(cfg_value "locale" "LANG")"
-	echo "export PATH=$(cfg_value "env-vars" "PATH")"
-	echo "export MANPATH=$(cfg_value "env-vars" "MANPATH")"
-	echo "export INFOPATH=$(cfg_value "env-vars" "INFOPATH")"
-	echo "export XDG_DATA_DIRS=$(cfg_value "env-vars" "XDG_DATA_DIRS")"
-	echo "export TERMINFO_DIRS=$(cfg_value "env-vars" "TERMINFO_DIRS")"
-	echo ""
-	echo "for s in \$(/bedrock/bin/brl list); do"
-	echo "	(ls /bedrock/strata/\${s}/etc/profile.d/*.sh) >/dev/null 2>&1 || continue"
-	echo "	for f in /bedrock/strata/\${s}/etc/profile.d/*.sh; do"
-	echo "		. \${f} >/dev/null 2>&1 || true"
-	echo "	done"
-	echo "done"
-) >/bedrock/run/profile
+cat <<EOF >/bedrock/run/profile
+[ -n "\${BEDROCK_RESTRICT:-}" ] && return
+
+for s in \$(/bedrock/bin/brl list); do
+	(ls /bedrock/strata/\${s}/etc/profile.d/*.sh) >/dev/null 2>&1 || continue
+	for f in /bedrock/strata/\${s}/etc/profile.d/*.sh; do
+		. \${f} >/dev/null 2>&1 || true
+	done
+done
+
+br_pop_envvar() {
+	orig="\${1}"
+	prefix="\${2}"
+	suffix="\${3}"
+	for d in \$(echo "\${prefix}" | sed 's/:/ /g'); do
+		case ":\${orig}:" in
+			*":\${d}:"*) ;;
+			*) printf "%s" "\${d}:" ;;
+		esac
+	done
+	printf "\${orig}"
+	for d in \$(echo "\${suffix}" | sed 's/:/ /g'); do
+		case ":\${orig}:" in
+			*":\${d}:"*) ;;
+			*) printf "%s" ":\${d}" ;;
+		esac
+	done
+}
+
+unset TZ
+export LANG="$(cfg_value "locale" "LANG")"
+br_prefix="$(cfg_value "env-vars" "PREFIX:PATH"):$(cfg_value "env-vars" "PATH")"
+br_suffix="$(cfg_value "env-vars" "INFIX:PATH"):$(cfg_value "env-vars" "SUFFIX:PATH")"
+export PATH="\$(br_pop_envvar "\${PATH}" "\${br_prefix}" "\${br_suffix}")"
+br_prefix="$(cfg_value "env-vars" "PREFIX:MANPATH"):$(cfg_value "env-vars" "MANPATH")"
+br_suffix="$(cfg_value "env-vars" "INFIX:MANPATH"):$(cfg_value "env-vars" "SUFFIX:MANPATH")"
+export MANPATH="\$(br_pop_envvar "\${MANPATH}" "\${br_prefix}" "\${br_suffix}")"
+br_prefix="$(cfg_value "env-vars" "PREFIX:INFOPATH"):$(cfg_value "env-vars" "INFOPATH")"
+br_suffix="$(cfg_value "env-vars" "INFIX:INFOPATH"):$(cfg_value "env-vars" "SUFFIX:INFOPATH")"
+export INFOPATH="\$(br_pop_envvar "\${INFOPATH}" "\${br_prefix}" "\${br_suffix}")"
+br_prefix="$(cfg_value "env-vars" "PREFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "XDG_DATA_DIRS")"
+br_suffix="$(cfg_value "env-vars" "INFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "SUFFIX:XDG_DATA_DIRS")"
+export XDG_DATA_DIRS="\$(br_pop_envvar "\${XDG_DATA_DIRS}" "\${br_prefix}" "\${br_suffix}")"
+br_prefix="$(cfg_value "env-vars" "PREFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "TERMINFO_DIRS")"
+br_suffix="$(cfg_value "env-vars" "INFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "SUFFIX:TERMINFO_DIRS")"
+export TERMINFO_DIRS="\$(br_pop_envvar "\${TERMINFO_DIRS}" "\${br_prefix}" "\${br_suffix}")"
+
+unset br_prefix
+unset br_suffix
+unset -f br_pop_envvar
+EOF
 
 # Setup /etc/zsh/zprofile, /etc/zprofile
-(
-	echo "[ -n \"\${BEDROCK_RESTRICT:-}\" ] && return"
-	echo ". /bedrock/run/profile"
-	echo "export fpath=(/bedrock/share/zsh/completion/ \$fpath /bedrock/cross/zsh-completion/)"
-) >/bedrock/run/zprofile
+cat <<EOF >/bedrock/run/zprofile
+[ -n "\${BEDROCK_RESTRICT:-}" ] && return
+
+. /etc/profile
+
+br_pop_envvar() {
+	orig="\${1}"
+	prefix="\${2}"
+	suffix="\${3}"
+	for d in \$(echo "\${prefix}" | sed 's/:/ /g'); do
+		if ! [[ ":${orig}:" == *":${d}:"* ]]; then
+			printf "%s" "\${d}:"
+		fi
+	done
+	printf "\${orig}"
+	for d in \$(echo "\${suffix}" | sed 's/:/ /g'); do
+		if ! [[ ":${orig}:" == *":${d}:"* ]]; then
+			printf "%s" ":\${d}"
+		fi
+	done
+}
+
+local br_prefix="$(cfg_value "env-vars" "PREFIX:fpath"):$(cfg_value "env-vars" "fpath")"
+local br_suffix="$(cfg_value "env-vars" "INFIX:fpath"):$(cfg_value "env-vars" "SUFFIX:fpath")"
+export fpath=(\$(br_pop_envvar "\${fpath}" "\${br_prefix}" "\${br_suffix}" | sed 's/:/ /g'))
+
+unset -f br_pop_envvar
+EOF
 
 # Setup /etc/fish/conf.d/ configuration
-(
-	echo "[ -n \"\$BEDROCK_RESTRICT\" ]; and exit 0"
-	echo "set -e TZ"
-	echo "set LANG $(cfg_value "locale" "LANG")"
-	echo "set PATH $(cfg_value "env-vars" "PATH" | sed 's/:/ /g')"
-	echo "set MANPATH $(cfg_value "env-vars" "MANPATH" | sed 's/:/ /g')"
-	echo "set INFOPATH $(cfg_value "env-vars" "INFOPATH")"
-	echo "set XDG_DATA_DIRS $(cfg_value "env-vars" "XDG_DATA_DIRS")"
-	echo "set TERMINFO_DIRS $(cfg_value "env-vars" "TERMINFO_DIRS")"
-) >/bedrock/run/fprofile
+cat <<EOF >/bedrock/run/fprofile
+[ -n "\$BEDROCK_RESTRICT" ]; and exit 0
+
+function br_pop_envvar
+	set -l orig (string split ":" \$argv[1])
+	set -l prefix (string split ":" \$argv[2])
+	set -l suffix (string split ":" \$argv[3])
+	set -l list
+	for d in \$prefix
+		if not contains \$d \$orig; and [ -n "\$d" ]
+			set -a list \$d
+		end
+	end
+	set -a list \$orig
+	for d in \$suffix
+		if not contains \$d \$orig; [ -n "\$d" ]
+			set -a list \$d
+		end
+	end
+	string split ' ' \$list
+end
+
+set -e TZ
+set LANG $(cfg_value "locale" "LANG")
+set -l br_prefix "$(cfg_value "env-vars" "PREFIX:PATH"):$(cfg_value "env-vars" "PATH")"
+set -l br_suffix "$(cfg_value "env-vars" "INFIX:PATH"):$(cfg_value "env-vars" "SUFFIX:PATH")"
+set -x PATH (br_pop_envvar "\$PATH" "\$br_prefix" "\$br_suffix")
+set -l br_prefix "$(cfg_value "env-vars" "PREFIX:MANPATH"):$(cfg_value "env-vars" "MANPATH")"
+set -l br_suffix "$(cfg_value "env-vars" "INFIX:MANPATH"):$(cfg_value "env-vars" "SUFFIX:MANPATH")"
+set -x MANPATH (br_pop_envvar "\$MANPATH" "\$br_prefix" "\$br_suffix")
+set -l br_prefix "$(cfg_value "env-vars" "PREFIX:INFOPATH"):$(cfg_value "env-vars" "INFOPATH")"
+set -l br_suffix "$(cfg_value "env-vars" "INFIX:INFOPATH"):$(cfg_value "env-vars" "SUFFIX:INFOPATH")"
+set -x INFOPATH (br_pop_envvar "\$INFOPATH" "\$br_prefix" "\$br_suffix")
+set -l br_prefix "$(cfg_value "env-vars" "PREFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "XDG_DATA_DIRS")"
+set -l br_suffix "$(cfg_value "env-vars" "INFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "SUFFIX:XDG_DATA_DIRS")"
+set -x XDG_DATA_DIRS (br_pop_envvar "\$XDG_DATA_DIRS" "\$br_prefix" "\$br_suffix")
+set -l br_prefix "$(cfg_value "env-vars" "PREFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "TERMINFO_DIRS")"
+set -l br_suffix "$(cfg_value "env-vars" "INFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "SUFFIX:TERMINFO_DIRS")"
+set -x TERMINFO_DIRS (br_pop_envvar "\$TERMINFO_DIRS" "\$br_prefix" "\$br_suffix")
+functions -e br_pop_envvar
+EOF
 
 # Setup /etc/sudoers configuration
-(
-	echo "Defaults secure_path=\"$(cfg_value "env-vars" "PATH")\""
-	echo "Defaults env_keep+=\"BEDROCK_RESTRICT\""
-) >/bedrock/run/sudoers
+cat <<EOF >/bedrock/run/sudoers
+Defaults secure_path="$(cfg_envvar "PATH")"
+Defaults env_keep+="BEDROCK_RESTRICT"
+EOF
 
 # Setup xorg.conf configuration
 if [ -d /bedrock/cross/fonts ]; then
@@ -187,7 +292,7 @@ if [ -r /etc/login.defs ] && awk -F'=' -v"path=$(cfg_value "env-vars" "PATH")" '
 	/^[ \t]*ENV_SUPATH[ \t][ \t]*PATH=/ && $2 == path {s=1}
 	/^[ \t]*ENV_PATH[ \t][ \t]*PATH=/ && $2 == path {n=1}
 	END {exit (s+n==2)}' /etc/login.defs; then
-	awk -F'=' -v"path=$(cfg_value "env-vars" "PATH")" '
+	awk -F'=' -v"path=$(cfg_envvar "PATH")" '
 	/^[ \t]*ENV_SUPATH[ \t][ \t]*PATH=/ {
 		print "ENV_SUPATH\tPATH="path
 		s=1
