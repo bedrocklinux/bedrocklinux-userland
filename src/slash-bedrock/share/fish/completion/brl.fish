@@ -57,7 +57,7 @@ function _brl_which_any
 	return 0
 end
 
-set dropin_comps (find /bedrock/share/fish/completion/brl.d/ -mindepth 1 -maxdepth 1 -type f)
+set dropin_comps /bedrock/share/fish/completion/brl.d/*
 set dropin_comps_short (string replace -r ".*/_brl-" "" -- $dropin_comps)
 
 complete -f -c brl -a "help strat list which fetch remove rename copy status enable disable repair hide show alias deref update reload version report tutorial $dropin_comps_short" -d 'brl subcommand' -n "_brl_argnum 1"

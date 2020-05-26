@@ -50,17 +50,18 @@ _brl_strat() {
 	words[1]=() CURRENT=$((CURRENT - 1)) _normal
 }
 
-# Find drop in completions
-local -a dropin_comps
-dropin_comps=(
-	"${(@f)$(find /bedrock/share/zsh/completion/brl.d/ -mindepth 1 -maxdepth 1 -type f -exec awk -F'::' '/brl comp:/{split(FILENAME, a, "/_brl-"); print a[2]":"$NF}' {} +)}"
-)
-
 # zsh-ism: this file is effectively a function.
 # shellcheck disable=SC2168
 local -a args
 args=(
 	'1:brl subcommand:_brl_subcommands'
+)
+
+# Find drop in completions
+# shellcheck disable=SC2168
+local -a dropin_comps
+dropin_comps=(
+	"${(@f)$(awk -F'::' '/brl comp:/{split(FILENAME, a, "/_brl-"); print a[2]":"$NF}' /bedrock/share/zsh/completion/brl.d/* )}"
 )
 
 # Every subcommand has -h/--help.    However, pass-through logic for strat gets
@@ -219,6 +220,7 @@ case "${words[2]}" in
 	;;
 *)
 	if [[ "${dropin_comps[*]}" =~ ${words[2]:-null}: ]]; then
+		# shellcheck source=/dev/null
 		source "/bedrock/share/zsh/completion/brl.d/_brl-${words[2]}"
 	fi
 esac
