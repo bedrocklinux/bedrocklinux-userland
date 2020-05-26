@@ -39,7 +39,7 @@ _brl_subcommands() {
 		'report:Generate report'
 		'tutorial:Run interactive tutorial'
 	)
-	[[ "${(c)#dropin_comps}" -gt 0 ]] && args+=("${dropin_comps[@]}")
+	[[ "${(c)#dropin_comps}" -gt 0 ]] && args+=("${dropin_comps[@]:2}")
 
 	_describe 'brl subcommand' args
 }
@@ -61,7 +61,7 @@ args=(
 # shellcheck disable=SC2168
 local -a dropin_comps
 dropin_comps=(
-	"${(@f)$(awk -F'::' '/brl comp:/{split(FILENAME, a, "/_brl-"); print a[2]":"$NF}' /bedrock/share/zsh/completion/brl.d/* )}"
+	"${(@fu)$(awk -F'::' 'FNR == 1{split(FILENAME, a, "/_brl-"); printf "\n"a[2]":"}/brl comp:/{print $NF}' /bedrock/share/zsh/completion/brl.d/*)}"
 )
 
 # Every subcommand has -h/--help.    However, pass-through logic for strat gets
