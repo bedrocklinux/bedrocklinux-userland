@@ -18,9 +18,9 @@ print_help() {
 	help_msg="$(find /bedrock/share/brl/backends/ -mindepth 1 -maxdepth 1 -type f -exec awk -F'::' '/brl help:/{OFS = FS; print $(NF-2), $(NF-1),"  "$NF}' {} + | sort -k1,1 -k4,5)"
 
 	# Expand color information
-	help_msg="$(eval "cat <<EOF
-${help_msg}
-EOF")"
+	help_msg="$(eval "cat <<-EOF
+	${help_msg}
+	EOF")"
 
 	# Divide help information into designated section
 	s1="$(echo "${help_msg}" | awk -F'::' '/^1/{print $3}')"
