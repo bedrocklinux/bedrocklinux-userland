@@ -71,7 +71,7 @@ setup_pacman() {
 }
 
 fetch() {
-	bootstrap_deps="manjaro-tools-base pacman pacman-mirrors ca-certificates ca-certificates-utils awk"
+	bootstrap_deps="manjaro-tools-base pacman pacman-mirrors ca-certificates ca-certificates-utils awk util-linux"
 
 	step "Downloading package information database"
 	wget -O "${bootstrap_dir}/core.db.tar.gz" "${target_mirror}/stable/core/${distro_arch}/core.db.tar.gz"
