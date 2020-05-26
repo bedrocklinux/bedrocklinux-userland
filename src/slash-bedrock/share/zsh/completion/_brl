@@ -39,7 +39,7 @@ _brl_subcommands() {
 		'report:Generate report'
 		'tutorial:Run interactive tutorial'
 	)
-	[[ "${(c)#dropin_comps[@]}" -gt 0 ]] && args+=("${dropin_comps[@]}")
+	[[ "${(c)#dropin_comps}" -gt 0 ]] && args+=("${dropin_comps[@]}")
 
 	_describe 'brl subcommand' args
 }
@@ -51,14 +51,10 @@ _brl_strat() {
 }
 
 # Find drop in completions
-local -a dropin_comps dropin_comps_short
+local -a dropin_comps
 dropin_comps=(
-	"${(@f)$(find /bedrock/share/zsh/completion/brl.d/ -mindepth 1 -maxdepth 1 -type f -exec awk -F'::' '/brl comp:/{print $NF}' {} +)}"
+	"${(@f)$(find /bedrock/share/zsh/completion/brl.d/ -mindepth 1 -maxdepth 1 -type f -exec awk -F'::' '/brl comp:/{split(FILENAME, a, "/_brl-"); print a[2]":"$NF}' {} +)}"
 )
-
-for comp in ${dropin_comps}; do
-	dropin_comps_short+=("${comp%:*}")
-done
 
 # zsh-ism: this file is effectively a function.
 # shellcheck disable=SC2168
@@ -222,7 +218,7 @@ case "${words[2]}" in
 	args+=("*:lesson:($(find /bedrock/share/brl/brl-tutorial/lessons/ -mindepth 1 | sed 's/^.*[0-9][0-9]*_//'))")
 	;;
 *)
-	if [[ "${(c)#dropin_comps[@]}" -gt 0 ]] && [[ "${dropin_comps_short[(i)${words[2]}]}" -le ${#dropin_comps_short} ]]; then
+	if [[ "${dropin_comps[*]}" =~ ${words[2]:-null}: ]]; then
 		source "/bedrock/share/zsh/completion/brl.d/_brl-${words[2]}"
 	fi
 esac
@@ -230,4 +226,3 @@ esac
 # zsh-ism: we want it to expand here
 # shellcheck disable=SC2128,SC2086
 _arguments ${args}
-
