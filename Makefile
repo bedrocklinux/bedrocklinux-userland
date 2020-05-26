@@ -214,6 +214,7 @@ $(COMPLETED)/builddir:
 	mkdir -p $(SLASHBR)/libexec
 	mkdir -p $(SLASHBR)/run
 	mkdir -p $(SLASHBR)/share/brl-fetch/distros
+	mkdir -p $(SLASHBR)/share/bash/completion/brl.d
 	mkdir -p $(SLASHBR)/share/zsh/completion/brl.d
 	mkdir -p $(SLASHBR)/strata/bedrock
 	mkdir -p $(SLASHBR)/var
