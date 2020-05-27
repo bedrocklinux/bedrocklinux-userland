@@ -18,7 +18,7 @@ check_supported() {
 }
 
 speed_test_url() {
-	echo "${target_release}/core/${distro_arch}/core.db.tar.gz"
+	echo "stable/core/${distro_arch}/core.db.tar.gz"
 }
 
 list_mirrors() {
@@ -42,15 +42,11 @@ list_architectures() {
 }
 
 default_release() {
-	echo "stable"
+	echo "rolling"
 }
 
 list_releases() {
-	cat <<EOF
-stable
-testing
-unstable
-EOF
+	echo "rolling"
 }
 
 setup_pacman() {
@@ -78,9 +74,9 @@ fetch() {
 	bootstrap_deps="manjaro-tools-base pacman pacman-mirrors ca-certificates ca-certificates-utils awk util-linux"
 
 	step "Downloading package information database"
-	wget -O "${bootstrap_dir}/core.db.tar.gz" "${target_mirror}/${target_release}/core/${distro_arch}/core.db.tar.gz"
-	wget -O "${bootstrap_dir}/extra.db.tar.gz" "${target_mirror}/${target_release}/extra/${distro_arch}/extra.db.tar.gz"
-	wget -O "${bootstrap_dir}/community.db.tar.gz" "${target_mirror}/${target_release}/community/${distro_arch}/community.db.tar.gz"
+	wget -O "${bootstrap_dir}/core.db.tar.gz" "${target_mirror}/stable/core/${distro_arch}/core.db.tar.gz"
+	wget -O "${bootstrap_dir}/extra.db.tar.gz" "${target_mirror}/stable/extra/${distro_arch}/extra.db.tar.gz"
+	wget -O "${bootstrap_dir}/community.db.tar.gz" "${target_mirror}/stable/community/${distro_arch}/community.db.tar.gz"
 
 	step "Decompressing package information database"
 	mkdir -p "${bootstrap_dir}/pacmandb/core" "${bootstrap_dir}/pacmandb/extra" "${bootstrap_dir}/pacmandb/community"
@@ -98,8 +94,8 @@ fetch() {
 
 	step "Downloading bootstrap packages"
 	# brldb contains repo/filename
-	# files are at mirror/${target_release}/repo/arch/filename
-	checksum_downloads "${cache}/packages/" "$(awk -v"a=${distro_arch}" -v"m=${target_mirror}" '{sub("/", "/"a"/"); print m"/${target_release}/"$0}' "${bootstrap_dir}/required_packages")"
+	# files are at mirror/stable/repo/arch/filename
+	checksum_downloads "${cache}/packages/" "$(awk -v"a=${distro_arch}" -v"m=${target_mirror}" '{sub("/", "/"a"/"); print m"/stable/"$0}' "${bootstrap_dir}/required_packages")"
 	step "Extracting bootstrap packages"
 	bootstrap_packages="$(awk -v"d=${cache}/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
 	# shellcheck disable=SC2086
@@ -117,7 +113,7 @@ fetch() {
 	setup_chroot "${bootstrap_dir}"
 	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/pacman/pkg/"
 	# -a to use the api, -P all protocols, -t 1 timeout if it takes longer than 1 second
-	LC_ALL=C chroot "${bootstrap_dir}" pacman-mirrors -S ${target_release} -f 1 -a -P all -t 1
+	LC_ALL=C chroot "${bootstrap_dir}" pacman-mirrors -S stable -f 1 -a -P all -t 1
 	setup_pacman "${bootstrap_dir}"
 	LC_ALL=C chroot "${bootstrap_dir}" basestrap "/target-root" base
 
