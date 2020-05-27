@@ -12,34 +12,15 @@ _brl_subcommands() {
 	local -a args
 	args=(
 		"help:Print help message"
-
 		"strat:Run specified stratum's executable"
-		'list:List strata'
-		'which:Query which stratum provides object'
-
-		'fetch:Fetch new strata'
-		'remove:Remove strata (or aliases)'
-		'rename:Rename a stratum'
-		'copy:Copy a stratum'
-
-		'status:Query stratum status'
-		'enable:Enable or fix strata'
-		'disable:Disable strata'
-		'repair:Repairs broken strata'
-
-		'hide:Hide strata'
-		'show:Show strata'
-
-		'alias:Create a stratum alias'
-		'deref:Dereference stratum aliases'
-
-		'update:Update Bedrock Linux system'
-		'reload:Reload configuration'
-		'version:Query Bedrock Linux version'
-		'report:Generate report'
-		'tutorial:Run interactive tutorial'
 	)
-	[[ "${(c)#dropin_comps}" -gt 0 ]] && args+=("${dropin_comps[@]:2}")
+
+	# Parse description from backend file
+	# shellcheck disable=SC2168
+	for file in /bedrock/share/brl/backends/brl-*; do
+		description="$(awk -F'::' '/brl help:/{split($NF, a, " ");for (b in a){ printf a[b+1]" "}}' ${file} | sed 's/\$[^}\$]*}//g')"
+		args+=("${file#*backends/brl-}:${description}")
+	done
 
 	_describe 'brl subcommand' args
 }
@@ -55,13 +36,6 @@ _brl_strat() {
 local -a args
 args=(
 	'1:brl subcommand:_brl_subcommands'
-)
-
-# Find drop in completions
-# shellcheck disable=SC2168
-local -a dropin_comps
-dropin_comps=(
-	"${(@fu)$(awk -F'::' 'FNR == 1{split(FILENAME, a, "/_brl-"); printf "\n"a[2]":"}/brl comp:/{print $NF}' /bedrock/share/zsh/completion/brl.d/*)}"
 )
 
 # Every subcommand has -h/--help.    However, pass-through logic for strat gets
@@ -219,7 +193,7 @@ case "${words[2]}" in
 	args+=("*:lesson:($(find /bedrock/share/brl/brl-tutorial/lessons/ -mindepth 1 | sed 's/^.*[0-9][0-9]*_//'))")
 	;;
 *)
-	if [[ "${dropin_comps[*]}" =~ ${words[2]:-null}: ]]; then
+	if [ -f "/bedrock/share/zsh/completion/brl.d/_brl-${words[2]}" ]; then
 		# shellcheck source=/dev/null
 		source "/bedrock/share/zsh/completion/brl.d/_brl-${words[2]}"
 	fi

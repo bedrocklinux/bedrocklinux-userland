@@ -50,7 +50,7 @@ _brl() {
 	prev=${COMP_WORDS[COMP_CWORD - 1]}
 
 	opts=""
-	dropin_comps="$(find /bedrock/share/bash/completion/brl.d/ -mindepth 1 -maxdepth 1 -type f | awk -F'/_brl-' '{printf " "$2}')"
+	comps="$(find /bedrock/share/brl/backends/ -mindepth 1 -maxdepth 1 -type f | awk -F'backends/brl-' '{printf " "$2}')"
 
 	# Every subcommand has -h/--help.
 	if [ "${COMP_CWORD}" -lt 3 ]; then
@@ -58,12 +58,7 @@ _brl() {
 	fi
 
 	if [ "${COMP_CWORD}" -eq 1 ]; then
-		opts="${opts} help strat list which fetch"
-		opts="${opts} remove rename status enable"
-		opts="${opts} disable copy hide show"
-		opts="${opts} alias deref update reload"
-		opts="${opts} version report tutorial"
-		opts="${opts}${dropin_comps[*]}"
+		opts="${opts}${comps}"
 	fi
 
 	case "${COMP_WORDS[1]}" in
@@ -239,7 +234,7 @@ _brl() {
 		opts="${opts} $(find /bedrock/share/brl/brl-tutorial/lessons/ -mindepth 1 | sed 's/^.*[0-9][0-9]*_//')"
 		;;
     *)
-		if [[ "${dropin_comps}" == *" ${COMP_WORDS[1]}"* ]]; then
+		if [ -f "/bedrock/share/bash/completion/brl.d/_brl-${COMP_WORDS[1]}" ]; then
 			# shellcheck source=/dev/null
 			source "/bedrock/share/bash/completion/brl.d/_brl-${COMP_WORDS[1]}"
 		fi

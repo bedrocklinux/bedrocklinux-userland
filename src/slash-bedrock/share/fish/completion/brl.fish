@@ -57,13 +57,17 @@ function _brl_which_any
 	return 0
 end
 
-set dropin_comps /bedrock/share/fish/completion/brl.d/_brl-*
-set dropin_comps_short (string replace -r ".*/_brl-" "" -- $dropin_comps)
+complete -f -c brl -a 'help' -d 'print help message' -n "_brl_argnum 1"
+complete -f -c brl -a 'strat' -d "run specified stratum's executable" -n "_brl_argnum 1"
 
-complete -f -c brl -a "help strat list which fetch remove rename copy status enable disable repair hide show alias deref update reload version report tutorial $dropin_comps_short" -d 'brl subcommand' -n "_brl_argnum 1"
-
-for comp in $dropin_comps
-	source $comp
+for file in /bedrock/share/brl/backends/brl-*
+	set description (awk -F'::' '/brl help:/{split($NF, a, " ");for (b in a){ printf a[b+1]" "}}' $file)
+	set description (string replace -r -a '\$(.*?)}' '' $description)
+	set subcommand (string replace -r ".*backends/brl-" "" -- $file)
+	complete -f -c brl -a "$subcommand" -d "$description" -n "_brl_argnum 1"
+	if test -f "/bedrock/share/fish/completion/brl.d/_brl-$subcommand"
+		source "/bedrock/share/fish/completion/brl.d/_brl-$subcommand"
+	end
 end
 
 complete -f -c brl -o 'h' -d 'print help message' -n "_brl_argnum 1"
