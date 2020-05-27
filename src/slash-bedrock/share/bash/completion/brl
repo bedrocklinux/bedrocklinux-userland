@@ -233,7 +233,7 @@ _brl() {
 	"tutorial")
 		opts="${opts} $(find /bedrock/share/brl/brl-tutorial/lessons/ -mindepth 1 | sed 's/^.*[0-9][0-9]*_//')"
 		;;
-    *)
+	*)
 		if [ -f "/bedrock/share/bash/completion/brl.d/_brl-${COMP_WORDS[1]}" ]; then
 			# shellcheck source=/dev/null
 			source "/bedrock/share/bash/completion/brl.d/_brl-${COMP_WORDS[1]}"
