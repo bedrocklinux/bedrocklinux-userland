@@ -50,7 +50,7 @@ _brl() {
 	prev=${COMP_WORDS[COMP_CWORD - 1]}
 
 	opts=""
-	comps=" $(awk '/brl help:/{split(FILENAME, a, "backends/brl-"); print a[2]; nextfile}' /bedrock/share/brl/backends/brl-*)"
+	comps="$(awk '/brl help:/{split(FILENAME, a, "backends/brl-"); print a[2]; nextfile}' /bedrock/share/brl/backends/brl-*)"
 
 	# Every subcommand has -h/--help.
 	if [ "${COMP_CWORD}" -lt 3 ]; then
@@ -58,7 +58,7 @@ _brl() {
 	fi
 
 	if [ "${COMP_CWORD}" -eq 1 ]; then
-		opts="${opts}${comps}"
+		opts="${opts} ${comps}"
 	fi
 
 	case "${COMP_WORDS[1]}" in
