@@ -14,48 +14,39 @@
 . /bedrock/share/common-code
 
 print_help() {
-	# Parse and sort help information from backend files
-	help_msg="$(find /bedrock/share/brl/backends/ -mindepth 1 -maxdepth 1 -type f -exec awk -F'::' '/brl help:/{OFS = FS; print $(NF-2), $(NF-1),"  "$NF}' {} + | sort -k1,1 -k4,5)"
-
-	# Expand color information
-	help_msg="$(eval "cat <<-EOF
-	${help_msg}
-	EOF")"
-
-	# Divide help information into designated section
-	s1="$(echo "${help_msg}" | awk -F'::' '/^1/{print $3}')"
-	s2="$(echo "${help_msg}" | awk -F'::' '/^2/{print $3}')"
-	s3="$(echo "${help_msg}" | awk -F'::' '/^3/{print $3}')"
-	s4="$(echo "${help_msg}" | awk -F'::' '/^4/{print $3}')"
-	s5="$(echo "${help_msg}" | awk -F'::' '/^5/{print $3}')"
-	s6="$(echo "${help_msg}" | awk -F'::' '/^6/{print $3}')"
-
-	printf "Usage: ${color_cmd}brl ${color_sub}<command> [arguments]${color_norm}
+	s1="Usage: ${color_cmd}brl ${color_sub}<command> [arguments]${color_norm}
 
 ${color_bedrock}Bedrock Linux${color_norm} system management and introspection.
 
 Common commands:
   ${color_cmd}strat     ${color_norm}Run specified ${color_term}stratum${color_norm}'s executable
-  ${color_cmd}          ${color_norm}Note: ${color_cmd}\`strat\`${color_norm} is available without the ${color_cmd}\`brl\`${color_norm} prefix
-${s1}
+  ${color_cmd}          ${color_norm}Note: ${color_cmd}\`strat\`${color_norm} is available without the ${color_cmd}\`brl\`${color_norm} prefix"
+	s2="${color_term}Strata${color_norm} management commands:"
+	s3="${color_term}Strata${color_norm} status management commands:"
+	s4="${color_term}Strata${color_norm} visibility management commands:"
+	s5="${color_term}Alias${color_norm} management commands:"
+	s6="Miscellaneous commands:"
+	s7="See ${color_cmd}\`brl ${color_sub}<command>${color_cmd} --help\`${color_norm} for further details per command."
 
-${color_term}Strata${color_norm} management commands:
-${s2}
+	# Parse and sort help information from backend files
+	help_msg="$(find /bedrock/share/brl/backends/ -mindepth 1 -maxdepth 1 -type f -exec awk -F'::' '/brl help:/{split(FILENAME, a, "backends/brl-") ;printf("%s::%s::  %-21s %s\n", $(NF-2), $(NF-1), "${color_cmd}"a[2], "${color_norm}"$NF); nextfile}' {} + | sort -k1,1 -k4,5)"
 
-${color_term}Strata${color_norm} status management commands:
-${s3}
+	# Divide help information into designated section
+	help_msg="$(echo "${help_msg}" | awk -F'::' '
+		/^1/{if(!a) print "\n${s1}"; print $3;a=1}
+		/^2/{if(!b) print "\n${s2}"; print $3;b=1}
+		/^3/{if(!c) print "\n${s3}"; print $3;c=1}
+		/^4/{if(!d) print "\n${s4}"; print $3;d=1}
+		/^5/{if(!e) print "\n${s5}"; print $3;e=1}
+		/^6/{if(!f) print "\n${s6}"; print $3;f=1}
+		END{print "\n${s7}"}
+	')"
+	# Expand variables
+	help_msg="$(eval "cat <<-EOF
+		${help_msg}
+	EOF")"
 
-${color_term}Strata${color_norm} visibility management commands:
-${s4}
-
-${color_term}Alias${color_norm} management commands:
-${s5}
-
-Miscellaneous commands:
-${s6}
-
-See ${color_cmd}\`brl ${color_sub}<command>${color_cmd} --help\`${color_norm} for further details per command.
-"
+	printf "${help_msg}\n"
 }
 
 case "${1:-}" in

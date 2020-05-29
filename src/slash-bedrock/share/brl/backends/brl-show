@@ -8,7 +8,7 @@
 #
 # Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
-# brl help::4::2::${color_cmd}show      ${color_norm}${color_term}Show${color_norm} ${color_term}strata${color_norm}
+# brl help::4::2::${color_term}Show${color_norm} ${color_term}strata${color_norm}
 #
 # Marks strata to be visible
 

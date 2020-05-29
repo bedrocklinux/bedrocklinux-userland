@@ -8,7 +8,7 @@
 #
 # Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
-# brl help::2::1::${color_cmd}fetch     ${color_norm}${color_term}Fetch${color_norm} new ${color_term}strata${color_norm}
+# brl help::2::1::${color_term}Fetch${color_norm} new ${color_term}strata${color_norm}
 #
 # Acquires files from various Linux distributions.
 

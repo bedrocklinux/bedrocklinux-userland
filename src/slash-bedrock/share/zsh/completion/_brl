@@ -16,12 +16,9 @@ _brl_subcommands() {
 	)
 
 	# Parse description from backend file
-	# shellcheck disable=SC2168
-	local description
-	for file in /bedrock/share/brl/backends/brl-*; do
-		description="$(awk -F'::' '/brl help:/{split($NF, a, " ");for (b in a){ printf a[b+1]" "}}' ${file} | sed 's/\$[^}\$]*}//g')"
-		args+=("${file#*backends/brl-}:${description}")
-	done
+	args+=(
+		"${(@f)$(awk -F'::' '/brl help:/{split(FILENAME, a, "backends/brl-") ;print "${color_cmd}"a[2]":${color_norm}"$NF;nextfile}' /bedrock/share/brl/backends/brl-* | sed 's/\$[^}\$]*}//g')}"
+	)
 
 	_describe 'brl subcommand' args
 }

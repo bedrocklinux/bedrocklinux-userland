@@ -60,13 +60,14 @@ end
 complete -f -c brl -a 'help' -d 'print help message' -n "_brl_argnum 1"
 complete -f -c brl -a 'strat' -d "run specified stratum's executable" -n "_brl_argnum 1"
 
-for file in /bedrock/share/brl/backends/brl-*
-	set description (awk -F'::' '/brl help:/{split($NF, a, " ");for (b in a){ printf a[b+1]" "}}' $file)
-	set description (string replace -r -a '\$(.*?)}' '' $description)
-	set subcommand (string replace -r ".*backends/brl-" "" -- $file)
-	complete -f -c brl -a "$subcommand" -d "$description" -n "_brl_argnum 1"
-	if test -f "/bedrock/share/fish/completion/brl.d/_brl-$subcommand"
-		source "/bedrock/share/fish/completion/brl.d/_brl-$subcommand"
+set subcommand (awk '/brl help:/{split(FILENAME, a, "backends/brl-"); print a[2]; nextfile} /bedrock/share/brl/backends/brl-*')
+set description (awk -F'::' '/brl help:/{print $NF; nextfile}' /bedrock/share/brl/backends/brl-*)
+set description (string replace -r -a '\$(.*?)}' '' $description)
+
+for i in (seq (count $subcommand))
+	complete -f -c brl -a "$subcommand[$i]" -d "$description[$i]" -n "_brl_argnum 1"
+	if test -f "/bedrock/share/fish/completion/brl.d/_brl-$subcommand[$i]"
+		source "/bedrock/share/fish/completion/brl.d/_brl-$subcommand[$i]"
 	end
 end
 

@@ -8,7 +8,7 @@
 #
 # Copyright (c) 2018-2019 Daniel Thau <danthau@bedrocklinux.org>
 #
-# brl help::3::4::${color_cmd}repair    ${color_norm}Repairs ${color_term}broken${color_norm} ${color_term}strata${color_norm}
+# brl help::3::4::Repairs ${color_term}broken${color_norm} ${color_term}strata${color_norm}
 #
 # Repairs broken strata
 

@@ -50,7 +50,7 @@ _brl() {
 	prev=${COMP_WORDS[COMP_CWORD - 1]}
 
 	opts=""
-	comps="$(find /bedrock/share/brl/backends/ -mindepth 1 -maxdepth 1 -type f | awk -F'backends/brl-' '{printf " "$2}')"
+	comps=" $(awk '/brl help:/{split(FILENAME, a, "backends/brl-"); print a[2]; nextfile}' /bedrock/share/brl/backends/brl-*)"
 
 	# Every subcommand has -h/--help.
 	if [ "${COMP_CWORD}" -lt 3 ]; then

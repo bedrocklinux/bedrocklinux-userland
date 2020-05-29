@@ -8,7 +8,7 @@
 #
 # Copyright (c) 2018-2020 Daniel Thau <danthau@bedrocklinux.org>
 #
-# brl help::6::1::${color_cmd}apply     ${color_norm}Apply configuration changes
+# brl help::6::1::Apply configuration changes
 #
 # (re)loads configuration
 
