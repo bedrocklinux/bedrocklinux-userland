@@ -17,7 +17,7 @@ _brl_subcommands() {
 
 	# Parse description from backend file
 	args+=(
-		"${(@f)$(awk -F'::' '/brl help:/{split(FILENAME, a, "backends/brl-") ;print "${color_cmd}"a[2]":${color_norm}"$NF;nextfile}' /bedrock/share/brl/backends/brl-* | sed 's/\$[^}\$]*}//g')}"
+		"${(@f)$(awk -F'::' '/brl help:/{split(FILENAME, a, "backends/brl-") ;print a[2]":"$NF;nextfile}' /bedrock/share/brl/backends/brl-* | sed 's/\$[^}\$]*}//g')}"
 	)
 
 	_describe 'brl subcommand' args
