@@ -59,15 +59,15 @@ setup_pacman() {
 		echo "Server = ${target_mirror}/\$repo/os/\$arch" >>"$1/etc/pacman.d/mirrorlist"
 	fi
 	#instantOS repo
-	echo "[instant]" >>/etc/pacman.conf
-  echo "SigLevel = Optional TrustAll" >>/etc/pacman.conf
-  echo "Server = http://instantos.surge.sh" >>/etc/pacman.conf
+	echo "[instant]" >> "${1}/etc/pacman.conf"
+  echo "SigLevel = Optional TrustAll" >> "${1}/etc/pacman.conf"
+  echo "Server = http://instantos.surge.sh" >> "${1}/etc/pacman.conf"
 }
 
 #-v"prefix=${repo}/os/${target_arch}/"
 fetch() {
 	#not using instantos package because that includes grub-instantos, which could mess with the host bootloader
-	bootstrap_deps="arch-install-scripts git  instantdotfiles  instantutils  instantwallpaper  instantassist instantthemes  instantwidgets  instantcursors  instantshell otf-nerd-fonts-fira-code  instantconf  instantwm  instantlock instantmenu  instantwelcome  instantsettings  islide  imenu instantsupport"
+	bootstrap_deps="arch-install-scripts git instantdotfiles instantutils instantwallpaper instantassist instantthemes instantwidgets instantcursors instantshell otf-nerd-fonts-fira-code instantconf instantwm instantlock instantmenu instantwelcome instantsettings islide imenu instantsupport"
 
 	step "Downloading package information database"
 	wget -O "${bootstrap_dir}/core.db.tar.gz" "${target_mirror}/core/os/${distro_arch}/core.db.tar.gz"
