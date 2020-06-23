@@ -66,8 +66,7 @@ setup_pacman() {
 
 #-v"prefix=${repo}/os/${target_arch}/"
 fetch() {
-	#not using instantos package because that includes grub-instantos, which could mess with the host bootloader
-	bootstrap_deps="arch-install-scripts git instantdotfiles instantutils instantwallpaper instantassist instantthemes instantwidgets instantcursors instantshell otf-nerd-fonts-fira-code instantconf instantwm instantlock instantmenu instantwelcome instantsettings islide imenu instantsupport"
+	bootstrap_deps="arch-install-scripts instantos"
 
 	step "Downloading package information database"
 	wget -O "${bootstrap_dir}/core.db.tar.gz" "${target_mirror}/core/os/${distro_arch}/core.db.tar.gz"
