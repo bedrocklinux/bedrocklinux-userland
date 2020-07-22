@@ -75,7 +75,7 @@ case "${words[2]}" in
 	args+=('(-d --disabled-strata)'{-d,--disabled-strata}'[list disabled strata]')
 	args+=('(-D --disabled-aliases)'{-D,--disabled-aliases}'[list aliases to disabled strata]')
 	args+=('(-a --all-strata)'{-a,--all-strata}'[list all strata]')
-	args+=('(-A --all-aliases)'{-A,--all-aliases}'[list all aliases')
+	args+=('(-A --all-aliases)'{-A,--all-aliases}'[list all aliases]')
 	;;
 "which")
 	if [[ "${CURRENT}" -eq 3 ]]; then
