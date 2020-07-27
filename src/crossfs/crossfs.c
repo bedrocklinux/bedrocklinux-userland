@@ -278,6 +278,8 @@ enum filter {
 	 * Combine fonts.dir and fonts.aliases files.
 	 */
 	FILTER_FONT,
+
+	FILTER_SERVICE,
 	/*
 	 * Pass file through unaltered.
 	 */
@@ -289,6 +291,7 @@ const char *const filter_str[] = {
 	"bin-restrict",
 	"ini",
 	"font",
+	"service",
 	"pass",
 };
 
@@ -1715,6 +1718,60 @@ fallback_virtual:
 	return 0;
 }
 
+static inline void getattr_ini(struct cfg_entry *cfg, const char *ipath, size_t ipath_len, struct stat *stbuf, int *rv) {
+	if (!S_ISREG(stbuf->st_mode)) {
+		return;
+	}
+
+	struct back_entry *back;
+	char bpath[PATH_MAX];
+	*rv = loc_first_bpath(cfg, ipath, ipath_len, &back, bpath);
+	if (rv < 0) {
+		*rv = -errno;
+
+		return;
+	}
+
+	FILE *fp = fchroot_fopen_rdonly(deref(back)->root_fd, bpath);
+	if (fp == NULL) {
+		*rv = -errno;
+
+		return;
+	}
+
+	char line[PATH_MAX];
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
+			 i++) {
+			/*
+			 * No ini_inject_strat_len will exceed line's PATH_MAX,
+			 * this should be safe.
+			 */
+			if (strncmp(line, ini_inject_strat_str[i],
+						ini_inject_strat_len[i]) != 0) {
+				continue;
+			}
+			stbuf->st_size += STRAT_PATH_LEN;
+			stbuf->st_size += strlen(" ");
+			stbuf->st_size += deref(back)->name_len;
+			stbuf->st_size += strlen(" ");
+			break;
+		}
+		for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
+			 i++) {
+			if (strncmp(line, ini_expand_path_str[i],
+						ini_expand_path_len[i]) != 0
+				|| line[ini_expand_path_len[i]] !=
+				'/') {
+				continue;
+			}
+			stbuf->st_size += STRATA_ROOT_LEN;
+			stbuf->st_size += deref(back)->name_len;
+		}
+	}
+	fclose(fp);
+}
+
 static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 	size_t ipath_len, struct stat *stbuf)
 {
@@ -1741,11 +1798,8 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 		}
 		break;
 
-	case FILTER_INI:
-		if (!S_ISREG(stbuf->st_mode)) {
-			break;
-		}
-
+	case FILTER_SERVICE:
+		;
 		struct back_entry *back;
 		char bpath[PATH_MAX];
 		rv = loc_first_bpath(cfg, ipath, ipath_len, &back, bpath);
@@ -1754,45 +1808,15 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 			break;
 		}
 
-		FILE *fp = fchroot_fopen_rdonly(deref(back)->root_fd, bpath);
-		if (fp == NULL) {
-			rv = -errno;
-			break;
+		if (strstr(bpath, "systemd")) {
+			getattr_ini(cfg, ipath, ipath_len, stbuf, &rv);
 		}
 
-		char line[PATH_MAX];
-		while (fgets(line, sizeof(line), fp) != NULL) {
-			for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
-				i++) {
-				/*
-				 * No ini_inject_strat_len will exceed line's PATH_MAX,
-				 * this should be safe.
-				 */
-				if (strncmp(line, ini_inject_strat_str[i],
-						ini_inject_strat_len[i]) != 0) {
-					continue;
-				}
-				stbuf->st_size += STRAT_PATH_LEN;
-				stbuf->st_size += strlen(" ");
-				stbuf->st_size += deref(back)->name_len;
-				stbuf->st_size += strlen(" ");
-				break;
-			}
-			for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
-				i++) {
-				if (strncmp(line, ini_expand_path_str[i],
-						ini_expand_path_len[i]) != 0
-					|| line[ini_expand_path_len[i]] !=
-					'/') {
-					continue;
-				}
-				stbuf->st_size += STRATA_ROOT_LEN;
-				stbuf->st_size += deref(back)->name_len;
-			}
-		}
-		fclose(fp);
 		break;
+	case FILTER_INI:
+		getattr_ini(cfg, ipath, ipath_len, stbuf, &rv);
 
+		break;
 	case FILTER_FONT:
 		;
 		/*
@@ -2078,6 +2102,89 @@ static inline int read_pass(struct cfg_entry *cfg, const char *const ipath,
 	return rv;
 }
 
+static inline int inject_ini(struct cfg_entry *cfg, const char *ipath, size_t ipath_len, char *buf, size_t size, off_t offset) {
+	struct back_entry *back;
+	char bpath[PATH_MAX];
+	int rv = loc_first_bpath(cfg, ipath, ipath_len, &back, bpath);
+	if (rv < 0) {
+		return -errno;
+	}
+
+	FILE *fp = fchroot_fopen_rdonly(deref(back)->root_fd, bpath);
+	if (fp == NULL) {
+		return -errno;
+	}
+
+	size_t wrote = 0;
+	char line[PATH_MAX];
+	if (offset < 0) {
+		return -EINVAL;
+	}
+
+	size_t off = offset;
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		int found = 0;
+		for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
+			 i++) {
+			if (strncmp(line, ini_inject_strat_str[i],
+						ini_inject_strat_len[i]) != 0) {
+				continue;
+			}
+			strcatoff(buf, ini_inject_strat_str[i],
+					  ini_inject_strat_len[i], &off, &wrote,
+					  size);
+			strcatoff(buf, STRAT_PATH, STRAT_PATH_LEN, &off,
+					  &wrote, size);
+			strcatoff(buf, " ", 1, &off, &wrote, size);
+			strcatoff(buf, deref(back)->name,
+					  deref(back)->name_len, &off, &wrote,
+					  size);
+			strcatoff(buf, " ", 1, &off, &wrote, size);
+			strcatoff(buf, line + ini_inject_strat_len[i],
+					  strlen(line + ini_inject_strat_len[i]),
+					  &off, &wrote, size);
+			found = 1;
+			break;
+		}
+		for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
+			 i++) {
+			if (strncmp(line, ini_expand_path_str[i],
+						ini_expand_path_len[i]) != 0
+				|| line[ini_expand_path_len[i]] !=
+				'/') {
+				continue;
+			}
+			strcatoff(buf, ini_expand_path_str[i],
+					  ini_expand_path_len[i], &off, &wrote,
+					  size);
+			strcatoff(buf, STRATA_ROOT, STRATA_ROOT_LEN,
+					  &off, &wrote, size);
+			strcatoff(buf, deref(back)->name,
+					  deref(back)->name_len, &off, &wrote,
+					  size);
+			strcatoff(buf, line + ini_expand_path_len[i],
+					  strlen(line + ini_expand_path_len[i]),
+					  &off, &wrote, size);
+			found = 1;
+		}
+		if (!found) {
+			strcatoff(buf, line, strlen(line), &off,
+					  &wrote, size);
+		}
+		if (wrote >= size) {
+			break;
+		}
+	}
+	rv = wrote;
+	fclose(fp);
+
+	return rv;
+}
+
+static inline int read_systemd_service(struct cfg_entry *cfg, const char *const ipath, size_t ipath_len, char *buf, size_t size, off_t offset) {
+	return inject_ini(cfg, ipath, ipath_len, buf, size, offset);
+}
+
 static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 	ipath_len, char *buf, size_t size, off_t offset)
 {
@@ -2089,7 +2196,7 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 		rv = pread(bouncer_fd, buf, size, offset);
 		break;
 
-	case FILTER_INI:
+	case FILTER_SERVICE:
 		;
 		struct back_entry *back;
 		char bpath[PATH_MAX];
@@ -2099,74 +2206,16 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 			break;
 		}
 
-		FILE *fp = fchroot_fopen_rdonly(deref(back)->root_fd, bpath);
-		if (fp == NULL) {
-			rv = -errno;
-			break;
+		if (strstr(bpath, "systemd")) {
+			rv = read_systemd_service(cfg, ipath, ipath_len, buf, size, offset);
+		} else {
+			rv = read_pass(cfg, ipath, ipath_len, buf, size, offset);
 		}
 
-		size_t wrote = 0;
-		char line[PATH_MAX];
-		if (offset < 0) {
-			rv = -EINVAL;
-			break;
-		}
-		size_t off = offset;
-		while (fgets(line, sizeof(line), fp) != NULL) {
-			int found = 0;
-			for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
-				i++) {
-				if (strncmp(line, ini_inject_strat_str[i],
-						ini_inject_strat_len[i]) != 0) {
-					continue;
-				}
-				strcatoff(buf, ini_inject_strat_str[i],
-					ini_inject_strat_len[i], &off, &wrote,
-					size);
-				strcatoff(buf, STRAT_PATH, STRAT_PATH_LEN, &off,
-					&wrote, size);
-				strcatoff(buf, " ", 1, &off, &wrote, size);
-				strcatoff(buf, deref(back)->name,
-					deref(back)->name_len, &off, &wrote,
-					size);
-				strcatoff(buf, " ", 1, &off, &wrote, size);
-				strcatoff(buf, line + ini_inject_strat_len[i],
-					strlen(line + ini_inject_strat_len[i]),
-					&off, &wrote, size);
-				found = 1;
-				break;
-			}
-			for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
-				i++) {
-				if (strncmp(line, ini_expand_path_str[i],
-						ini_expand_path_len[i]) != 0
-					|| line[ini_expand_path_len[i]] !=
-					'/') {
-					continue;
-				}
-				strcatoff(buf, ini_expand_path_str[i],
-					ini_expand_path_len[i], &off, &wrote,
-					size);
-				strcatoff(buf, STRATA_ROOT, STRATA_ROOT_LEN,
-					&off, &wrote, size);
-				strcatoff(buf, deref(back)->name,
-					deref(back)->name_len, &off, &wrote,
-					size);
-				strcatoff(buf, line + ini_expand_path_len[i],
-					strlen(line + ini_expand_path_len[i]),
-					&off, &wrote, size);
-				found = 1;
-			}
-			if (!found) {
-				strcatoff(buf, line, strlen(line), &off,
-					&wrote, size);
-			}
-			if (wrote >= size) {
-				break;
-			}
-		}
-		rv = wrote;
-		fclose(fp);
+		break;
+
+	case FILTER_INI:
+		rv = inject_ini(cfg, ipath, ipath_len, buf, size, offset);
 		break;
 
 	case FILTER_FONT:
@@ -2199,8 +2248,8 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 			break;
 		}
 
-		wrote = 0;
-		off = offset;
+		size_t wrote = 0;
+		size_t off = offset;
 
 		/*
 		 * Handle line count line

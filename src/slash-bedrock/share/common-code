@@ -1382,9 +1382,15 @@ cfg_crossfs() {
 					continue
 				}
 
-				target = filter" /"key" "n_strata[i]":"n_values[j]
+                if (filter == "service") {
+                    # for services, use a different path
+                    target = filter" /services/"n_strata[i]"/"key" "n_strata[i]":"n_values[j]
+                } else {
+                    target = filter" /"key" "n_strata[i]":"n_values[j]
+                }
+
 				if (!(target in targets)) {
-					n_targets[++targets_len] =  target
+					n_targets[++targets_len] = target
 					targets[target] = target
 				}
 			}
