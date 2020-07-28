@@ -71,6 +71,7 @@
 #define FUSE_USE_VERSION 39
 #define _GNU_SOURCE
 
+#include <stdbool.h>
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
@@ -286,6 +287,14 @@ enum filter {
 	FILTER_PASS,
 };
 
+/*
+ * Type of init daemon.
+ */
+enum service_type {
+	SERVICE_TYPE_SYSTEMD,
+	SERVICE_TYPE_RUNIT
+};
+
 const char *const filter_str[] = {
 	"bin",
 	"bin-restrict",
@@ -423,6 +432,30 @@ struct h_kv {
 };
 
 /*
+ * Hash table entry to hold generated services.
+ */
+struct h_generated_service {
+	UT_hash_handle hh;
+	char *service_text;
+	int service_text_len;
+	time_t modification_time;
+	char original_path[];
+};
+
+/*
+ * An init-daemon-independant description of the service.
+ */
+struct service_desc {
+	char start[PATH_MAX];
+	char stop[PATH_MAX];
+};
+
+/*
+ * The hash table that holds generated services.
+ */
+static struct h_generated_service *generated_services = NULL;
+
+/*
  * An array of cfg_entry's listing all of the user-facing files and directories
  * in this mount point.
  *
@@ -470,6 +503,12 @@ static struct stat vdir_stat;
 static struct stat cfg_stat;
 static struct stat local_stat;
 static off_t bouncer_size;
+
+/*
+ * Init daemon type of the init stratum. Services from other strata
+ * will be translated to this type.
+ */
+static enum service_type init_stratum_service_type;
 
 /*
  * Set the fsuid and fsgid to that of the calling function.  setfsuid/setfsgid
@@ -1772,6 +1811,159 @@ static inline void getattr_ini(struct cfg_entry *cfg, const char *ipath, size_t 
 	fclose(fp);
 }
 
+static inline int inject_ini(struct cfg_entry *cfg, const char *ipath, size_t ipath_len, char *buf, size_t size, off_t offset) {
+	struct back_entry *back;
+	char bpath[PATH_MAX];
+	int rv = loc_first_bpath(cfg, ipath, ipath_len, &back, bpath);
+	if (rv < 0) {
+		return -errno;
+	}
+
+	FILE *fp = fchroot_fopen_rdonly(deref(back)->root_fd, bpath);
+	if (fp == NULL) {
+		return -errno;
+	}
+
+	size_t wrote = 0;
+	char line[PATH_MAX];
+	if (offset < 0) {
+		return -EINVAL;
+	}
+
+	size_t off = offset;
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		int found = 0;
+		for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
+			 i++) {
+			if (strncmp(line, ini_inject_strat_str[i],
+						ini_inject_strat_len[i]) != 0) {
+				continue;
+			}
+			strcatoff(buf, ini_inject_strat_str[i],
+					  ini_inject_strat_len[i], &off, &wrote,
+					  size);
+			strcatoff(buf, STRAT_PATH, STRAT_PATH_LEN, &off,
+					  &wrote, size);
+			strcatoff(buf, " ", 1, &off, &wrote, size);
+			strcatoff(buf, deref(back)->name,
+					  deref(back)->name_len, &off, &wrote,
+					  size);
+			strcatoff(buf, " ", 1, &off, &wrote, size);
+			strcatoff(buf, line + ini_inject_strat_len[i],
+					  strlen(line + ini_inject_strat_len[i]),
+					  &off, &wrote, size);
+			found = 1;
+			break;
+		}
+		for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
+			 i++) {
+			if (strncmp(line, ini_expand_path_str[i],
+						ini_expand_path_len[i]) != 0
+				|| line[ini_expand_path_len[i]] !=
+				'/') {
+				continue;
+			}
+			strcatoff(buf, ini_expand_path_str[i],
+					  ini_expand_path_len[i], &off, &wrote,
+					  size);
+			strcatoff(buf, STRATA_ROOT, STRATA_ROOT_LEN,
+					  &off, &wrote, size);
+			strcatoff(buf, deref(back)->name,
+					  deref(back)->name_len, &off, &wrote,
+					  size);
+			strcatoff(buf, line + ini_expand_path_len[i],
+					  strlen(line + ini_expand_path_len[i]),
+					  &off, &wrote, size);
+			found = 1;
+		}
+		if (!found) {
+			strcatoff(buf, line, strlen(line), &off,
+					  &wrote, size);
+		}
+		if (wrote >= size) {
+			break;
+		}
+	}
+	rv = wrote;
+	fclose(fp);
+
+	return rv;
+}
+
+static inline int generate_service_for(struct back_entry *back, char *bpath, enum service_type service_type, struct h_generated_service **generated_service) {
+		char *service_stratum = deref(back)->name;
+
+		char full_service_path[PATH_MAX] = STRATA_ROOT;
+		strncat(full_service_path, service_stratum, PATH_MAX);
+		strncat(full_service_path, bpath, PATH_MAX);
+
+		struct stat original_service_stat;
+		if (stat(full_service_path, &original_service_stat) != 0) {
+			return -errno;
+		}
+
+		HASH_FIND_STR(generated_services, full_service_path, *generated_service);
+
+		bool need_to_create = *generated_service == NULL;
+
+		// If the modification date on the original service doesn't match the recorded one,
+		// the service should be regenerated
+		if (!need_to_create && (*generated_service)->modification_time != original_service_stat.st_mtime) {
+			// Remove the service from the table, free the service's text, and free the service itself
+			HASH_DEL(generated_services, *generated_service);
+			free((*generated_service)->service_text);
+			free(*generated_service);
+
+			// Mark that a new service has to be generated
+			need_to_create = true;
+		}
+
+		if (need_to_create) {
+			struct service_desc service_desc;
+			switch (service_type) {
+			case SERVICE_TYPE_RUNIT:
+				snprintf(service_desc.start, PATH_MAX, "/bedrock/bin/strat -r %s %s/run", service_stratum, full_service_path);
+
+				break;
+			}
+
+			// Allocate space for a generated service + service path data
+			*generated_service = malloc(sizeof(struct h_generated_service) + strlen(full_service_path) + 1);
+			if (*generated_service == NULL)
+				return -ENOMEM;
+
+			strcpy((*generated_service)->original_path, full_service_path);
+
+			switch (init_stratum_service_type) {
+				case SERVICE_TYPE_SYSTEMD:
+					(*generated_service)->service_text_len = asprintf(&(*generated_service)->service_text, "[Service]\nExecStart=%s\n", service_desc.start);
+					break;
+			}
+
+			(*generated_service)->modification_time = original_service_stat.st_mtime;
+			HASH_ADD_STR(generated_services, original_path, *generated_service);
+		}
+}
+
+static inline int read_service(struct cfg_entry *cfg, const char *const ipath, size_t ipath_len,
+							   char *buf, size_t size, off_t offset, struct back_entry *back, char *bpath,
+							   enum service_type service_type) {
+	if (init_stratum_service_type == service_type) {
+		switch (service_type) {
+		case SERVICE_TYPE_SYSTEMD:
+			return inject_ini(cfg, ipath, ipath_len, buf, size, offset);
+			break;
+		}
+	} else {
+		struct h_generated_service *generated_service = NULL;
+		generate_service_for(back, bpath, service_type, &generated_service);
+
+		strncpy(buf, generated_service->service_text, generated_service->service_text_len);
+
+		return generated_service->service_text_len;
+	}
+}
+
 static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 	size_t ipath_len, struct stat *stbuf)
 {
@@ -1808,8 +2000,20 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 			break;
 		}
 
+		const char *sv_dir = "/etc/sv/";
+		const int sv_len = strlen(sv_dir);
+
 		if (strstr(bpath, "systemd")) {
 			getattr_ini(cfg, ipath, ipath_len, stbuf, &rv);
+		} else if (is_parent(sv_dir, sv_len - 1, bpath, strlen(bpath)) != 0) {
+			// TODO: handle actual access mask here
+			stbuf->st_mode = S_IFREG | 0400;
+			stbuf->st_nlink = 1;
+
+			struct h_generated_service *generated_service = NULL;
+			generate_service_for(back, bpath, SERVICE_TYPE_RUNIT, &generated_service);
+
+			stbuf->st_size = generated_service->service_text_len;
 		}
 
 		break;
@@ -2102,85 +2306,6 @@ static inline int read_pass(struct cfg_entry *cfg, const char *const ipath,
 	return rv;
 }
 
-static inline int inject_ini(struct cfg_entry *cfg, const char *ipath, size_t ipath_len, char *buf, size_t size, off_t offset) {
-	struct back_entry *back;
-	char bpath[PATH_MAX];
-	int rv = loc_first_bpath(cfg, ipath, ipath_len, &back, bpath);
-	if (rv < 0) {
-		return -errno;
-	}
-
-	FILE *fp = fchroot_fopen_rdonly(deref(back)->root_fd, bpath);
-	if (fp == NULL) {
-		return -errno;
-	}
-
-	size_t wrote = 0;
-	char line[PATH_MAX];
-	if (offset < 0) {
-		return -EINVAL;
-	}
-
-	size_t off = offset;
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		int found = 0;
-		for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
-			 i++) {
-			if (strncmp(line, ini_inject_strat_str[i],
-						ini_inject_strat_len[i]) != 0) {
-				continue;
-			}
-			strcatoff(buf, ini_inject_strat_str[i],
-					  ini_inject_strat_len[i], &off, &wrote,
-					  size);
-			strcatoff(buf, STRAT_PATH, STRAT_PATH_LEN, &off,
-					  &wrote, size);
-			strcatoff(buf, " ", 1, &off, &wrote, size);
-			strcatoff(buf, deref(back)->name,
-					  deref(back)->name_len, &off, &wrote,
-					  size);
-			strcatoff(buf, " ", 1, &off, &wrote, size);
-			strcatoff(buf, line + ini_inject_strat_len[i],
-					  strlen(line + ini_inject_strat_len[i]),
-					  &off, &wrote, size);
-			found = 1;
-			break;
-		}
-		for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
-			 i++) {
-			if (strncmp(line, ini_expand_path_str[i],
-						ini_expand_path_len[i]) != 0
-				|| line[ini_expand_path_len[i]] !=
-				'/') {
-				continue;
-			}
-			strcatoff(buf, ini_expand_path_str[i],
-					  ini_expand_path_len[i], &off, &wrote,
-					  size);
-			strcatoff(buf, STRATA_ROOT, STRATA_ROOT_LEN,
-					  &off, &wrote, size);
-			strcatoff(buf, deref(back)->name,
-					  deref(back)->name_len, &off, &wrote,
-					  size);
-			strcatoff(buf, line + ini_expand_path_len[i],
-					  strlen(line + ini_expand_path_len[i]),
-					  &off, &wrote, size);
-			found = 1;
-		}
-		if (!found) {
-			strcatoff(buf, line, strlen(line), &off,
-					  &wrote, size);
-		}
-		if (wrote >= size) {
-			break;
-		}
-	}
-	rv = wrote;
-	fclose(fp);
-
-	return rv;
-}
-
 static inline int read_systemd_service(struct cfg_entry *cfg, const char *const ipath, size_t ipath_len, char *buf, size_t size, off_t offset) {
 	return inject_ini(cfg, ipath, ipath_len, buf, size, offset);
 }
@@ -2206,11 +2331,21 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 			break;
 		}
 
-		if (strstr(bpath, "systemd")) {
-			rv = read_systemd_service(cfg, ipath, ipath_len, buf, size, offset);
+		const char *sv_dir = "/etc/sv/";
+		const int sv_len = strlen(sv_dir);
+
+		enum service_type service_type;
+		if (strstr(bpath, "systemd") != NULL) {
+			service_type = SERVICE_TYPE_SYSTEMD;
+		} else if (is_parent(sv_dir, sv_len - 1, bpath, strlen(bpath)) != 0) {
+			service_type = SERVICE_TYPE_RUNIT;
 		} else {
-			rv = read_pass(cfg, ipath, ipath_len, buf, size, offset);
+			fprintf(stderr, "Unknown service type encountered");
+			rv = -EBADF;
+
+			break;
 		}
+		rv = read_service(cfg, ipath, ipath_len, buf, size, offset, back, bpath, service_type);
 
 		break;
 
@@ -2538,6 +2673,17 @@ int main(int argc, char *argv[])
 		|| pthread_mutex_init(&root_lock, NULL) < 0) {
 		fprintf(stderr, "crossfs: error initializing mutexes\n");
 		return 1;
+	}
+
+	/*
+	 * Determine the init daemon.
+	 * TODO: this should probably set in the config instead
+	 */
+	struct stat init_check_stat;
+	if (stat("/lib/systemd/systemd", &init_check_stat) != -1) {
+		init_stratum_service_type = SERVICE_TYPE_SYSTEMD;
+	} else {
+		fprintf(stderr, "crossfs: Unable to determine the init system type\n");
 	}
 
 	/*
