@@ -1681,6 +1681,9 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 		const char *sv_dir = "/etc/sv/";
 		const int sv_len = strlen(sv_dir);
 
+		const char *init_d = "/etc/init.d/";
+		const int init_d_len = strlen(init_d);
+
 		if (strstr(bpath, "systemd")) {
 			getattr_ini(cfg, ipath, ipath_len, stbuf, &rv);
 		} else if (is_parent(sv_dir, sv_len - 1, bpath, strlen(bpath)) != 0) {
@@ -1688,8 +1691,13 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 			stbuf->st_mode = S_IFREG | 0400;
 			stbuf->st_nlink = 1;
 
-			struct h_generated_service *generated_service = NULL;
+			struct generated_service *generated_service = NULL;
 			generate_service_for(back, bpath, SERVICE_TYPE_RUNIT, &generated_service);
+
+			stbuf->st_size = generated_service->service_text_len;
+		} else if (is_parent(init_d, init_d_len - 1, bpath, strlen(bpath)) != 0) {
+			struct generated_service *generated_service = NULL;
+			generate_service_for(back, bpath, SERVICE_TYPE_OPENRC, &generated_service);
 
 			stbuf->st_size = generated_service->service_text_len;
 		}
@@ -2008,11 +2016,16 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 		const char *sv_dir = "/etc/sv/";
 		const int sv_len = strlen(sv_dir);
 
+		const char *init_d = "/etc/init.d/";
+		const int init_d_len = strlen(init_d);
+
 		enum service_type service_type;
 		if (strstr(bpath, "systemd") != NULL) {
 			service_type = SERVICE_TYPE_SYSTEMD;
 		} else if (is_parent(sv_dir, sv_len - 1, bpath, strlen(bpath)) != 0) {
 			service_type = SERVICE_TYPE_RUNIT;
+		}else if (is_parent(init_d, init_d_len - 1, bpath, strlen(bpath)) != 0) {
+			service_type = SERVICE_TYPE_OPENRC;
 		} else {
 			fprintf(stderr, "Unknown service type encountered");
 			rv = -EBADF;
@@ -2356,6 +2369,8 @@ int main(int argc, char *argv[])
 	struct stat init_check_stat;
 	if (stat("/lib/systemd/systemd", &init_check_stat) != -1) {
 		init_stratum_service_type = SERVICE_TYPE_SYSTEMD;
+	} else if (stat("/var/run/openrc", &init_check_stat) != -1) {
+		init_stratum_service_type = SERVICE_TYPE_OPENRC;
 	} else {
 		fprintf(stderr, "crossfs: Unable to determine the init system type\n");
 	}
