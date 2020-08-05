@@ -86,118 +86,11 @@
 
 #include <uthash.h>
 
+#include "definitions.h"
+#include "service_generation.h"
+
 #define ARRAY_LEN(x) (sizeof(x) / sizeof(x[0]))
 #define MIN(x, y) (x < y ? x : y)
-
-/*
- * The directory containing the roots of the various strata.  References to a
- * specific stratum's instance of a file go through this directory.
- */
-#define STRATA_ROOT "/bedrock/strata/"
-#define STRATA_ROOT_LEN strlen(STRATA_ROOT)
-
-/*
- * Strat runs an executable from given stratum as specified in argument list.
- * Crossfs injects this into various references to executables to ensure the
- * appropriate stratum's instance of the executable is utilized in that
- * context.  This is useful for things such as .desktop files with `Exec=`
- * references to executables.
- */
-#define STRAT_PATH "/bedrock/bin/strat"
-#define STRAT_PATH_LEN strlen(STRAT_PATH)
-
-/*
- * Bouncer, like strat, redirects to the appropriate stratum's instance of an
- * executable.  It differs from strat in that it determines which executable by
- * looking at its extended filesystem attributes rather than its arguments.
- * This is useful for binaries the user will directly execute, as the user
- * controls the argument list.
- */
-#define BOUNCER_PATH "/bedrock/libexec/bouncer"
-#define BOUNCER_PATH_LEN strlen(BOUNCER_PATH)
-
-/*
- * The root of the procfs filesystem
- */
-#define PROCFS_ROOT "/proc"
-
-/*
- * Surface the associated stratum and file path for files via xattrs.
- */
-#define STRATUM_XATTR "user.bedrock.stratum"
-#define STRATUM_XATTR_LEN strlen(STRATUM_XATTR)
-
-#define LPATH_XATTR "user.bedrock.localpath"
-#define LPATH_XATTR_LEN strlen(LPATH_XATTR)
-
-#define RESTRICT_XATTR "user.bedrock.restrict"
-#define RESTRICT_XATTR_LEN strlen(RESTRICT_XATTR)
-#define RESTRICT "restrict"
-#define RESTRICT_LEN strlen(RESTRICT)
-
-/*
- * Crossfs may be configured to present a file without being explicitly
- * configured to also present its parent directory.  It will dynamically create
- * a virtual directory in these cases.
- *
- * This filesystem is typically mounted in the bedrock stratum then shared with
- * other strata as a global path.  Thus, by definition, anything that isn't
- * crossed to another stratum is owned by the bedrock stratum, including these
- * virtual directories.
- */
-#define VIRTUAL_STRATUM "bedrock"
-#define VIRTUAL_STRATUM_LEN strlen(VIRTUAL_STRATUM)
-/*
- * All crossfs files have an associated file path.  While "/" isn't
- * particularly meaningful here, no other path is obviously better.
- */
-#define VIRTUAL_LPATH "/"
-#define VIRTUAL_LPATH_LEN strlen(VIRTUAL_LPATH)
-
-/*
- * When merging font directories, these files require extra attention.
- */
-#define FONTS_DIR "fonts.dir"
-#define FONTS_DIR_LEN strlen(FONTS_DIR)
-
-#define FONTS_ALIAS "fonts.alias"
-#define FONTS_ALIAS_LEN strlen(FONTS_ALIAS)
-
-/*
- * The file path used to configure this filesystem.
- */
-#define CFG_NAME ".bedrock-config-filesystem"
-#define CFG_NAME_LEN strlen(CFG_NAME)
-
-#define CFG_PATH "/.bedrock-config-filesystem"
-#define CFG_PATH_LEN strlen(CFG_PATH)
-
-/*
- * Symlink to stratum root, used for local alias.
- */
-#define LOCAL_ALIAS_NAME ".local-alias"
-#define LOCAL_ALIAS_NAME_LEN strlen(LOCAL_ALIAS_NAME)
-
-#define LOCAL_ALIAS_PATH "/.local-alias"
-#define LOCAL_ALIAS_PATH_LEN strlen(LOCAL_ALIAS_PATH)
-
-/*
- * local alias
- */
-#define LOCAL "local"
-#define LOCAL_LEN strlen(LOCAL)
-
-/*
- * Headers for content written to CFG_NAME
- */
-#define CMD_CLEAR "clear"
-#define CMD_CLEAR_LEN strlen(CMD_CLEAR)
-
-#define CMD_ADD "add"
-#define CMD_ADD_LEN strlen(CMD_ADD)
-
-#define CMD_RM "rm"
-#define CMD_RM_LEN strlen(CMD_RM)
 
 #define FS_IMP_SETUP(lock_type)                                              \
 	int rv;                                                              \
@@ -255,44 +148,6 @@ enum ipath_class {
 };
 
 /*
- * This filesystem may modify contents as it passes the backing file to the
- * requesting process.  The filter indicates the scheme used to modify the
- * contents.
- */
-enum filter {
-	/*
-	 * Files are expected to be executables.  Return bouncer.
-	 */
-	FILTER_BIN,
-	/*
-	 * Files are expected to be executables.  Return bouncer with restrict set.
-	 */
-	FILTER_BIN_RESTRICT,
-	/*
-	 * Files are expected to be in ini-format.  Performs various
-	 * transformations such as injecting calls to strat or stratum root
-	 * paths.
-	 */
-	FILTER_INI,
-	/*
-	 * Combine fonts.dir and fonts.aliases files.
-	 */
-	FILTER_FONT,
-	/*
-	 * Pass file through unaltered.
-	 */
-	FILTER_PASS,
-};
-
-const char *const filter_str[] = {
-	"bin",
-	"bin-restrict",
-	"ini",
-	"font",
-	"pass",
-};
-
-/*
  * Wrap ini values with strat calls.
  *
  * For example:
@@ -339,67 +194,6 @@ const size_t ini_expand_path_len[] = {
 	5,
 	5,
 	8,
-};
-
-struct stratum {
-	/*
-	 * stratum name
-	 */
-	char *name;
-	size_t name_len;
-	/*
-	 * A file descriptor relating to the corresponding stratum's root
-	 * directory.
-	 */
-	int root_fd;
-};
-
-/*
- * Each back_entry represents a file or directory which may fulfill a given
- * cfg_entry file.
- */
-struct back_entry {
-	/*
-	 * The stratum-local path.
-	 */
-	char *lpath;
-	size_t lpath_len;
-	/*
-	 * The corresponding stratum/alias.  Run through deref() before
-	 * consumption.
-	 */
-	struct stratum alias;
-	/*
-	 * Boolean indicating if this back_entry uses the local alias.  If so,
-	 * deref() forwards calls to the local stratum rather than this
-	 * struct's alias field.
-	 */
-	int local;
-};
-
-/*
- * Each cfg_entry represents a user-facing file or directory in the mount
- * point.
- */
-struct cfg_entry {
-	/*
-	 * Filter to apply to output.
-	 */
-	enum filter filter;
-	/*
-	 * Path to append to mount point's path.  For example, if this
-	 * filesystem is mounted at "/bedrock/cross" and path="/man", this
-	 * cfg_entry refers to "/bedrock/cross/man".  Note the preceding slash.
-	 */
-	char *cpath;
-	size_t cpath_len;
-	/*
-	 * Array of filesystem paths to be searched for this cfg_entry's
-	 * backing file(s).
-	 */
-	struct back_entry *back;
-	size_t back_cnt;
-	size_t back_alloc;
 };
 
 /*
@@ -1715,6 +1509,139 @@ fallback_virtual:
 	return 0;
 }
 
+static inline void getattr_ini(struct cfg_entry *cfg, const char *ipath, size_t ipath_len, struct stat *stbuf, int *rv) {
+	if (!S_ISREG(stbuf->st_mode)) {
+		return;
+	}
+
+	struct back_entry *back;
+	char bpath[PATH_MAX];
+	*rv = loc_first_bpath(cfg, ipath, ipath_len, &back, bpath);
+	if (rv < 0) {
+		*rv = -errno;
+
+		return;
+	}
+
+	FILE *fp = fchroot_fopen_rdonly(deref(back)->root_fd, bpath);
+	if (fp == NULL) {
+		*rv = -errno;
+
+		return;
+	}
+
+	char line[PATH_MAX];
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
+			 i++) {
+			/*
+			 * No ini_inject_strat_len will exceed line's PATH_MAX,
+			 * this should be safe.
+			 */
+			if (strncmp(line, ini_inject_strat_str[i],
+						ini_inject_strat_len[i]) != 0) {
+				continue;
+			}
+			stbuf->st_size += STRAT_PATH_LEN;
+			stbuf->st_size += strlen(" ");
+			stbuf->st_size += deref(back)->name_len;
+			stbuf->st_size += strlen(" ");
+			break;
+		}
+		for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
+			 i++) {
+			if (strncmp(line, ini_expand_path_str[i],
+						ini_expand_path_len[i]) != 0
+				|| line[ini_expand_path_len[i]] !=
+				'/') {
+				continue;
+			}
+			stbuf->st_size += STRATA_ROOT_LEN;
+			stbuf->st_size += deref(back)->name_len;
+		}
+	}
+	fclose(fp);
+}
+
+static inline int inject_ini(struct cfg_entry *cfg, const char *ipath, size_t ipath_len, char *buf, size_t size, off_t offset) {
+	struct back_entry *back;
+	char bpath[PATH_MAX];
+	int rv = loc_first_bpath(cfg, ipath, ipath_len, &back, bpath);
+	if (rv < 0) {
+		return -errno;
+	}
+
+	FILE *fp = fchroot_fopen_rdonly(deref(back)->root_fd, bpath);
+	if (fp == NULL) {
+		return -errno;
+	}
+
+	size_t wrote = 0;
+	char line[PATH_MAX];
+	if (offset < 0) {
+		return -EINVAL;
+	}
+
+	size_t off = offset;
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		int found = 0;
+		for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
+			 i++) {
+			if (strncmp(line, ini_inject_strat_str[i],
+						ini_inject_strat_len[i]) != 0) {
+				continue;
+			}
+			strcatoff(buf, ini_inject_strat_str[i],
+					  ini_inject_strat_len[i], &off, &wrote,
+					  size);
+			strcatoff(buf, STRAT_PATH, STRAT_PATH_LEN, &off,
+					  &wrote, size);
+			strcatoff(buf, " ", 1, &off, &wrote, size);
+			strcatoff(buf, deref(back)->name,
+					  deref(back)->name_len, &off, &wrote,
+					  size);
+			strcatoff(buf, " ", 1, &off, &wrote, size);
+			strcatoff(buf, line + ini_inject_strat_len[i],
+					  strlen(line + ini_inject_strat_len[i]),
+					  &off, &wrote, size);
+			found = 1;
+			break;
+		}
+		for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
+			 i++) {
+			if (strncmp(line, ini_expand_path_str[i],
+						ini_expand_path_len[i]) != 0
+				|| line[ini_expand_path_len[i]] !=
+				'/') {
+				continue;
+			}
+			strcatoff(buf, ini_expand_path_str[i],
+					  ini_expand_path_len[i], &off, &wrote,
+					  size);
+			strcatoff(buf, STRATA_ROOT, STRATA_ROOT_LEN,
+					  &off, &wrote, size);
+			strcatoff(buf, deref(back)->name,
+					  deref(back)->name_len, &off, &wrote,
+					  size);
+			strcatoff(buf, line + ini_expand_path_len[i],
+					  strlen(line + ini_expand_path_len[i]),
+					  &off, &wrote, size);
+			found = 1;
+		}
+		if (!found) {
+			strcatoff(buf, line, strlen(line), &off,
+					  &wrote, size);
+		}
+		if (wrote >= size) {
+			break;
+		}
+	}
+	rv = wrote;
+	fclose(fp);
+
+	return rv;
+}
+
 static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 	size_t ipath_len, struct stat *stbuf)
 {
@@ -1741,11 +1668,8 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 		}
 		break;
 
-	case FILTER_INI:
-		if (!S_ISREG(stbuf->st_mode)) {
-			break;
-		}
-
+	case FILTER_SERVICE:
+		;
 		struct back_entry *back;
 		char bpath[PATH_MAX];
 		rv = loc_first_bpath(cfg, ipath, ipath_len, &back, bpath);
@@ -1754,45 +1678,35 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 			break;
 		}
 
-		FILE *fp = fchroot_fopen_rdonly(deref(back)->root_fd, bpath);
-		if (fp == NULL) {
-			rv = -errno;
-			break;
+		const char *sv_dir = "/etc/sv/";
+		const int sv_len = strlen(sv_dir);
+
+		const char *init_d = "/etc/init.d/";
+		const int init_d_len = strlen(init_d);
+
+		if (strstr(bpath, "systemd")) {
+			getattr_ini(cfg, ipath, ipath_len, stbuf, &rv);
+		} else if (is_parent(sv_dir, sv_len - 1, bpath, strlen(bpath)) != 0) {
+			// TODO: handle actual access mask here
+			stbuf->st_mode = S_IFREG | 0400;
+			stbuf->st_nlink = 1;
+
+			struct generated_service *generated_service = NULL;
+			generate_service_for(back, bpath, SERVICE_TYPE_RUNIT, &generated_service);
+
+			stbuf->st_size = generated_service->service_text_len;
+		} else if (is_parent(init_d, init_d_len - 1, bpath, strlen(bpath)) != 0) {
+			struct generated_service *generated_service = NULL;
+			generate_service_for(back, bpath, SERVICE_TYPE_OPENRC, &generated_service);
+
+			stbuf->st_size = generated_service->service_text_len;
 		}
 
-		char line[PATH_MAX];
-		while (fgets(line, sizeof(line), fp) != NULL) {
-			for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
-				i++) {
-				/*
-				 * No ini_inject_strat_len will exceed line's PATH_MAX,
-				 * this should be safe.
-				 */
-				if (strncmp(line, ini_inject_strat_str[i],
-						ini_inject_strat_len[i]) != 0) {
-					continue;
-				}
-				stbuf->st_size += STRAT_PATH_LEN;
-				stbuf->st_size += strlen(" ");
-				stbuf->st_size += deref(back)->name_len;
-				stbuf->st_size += strlen(" ");
-				break;
-			}
-			for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
-				i++) {
-				if (strncmp(line, ini_expand_path_str[i],
-						ini_expand_path_len[i]) != 0
-					|| line[ini_expand_path_len[i]] !=
-					'/') {
-					continue;
-				}
-				stbuf->st_size += STRATA_ROOT_LEN;
-				stbuf->st_size += deref(back)->name_len;
-			}
-		}
-		fclose(fp);
 		break;
+	case FILTER_INI:
+		getattr_ini(cfg, ipath, ipath_len, stbuf, &rv);
 
+		break;
 	case FILTER_FONT:
 		;
 		/*
@@ -2089,7 +2003,7 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 		rv = pread(bouncer_fd, buf, size, offset);
 		break;
 
-	case FILTER_INI:
+	case FILTER_SERVICE:
 		;
 		struct back_entry *back;
 		char bpath[PATH_MAX];
@@ -2099,74 +2013,31 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 			break;
 		}
 
-		FILE *fp = fchroot_fopen_rdonly(deref(back)->root_fd, bpath);
-		if (fp == NULL) {
-			rv = -errno;
-			break;
-		}
+		const char *sv_dir = "/etc/sv/";
+		const int sv_len = strlen(sv_dir);
 
-		size_t wrote = 0;
-		char line[PATH_MAX];
-		if (offset < 0) {
-			rv = -EINVAL;
+		const char *init_d = "/etc/init.d/";
+		const int init_d_len = strlen(init_d);
+
+		enum service_type service_type;
+		if (strstr(bpath, "systemd") != NULL) {
+			service_type = SERVICE_TYPE_SYSTEMD;
+		} else if (is_parent(sv_dir, sv_len - 1, bpath, strlen(bpath)) != 0) {
+			service_type = SERVICE_TYPE_RUNIT;
+		}else if (is_parent(init_d, init_d_len - 1, bpath, strlen(bpath)) != 0) {
+			service_type = SERVICE_TYPE_OPENRC;
+		} else {
+			fprintf(stderr, "Unknown service type encountered");
+			rv = -EBADF;
+
 			break;
 		}
-		size_t off = offset;
-		while (fgets(line, sizeof(line), fp) != NULL) {
-			int found = 0;
-			for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
-				i++) {
-				if (strncmp(line, ini_inject_strat_str[i],
-						ini_inject_strat_len[i]) != 0) {
-					continue;
-				}
-				strcatoff(buf, ini_inject_strat_str[i],
-					ini_inject_strat_len[i], &off, &wrote,
-					size);
-				strcatoff(buf, STRAT_PATH, STRAT_PATH_LEN, &off,
-					&wrote, size);
-				strcatoff(buf, " ", 1, &off, &wrote, size);
-				strcatoff(buf, deref(back)->name,
-					deref(back)->name_len, &off, &wrote,
-					size);
-				strcatoff(buf, " ", 1, &off, &wrote, size);
-				strcatoff(buf, line + ini_inject_strat_len[i],
-					strlen(line + ini_inject_strat_len[i]),
-					&off, &wrote, size);
-				found = 1;
-				break;
-			}
-			for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
-				i++) {
-				if (strncmp(line, ini_expand_path_str[i],
-						ini_expand_path_len[i]) != 0
-					|| line[ini_expand_path_len[i]] !=
-					'/') {
-					continue;
-				}
-				strcatoff(buf, ini_expand_path_str[i],
-					ini_expand_path_len[i], &off, &wrote,
-					size);
-				strcatoff(buf, STRATA_ROOT, STRATA_ROOT_LEN,
-					&off, &wrote, size);
-				strcatoff(buf, deref(back)->name,
-					deref(back)->name_len, &off, &wrote,
-					size);
-				strcatoff(buf, line + ini_expand_path_len[i],
-					strlen(line + ini_expand_path_len[i]),
-					&off, &wrote, size);
-				found = 1;
-			}
-			if (!found) {
-				strcatoff(buf, line, strlen(line), &off,
-					&wrote, size);
-			}
-			if (wrote >= size) {
-				break;
-			}
-		}
-		rv = wrote;
-		fclose(fp);
+		rv = read_service(cfg, ipath, ipath_len, buf, size, offset, back, bpath, service_type);
+
+		break;
+
+	case FILTER_INI:
+		rv = inject_ini(cfg, ipath, ipath_len, buf, size, offset);
 		break;
 
 	case FILTER_FONT:
@@ -2199,8 +2070,8 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 			break;
 		}
 
-		wrote = 0;
-		off = offset;
+		size_t wrote = 0;
+		size_t off = offset;
 
 		/*
 		 * Handle line count line
@@ -2489,6 +2360,19 @@ int main(int argc, char *argv[])
 		|| pthread_mutex_init(&root_lock, NULL) < 0) {
 		fprintf(stderr, "crossfs: error initializing mutexes\n");
 		return 1;
+	}
+
+	/*
+	 * Determine the init daemon.
+	 * TODO: this should probably set in the config instead
+	 */
+	struct stat init_check_stat;
+	if (stat("/lib/systemd/systemd", &init_check_stat) != -1) {
+		init_stratum_service_type = SERVICE_TYPE_SYSTEMD;
+	} else if (stat("/var/run/openrc", &init_check_stat) != -1) {
+		init_stratum_service_type = SERVICE_TYPE_OPENRC;
+	} else {
+		fprintf(stderr, "crossfs: Unable to determine the init system type\n");
 	}
 
 	/*

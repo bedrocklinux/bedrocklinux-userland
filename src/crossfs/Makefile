@@ -8,7 +8,7 @@
 
 all: crossfs
 
-crossfs: crossfs.c
+crossfs: crossfs.c definitions.h service_generation.h
 	$(CC) $(CFLAGS) -std=c99 -D_FILE_OFFSET_BITS=64 crossfs.c -o crossfs -lfuse3 -lpthread
 
 clean:
