@@ -151,7 +151,7 @@ COMPLETED=$(BUILD)/completed
 MUSLCC=$(SUPPORT)/bin/musl-gcc
 
 INDENT_FLAGS=--linux-style --dont-line-up-parentheses \
-	--continuation-indentation8 --indent-label0 --case-indentation0
+	--continuation-indentation8 --indent-label0 --case-indentation0 --line-length 120
 WERROR_FLAGS=-Werror -Wall -Wextra -std=c99 -pedantic
 
 all: $(INSTALLER)
