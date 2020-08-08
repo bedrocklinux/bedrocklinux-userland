@@ -35,9 +35,7 @@ void print_help()
 		"Example, locking /dev/pts/1:\n"
 		"\n"
 		"	manage_stty_lock lock /dev/pts/1\n"
-		"\n"
-		"Example, unlocking the current terminal:\n"
-		"\n	Example: manage_stty_lock unlock\n");
+		"\n" "Example, unlocking the current terminal:\n" "\n	Example: manage_stty_lock unlock\n");
 }
 
 int lock_tty(int fd)
@@ -92,8 +90,7 @@ int main(int argc, char *argv[])
 	if (argc >= 3) {
 		fd = open(argv[2], O_RDONLY);
 		if (fd < 0) {
-			fprintf(stderr, "Unable to open specified tty \"%s\"\n",
-				argv[2]);
+			fprintf(stderr, "Unable to open specified tty \"%s\"\n", argv[2]);
 			return EBADF;
 		}
 	}

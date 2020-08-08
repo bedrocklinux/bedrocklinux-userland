@@ -82,7 +82,7 @@
 #include <sys/fsuid.h>
 #include <unistd.h>
 #include <linux/openat2.h>
-#include <asm-generic/unistd.h> /* __NR_openat2 */
+#include <asm-generic/unistd.h>	/* __NR_openat2 */
 
 #include <uthash.h>
 
@@ -489,7 +489,8 @@ static inline void set_caller_fsid()
  * Initialization code sets openat2_available if available.  Only call this
  * function if openat2_available is set.
  */
-static inline int openat2_fchroot_open(int dirfd, const char *pathname, uint64_t flags, uint64_t mode) {
+static inline int openat2_fchroot_open(int dirfd, const char *pathname, uint64_t flags, uint64_t mode)
+{
 	/*
 	 * `man 2 openat` indicates:
 	 *
@@ -519,8 +520,7 @@ static inline int openat2_fchroot_open(int dirfd, const char *pathname, uint64_t
  *     is_parent("/proc", ..., "/dev", ...) == 0
  *     is_parent("/proc", ..., "/dev/shm", ...) == 0
  */
-static inline int is_parent(const char *const a, const size_t a_len,
-	const char *b, const size_t b_len)
+static inline int is_parent(const char *const a, const size_t a_len, const char *b, const size_t b_len)
 {
 	if (a_len >= b_len) {
 		return 0;
@@ -544,8 +544,7 @@ static inline int is_parent(const char *const a, const size_t a_len,
  *     is_equal_or_parent("/proc", ..., "/dev", ...) != 0
  *     is_equal_or_parent("/proc", ..., "/dev/shm", ...) != 0
  */
-static inline int is_equal_or_parent(const char *const a, const size_t a_len,
-	const char *b, const size_t b_len)
+static inline int is_equal_or_parent(const char *const a, const size_t a_len, const char *b, const size_t b_len)
 {
 	if (a_len > b_len) {
 		return 0;
@@ -565,8 +564,7 @@ static inline int is_equal_or_parent(const char *const a, const size_t a_len,
  * This is preferable to strcmp() as it is faster, but comes at the cost of
  * requiring that both strings have pre-calculated lengths.
  */
-static inline int pstrcmp(const char *const a, const size_t a_len,
-	const char *b, const size_t b_len)
+static inline int pstrcmp(const char *const a, const size_t a_len, const char *b, const size_t b_len)
 {
 	if (a_len != b_len) {
 		return 1;
@@ -590,24 +588,21 @@ static inline struct stratum *deref(struct back_entry *back)
 /*
  * Classify an incoming file path into one of ipath_class.
  */
-static inline enum ipath_class classify_ipath(const char *ipath,
-	size_t ipath_len, struct cfg_entry **cfg)
+static inline enum ipath_class classify_ipath(const char *ipath, size_t ipath_len, struct cfg_entry **cfg)
 {
 	/*
 	 * In the most performance sensitive situations, CLASS_PATH is the most
 	 * common possibility.  Thus, check for it first.
 	 */
 	for (size_t i = 0; i < cfg_cnt; i++) {
-		if (is_equal_or_parent(cfgs[i].cpath, cfgs[i].cpath_len,
-				ipath, ipath_len)) {
+		if (is_equal_or_parent(cfgs[i].cpath, cfgs[i].cpath_len, ipath, ipath_len)) {
 			*cfg = &cfgs[i];
 			return CLASS_BACK;
 		}
 	}
 
 	for (size_t i = 0; i < cfg_cnt; i++) {
-		if (is_parent(ipath, ipath_len, cfgs[i].cpath,
-				cfgs[i].cpath_len)) {
+		if (is_parent(ipath, ipath_len, cfgs[i].cpath, cfgs[i].cpath_len)) {
 			*cfg = &cfgs[i];
 			return CLASS_VDIR;
 		}
@@ -621,8 +616,7 @@ static inline enum ipath_class classify_ipath(const char *ipath,
 		return CLASS_CFG;
 	}
 
-	if (pstrcmp(ipath, ipath_len, LOCAL_ALIAS_PATH,
-			LOCAL_ALIAS_PATH_LEN) == 0) {
+	if (pstrcmp(ipath, ipath_len, LOCAL_ALIAS_PATH, LOCAL_ALIAS_PATH_LEN) == 0) {
 		return CLASS_LOCAL;
 	}
 
@@ -649,8 +643,7 @@ static inline char *calc_bpath(struct cfg_entry *cfg, struct back_entry *back,
 		return NULL;
 	} else {
 		memcpy(tmp, back->lpath, back->lpath_len);
-		memcpy(tmp + back->lpath_len,
-			ipath + cfg->cpath_len, ipath_len - cfg->cpath_len + 1);
+		memcpy(tmp + back->lpath_len, ipath + cfg->cpath_len, ipath_len - cfg->cpath_len + 1);
 		return tmp;
 	}
 }
@@ -684,8 +677,7 @@ static inline int insert_h_str(struct h_str **strs, char *str, size_t str_len)
 /*
  * Insert a key/value pair into a hash table.
  */
-static inline int insert_h_kv(struct h_kv **kvs, char *key, size_t key_len,
-	char *value)
+static inline int insert_h_kv(struct h_kv **kvs, char *key, size_t key_len, char *value)
 {
 	struct h_kv *e = NULL;
 
@@ -843,8 +835,7 @@ static inline FILE *fchroot_fopen_rdonly(int root_fd, const char *bpath)
 /*
  * Fill a hash table with directory entries given a chroot().
  */
-static inline int fchroot_filldir(int root_fd, const char *const bpath,
-	struct h_str *files)
+static inline int fchroot_filldir(int root_fd, const char *const bpath, struct h_str *files)
 {
 	/*
 	 * The openat2_available code path here was found to be slower on
@@ -860,44 +851,44 @@ static inline int fchroot_filldir(int root_fd, const char *const bpath,
 	 * functions which perform far fewer internal system calls.
 	 *
 	 * if (openat2_available) {
-	 * 	DIR *d = NULL;
-	 * 	char buf[2];
-	 * 	int fd = -1;
-	 * 	int rv = 0;
-	 * 	if (fchroot_readlink(root_fd, bpath, buf, sizeof(buf)) == 1 && buf[0] == '.') {
-	 * 		// skip the common /usr/bin/X11 symlink to `.`
-	 * 	} else if ((fd = openat2_fchroot_open(root_fd, bpath, O_RDONLY | O_DIRECTORY, 0)) >= 0 && (d = fdopendir(fd)) != NULL) {
-	 * 		struct dirent *dir;
-	 * 		while ((dir = readdir(d)) != NULL) {
-	 * 			struct h_str *e = NULL;
-	 * 			size_t len = strlen(dir->d_name);
-	 * 			HASH_FIND(hh, files, dir->d_name, len, e);
-	 * 			if (e != NULL) {
-	 * 				continue;
-	 * 			}
+	 *      DIR *d = NULL;
+	 *      char buf[2];
+	 *      int fd = -1;
+	 *      int rv = 0;
+	 *      if (fchroot_readlink(root_fd, bpath, buf, sizeof(buf)) == 1 && buf[0] == '.') {
+	 *              // skip the common /usr/bin/X11 symlink to `.`
+	 *      } else if ((fd = openat2_fchroot_open(root_fd, bpath, O_RDONLY | O_DIRECTORY, 0)) >= 0 && (d = fdopendir(fd)) != NULL) {
+	 *              struct dirent *dir;
+	 *              while ((dir = readdir(d)) != NULL) {
+	 *                      struct h_str *e = NULL;
+	 *                      size_t len = strlen(dir->d_name);
+	 *                      HASH_FIND(hh, files, dir->d_name, len, e);
+	 *                      if (e != NULL) {
+	 *                              continue;
+	 *                      }
 	 * 
-	 * 			char tmp[PATH_MAX];
-	 * 			int s = snprintf(tmp, PATH_MAX, "%s/%s", bpath, dir->d_name);
-	 * 			if (s < 0 || s >= (int)sizeof(tmp)) {
-	 * 				continue;
-	 * 			}
-	 * 			if (!fchroot_file_exists(root_fd, tmp)) {
-	 * 				continue;
-	 * 			}
+	 *                      char tmp[PATH_MAX];
+	 *                      int s = snprintf(tmp, PATH_MAX, "%s/%s", bpath, dir->d_name);
+	 *                      if (s < 0 || s >= (int)sizeof(tmp)) {
+	 *                              continue;
+	 *                      }
+	 *                      if (!fchroot_file_exists(root_fd, tmp)) {
+	 *                              continue;
+	 *                      }
 	 * 
-	 * 			rv |= insert_h_str(&files, dir->d_name, len);
-	 * 		}
-	 * 	} else if (errno != ENOENT) {
-	 * 		rv = -errno;
-	 * 	}
-	 * 	if (d != NULL) {
-	 * 		closedir(d);
-	 * 	} else if (fd >= 0) {
-	 * 		close(fd);
-	 * 	}
-	 * 	return rv;
+	 *                      rv |= insert_h_str(&files, dir->d_name, len);
+	 *              }
+	 *      } else if (errno != ENOENT) {
+	 *              rv = -errno;
+	 *      }
+	 *      if (d != NULL) {
+	 *              closedir(d);
+	 *      } else if (fd >= 0) {
+	 *              close(fd);
+	 *      }
+	 *      return rv;
 	 * }
-	*/
+	 */
 
 	int rv = 0;
 	pthread_mutex_lock(&root_lock);
@@ -940,8 +931,7 @@ static inline int fchroot_filldir(int root_fd, const char *const bpath,
  * Perform a stat() against every bpath and return after the first non-ENOENT
  * hit.
  */
-static inline int stat_first_bpath(struct cfg_entry *cfg, const char *ipath,
-	size_t ipath_len, struct stat *stbuf)
+static inline int stat_first_bpath(struct cfg_entry *cfg, const char *ipath, size_t ipath_len, struct stat *stbuf)
 {
 	int rv = -ENOENT;
 	for (size_t i = 0; i < cfg->back_cnt; i++) {
@@ -964,8 +954,7 @@ static inline int stat_first_bpath(struct cfg_entry *cfg, const char *ipath,
  * Perform a open() against every bpath and return after the first non-ENOENT
  * hit.
  */
-static inline int open_first_bpath(struct cfg_entry *entry, const char *ipath,
-	size_t ipath_len, int flags)
+static inline int open_first_bpath(struct cfg_entry *entry, const char *ipath, size_t ipath_len, int flags)
 {
 	int rv = -ENOENT;
 	for (size_t i = 0; i < entry->back_cnt; i++) {
@@ -976,8 +965,7 @@ static inline int open_first_bpath(struct cfg_entry *entry, const char *ipath,
 			continue;
 		}
 
-		rv = fchroot_open(deref(&entry->back[i])->root_fd, bpath,
-			flags);
+		rv = fchroot_open(deref(&entry->back[i])->root_fd, bpath, flags);
 		if (rv >= 0 || errno != ENOENT) {
 			break;
 		}
@@ -990,8 +978,7 @@ static inline int open_first_bpath(struct cfg_entry *entry, const char *ipath,
  * given ipath/entry.
  */
 static inline int loc_first_bpath(struct cfg_entry *cfg,
-	const char *ipath, size_t ipath_len, struct back_entry **back,
-	char obpath[PATH_MAX])
+	const char *ipath, size_t ipath_len, struct back_entry **back, char obpath[PATH_MAX])
 {
 	int rv = -ENOENT;
 	for (size_t i = 0; i < cfg->back_cnt; i++) {
@@ -1019,8 +1006,7 @@ static inline int loc_first_bpath(struct cfg_entry *cfg,
 /*
  * Perform a filldir() against every bpath.
  */
-static inline int filldir_all_bpath(struct cfg_entry *cfg, const char *ipath,
-	size_t ipath_len, struct h_str *files)
+static inline int filldir_all_bpath(struct cfg_entry *cfg, const char *ipath, size_t ipath_len, struct h_str *files)
 {
 	int rv = 0;
 	for (size_t i = 0; i < cfg->back_cnt; i++) {
@@ -1031,7 +1017,7 @@ static inline int filldir_all_bpath(struct cfg_entry *cfg, const char *ipath,
 			continue;
 		}
 
-		(void) fchroot_filldir(deref(&cfg->back[i])->root_fd, bpath, files);
+		(void)fchroot_filldir(deref(&cfg->back[i])->root_fd, bpath, files);
 	}
 	return rv;
 }
@@ -1041,8 +1027,7 @@ static inline int filldir_all_bpath(struct cfg_entry *cfg, const char *ipath,
  * - Do not use trailing null; track offset into buffer instead
  * - Skip set number of input bytes before writing into buffer
  */
-void strcatoff(char *buf, const char *const str, size_t str_len,
-	size_t *offset, size_t *wrote, size_t max)
+void strcatoff(char *buf, const char *const str, size_t str_len, size_t *offset, size_t *wrote, size_t max)
 {
 	if ((*offset) >= str_len) {
 		(*offset) -= str_len;
@@ -1128,8 +1113,7 @@ static int cfg_add(const char *const buf, size_t size)
 	char buf_stratum[PIPE_BUF];
 	char buf_lpath[PIPE_BUF];
 	char newline;
-	if (sscanf(nbuf, "%s%c%s%c%s%c%[^:]:%s%c", buf_cmd, &space1,
-			buf_filter, &space2, buf_cpath, &space3,
+	if (sscanf(nbuf, "%s%c%s%c%s%c%[^:]:%s%c", buf_cmd, &space1, buf_filter, &space2, buf_cpath, &space3,
 			buf_stratum, buf_lpath, &newline) != 9) {
 		return -EINVAL;
 	}
@@ -1137,10 +1121,8 @@ static int cfg_add(const char *const buf, size_t size)
 	/*
 	 * Sanity check
 	 */
-	if (strcmp(buf_cmd, CMD_ADD) != 0 || buf_cpath[0] != '/'
-		|| buf_lpath[0] != '/' || space1 != ' '
-		|| space2 != ' ' || space3 != ' ' || newline != '\n'
-		|| strchr(buf_stratum, '/') != NULL) {
+	if (strcmp(buf_cmd, CMD_ADD) != 0 || buf_cpath[0] != '/' || buf_lpath[0] != '/' || space1 != ' '
+		|| space2 != ' ' || space3 != ' ' || newline != '\n' || strchr(buf_stratum, '/') != NULL) {
 		return -EINVAL;
 	}
 
@@ -1164,8 +1146,7 @@ static int cfg_add(const char *const buf, size_t size)
 	struct cfg_entry *cfg = NULL;
 	size_t cpath_len = strlen(buf_cpath);
 	for (size_t i = 0; i < cfg_cnt; i++) {
-		if (pstrcmp(cfgs[i].cpath, cfgs[i].cpath_len, buf_cpath,
-				cpath_len) == 0) {
+		if (pstrcmp(cfgs[i].cpath, cfgs[i].cpath_len, buf_cpath, cpath_len) == 0) {
 			cfg = &cfgs[i];
 			break;
 		}
@@ -1182,8 +1163,7 @@ static int cfg_add(const char *const buf, size_t size)
 		memcpy(cpath, buf_cpath, cpath_len + 1);
 
 		if (cfg_alloc < cfg_cnt + 1) {
-			cfg = realloc(cfgs, (cfg_cnt + 1) *
-				sizeof(struct cfg_entry));
+			cfg = realloc(cfgs, (cfg_cnt + 1) * sizeof(struct cfg_entry));
 			if (cfg == NULL) {
 				free(cpath);
 				return -ENOMEM;
@@ -1213,8 +1193,7 @@ static int cfg_add(const char *const buf, size_t size)
 		if (pstrcmp(cfg->back[i].alias.name,
 				cfg->back[i].alias.name_len, buf_stratum,
 				stratum_len) == 0
-			&& pstrcmp(cfg->back[i].lpath, cfg->back[i].lpath_len,
-				buf_lpath, lpath_len) == 0) {
+			&& pstrcmp(cfg->back[i].lpath, cfg->back[i].lpath_len, buf_lpath, lpath_len) == 0) {
 			return size;
 		}
 	}
@@ -1248,8 +1227,7 @@ static int cfg_add(const char *const buf, size_t size)
 	for (size_t i = 0; i < cfg_cnt; i++) {
 		for (size_t j = 0; j < cfgs[i].back_cnt; j++) {
 			if (pstrcmp(cfgs[i].back[j].alias.name,
-					cfgs[i].back[j].alias.name_len, stratum,
-					stratum_len) == 0) {
+					cfgs[i].back[j].alias.name_len, stratum, stratum_len) == 0) {
 				root_fd = cfgs[i].back[j].alias.root_fd;
 				break;
 			}
@@ -1271,8 +1249,7 @@ static int cfg_add(const char *const buf, size_t size)
 	}
 
 	if (cfg->back_alloc < cfg->back_cnt + 1) {
-		back = realloc(cfg->back, (cfg->back_cnt + 1) *
-			sizeof(struct back_entry));
+		back = realloc(cfg->back, (cfg->back_cnt + 1) * sizeof(struct back_entry));
 		if (back == NULL) {
 			goto free_and_abort_enomem;
 		}
@@ -1355,8 +1332,7 @@ static int cfg_rm(const char *const buf, size_t size)
 	char buf_lpath[PIPE_BUF];
 	char newline;
 	if (sscanf(nbuf, "%s%c%s%c%s%c%[^:]:%s%c", buf_cmd, &space1,
-			buf_filter, &space2, buf_cpath, &space3,
-			buf_stratum, buf_lpath, &newline) != 9) {
+			buf_filter, &space2, buf_cpath, &space3, buf_stratum, buf_lpath, &newline) != 9) {
 		return -EINVAL;
 	}
 
@@ -1365,8 +1341,7 @@ static int cfg_rm(const char *const buf, size_t size)
 	 */
 	if (strcmp(buf_cmd, CMD_RM) != 0 || buf_cpath[0] != '/'
 		|| buf_lpath[0] != '/' || space1 != ' '
-		|| space2 != ' ' || space3 != ' ' || newline != '\n'
-		|| strchr(buf_stratum, '/') != NULL) {
+		|| space2 != ' ' || space3 != ' ' || newline != '\n' || strchr(buf_stratum, '/') != NULL) {
 		return -EINVAL;
 	}
 
@@ -1376,8 +1351,7 @@ static int cfg_rm(const char *const buf, size_t size)
 	struct cfg_entry *cfg = NULL;
 	size_t cpath_len = strlen(buf_cpath);
 	for (size_t i = 0; i < cfg_cnt; i++) {
-		if (pstrcmp(cfgs[i].cpath, cfgs[i].cpath_len, buf_cpath,
-				cpath_len) == 0) {
+		if (pstrcmp(cfgs[i].cpath, cfgs[i].cpath_len, buf_cpath, cpath_len) == 0) {
 			cfg = &cfgs[i];
 			break;
 		}
@@ -1396,8 +1370,7 @@ static int cfg_rm(const char *const buf, size_t size)
 		if (pstrcmp(cfg->back[i].alias.name,
 				cfg->back[i].alias.name_len, buf_stratum,
 				stratum_len) == 0
-			&& pstrcmp(cfg->back[i].lpath, cfg->back[i].lpath_len,
-				buf_lpath, lpath_len) == 0) {
+			&& pstrcmp(cfg->back[i].lpath, cfg->back[i].lpath_len, buf_lpath, lpath_len) == 0) {
 			back = &cfg->back[i];
 			break;
 		}
@@ -1412,8 +1385,7 @@ static int cfg_rm(const char *const buf, size_t size)
 	int root_fd_cnt = 0;
 	for (size_t i = 0; i < cfg_cnt; i++) {
 		for (size_t j = 0; j < cfgs[i].back_cnt; j++) {
-			if (cfgs[i].back[j].alias.root_fd ==
-				back->alias.root_fd) {
+			if (cfgs[i].back[j].alias.root_fd == back->alias.root_fd) {
 				root_fd_cnt++;
 			}
 		}
@@ -1489,8 +1461,7 @@ int vstrcmp(void *a, void *b)
  * Populate hash table with the contents of all backing fonts.dir or
  * fonts.alias file contents.
  */
-static inline int font_merge_kv(struct cfg_entry *cfg, const char *ipath,
-	size_t ipath_len, struct h_kv **kvs)
+static inline int font_merge_kv(struct cfg_entry *cfg, const char *ipath, size_t ipath_len, struct h_kv **kvs)
 {
 	int rv = -ENOENT;
 	for (size_t i = 0; i < cfg->back_cnt; i++) {
@@ -1523,8 +1494,7 @@ static inline int font_merge_kv(struct cfg_entry *cfg, const char *ipath,
 			 * separator between the keys and values.
 			 */
 			char *sep;
-			if ((sep = strchr(line, ' ')) == NULL &&
-				(sep = strchr(line, '\t')) == NULL) {
+			if ((sep = strchr(line, ' ')) == NULL && (sep = strchr(line, '\t')) == NULL) {
 				continue;
 			}
 			size_t key_len = sep - line;
@@ -1549,16 +1519,14 @@ static inline int font_merge_kv(struct cfg_entry *cfg, const char *ipath,
 /*
  * Populate contents of a virtual directory.
  */
-static inline int virt_filldir(const char *ipath, size_t ipath_len,
-	struct h_str *files)
+static inline int virt_filldir(const char *ipath, size_t ipath_len, struct h_str *files)
 {
 	int rv = 0;
 	for (size_t i = 0; i < cfg_cnt; i++) {
 		/*
 		 * We're only considering contents of a virtual path.
 		 */
-		if (!is_parent(ipath, ipath_len, cfgs[i].cpath,
-				cfgs[i].cpath_len)) {
+		if (!is_parent(ipath, ipath_len, cfgs[i].cpath, cfgs[i].cpath_len)) {
 			continue;
 		}
 
@@ -1579,8 +1547,7 @@ static inline int virt_filldir(const char *ipath, size_t ipath_len,
 			if ((slash - cfgs[i].cpath) + 1 > tmp_size) {
 				continue;
 			}
-			memcpy(tmp, cfgs[i].cpath + ipath_len + 1,
-				slash - cfgs[i].cpath);
+			memcpy(tmp, cfgs[i].cpath + ipath_len + 1, slash - cfgs[i].cpath);
 			size_t len = slash - cfgs[i].cpath - ipath_len - 1;
 			tmp[len] = '\0';
 			rv |= insert_h_str(&files, tmp, len);
@@ -1593,12 +1560,9 @@ static inline int virt_filldir(const char *ipath, size_t ipath_len,
 		 */
 		for (size_t j = 0; j < cfgs[i].back_cnt; j++) {
 			struct stat stbuf;
-			if (fchroot_stat(deref(&cfgs[i].back[j])->root_fd,
-					cfgs[i].back[j].lpath, &stbuf) >= 0) {
-				size_t len =
-					strlen(cfgs[i].cpath + ipath_len + 1);
-				rv |= insert_h_str(&files,
-					cfgs[i].cpath + ipath_len + 1, len);
+			if (fchroot_stat(deref(&cfgs[i].back[j])->root_fd, cfgs[i].back[j].lpath, &stbuf) >= 0) {
+				size_t len = strlen(cfgs[i].cpath + ipath_len + 1);
+				rv |= insert_h_str(&files, cfgs[i].cpath + ipath_len + 1, len);
 				break;
 			}
 		}
@@ -1661,8 +1625,7 @@ fallback_virtual:
 	 *
 	 * Treat them as the virtual stratum.
 	 */
-	local_stratum.root_fd = fchroot_open(strata_root_fd, VIRTUAL_STRATUM,
-		O_DIRECTORY);
+	local_stratum.root_fd = fchroot_open(strata_root_fd, VIRTUAL_STRATUM, O_DIRECTORY);
 	if (local_stratum.root_fd < 0) {
 		return -ESRCH;
 	}
@@ -1674,8 +1637,7 @@ fallback_virtual:
 	return 0;
 }
 
-static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
-	size_t ipath_len, struct stat *stbuf)
+static inline int getattr_back(struct cfg_entry *cfg, const char *ipath, size_t ipath_len, struct stat *stbuf)
 {
 	int rv = stat_first_bpath(cfg, ipath, ipath_len, stbuf);
 	if (rv < 0) {
@@ -1721,14 +1683,12 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 
 		char line[PATH_MAX];
 		while (fgets(line, sizeof(line), fp) != NULL) {
-			for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
-				i++) {
+			for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str); i++) {
 				/*
 				 * No ini_inject_strat_len will exceed line's PATH_MAX,
 				 * this should be safe.
 				 */
-				if (strncmp(line, ini_inject_strat_str[i],
-						ini_inject_strat_len[i]) != 0) {
+				if (strncmp(line, ini_inject_strat_str[i], ini_inject_strat_len[i]) != 0) {
 					continue;
 				}
 				stbuf->st_size += STRAT_PATH_LEN;
@@ -1737,12 +1697,9 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 				stbuf->st_size += strlen(" ");
 				break;
 			}
-			for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
-				i++) {
+			for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str); i++) {
 				if (strncmp(line, ini_expand_path_str[i],
-						ini_expand_path_len[i]) != 0
-					|| line[ini_expand_path_len[i]] !=
-					'/') {
+						ini_expand_path_len[i]) != 0 || line[ini_expand_path_len[i]] != '/') {
 					continue;
 				}
 				stbuf->st_size += STRATA_ROOT_LEN;
@@ -1763,8 +1720,7 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 		}
 		size_t len = ipath_len - (slash - ipath) - 1;
 		if (pstrcmp(slash + 1, len, FONTS_DIR, FONTS_DIR_LEN) != 0
-			&& pstrcmp(slash + 1, len, FONTS_ALIAS,
-				FONTS_ALIAS_LEN) != 0) {
+			&& pstrcmp(slash + 1, len, FONTS_ALIAS, FONTS_ALIAS_LEN) != 0) {
 			break;
 		}
 
@@ -1824,14 +1780,12 @@ static inline int getattr_back(struct cfg_entry *cfg, const char *ipath,
 	 *
 	 * Baring CFG_PATH, this filesystem is read-only.
 	 */
-	stbuf->st_mode &=
-		~(S_ISUID | S_ISGID | S_ISVTX | S_IWUSR | S_IWGRP | S_IWOTH);
+	stbuf->st_mode &= ~(S_ISUID | S_ISGID | S_ISVTX | S_IWUSR | S_IWGRP | S_IWOTH);
 
 	return rv;
 }
 
-static int m_getattr(const char *ipath, struct stat *stbuf,
-	struct fuse_file_info *fi)
+static int m_getattr(const char *ipath, struct stat *stbuf, struct fuse_file_info *fi)
 {
 	(void)fi;
 
@@ -1924,8 +1878,7 @@ static int m_readdir(const char *ipath, void *buf, fuse_fill_dir_t filler,
 
 	case CLASS_ROOT:
 		rv |= insert_h_str(&files, CFG_NAME, CFG_NAME_LEN);
-		rv |= insert_h_str(&files, LOCAL_ALIAS_NAME,
-			LOCAL_ALIAS_NAME_LEN);
+		rv |= insert_h_str(&files, LOCAL_ALIAS_NAME, LOCAL_ALIAS_NAME_LEN);
 		ipath_len = 0;
 		/* fallthrough */
 	case CLASS_VDIR:
@@ -1981,8 +1934,7 @@ static int m_open(const char *ipath, struct fuse_file_info *fi)
 		 * anything sensitive.  Bouncer is world-readable anyways at
 		 * BOUNCER_PATH.
 		 */
-		if ((cfg->filter == FILTER_BIN
-				|| cfg->filter == FILTER_BIN_RESTRICT)
+		if ((cfg->filter == FILTER_BIN || cfg->filter == FILTER_BIN_RESTRICT)
 			&& ((fi->flags & 3) == O_RDONLY)
 			&& fd < 0 && errno == EACCES) {
 			rv = 0;
@@ -2073,52 +2025,34 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 		size_t off = offset;
 		while (fgets(line, sizeof(line), fp) != NULL) {
 			int found = 0;
-			for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str);
-				i++) {
-				if (strncmp(line, ini_inject_strat_str[i],
-						ini_inject_strat_len[i]) != 0) {
+			for (size_t i = 0; i < ARRAY_LEN(ini_inject_strat_str); i++) {
+				if (strncmp(line, ini_inject_strat_str[i], ini_inject_strat_len[i]) != 0) {
 					continue;
 				}
-				strcatoff(buf, ini_inject_strat_str[i],
-					ini_inject_strat_len[i], &off, &wrote,
-					size);
-				strcatoff(buf, STRAT_PATH, STRAT_PATH_LEN, &off,
-					&wrote, size);
+				strcatoff(buf, ini_inject_strat_str[i], ini_inject_strat_len[i], &off, &wrote, size);
+				strcatoff(buf, STRAT_PATH, STRAT_PATH_LEN, &off, &wrote, size);
 				strcatoff(buf, " ", 1, &off, &wrote, size);
-				strcatoff(buf, deref(back)->name,
-					deref(back)->name_len, &off, &wrote,
-					size);
+				strcatoff(buf, deref(back)->name, deref(back)->name_len, &off, &wrote, size);
 				strcatoff(buf, " ", 1, &off, &wrote, size);
 				strcatoff(buf, line + ini_inject_strat_len[i],
-					strlen(line + ini_inject_strat_len[i]),
-					&off, &wrote, size);
+					strlen(line + ini_inject_strat_len[i]), &off, &wrote, size);
 				found = 1;
 				break;
 			}
-			for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str);
-				i++) {
+			for (size_t i = 0; i < ARRAY_LEN(ini_expand_path_str); i++) {
 				if (strncmp(line, ini_expand_path_str[i],
-						ini_expand_path_len[i]) != 0
-					|| line[ini_expand_path_len[i]] !=
-					'/') {
+						ini_expand_path_len[i]) != 0 || line[ini_expand_path_len[i]] != '/') {
 					continue;
 				}
-				strcatoff(buf, ini_expand_path_str[i],
-					ini_expand_path_len[i], &off, &wrote,
-					size);
-				strcatoff(buf, STRATA_ROOT, STRATA_ROOT_LEN,
-					&off, &wrote, size);
-				strcatoff(buf, deref(back)->name,
-					deref(back)->name_len, &off, &wrote,
-					size);
+				strcatoff(buf, ini_expand_path_str[i], ini_expand_path_len[i], &off, &wrote, size);
+				strcatoff(buf, STRATA_ROOT, STRATA_ROOT_LEN, &off, &wrote, size);
+				strcatoff(buf, deref(back)->name, deref(back)->name_len, &off, &wrote, size);
 				strcatoff(buf, line + ini_expand_path_len[i],
-					strlen(line + ini_expand_path_len[i]),
-					&off, &wrote, size);
+					strlen(line + ini_expand_path_len[i]), &off, &wrote, size);
 				found = 1;
 			}
 			if (!found) {
-				strcatoff(buf, line, strlen(line), &off,
-					&wrote, size);
+				strcatoff(buf, line, strlen(line), &off, &wrote, size);
 			}
 			if (wrote >= size) {
 				break;
@@ -2135,16 +2069,13 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 		 */
 		char *slash = strrchr(ipath, '/');
 		if (slash == NULL) {
-			rv = read_pass(cfg, ipath, ipath_len, buf, size,
-				offset);
+			rv = read_pass(cfg, ipath, ipath_len, buf, size, offset);
 			break;
 		}
 		size_t len = ipath_len - (slash - ipath) - 1;
 		if (pstrcmp(slash + 1, len, FONTS_DIR, FONTS_DIR_LEN) != 0
-			&& pstrcmp(slash + 1, len, FONTS_ALIAS,
-				FONTS_ALIAS_LEN) != 0) {
-			rv = read_pass(cfg, ipath, ipath_len, buf, size,
-				offset);
+			&& pstrcmp(slash + 1, len, FONTS_ALIAS, FONTS_ALIAS_LEN) != 0) {
+			rv = read_pass(cfg, ipath, ipath_len, buf, size, offset);
 			break;
 		}
 
@@ -2183,11 +2114,9 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 		struct h_kv *tmp;
 		HASH_ITER(hh, kvs, kv, tmp) {
 			if (rv >= 0) {
-				strcatoff(buf, kv->key, strlen(kv->key),
-					&off, &wrote, size);
+				strcatoff(buf, kv->key, strlen(kv->key), &off, &wrote, size);
 				strcatoff(buf, "\t", 1, &off, &wrote, size);
-				strcatoff(buf, kv->value, strlen(kv->value),
-					&off, &wrote, size);
+				strcatoff(buf, kv->value, strlen(kv->value), &off, &wrote, size);
 			}
 #ifndef __clang_analyzer__
 			/*
@@ -2211,8 +2140,7 @@ static inline int read_back(struct cfg_entry *cfg, const char *ipath, size_t
 	return rv;
 }
 
-static int m_read(const char *ipath, char *buf, size_t size, off_t offset,
-	struct fuse_file_info *fi)
+static int m_read(const char *ipath, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
 	(void)fi;
 
@@ -2253,8 +2181,7 @@ static int m_read(const char *ipath, char *buf, size_t size, off_t offset,
 	FS_IMP_RETURN(rv);
 }
 
-static int m_write(const char *ipath, const char *buf, size_t size,
-	off_t offset, struct fuse_file_info *fi)
+static int m_write(const char *ipath, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
 	(void)offset;
 	(void)fi;
@@ -2267,12 +2194,10 @@ static int m_write(const char *ipath, const char *buf, size_t size,
 		rv = -EROFS;
 	} else if (context->uid != 0) {
 		rv = -EACCES;
-	} else if (size >= CMD_CLEAR_LEN && memcmp(buf, CMD_CLEAR,
-			CMD_CLEAR_LEN) == 0) {
+	} else if (size >= CMD_CLEAR_LEN && memcmp(buf, CMD_CLEAR, CMD_CLEAR_LEN) == 0) {
 		cfg_clear();
 		rv = size;
-	} else if (size >= CMD_ADD_LEN && memcmp(buf, CMD_ADD,
-			CMD_ADD_LEN) == 0) {
+	} else if (size >= CMD_ADD_LEN && memcmp(buf, CMD_ADD, CMD_ADD_LEN) == 0) {
 		rv = cfg_add(buf, size);
 	} else if (size >= CMD_RM_LEN && memcmp(buf, CMD_RM, CMD_RM_LEN) == 0) {
 		rv = cfg_rm(buf, size);
@@ -2283,8 +2208,7 @@ static int m_write(const char *ipath, const char *buf, size_t size,
 	FS_IMP_RETURN(rv);
 }
 
-static int m_getxattr(const char *ipath, const char *name, char *value,
-	size_t size)
+static int m_getxattr(const char *ipath, const char *name, char *value, size_t size)
 {
 	FS_IMP_SETUP(CFG_WRLOCK);
 
@@ -2299,25 +2223,20 @@ static int m_getxattr(const char *ipath, const char *name, char *value,
 	case CLASS_BACK:
 		;
 		struct back_entry *back;
-		if (pstrcmp(name, name_len, STRATUM_XATTR,
-				STRATUM_XATTR_LEN) == 0) {
-			rv = loc_first_bpath(cfg, ipath, ipath_len, &back,
-				bpath);
+		if (pstrcmp(name, name_len, STRATUM_XATTR, STRATUM_XATTR_LEN) == 0) {
+			rv = loc_first_bpath(cfg, ipath, ipath_len, &back, bpath);
 			if (rv >= 0) {
 				target = deref(back)->name;
 				target_len = deref(back)->name_len;
 			}
-		} else if (pstrcmp(name, name_len, LPATH_XATTR,
-				LPATH_XATTR_LEN) == 0) {
-			rv = loc_first_bpath(cfg, ipath, ipath_len, &back,
-				bpath);
+		} else if (pstrcmp(name, name_len, LPATH_XATTR, LPATH_XATTR_LEN) == 0) {
+			rv = loc_first_bpath(cfg, ipath, ipath_len, &back, bpath);
 			if (rv >= 0) {
 				target = bpath;
 				target_len = strlen(bpath);
 			}
 		} else if (pstrcmp(name, name_len, RESTRICT_XATTR,
-				RESTRICT_XATTR_LEN) == 0 &&
-			cfg->filter == FILTER_BIN_RESTRICT) {
+				RESTRICT_XATTR_LEN) == 0 && cfg->filter == FILTER_BIN_RESTRICT) {
 			rv = 0;
 			target = RESTRICT;
 			target_len = RESTRICT_LEN;
@@ -2330,13 +2249,11 @@ static int m_getxattr(const char *ipath, const char *name, char *value,
 	case CLASS_ROOT:
 	case CLASS_CFG:
 	case CLASS_LOCAL:
-		if (pstrcmp(name, name_len, STRATUM_XATTR,
-				STRATUM_XATTR_LEN) == 0) {
+		if (pstrcmp(name, name_len, STRATUM_XATTR, STRATUM_XATTR_LEN) == 0) {
 			rv = 0;
 			target = VIRTUAL_STRATUM;
 			target_len = VIRTUAL_STRATUM_LEN;
-		} else if (pstrcmp(name, name_len, LPATH_XATTR,
-				LPATH_XATTR_LEN) == 0) {
+		} else if (pstrcmp(name, name_len, LPATH_XATTR, LPATH_XATTR_LEN) == 0) {
 			rv = 0;
 			target = VIRTUAL_LPATH;
 			target_len = VIRTUAL_LPATH_LEN;
@@ -2419,18 +2336,15 @@ int main(int argc, char *argv[])
 	}
 	current_root_fd = init_root_fd;
 	if ((strata_root_fd = open(STRATA_ROOT, O_DIRECTORY)) < 0) {
-		fprintf(stderr, "crossfs: unable to open \"" STRATA_ROOT
-			"\".\n");
+		fprintf(stderr, "crossfs: unable to open \"" STRATA_ROOT "\".\n");
 		return 1;
 	}
 	if ((bouncer_fd = open(BOUNCER_PATH, O_RDONLY)) < 0) {
-		fprintf(stderr, "crossfs: unable to open \"" BOUNCER_PATH
-			"\".\n");
+		fprintf(stderr, "crossfs: unable to open \"" BOUNCER_PATH "\".\n");
 		return 1;
 	}
 	if ((procfs_fd = open(PROCFS_ROOT, O_RDONLY)) < 0) {
-		fprintf(stderr, "crossfs: unable to open \"" PROCFS_ROOT
-			"\".\n");
+		fprintf(stderr, "crossfs: unable to open \"" PROCFS_ROOT "\".\n");
 		return 1;
 	}
 
@@ -2444,8 +2358,7 @@ int main(int argc, char *argv[])
 	/*
 	 * Initialize mutexes
 	 */
-	if (pthread_rwlock_init(&cfg_lock, NULL) < 0
-		|| pthread_mutex_init(&root_lock, NULL) < 0) {
+	if (pthread_rwlock_init(&cfg_lock, NULL) < 0 || pthread_mutex_init(&root_lock, NULL) < 0) {
 		fprintf(stderr, "crossfs: error initializing mutexes\n");
 		return 1;
 	}
@@ -2469,8 +2382,7 @@ int main(int argc, char *argv[])
 
 	struct stat bouncer_stat;
 	if (fstat(bouncer_fd, &bouncer_stat) < 0) {
-		fprintf(stderr, "crossfs: could not stat \"" BOUNCER_PATH
-			"\"\n");
+		fprintf(stderr, "crossfs: could not stat \"" BOUNCER_PATH "\"\n");
 		return 1;
 	}
 	bouncer_size = bouncer_stat.st_size;

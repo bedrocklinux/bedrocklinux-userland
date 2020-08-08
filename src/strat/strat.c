@@ -71,8 +71,7 @@ int check_capsyschroot(void)
 	 */
 	cap_free(caps);
 
-	if (permitted == CAP_SET && effective == CAP_SET
-		&& inheritable == CAP_CLEAR) {
+	if (permitted == CAP_SET && effective == CAP_SET && inheritable == CAP_CLEAR) {
 		return 0;
 	} else {
 		return -1;
@@ -80,8 +79,7 @@ int check_capsyschroot(void)
 }
 
 void parse_args(int argc, char *argv[], int *flag_help, int *flag_restrict,
-	int *flag_unrestrict, char **param_stratum, char **param_arg0,
-	char ***param_arglist)
+	int *flag_unrestrict, char **param_stratum, char **param_arg0, char ***param_arglist)
 {
 	*flag_help = 0;
 	*flag_restrict = 0;
@@ -94,22 +92,18 @@ void parse_args(int argc, char *argv[], int *flag_help, int *flag_restrict,
 	argv++;
 
 	for (;;) {
-		if (argc > 0 && (strcmp(argv[0], "-h") == 0
-				|| strcmp(argv[0], "--help") == 0)) {
+		if (argc > 0 && (strcmp(argv[0], "-h") == 0 || strcmp(argv[0], "--help") == 0)) {
 			*flag_help = 1;
 			return;
-		} else if (argc > 0 && (strcmp(argv[0], "-r") == 0
-				|| strcmp(argv[0], "--restrict") == 0)) {
+		} else if (argc > 0 && (strcmp(argv[0], "-r") == 0 || strcmp(argv[0], "--restrict") == 0)) {
 			*flag_restrict = 1;
 			argv++;
 			argc--;
-		} else if (argc > 0 && (strcmp(argv[0], "-u") == 0
-				|| strcmp(argv[0], "--unrestrict") == 0)) {
+		} else if (argc > 0 && (strcmp(argv[0], "-u") == 0 || strcmp(argv[0], "--unrestrict") == 0)) {
 			*flag_unrestrict = 1;
 			argv++;
 			argc--;
-		} else if (argc > 1 && (strcmp(argv[0], "-a") == 0
-				|| strcmp(argv[0], "--arg0") == 0)) {
+		} else if (argc > 1 && (strcmp(argv[0], "-a") == 0 || strcmp(argv[0], "--arg0") == 0)) {
 			*param_arg0 = argv[1];
 			argv += 2;
 			argc -= 2;
@@ -150,8 +144,7 @@ void print_help(void)
 		"  Run debian's make restricted to only debian's files:\n"
 		"  $ strat -r debian make\n"
 		"  By default makepkg is restricted.\n"
-		"  Run arch's makepkg without restricting it to arch's files:\n"
-		"  $ strat -u arch makepkg\n");
+		"  Run arch's makepkg without restricting it to arch's files:\n" "  $ strat -u arch makepkg\n");
 }
 
 /*
@@ -253,8 +246,7 @@ int restrict_envvar(const char *const envvar)
 
 	char *start;
 	char *end;
-	for (start = val, end = strchr(start, ':'); end != NULL;
-		start = end + 1, end = strchr(start, ':')) {
+	for (start = val, end = strchr(start, ':'); end != NULL; start = end + 1, end = strchr(start, ':')) {
 		if (strncmp(start, CROSS_DIR, CROSS_DIR_LEN) == 0) {
 			continue;
 		}
@@ -351,8 +343,7 @@ int break_out_of_chroot(char *reference_dir)
 		chdir("..");
 		lstat(".", &stat_cwd);
 		lstat("..", &stat_parent);
-	} while (stat_cwd.st_ino != stat_parent.st_ino
-		|| stat_cwd.st_dev != stat_parent.st_dev);
+	} while (stat_cwd.st_ino != stat_parent.st_ino || stat_cwd.st_dev != stat_parent.st_dev);
 
 	/*
 	 * We're at the absolute root directory.  However, the root directory
@@ -374,8 +365,7 @@ int chroot_to_stratum(char *stratum_path)
 	struct stat stat_stratum_path;
 	stat("/", &stat_real_root);
 	stat(stratum_path, &stat_stratum_path);
-	if (stat_real_root.st_dev == stat_stratum_path.st_dev
-		&& stat_real_root.st_ino == stat_stratum_path.st_ino) {
+	if (stat_real_root.st_dev == stat_stratum_path.st_dev && stat_real_root.st_ino == stat_stratum_path.st_ino) {
 		return 0;
 	}
 
@@ -418,8 +408,7 @@ void execv_skip(char *file, char *argv[], char *skip)
 	char entry[entry_len];
 	char *start;
 	char *end;
-	for (start = path, end = strchr(start, ':'); end != NULL;
-		start = end + 1, end = strchr(start, ':')) {
+	for (start = path, end = strchr(start, ':'); end != NULL; start = end + 1, end = strchr(start, ':')) {
 		if (strncmp(start, skip, skip_len) == 0) {
 			continue;
 		}
@@ -460,8 +449,7 @@ int switch_stratum(const char *alias)
 
 	char stratum[PATH_MAX];
 	if (deref_alias(alias, stratum, sizeof(stratum)) < 0) {
-		fprintf(stderr, "strat: unable to find stratum \"%s\"\n",
-			alias);
+		fprintf(stderr, "strat: unable to find stratum \"%s\"\n", alias);
 		return -1;
 	}
 
@@ -496,8 +484,7 @@ int switch_stratum(const char *alias)
 
 	char cwd[PATH_MAX];
 	if (getcwd(cwd, sizeof(cwd)) == NULL) {
-		fprintf(stderr,
-			"strat: error determining current working directory\n");
+		fprintf(stderr, "strat: error determining current working directory\n");
 		return -1;
 	}
 
@@ -513,36 +500,24 @@ int switch_stratum(const char *alias)
 	} else if (errno == EACCES) {
 		fprintf(stderr,
 			"strat: the state file for stratum\n"
-			"    %s\n"
-			"at\n"
-			"    %s\n"
-			"is insecure, refusing to continue.\n",
-			stratum, state_file_path);
+			"    %s\n" "at\n" "    %s\n" "is insecure, refusing to continue.\n", stratum, state_file_path);
 		return -1;
 	} else if (errno == EMLINK) {
 		fprintf(stderr,
 			"strat: the path to the state file for stratum\n"
 			"    %s\n"
-			"at\n"
-			"    %s\n"
-			"contains a symlink, refusing to continue.\n",
-			stratum, state_file_path);
+			"at\n" "    %s\n" "contains a symlink, refusing to continue.\n", stratum, state_file_path);
 		return -1;
 	} else if (errno == ENOENT) {
 		fprintf(stderr,
 			"strat: could not find state file for stratum\n"
 			"    %s\n"
-			"at\n"
-			"    %s\n"
-			"Perhaps the stratum is disabled or typo'd?\n",
-			stratum, state_file_path);
+			"at\n" "    %s\n" "Perhaps the stratum is disabled or typo'd?\n", stratum, state_file_path);
 		return -1;
 	} else {
 		fprintf(stderr,
 			"strat: error sanity checking request for stratum\n"
-			"    %s\n"
-			"via state file at\n    %s\n", stratum,
-			state_file_path);
+			"    %s\n" "via state file at\n    %s\n", stratum, state_file_path);
 		return -1;
 	}
 
@@ -566,17 +541,13 @@ int switch_stratum(const char *alias)
 	 */
 	if (chdir(cwd) < 0) {
 		chdir("/");
-		fprintf(stderr,
-			"strat: warning: unable to set cwd to\n"
-			"    %s\nfor stratum\n    %s\n", cwd, stratum);
+		fprintf(stderr, "strat: warning: unable to set cwd to\n" "    %s\nfor stratum\n    %s\n", cwd, stratum);
 		switch (errno) {
 		case EACCES:
-			fprintf(stderr,
-				"due to: permission denied (EACCES).\n");
+			fprintf(stderr, "due to: permission denied (EACCES).\n");
 			break;
 		case ENOENT:
-			fprintf(stderr,
-				"due to: no such directory (ENOENT).\n");
+			fprintf(stderr, "due to: no such directory (ENOENT).\n");
 			break;
 		default:
 			perror("due to: execv:\n");
@@ -607,12 +578,10 @@ int main(int argc, char *argv[])
 	if (flag_unrestrict) {
 		/* flag_unrestrict overrides else-branched restriction code */
 	} else if (flag_restrict && restrict_env() < 0) {
-		fprintf(stderr,
-			"strat: unable to set restricted environment\n");
+		fprintf(stderr, "strat: unable to set restricted environment\n");
 		return 1;
 	} else if (check_cmd_restricted(param_arglist[0]) && restrict_env() < 0) {
-		fprintf(stderr,
-			"strat: unable to set restricted environment\n");
+		fprintf(stderr, "strat: unable to set restricted environment\n");
 		return 1;
 	}
 
@@ -663,9 +632,7 @@ int main(int argc, char *argv[])
 	 * execv() would have taken over execution if it worked.  If we're
 	 * here, there was an error.
 	 */
-	fprintf(stderr,
-		"strat: could not run\n"
-		"    %s\nfrom stratum\n    %s\n", file, param_stratum);
+	fprintf(stderr, "strat: could not run\n" "    %s\nfrom stratum\n    %s\n", file, param_stratum);
 	switch (errno) {
 	case EACCES:
 		fprintf(stderr, "due to: permission denied (EACCES).\n");

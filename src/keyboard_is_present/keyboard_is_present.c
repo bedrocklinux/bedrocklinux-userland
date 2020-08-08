@@ -57,18 +57,15 @@ int main(int argc, char *argv[])
 		int s = snprintf(path, sizeof(path),
 			INPUT_DIR "/%s/%s", entry->d_name, cap);
 		if (s < 0 || s >= (int)sizeof(path)) {
-			fprintf(stderr,
-				"Unable to build capabilities path string\n");
+			fprintf(stderr, "Unable to build capabilities path string\n");
 			return 2;
 		}
 		struct stat stbuf;
 		if (stat(path, &stbuf) != 0 || !S_ISDIR(stbuf.st_mode)) {
 			cap = "device/capabilities";
-			s = snprintf(path, sizeof(path),
-				INPUT_DIR "/%s/%s", entry->d_name, cap);
+			s = snprintf(path, sizeof(path), INPUT_DIR "/%s/%s", entry->d_name, cap);
 			if (s < 0 || s >= (int)sizeof(path)) {
-				fprintf(stderr,
-					"Unable to build capabilities path string\n");
+				fprintf(stderr, "Unable to build capabilities path string\n");
 				return 2;
 			}
 		}
@@ -79,8 +76,7 @@ int main(int argc, char *argv[])
 		/*
 		 * Check if device has keyboard event code support
 		 */
-		s = snprintf(path, sizeof(path),
-			INPUT_DIR "/%s/%s/ev", entry->d_name, cap);
+		s = snprintf(path, sizeof(path), INPUT_DIR "/%s/%s/ev", entry->d_name, cap);
 		if (s < 0 || s >= (int)sizeof(path)) {
 			fprintf(stderr, "Unable to build ev path string\n");
 			return 2;
@@ -101,8 +97,7 @@ int main(int argc, char *argv[])
 		/*
 		 * Check if device supports expected keyboard keys such as escape, the number row, and Q through D
 		 */
-		s = snprintf(path, sizeof(path),
-			INPUT_DIR "/%s/%s/key", entry->d_name, cap);
+		s = snprintf(path, sizeof(path), INPUT_DIR "/%s/%s/key", entry->d_name, cap);
 		if (s < 0 || s >= (int)sizeof(path)) {
 			fprintf(stderr, "Unable to build key path string\n");
 			return 2;

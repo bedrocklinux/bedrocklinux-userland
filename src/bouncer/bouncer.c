@@ -36,8 +36,7 @@ int main(int argc, char *argv[])
 	ssize_t len = getxattr("/proc/self/exe", "user.bedrock.stratum",
 		target_stratum, sizeof(target_stratum) - 1);
 	if (len < 0) {
-		fprintf(stderr,
-			"bouncer: unable to determine target stratum\n");
+		fprintf(stderr, "bouncer: unable to determine target stratum\n");
 		return errno;
 	}
 	target_stratum[len] = '\0';
@@ -46,8 +45,7 @@ int main(int argc, char *argv[])
 	 * Which executable do we want to run?
 	 */
 	char target_path[PATH_MAX];
-	len = getxattr("/proc/self/exe", "user.bedrock.localpath", target_path,
-		sizeof(target_path) - 1);
+	len = getxattr("/proc/self/exe", "user.bedrock.localpath", target_path, sizeof(target_path) - 1);
 	if (len < 0) {
 		fprintf(stderr, "bouncer: unable to determine target path\n");
 		return errno;
@@ -59,8 +57,7 @@ int main(int argc, char *argv[])
 	 */
 	int restrict_flag = 0;
 	char target_restrict[PATH_MAX];
-	len = getxattr("/proc/self/exe", "user.bedrock.restrict",
-		target_restrict, sizeof(target_restrict) - 1);
+	len = getxattr("/proc/self/exe", "user.bedrock.restrict", target_restrict, sizeof(target_restrict) - 1);
 	if (len >= 0) {
 		restrict_flag = 1;
 	}
