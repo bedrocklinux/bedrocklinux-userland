@@ -1592,6 +1592,10 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 				goto clean_up_and_return;
 			}
 		}
+		if (bytes_read < 0) {
+			rv = -1;
+			goto clean_up_and_return;
+		}
 		close(to_fd);
 		/*
 		 * rename() the temporary file to the target.
