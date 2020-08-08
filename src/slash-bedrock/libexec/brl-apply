@@ -118,8 +118,6 @@ ln -fns "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/
 
 # TODO: un-generalize if not needed after only-add-when-needed changes
 cfg_envvar() {
-	var="${1}"
-
 	# Retain backwards compatibility with non-prefix/infix/suffix config
 	# system.
 	whole="$(cfg_value "env-vars" "${1}")"

@@ -807,47 +807,6 @@ static inline int fchroot_file_exists(int root_fd, const char *bpath)
 }
 
 /*
- * Perform readlink() with a given chroot()
- */
-static inline int fchroot_readlink(int root_fd, const char *bpath, char *buf,
-	size_t size)
-{
-	if (openat2_available) {
-		int fd = openat2_fchroot_open(root_fd, bpath, O_NOFOLLOW | O_PATH, 0);
-		if (fd < 0) {
-			return fd;
-		}
-		int rv = readlinkat(fd, "", buf, size);
-		/*
-		 * On Linux 5.6, readlinkat(fd,"",...) appears to return ENOENT
-		 * if the fd is not a symlink, even if it exists.  Compensate
-		 * so the openat2 code path acts the same as the chroot code
-		 * path.  There is no way to false-positive this check, as we
-		 * would not have a valid fd from openat2() if the file did not
-		 * exist.
-		 */
-		if (rv < 0 && errno == ENOENT) {
-			errno = EINVAL;
-		}
-		close(fd);
-		return rv;
-	}
-
-	int rv = -EINVAL;
-	pthread_mutex_lock(&root_lock);
-
-	if ((current_root_fd == root_fd)
-		|| (fchdir(root_fd) >= 0 && chroot(".") >= 0)) {
-		current_root_fd = root_fd;
-
-		rv = readlink(bpath, buf, size);
-	}
-
-	pthread_mutex_unlock(&root_lock);
-	return rv;
-}
-
-/*
  * Perform fopen() with a given chroot()
  *
  * Only use case in this code base is read-only.  Limit accordingly to avoid
@@ -2335,10 +2294,10 @@ static int m_getxattr(const char *ipath, const char *name, char *value,
 
 	size_t ipath_len = strlen(ipath);
 	struct cfg_entry *cfg;
+	char bpath[PATH_MAX];
 	switch (classify_ipath(ipath, ipath_len, &cfg)) {
 	case CLASS_BACK:
 		;
-		char bpath[PATH_MAX];
 		struct back_entry *back;
 		if (pstrcmp(name, name_len, STRATUM_XATTR,
 				STRATUM_XATTR_LEN) == 0) {

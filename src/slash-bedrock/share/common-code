@@ -975,20 +975,25 @@ umount_r() {
 
 	dir="${1}"
 
+	# shellcheck disable=SC2086
 	cur_cnt=$(mounts_in_dir ${init_flag} "${dir}" | wc -l)
 	prev_cnt=$((cur_cnt + 1))
 	while [ "${cur_cnt}" -lt "${prev_cnt}" ]; do
 		prev_cnt=${cur_cnt}
+		# shellcheck disable=SC2086
 		for mount in $(mounts_in_dir ${init_flag} "${dir}" | sort -ru); do
 			${x_mount} --make-rprivate "${mount}" 2>/dev/null || true
 		done
+		# shellcheck disable=SC2086
 		for mount in $(mounts_in_dir ${init_flag} "${dir}" | sort -ru); do
 			${x_mount} --make-rprivate "${mount}" 2>/dev/null || true
 			${x_umount} -l "${mount}" 2>/dev/null || true
 		done
+		# shellcheck disable=SC2086
 		cur_cnt="$(mounts_in_dir ${init_flag} "${dir}" | wc -l || true)"
 	done
 
+	# shellcheck disable=SC2086
 	if mounts_in_dir ${init_flag} "${dir}" | grep -q '.'; then
 		abort "Unable to unmount all mounts at \"${dir}\"."
 	fi
