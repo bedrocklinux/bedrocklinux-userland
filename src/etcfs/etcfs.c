@@ -1483,7 +1483,8 @@ static int m_rmdir(const char *path)
  */
 static int m_rename(const char *from, const char *to, unsigned int flags)
 {
-	DEBUG("m_rename", from);
+	DEBUG("m_rename:from", from);
+	DEBUG("m_rename:to", to);
 	FS_IMP_SETUP(from);
 	from = rpath;
 	DISALLOW_ON_CFG(from);
@@ -1520,6 +1521,7 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 	if (rv >= 0 || (rv < 0 && errno != EXDEV)) {
 		goto clean_up_and_return;
 	}
+	DEBUG("m_rename:exdev", from);
 
 	struct stat stbuf;
 	if ((rv = fstatat(ref_fd, from, &stbuf, AT_SYMLINK_NOFOLLOW)) < 0) {
@@ -1569,6 +1571,7 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 			errno = ENAMETOOLONG;
 			goto clean_up_and_return;
 		}
+		DEBUG("m_rename:backup", tmp_path);
 		/*
 		 * Copy into temporary file.
 		 */
@@ -1588,11 +1591,13 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 		}
 		while ((bytes_read = read(from_fd, buf, sizeof(buf))) > 0) {
 			if ((bytes_written = write(to_fd, buf, bytes_read)) < 0) {
+				DEBUG("m_rename:tmp-write-error", tmp_path);
 				rv = -1;
 				goto clean_up_and_return;
 			}
 		}
 		if (bytes_read < 0) {
+			DEBUG("m_rename:source-read-error", from);
 			rv = -1;
 			goto clean_up_and_return;
 		}
@@ -1600,7 +1605,9 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 		/*
 		 * rename() the temporary file to the target.
 		 */
+		DEBUG("m_rename:renameat", tmp_path);
 		if ((rv = renameat(to_ref_fd, tmp_path, to_ref_fd, to)) < 0) {
+			DEBUG("m_rename:renameat-error", tmp_path);
 			goto clean_up_and_return;
 		}
 		break;
@@ -1643,7 +1650,8 @@ clean_up_and_return:
 
 static int m_link(const char *from, const char *to)
 {
-	DEBUG("m_link", from);
+	DEBUG("m_link:from", from);
+	DEBUG("m_link:to", to);
 	FS_IMP_SETUP(from);
 	from = rpath;
 	DISALLOW_ON_CFG(from);
