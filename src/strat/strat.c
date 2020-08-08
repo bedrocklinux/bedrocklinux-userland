@@ -32,7 +32,7 @@
 #define RESTRICTED_CMD_DIR_LEN strlen(RESTRICTED_CMD_DIR)
 #define STRATA_ROOT "/bedrock/strata/"
 #define STRATA_ROOT_LEN strlen(STRATA_ROOT)
-#define CROSS_DIR "/bedrock/cross/"
+#define CROSS_DIR "/bedrock/cross"
 #define CROSS_DIR_LEN strlen(CROSS_DIR)
 #define LOCAL_ALIAS "local"
 #define LOCAL_ALIAS_LEN strlen(LOCAL_ALIAS_LEN)
