@@ -123,7 +123,7 @@ cfg_envvar() {
 	# Retain backwards compatibility with non-prefix/infix/suffix config
 	# system.
 	whole="$(cfg_value "env-vars" "${1}")"
-	if [ -n "${whole}" ] && [ "${sep}" = ":" ]; then
+	if [ -n "${whole}" ]; then
 		echo "${whole}"
 		return
 	fi
@@ -208,13 +208,13 @@ br_pop_envvar() {
 	prefix="\${2}"
 	suffix="\${3}"
 	for d in \$(echo "\${prefix}" | sed 's/:/ /g'); do
-		if ! [[ ":${orig}:" == *":${d}:"* ]]; then
+		if ! [[ ":\${orig}:" == *":\${d}:"* ]]; then
 			printf "%s" "\${d}:"
 		fi
 	done
 	printf "\${orig}"
 	for d in \$(echo "\${suffix}" | sed 's/:/ /g'); do
-		if ! [[ ":${orig}:" == *":${d}:"* ]]; then
+		if ! [[ ":\${orig}:" == *":\${d}:"* ]]; then
 			printf "%s" ":\${d}"
 		fi
 	done
