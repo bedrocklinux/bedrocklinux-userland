@@ -1251,6 +1251,7 @@ cfg_values() {
 dedup_filter_envvar() {
 	envvar=""
 	IFS=":"
+	# shellcheck disable=SC2068
 	for i in ${@}; do
 		case "${i}" in
 		"") continue ;;
@@ -1320,7 +1321,7 @@ cfg_crossfs() {
 		else
 			out=""
 		fi
-		fpath="$(strat -r ${s} zsh -l -c 'echo "${fpath}"' 2>/dev/null)" || true
+		fpath="$(strat -r "${s}" zsh -l -c "echo \"\${fpath}\"" 2>/dev/null)" || true
 
 		# shellcheck disable=SC20089
 		envvarmap="${envvarmap}
@@ -1339,12 +1340,12 @@ cfg_crossfs() {
 		localfpath="$(dedup_filter_envvar "${localfpath}:${fpath// /:}")"
 	done
 	envvarmap="${envvarmap}
-	envvarmap[\"local:\$PATH\"]=\"$(dedup_filter_envvar ${PREFIX_PATH}:${localPATH}:${SUFFIX_PATH})\"
-	envvarmap[\"local:\$MANPATH\"]=\"$(dedup_filter_envvar ${PREFIX_MANPATH}:${localMANPATH}:${SUFFIX_MANPATH})\"
-	envvarmap[\"local:\$INFOPATH\"]=\"$(dedup_filter_envvar ${PREFIX_INFOPATH}:${localINFOPATH}:${SUFFIX_INFOPATH})\"
-	envvarmap[\"local:\$XDG_DATA_DIRS\"]=\"$(dedup_filter_envvar ${PREFIX_XDG_DATA_DIRS}:${localXDG_DATA_DIRS}:${SUFFIX_XDG_DATA_DIRS})\"
-	envvarmap[\"local:\$TERMINFO_DIRS\"]=\"$(dedup_filter_envvar ${PREFIX_TERMINFO_DIRS}:${localTERMINFO_DIRS}:${SUFFIX_TERMINFO_DIRS})\"
-	envvarmap[\"local:\$fpath\"]=\"$(dedup_filter_envvar ${PREFIX_fpath}:${localfpath}:${SUFFIX_fpath})\"
+	envvarmap[\"local:\$PATH\"]=\"$(dedup_filter_envvar "${PREFIX_PATH}:${localPATH}:${SUFFIX_PATH}")\"
+	envvarmap[\"local:\$MANPATH\"]=\"$(dedup_filter_envvar "${PREFIX_MANPATH}:${localMANPATH}:${SUFFIX_MANPATH}")\"
+	envvarmap[\"local:\$INFOPATH\"]=\"$(dedup_filter_envvar "${PREFIX_INFOPATH}:${localINFOPATH}:${SUFFIX_INFOPATH}")\"
+	envvarmap[\"local:\$XDG_DATA_DIRS\"]=\"$(dedup_filter_envvar "${PREFIX_XDG_DATA_DIRS}:${localXDG_DATA_DIRS}:${SUFFIX_XDG_DATA_DIRS}")\"
+	envvarmap[\"local:\$TERMINFO_DIRS\"]=\"$(dedup_filter_envvar "${PREFIX_TERMINFO_DIRS}:${localTERMINFO_DIRS}:${SUFFIX_TERMINFO_DIRS}")\"
+	envvarmap[\"local:\$fpath\"]=\"$(dedup_filter_envvar "${PREFIX_fpath}:${localfpath}:${SUFFIX_fpath}")\"
 	"
 
 	cfg_preparse | awk \

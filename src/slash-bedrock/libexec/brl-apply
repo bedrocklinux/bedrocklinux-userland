@@ -43,13 +43,13 @@ require_root
 
 if [ "${1:-}" != "--skip-repair" ]; then
 	# Repair strata to apply stratum-status changing configuration
-	/bedrock/libexec/brl-repair "bedrock"
-	/bedrock/libexec/brl-repair "init"
+	/bedrock/libexec/brl-repair --skip-crossfs "bedrock"
+	/bedrock/libexec/brl-repair --skip-crossfs "init"
 	for stratum in $(list_strata); do
 		is_bedrock "${stratum}" && continue
 		is_init "${stratum}" && continue
 		is_enabled "${stratum}" || continue
-		/bedrock/libexec/brl-repair "${stratum}"
+		/bedrock/libexec/brl-repair --skip-crossfs "${stratum}"
 	done
 fi
 
@@ -156,6 +156,7 @@ SUFFIX_fpath="$(cfg_value "env-vars" "INFIX:fpath"):$(cfg_value "env-vars" "SUFF
 
 # Setup /etc/profile
 cat <<EOF >/bedrock/run/profile
+#!/bin/sh
 [ -n "\${BEDROCK_RESTRICT:-}" ] && return
 
 br_dedup_envvar() {
@@ -171,14 +172,28 @@ br_dedup_envvar() {
 	echo "\${envvar}" | sed -e 's/::*/:/g' -e 's/^://' -e 's/:$//'
 }
 
-for s in \$(/bedrock/bin/brl list); do
-	[ -r "/bedrock/strata/\${s}/etc/profile" ] || continue
-	out="\$(/bedrock/bin/strat -r "\${s}" /bin/sh -c '. /etc/profile ; env')"
-	PATH="\$(br_dedup_envvar "\${PATH}:\$(echo "\${out}" | awk -F= '/^PATH=/{sub(/^PATH=/,"");print;exit}')")"
-	MANPATH="\$(br_dedup_envvar "\${MANPATH}:\$(echo "\${out}" | awk -F= '/^MANPATH=/{sub(/^MANPATH=/,"");print;exit}')")"
-	INFOPATH="\$(br_dedup_envvar "\${INFOPATH}:\$(echo "\${out}" | awk -F= '/^INFOPATH=/{sub(/^INFOPATH=/,"");print;exit}')")"
-	XDG_DATA_DIRS="\$(br_dedup_envvar "\${XDG_DATA_DIRS}:\$(echo "\${out}" | awk -F= '/^XDG_DATA_DIRS=/{sub(/^XDG_DATA_DIRS=/,"");print;exit}')")"
-	TERMINFO_DIRS="\$(br_dedup_envvar "\${TERMINFO_DIRS}:\$(echo "\${out}" | awk -F= '/^TERMINFO_DIRS=/{sub(/^TERMINFO_DIRS=/,"");print;exit}')")"
+for line in \$(
+	for s in \$(/bedrock/bin/brl list); do
+		[ -r "/bedrock/strata/\${s}/etc/profile" ] || continue
+		/bedrock/bin/strat -r "\${s}" /bin/sh -c '
+		. /etc/profile ;
+		echo "PATH=\${PATH}" ;
+		echo "MANPATH=\${MANPATH}" ;
+		echo "INFOPATH=\${INFOPATH}" ;
+		echo "XDG_DATA_DIRS=\${XDG_DATA_DIRS}" ;
+		echo "TERMINFO_DIRS=\${TERMINFO_DIRS}" ;
+		' &
+	done
+	wait
+); do
+	body="\$(echo "\${line}" | cut -d= -f2-)"
+	case "\${line}" in
+	"PATH="*) PATH="\${PATH}:\${body}" ;;
+	"MANPATH="*) MANPATH="\${MANPATH}:\${body}" ;;
+	"INFOPATH="*) INFOPATH="\${INFOPATH}:\${body}" ;;
+	"XDG_DATA_DIRS="*) XDG_DATA_DIRS="\${XDG_DATA_DIRS}:\${body}" ;;
+	"TERMINFO_DIRS="*) TERMINFO_DIRS="\${TERMINFO_DIRS}:\${body}" ;;
+	esac
 done
 
 unset TZ
@@ -196,12 +211,17 @@ EOF
 cat <<EOF >/bedrock/run/zprofile
 [ -n "\${BEDROCK_RESTRICT:-}" ] && return
 
+# Different distros create different /etc/zsh files to inject.  Since Bedrock
+# cannot predict which are going to be available, it injects calls to this file
+# into multiple.  Ensure we only actually run the below code once.
+[ -n "\${BEDROCK_ZPROFILE_LOADED:-}" ] && return
+export BEDROCK_ZPROFILE_LOADED=1
+
 [[ -o login ]] && . /etc/profile
 
 br_dedup_envvar() {
 	envvar=""
 	IFS=":"
-	[ -n "\${ZSH_VERSION:-}" ] && setopt sh_word_split
 	for i in \${@}; do
 		case ":\${envvar}:" in
 			*":\${i}:"*) ;;

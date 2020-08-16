@@ -192,7 +192,9 @@ repair_bedrock() {
 	enforce_shells
 	enforce_id_ranges
 
-	cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
+	if ! "${skip_crossfs}"; then
+		cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
+	fi
 }
 
 repair_stratum() {
@@ -243,7 +245,9 @@ repair_stratum() {
 
 	enforce_shells
 
-	cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
+	if ! "${skip_crossfs}"; then
+		cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
+	fi
 }
 
 handle_help "${@:-}"
@@ -254,8 +258,9 @@ lock
 
 strategy="retain"
 strata=""
+skip_crossfs="false"
 
-OPTL="new,retain,clear"
+OPTL="new,retain,clear,skip-crossfs"
 OPTO="nrc"
 eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
 saw_non_positional=false
@@ -272,6 +277,10 @@ while [ -n "${1:-}" ]; do
 		;;
 	-c | --clear)
 		strategy="clear"
+		shift
+		;;
+	--skip-crossfs)
+		skip_crossfs="true"
 		shift
 		;;
 	--)

@@ -97,8 +97,16 @@ enable_stratum() {
 	enforce_shells
 	enforce_id_ranges
 
-	cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
+	if ! "${skip_crossfs}"; then
+		cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
+	fi
 }
+
+skip_crossfs="false"
+if [ "${1:-}" = "--skip-crossfs" ]; then
+	skip_crossfs="true"
+	shift
+fi
 
 for alias in "${@}"; do
 	if ! is_stratum_or_alias "${alias}"; then
