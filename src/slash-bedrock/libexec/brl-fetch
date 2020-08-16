@@ -1242,8 +1242,14 @@ for distro in ${distros}; do
 			setup_chroot "${target_dir}"
 		fi
 		echo "### Added by Bedrock Linux when acquiring this stratum" >>"${target_dir}/etc/locale.gen"
-		echo "${localegen}" >>"${target_dir}/etc/locale.gen"
-		LC_ALL=C chroot "${target_dir}" locale-gen
+		for line in ${localegen}; do
+			echo "${line}" >>"${target_dir}/etc/locale.gen"
+			if ! LC_ALL=C chroot "${target_dir}" locale-gen; then
+				notice "${color_warn}Could not set ${line} locale, skipping.${color_norm}"
+				sed '$d' "${target_dir}/etc/locale.gen" >"${target_dir}/etc/locale.gen-new"
+				mv "${target_dir}/etc/locale.gen-new" "${target_dir}/etc/locale.gen"
+			fi
+		done
 	fi
 
 	step "Cleaning up"
