@@ -1,4 +1,10 @@
-# 0.7.18
+# 0.7.18beta2
+
+- Added envvar crossfs settings
+- Fixed brl-fetch centos
+- Improved brl-fetch locale-gen failure handling
+
+# 0.7.18beta1
 
 - Added automatic restriction of CRUX's prt-get, pkgmk
 - Added pmm support for dnf short aliases
