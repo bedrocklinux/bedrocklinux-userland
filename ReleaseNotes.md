@@ -1,3 +1,7 @@
+# 0.7.18beta3
+
+- Fixed crossfs configuration dependencies
+
 # 0.7.18beta2
 
 - Added envvar crossfs settings
