@@ -124,13 +124,12 @@ fetch() {
 	*) abort "unrecognized distro:architecture pair \"${distro}:${distro_arch}\"" ;;
 	esac
 	mkdir -p "${target_dir}/var/db/xbps/https___alpha_de_repo_voidlinux_org_current"
-	yes "" | LC_ALL=C XBPS_ARCH="${distro_arch}-musl" chroot "${bootstrap_dir}" "/usr/bin/xbps-install.static" -S -R "${target_mirror}/current/${prefix}" -r /target-root/ base-voidstrap
+	yes "" | LC_ALL=C XBPS_ARCH="${distro_arch}-musl" chroot "${bootstrap_dir}" "/usr/bin/xbps-install.static" -S -R "${target_mirror}/current/${prefix}" -r /target-root/ base-minimal
 	set -o pipefail
 
 	step "Configuring"
-	if [ -d "${target_dir}/usr/share/xbps.d/" ]; then
-		echo "repository=${target_mirror}/current/${prefix}" >>"${target_dir}/usr/share/xbps.d/00-brl-fetch.conf"
-	fi
+	mkdir -p "${target_dir}/etc/xbps.d/"
+	echo "repository=${target_mirror}/current/${prefix}" >"${target_dir}/etc/xbps.d/00-brl-fetch.conf"
 	# Void's zsh package does not create /etc/zsh/zshenv but it is needed
 	# for various Bedrock hooks
 	if ! [ -e "${target_dir}/etc/zsh/zshenv" ]; then

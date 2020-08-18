@@ -1,31 +1,62 @@
+# 0.7.18beta3
+
+- Fixed crossfs configuration dependencies
+
+# 0.7.18beta2
+
+- Added envvar crossfs settings
+- Fixed brl-fetch centos
+- Improved brl-fetch locale-gen failure handling
+
+# 0.7.18beta1
+
+- Added automatic restriction of CRUX's prt-get, pkgmk
+- Added pmm support for dnf short aliases
+- Added retention of BEDROCK_RESTRICTION across sudo call
+- Fixed /bedrock/cross/bin/X11 self-reference loop
+- Fixed brl fetch --list tab completion comment
+- Fixed brl-fetch devuan detection of stable release
+- Fixed brl-fetch manjaro
+- Fixed brl-strat completion
+- Fixed detection of package manager user interface at hijack
+- Fixed overwriting system and user-set PATH entries
+- Fixed pmm creation of redundant items when superseding
+- Fixed pmm using supersede logic when unneeded
+- Fixed portage is-file-db-available noise
+- Fixed restriction of XDG_DATA_DIRS
+- Fixed zprofile restriction check
+- Improved brl-fetch void to use smaller base-minimal
+- Improved crossfs multithread performance if openat2 available (Linux 5.6 and up)
+- Improved etcfs debug output
+
 # 0.7.17
 
-- Fix sudoers injection return value
+- Fixed sudoers injection return value
 
 # 0.7.16
 
-- Add cross-stratum /etc/crypttab support
-- Add cross-stratum /etc/profile.d/*.sh support
-- Add cross-stratum dkms support
-- Fix brl-fetch fedora, void, void-musl
+- Added cross-stratum /etc/crypttab support
+- Added cross-stratum /etc/profile.d/*.sh support
+- Added cross-stratum dkms support
+- Fixed brl-fetch fedora, void, void-musl
 - Improve brl-fetch error messages
 - Improve pmm pacman/yay handling to only supersede identical commands
 - Restrict kiss package manager
 
 # 0.7.15
 
-- Add pmm to brl-tutorial
-- Fix brl-tutorial typo
-- Fix pmm apt no-cache package availability check
+- Added pmm to brl-tutorial
+- Fixed brl-tutorial typo
+- Fixed pmm apt no-cache package availability check
 
 # 0.7.14
 
-- Add ppc and ppc64 support
-- Add Package Manager Manager ("pmm")
-- Add code to recover from bad bedrock.conf timezone values
-- Add sanity check against GRUB+BTRFS/ZFS issue
-- Fix Path, TryExec handling in crossfs ini filter
-- Fix brl-fetch centos, kiss, void, void-musl, debian sid,
+- Added ppc and ppc64 support
+- Added Package Manager Manager ("pmm")
+- Added code to recover from bad bedrock.conf timezone values
+- Added sanity check against GRUB+BTRFS/ZFS issue
+- Fixed Path, TryExec handling in crossfs ini filter
+- Fixed brl-fetch centos, kiss, void, void-musl, debian sid,
 
 # 0.7.13
 

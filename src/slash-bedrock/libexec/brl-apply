@@ -43,21 +43,196 @@ require_root
 
 if [ "${1:-}" != "--skip-repair" ]; then
 	# Repair strata to apply stratum-status changing configuration
-	/bedrock/libexec/brl-repair "bedrock"
-	/bedrock/libexec/brl-repair "init"
+	/bedrock/libexec/brl-repair --skip-crossfs "bedrock"
+	/bedrock/libexec/brl-repair --skip-crossfs "init"
 	for stratum in $(list_strata); do
 		is_bedrock "${stratum}" && continue
 		is_init "${stratum}" && continue
 		is_enabled "${stratum}" || continue
-		/bedrock/libexec/brl-repair "${stratum}"
+		/bedrock/libexec/brl-repair --skip-crossfs "${stratum}"
 	done
 fi
 
 # lock after brl-repair above, as it locks
 lock
 
+# Various fields below manage the timezone.  Timezone information should not be
+# read from /usr/share/zoneinfo because:
+# - It is a local file and different strata could have differing values, which
+# would result in subtle time issues which would be difficult for users to
+# detect or debug.  Using /bedrock/cross ensures a consistent timezone value
+# across all strata.
+# - Some strata may not have a locale zoneinfo database, which means they must
+# look into /bedrock/cross.
+#
+# We cannot use TZ=:/etc/localtime or TZ=:/bedrock/cross/zoneinfo/<timezone>
+# because of a bug in chromium and the many programs which build off of
+# chromium:
+# https://bugs.chromium.org/p/chromium/issues/detail?id=811403
+# https://github.com/signalapp/Signal-Desktop/issues/3085
+# https://github.com/ValveSoftware/steam-for-linux/issues/5612
+# https://chromium-review.googlesource.com/c/chromium/deps/icu/+/1006219/
+#
+# By ensuring TZ is unset, all tested software including chromium, glibc, and
+# musl, fall back to /etc/localtime, which is symlinked (eventually) to
+# /bedrock/cross.
+
+# Set up /etc/localtime
+ln -fns "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/localtime
+
+cfg_envvar() {
+	# Retain backwards compatibility with non-prefix/infix/suffix config
+	# system.
+	whole="$(cfg_value "env-vars" "${1}")"
+	if [ -n "${whole}" ]; then
+		echo "${whole}"
+		return
+	fi
+
+	prefix="$(cfg_value "env-vars" "PREFIX:${1}")"
+	infix="$(cfg_value "env-vars" "INFIX:${1}")"
+	suffix="$(cfg_value "env-vars" "SUFFIX:${1}")"
+	echo "${prefix}:${infix}:${suffix}"
+}
+
+# Setup /etc/environment
+cat <<EOF >/bedrock/run/environment
+LANG=$(cfg_value "locale" "LANG")
+PATH=$(cfg_envvar "PATH")
+MANPATH=$(cfg_envvar "MANPATH")
+INFOPATH=$(cfg_envvar "INFOPATH")
+XDG_DATA_DIRS=$(cfg_envvar "XDG_DATA_DIRS")
+TERMINFO_DIRS=$(cfg_envvar "TERMINFO_DIRS")
+EOF
+
+PREFIX_PATH="$(cfg_value "env-vars" "PREFIX:PATH"):$(cfg_value "env-vars" "PATH")"
+SUFFIX_PATH="$(cfg_value "env-vars" "INFIX:PATH"):$(cfg_value "env-vars" "SUFFIX:PATH")"
+PREFIX_MANPATH="$(cfg_value "env-vars" "PREFIX:MANPATH"):$(cfg_value "env-vars" "MANPATH")"
+SUFFIX_MANPATH="$(cfg_value "env-vars" "INFIX:MANPATH"):$(cfg_value "env-vars" "SUFFIX:MANPATH")"
+PREFIX_INFOPATH="$(cfg_value "env-vars" "PREFIX:INFOPATH"):$(cfg_value "env-vars" "INFOPATH")"
+SUFFIX_INFOPATH="$(cfg_value "env-vars" "INFIX:INFOPATH"):$(cfg_value "env-vars" "SUFFIX:INFOPATH")"
+PREFIX_XDG_DATA_DIRS="$(cfg_value "env-vars" "PREFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "XDG_DATA_DIRS")"
+SUFFIX_XDG_DATA_DIRS="$(cfg_value "env-vars" "INFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "SUFFIX:XDG_DATA_DIRS")"
+PREFIX_TERMINFO_DIRS="$(cfg_value "env-vars" "PREFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "TERMINFO_DIRS")"
+SUFFIX_TERMINFO_DIRS="$(cfg_value "env-vars" "INFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "SUFFIX:TERMINFO_DIRS")"
+PREFIX_fpath="$(cfg_value "env-vars" "PREFIX:fpath"):$(cfg_value "env-vars" "fpath")"
+SUFFIX_fpath="$(cfg_value "env-vars" "INFIX:fpath"):$(cfg_value "env-vars" "SUFFIX:fpath")"
+
+# Setup /etc/profile
+cat <<EOF >/bedrock/run/profile
+#!/bin/sh
+[ -n "\${BEDROCK_RESTRICT:-}" ] && return
+
+br_dedup_envvar() {
+	envvar=""
+	IFS=":"
+	[ -n "\${ZSH_VERSION:-}" ] && setopt sh_word_split
+	for i in \${@}; do
+		case ":\${envvar}:" in
+			*":\${i}:"*) ;;
+			*) envvar="\${envvar}:\${i}";;
+		esac
+	done
+	echo "\${envvar}" | sed -e 's/::*/:/g' -e 's/^://' -e 's/:$//'
+}
+
+for line in \$(
+	for s in \$(/bedrock/bin/brl list); do
+		[ -r "/bedrock/strata/\${s}/etc/profile" ] || continue
+		/bedrock/bin/strat -r "\${s}" /bin/sh -c '
+		. /etc/profile ;
+		echo "PATH=\${PATH}" ;
+		echo "MANPATH=\${MANPATH}" ;
+		echo "INFOPATH=\${INFOPATH}" ;
+		echo "XDG_DATA_DIRS=\${XDG_DATA_DIRS}" ;
+		echo "TERMINFO_DIRS=\${TERMINFO_DIRS}" ;
+		' &
+	done
+	wait
+); do
+	body="\$(echo "\${line}" | cut -d= -f2-)"
+	case "\${line}" in
+	"PATH="*) PATH="\${PATH}:\${body}" ;;
+	"MANPATH="*) MANPATH="\${MANPATH}:\${body}" ;;
+	"INFOPATH="*) INFOPATH="\${INFOPATH}:\${body}" ;;
+	"XDG_DATA_DIRS="*) XDG_DATA_DIRS="\${XDG_DATA_DIRS}:\${body}" ;;
+	"TERMINFO_DIRS="*) TERMINFO_DIRS="\${TERMINFO_DIRS}:\${body}" ;;
+	esac
+done
+
+unset TZ
+export LANG="$(cfg_value "locale" "LANG")"
+export PATH="\$(br_dedup_envvar "${PREFIX_PATH}:\${PATH}:${SUFFIX_PATH}")"
+export MANPATH="\$(br_dedup_envvar "${PREFIX_MANPATH}:\${MANPATH}:${SUFFIX_MANPATH}")"
+export INFOPATH="\$(br_dedup_envvar "${PREFIX_INFOPATH}:\${INFOPATH}:${SUFFIX_INFOPATH}")"
+export XDG_DATA_DIRS="\$(br_dedup_envvar "${PREFIX_XDG_DATA_DIRS}:\${XDG_DATA_DIRS}:${SUFFIX_XDG_DATA_DIRS}")"
+export TERMINFO_DIRS="\$(br_dedup_envvar "${PREFIX_TERMINFO_DIRS}:\${TERMINFO_DIRS}:${SUFFIX_TERMINFO_DIRS}")"
+
+unset -f br_dedup_envvar
+EOF
+
+# Setup /etc/zsh/zprofile, /etc/zprofile
+cat <<EOF >/bedrock/run/zprofile
+[ -n "\${BEDROCK_RESTRICT:-}" ] && return
+
+# Different distros create different /etc/zsh files to inject.  Since Bedrock
+# cannot predict which are going to be available, it injects calls to this file
+# into multiple.  Ensure we only actually run the below code once.
+[ -n "\${BEDROCK_ZPROFILE_LOADED:-}" ] && return
+export BEDROCK_ZPROFILE_LOADED=1
+
+[[ -o login ]] && . /etc/profile
+
+br_dedup_envvar() {
+	envvar=""
+	IFS=":"
+	for i in \${@}; do
+		case ":\${envvar}:" in
+			*":\${i}:"*) ;;
+			*) envvar="\${envvar}:\${i}";;
+		esac
+	done
+	echo "\${envvar}" | sed -e 's/::*/:/g' -e 's/^://' -e 's/:$//'
+}
+
+export fpath=(\$(br_dedup_envvar "${PREFIX_fpath}:\${fpath}:${SUFFIX_fpath}" | sed 's/:/ /g'))
+
+unset -f br_dedup_envvar
+EOF
+
+# Setup /etc/fish/conf.d/ configuration
+cat <<EOF >/bedrock/run/fprofile
+[ -n "\$BEDROCK_RESTRICT" ]; and exit 0
+
+function br_dedup_envvar
+	set -l out
+	for i in (string split ":" \$argv[1])
+		if not contains \$i \$out; and [ -n "\$i" ]
+			set -a out \$i
+		end
+	end
+	string split ' ' \$out
+end
+
+set -e TZ
+set LANG $(cfg_value "locale" "LANG")
+set -x PATH (br_dedup_envvar "${PREFIX_PATH}:\$PATH:${SUFFIX_PATH}")
+set -x MANPATH (br_dedup_envvar "${PREFIX_MANPATH}:\$MANPATH:${SUFFIX_MANPATH}")
+set -x INFOPATH (br_dedup_envvar "${PREFIX_INFOPATH}:\$INFOPATH:${SUFFIX_INFOPATH}")
+set -x XDG_DATA_DIRS (br_dedup_envvar "${PREFIX_XDG_DATA_DIRS}:\$XDG_DATA_DIRS:${SUFFIX_XDG_DATA_DIRS}")
+set -x TERMINFO_DIRS (br_dedup_envvar "${PREFIX_TERMINFO_DIRS}}:\$TERMINFO_DIRS:${SUFFIX_TERMINFO_DIRS}")
+
+functions -e br_dedup_envvar
+EOF
+
+# Setup /etc/sudoers configuration
+cat <<EOF >/bedrock/run/sudoers
+Defaults secure_path="$(cfg_envvar "PATH")"
+Defaults env_keep+="BEDROCK_RESTRICT"
+EOF
+
 # Configure crossfs.  Items below reference crossfs, and so this should be done
-# early.
+# early.  However, not too early; it requires /bedrock/run/profile.
 cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
 
 # configure etcfs
@@ -91,190 +266,6 @@ if echo /bedrock/run/restricted_cmds/* >/dev/null 2>&1; then
 		fi
 	done
 fi
-
-# Various fields below manage the timezone.  Timezone information should not be
-# read from /usr/share/zoneinfo because:
-# - It is a local file and different strata could have differing values, which
-# would result in subtle time issues which would be difficult for users to
-# detect or debug.  Using /bedrock/cross ensures a consistent timezone value
-# across all strata.
-# - Some strata may not have a locale zoneinfo database, which means they must
-# look into /bedrock/cross.
-#
-# We cannot use TZ=:/etc/localtime or TZ=:/bedrock/cross/zoneinfo/<timezone>
-# because of a bug in chromium and the many programs which build off of
-# chromium:
-# https://bugs.chromium.org/p/chromium/issues/detail?id=811403
-# https://github.com/signalapp/Signal-Desktop/issues/3085
-# https://github.com/ValveSoftware/steam-for-linux/issues/5612
-# https://chromium-review.googlesource.com/c/chromium/deps/icu/+/1006219/
-#
-# By ensuring TZ is unset, all tested software including chromium, glibc, and
-# musl, fall back to /etc/localtime, which is symlinked (eventually) to
-# /bedrock/cross.
-
-# Set up /etc/localtime
-ln -fns "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/localtime
-
-# TODO: un-generalize if not needed after only-add-when-needed changes
-cfg_envvar() {
-	var="${1}"
-
-	# Retain backwards compatibility with non-prefix/infix/suffix config
-	# system.
-	whole="$(cfg_value "env-vars" "${1}")"
-	if [ -n "${whole}" ] && [ "${sep}" = ":" ]; then
-		echo "${whole}"
-		return
-	fi
-
-	prefix="$(cfg_value "env-vars" "PREFIX:${1}")"
-	infix="$(cfg_value "env-vars" "INFIX:${1}")"
-	suffix="$(cfg_value "env-vars" "SUFFIX:${1}")"
-	echo "${prefix}:${infix}:${suffix}"
-}
-
-# Setup /etc/environment
-cat <<EOF >/bedrock/run/environment
-LANG=$(cfg_value "locale" "LANG")
-PATH=$(cfg_envvar "PATH")
-MANPATH=$(cfg_envvar "MANPATH")
-INFOPATH=$(cfg_envvar "INFOPATH")
-XDG_DATA_DIRS=$(cfg_envvar "XDG_DATA_DIRS")
-TERMINFO_DIRS=$(cfg_envvar "TERMINFO_DIRS")
-EOF
-
-# Setup /etc/profile
-cat <<EOF >/bedrock/run/profile
-[ -n "\${BEDROCK_RESTRICT:-}" ] && return
-
-for s in \$(/bedrock/bin/brl list); do
-	(ls /bedrock/strata/\${s}/etc/profile.d/*.sh) >/dev/null 2>&1 || continue
-	for f in /bedrock/strata/\${s}/etc/profile.d/*.sh; do
-		. \${f} >/dev/null 2>&1 || true
-	done
-done
-
-br_pop_envvar() {
-	orig="\${1}"
-	prefix="\${2}"
-	suffix="\${3}"
-	for d in \$(echo "\${prefix}" | sed 's/:/ /g'); do
-		case ":\${orig}:" in
-			*":\${d}:"*) ;;
-			*) printf "%s" "\${d}:" ;;
-		esac
-	done
-	printf "\${orig}"
-	for d in \$(echo "\${suffix}" | sed 's/:/ /g'); do
-		case ":\${orig}:" in
-			*":\${d}:"*) ;;
-			*) printf "%s" ":\${d}" ;;
-		esac
-	done
-}
-
-unset TZ
-export LANG="$(cfg_value "locale" "LANG")"
-br_prefix="$(cfg_value "env-vars" "PREFIX:PATH"):$(cfg_value "env-vars" "PATH")"
-br_suffix="$(cfg_value "env-vars" "INFIX:PATH"):$(cfg_value "env-vars" "SUFFIX:PATH")"
-export PATH="\$(br_pop_envvar "\${PATH}" "\${br_prefix}" "\${br_suffix}")"
-br_prefix="$(cfg_value "env-vars" "PREFIX:MANPATH"):$(cfg_value "env-vars" "MANPATH")"
-br_suffix="$(cfg_value "env-vars" "INFIX:MANPATH"):$(cfg_value "env-vars" "SUFFIX:MANPATH")"
-export MANPATH="\$(br_pop_envvar "\${MANPATH}" "\${br_prefix}" "\${br_suffix}")"
-br_prefix="$(cfg_value "env-vars" "PREFIX:INFOPATH"):$(cfg_value "env-vars" "INFOPATH")"
-br_suffix="$(cfg_value "env-vars" "INFIX:INFOPATH"):$(cfg_value "env-vars" "SUFFIX:INFOPATH")"
-export INFOPATH="\$(br_pop_envvar "\${INFOPATH}" "\${br_prefix}" "\${br_suffix}")"
-br_prefix="$(cfg_value "env-vars" "PREFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "XDG_DATA_DIRS")"
-br_suffix="$(cfg_value "env-vars" "INFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "SUFFIX:XDG_DATA_DIRS")"
-export XDG_DATA_DIRS="\$(br_pop_envvar "\${XDG_DATA_DIRS}" "\${br_prefix}" "\${br_suffix}")"
-br_prefix="$(cfg_value "env-vars" "PREFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "TERMINFO_DIRS")"
-br_suffix="$(cfg_value "env-vars" "INFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "SUFFIX:TERMINFO_DIRS")"
-export TERMINFO_DIRS="\$(br_pop_envvar "\${TERMINFO_DIRS}" "\${br_prefix}" "\${br_suffix}")"
-
-unset br_prefix
-unset br_suffix
-unset -f br_pop_envvar
-EOF
-
-# Setup /etc/zsh/zprofile, /etc/zprofile
-cat <<EOF >/bedrock/run/zprofile
-[ -n "\${BEDROCK_RESTRICT:-}" ] && return
-
-. /etc/profile
-
-br_pop_envvar() {
-	orig="\${1}"
-	prefix="\${2}"
-	suffix="\${3}"
-	for d in \$(echo "\${prefix}" | sed 's/:/ /g'); do
-		if ! [[ ":${orig}:" == *":${d}:"* ]]; then
-			printf "%s" "\${d}:"
-		fi
-	done
-	printf "\${orig}"
-	for d in \$(echo "\${suffix}" | sed 's/:/ /g'); do
-		if ! [[ ":${orig}:" == *":${d}:"* ]]; then
-			printf "%s" ":\${d}"
-		fi
-	done
-}
-
-local br_prefix="$(cfg_value "env-vars" "PREFIX:fpath"):$(cfg_value "env-vars" "fpath")"
-local br_suffix="$(cfg_value "env-vars" "INFIX:fpath"):$(cfg_value "env-vars" "SUFFIX:fpath")"
-export fpath=(\$(br_pop_envvar "\${fpath}" "\${br_prefix}" "\${br_suffix}" | sed 's/:/ /g'))
-
-unset -f br_pop_envvar
-EOF
-
-# Setup /etc/fish/conf.d/ configuration
-cat <<EOF >/bedrock/run/fprofile
-[ -n "\$BEDROCK_RESTRICT" ]; and exit 0
-
-function br_pop_envvar
-	set -l orig (string split ":" \$argv[1])
-	set -l prefix (string split ":" \$argv[2])
-	set -l suffix (string split ":" \$argv[3])
-	set -l list
-	for d in \$prefix
-		if not contains \$d \$orig; and [ -n "\$d" ]
-			set -a list \$d
-		end
-	end
-	set -a list \$orig
-	for d in \$suffix
-		if not contains \$d \$orig; [ -n "\$d" ]
-			set -a list \$d
-		end
-	end
-	string split ' ' \$list
-end
-
-set -e TZ
-set LANG $(cfg_value "locale" "LANG")
-set -l br_prefix "$(cfg_value "env-vars" "PREFIX:PATH"):$(cfg_value "env-vars" "PATH")"
-set -l br_suffix "$(cfg_value "env-vars" "INFIX:PATH"):$(cfg_value "env-vars" "SUFFIX:PATH")"
-set -x PATH (br_pop_envvar "\$PATH" "\$br_prefix" "\$br_suffix")
-set -l br_prefix "$(cfg_value "env-vars" "PREFIX:MANPATH"):$(cfg_value "env-vars" "MANPATH")"
-set -l br_suffix "$(cfg_value "env-vars" "INFIX:MANPATH"):$(cfg_value "env-vars" "SUFFIX:MANPATH")"
-set -x MANPATH (br_pop_envvar "\$MANPATH" "\$br_prefix" "\$br_suffix")
-set -l br_prefix "$(cfg_value "env-vars" "PREFIX:INFOPATH"):$(cfg_value "env-vars" "INFOPATH")"
-set -l br_suffix "$(cfg_value "env-vars" "INFIX:INFOPATH"):$(cfg_value "env-vars" "SUFFIX:INFOPATH")"
-set -x INFOPATH (br_pop_envvar "\$INFOPATH" "\$br_prefix" "\$br_suffix")
-set -l br_prefix "$(cfg_value "env-vars" "PREFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "XDG_DATA_DIRS")"
-set -l br_suffix "$(cfg_value "env-vars" "INFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "SUFFIX:XDG_DATA_DIRS")"
-set -x XDG_DATA_DIRS (br_pop_envvar "\$XDG_DATA_DIRS" "\$br_prefix" "\$br_suffix")
-set -l br_prefix "$(cfg_value "env-vars" "PREFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "TERMINFO_DIRS")"
-set -l br_suffix "$(cfg_value "env-vars" "INFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "SUFFIX:TERMINFO_DIRS")"
-set -x TERMINFO_DIRS (br_pop_envvar "\$TERMINFO_DIRS" "\$br_prefix" "\$br_suffix")
-functions -e br_pop_envvar
-EOF
-
-# Setup /etc/sudoers configuration
-cat <<EOF >/bedrock/run/sudoers
-Defaults secure_path="$(cfg_envvar "PATH")"
-Defaults env_keep+="BEDROCK_RESTRICT"
-EOF
 
 # Setup xorg.conf configuration
 if [ -d /bedrock/cross/fonts ]; then

@@ -57,21 +57,13 @@ EOF
 }
 
 default_release() {
-	# The repo's dists/stable/Release does not reflect the current release.
-	# Fall back to parsing the website.
-	wget -O- 'https://devuan.org/get-devuan' 2>/dev/null |
-		grep 'Devuan [0-9.]* [a-zA-Z]* (stable)' |
-		sed 's/^.*Devuan [0-9.]* \([a-zA-Z]*\) (stable).*$/\1/' |
-		head -n1 |
-		tr '[:upper:]' '[:lower:]'
-
-	# for mirror in "${flag_mirror}" $(list_mirrors); do
-	# 	release="$(wget -O- "${mirror}/dists/stable/Release" 2>/dev/null | awk '$1 == "Codename:" {print$2;exit}')"
-	# 	if [ -n "${release}" ]; then
-	# 		echo "${release}"
-	# 		return
-	# 	fi
-	# done
+	for mirror in "${flag_mirror}" $(list_mirrors); do
+		release="$(wget -O- "${mirror}/dists/stable/Release" 2>/dev/null | awk '$1 == "Codename:" {print$2;exit}')"
+		if [ -n "${release}" ]; then
+			echo "${release}"
+			return
+		fi
+	done
 }
 
 list_releases() {

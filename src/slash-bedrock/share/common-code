@@ -975,20 +975,25 @@ umount_r() {
 
 	dir="${1}"
 
+	# shellcheck disable=SC2086
 	cur_cnt=$(mounts_in_dir ${init_flag} "${dir}" | wc -l)
 	prev_cnt=$((cur_cnt + 1))
 	while [ "${cur_cnt}" -lt "${prev_cnt}" ]; do
 		prev_cnt=${cur_cnt}
+		# shellcheck disable=SC2086
 		for mount in $(mounts_in_dir ${init_flag} "${dir}" | sort -ru); do
 			${x_mount} --make-rprivate "${mount}" 2>/dev/null || true
 		done
+		# shellcheck disable=SC2086
 		for mount in $(mounts_in_dir ${init_flag} "${dir}" | sort -ru); do
 			${x_mount} --make-rprivate "${mount}" 2>/dev/null || true
 			${x_umount} -l "${mount}" 2>/dev/null || true
 		done
+		# shellcheck disable=SC2086
 		cur_cnt="$(mounts_in_dir ${init_flag} "${dir}" | wc -l || true)"
 	done
 
+	# shellcheck disable=SC2086
 	if mounts_in_dir ${init_flag} "${dir}" | grep -q '.'; then
 		abort "Unable to unmount all mounts at \"${dir}\"."
 	fi
@@ -1243,6 +1248,25 @@ cfg_values() {
 	}'
 }
 
+dedup_filter_envvar() {
+	envvar=""
+	IFS=":"
+	# shellcheck disable=SC2068
+	for i in ${@}; do
+		case "${i}" in
+		"") continue ;;
+		"/root/"*) continue ;;
+		"/home/"*) continue ;;
+		"/bedrock/"*) continue ;;
+		esac
+		case ":${envvar}:" in
+		*":${i}:"*) ;;
+		*) envvar="${envvar}:${i}" ;;
+		esac
+	done
+	echo "${envvar}" | sed -e 's/::*/:/g' -e 's/^://' -e 's/:$//'
+}
+
 # Configure crossfs mount point per bedrock.conf configuration.
 cfg_crossfs() {
 	mount="${1}"
@@ -1271,6 +1295,59 @@ cfg_crossfs() {
 		fi
 	done
 
+	PREFIX_PATH="$(cfg_value "env-vars" "PREFIX:PATH"):$(cfg_value "env-vars" "PATH")"
+	SUFFIX_PATH="$(cfg_value "env-vars" "INFIX:PATH"):$(cfg_value "env-vars" "SUFFIX:PATH")"
+	PREFIX_MANPATH="$(cfg_value "env-vars" "PREFIX:MANPATH"):$(cfg_value "env-vars" "MANPATH")"
+	SUFFIX_MANPATH="$(cfg_value "env-vars" "INFIX:MANPATH"):$(cfg_value "env-vars" "SUFFIX:MANPATH")"
+	PREFIX_INFOPATH="$(cfg_value "env-vars" "PREFIX:INFOPATH"):$(cfg_value "env-vars" "INFOPATH")"
+	SUFFIX_INFOPATH="$(cfg_value "env-vars" "INFIX:INFOPATH"):$(cfg_value "env-vars" "SUFFIX:INFOPATH")"
+	PREFIX_XDG_DATA_DIRS="$(cfg_value "env-vars" "PREFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "XDG_DATA_DIRS")"
+	SUFFIX_XDG_DATA_DIRS="$(cfg_value "env-vars" "INFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "SUFFIX:XDG_DATA_DIRS")"
+	PREFIX_TERMINFO_DIRS="$(cfg_value "env-vars" "PREFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "TERMINFO_DIRS")"
+	SUFFIX_TERMINFO_DIRS="$(cfg_value "env-vars" "INFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "SUFFIX:TERMINFO_DIRS")"
+	PREFIX_fpath="$(cfg_value "env-vars" "PREFIX:fpath"):$(cfg_value "env-vars" "fpath")"
+	SUFFIX_fpath="$(cfg_value "env-vars" "INFIX:fpath"):$(cfg_value "env-vars" "SUFFIX:fpath")"
+
+	envvarmap=''
+	localPATH=''
+	localMANPATH=''
+	localINFOPATH=''
+	localXDG_DATA_DIRS=''
+	localTERMINFO_DIRS=''
+	localfpath=''
+	for s in $(/bedrock/bin/brl list); do
+		if [ -r "/bedrock/strata/${s}/etc/profile" ]; then
+			out="$(/bedrock/bin/strat -r "${s}" /bin/sh -c '. /etc/profile ; env')"
+		else
+			out=""
+		fi
+		fpath="$(strat -r "${s}" zsh -l -c "echo \"\${fpath}\"" 2>/dev/null)" || true
+
+		# shellcheck disable=SC20089
+		envvarmap="${envvarmap}
+		envvarmap[\"${s}:\$PATH\"]=\"$(dedup_filter_envvar "${PREFIX_PATH}:$(echo "${out}" | awk -F= '/^PATH=/{sub(/^PATH=/,"");print;exit}'):${SUFFIX_PATH}")\"
+		envvarmap[\"${s}:\$MANPATH\"]=\"$(dedup_filter_envvar "${PREFIX_MANPATH}:$(echo "${out}" | awk -F= '/^MANPATH=/{sub(/^MANPATH=/,"");print;exit}'):${SUFFIX_MANPATH}")\"
+		envvarmap[\"${s}:\$INFOPATH\"]=\"$(dedup_filter_envvar "${PREFIX_INFOPATH}:$(echo "${out}" | awk -F= '/^INFOPATH=/{sub(/^INFOPATH=/,"");print;exit}'):${SUFFIX_INFOPATH}")\"
+		envvarmap[\"${s}:\$XDG_DATA_DIRS\"]=\"$(dedup_filter_envvar "${PREFIX_XDG_DATA_DIRS}:$(echo "${out}" | awk -F= '/^XDG_DATA_DIRS=/{sub(/^XDG_DATA_DIRS=/,"");print;exit}'):${SUFFIX_XDG_DATA_DIRS}")\"
+		envvarmap[\"${s}:\$TERMINFO_DIRS\"]=\"$(dedup_filter_envvar "${PREFIX_TERMINFO_DIRS}:$(echo "${out}" | awk -F= '/^TERMINFO_DIRS=/{sub(/^TERMINFO_DIRS=/,"");print;exit}'):${SUFFIX_TERMINFO_DIRS}")\"
+		envvarmap[\"${s}:\$fpath\"]=\"$(dedup_filter_envvar "${PREFIX_fpath}:${fpath// /:}:${SUFFIX_fpath}")\"
+		"
+		localPATH="$(dedup_filter_envvar "${localPATH}:$(echo "${out}" | awk -F= '/^PATH=/{sub(/^PATH=/,"");print;exit}')")"
+		localMANPATH="$(dedup_filter_envvar "${localMANPATH}:$(echo "${out}" | awk -F= '/^MANPATH=/{sub(/^MANPATH=/,"");print;exit}')")"
+		localINFOPATH="$(dedup_filter_envvar "${localINFOPATH}:$(echo "${out}" | awk -F= '/^INFOPATH=/{sub(/^INFOPATH=/,"");print;exit}')")"
+		localXDG_DATA_DIRS="$(dedup_filter_envvar "${localXDG_DATA_DIRS}:$(echo "${out}" | awk -F= '/^XDG_DATA_DIRS=/{sub(/^XDG_DATA_DIRS=/,"");print;exit}')")"
+		localTERMINFO_DIRS="$(dedup_filter_envvar "${localTERMINFO_DIRS}:$(echo "${out}" | awk -F= '/^TERMINFO_DIRS=/{sub(/^TERMINFO_DIRS=/,"");print;exit}')")"
+		localfpath="$(dedup_filter_envvar "${localfpath}:${fpath// /:}")"
+	done
+	envvarmap="${envvarmap}
+	envvarmap[\"local:\$PATH\"]=\"$(dedup_filter_envvar "${PREFIX_PATH}:${localPATH}:${SUFFIX_PATH}")\"
+	envvarmap[\"local:\$MANPATH\"]=\"$(dedup_filter_envvar "${PREFIX_MANPATH}:${localMANPATH}:${SUFFIX_MANPATH}")\"
+	envvarmap[\"local:\$INFOPATH\"]=\"$(dedup_filter_envvar "${PREFIX_INFOPATH}:${localINFOPATH}:${SUFFIX_INFOPATH}")\"
+	envvarmap[\"local:\$XDG_DATA_DIRS\"]=\"$(dedup_filter_envvar "${PREFIX_XDG_DATA_DIRS}:${localXDG_DATA_DIRS}:${SUFFIX_XDG_DATA_DIRS}")\"
+	envvarmap[\"local:\$TERMINFO_DIRS\"]=\"$(dedup_filter_envvar "${PREFIX_TERMINFO_DIRS}:${localTERMINFO_DIRS}:${SUFFIX_TERMINFO_DIRS}")\"
+	envvarmap[\"local:\$fpath\"]=\"$(dedup_filter_envvar "${PREFIX_fpath}:${localfpath}:${SUFFIX_fpath}")\"
+	"
+
 	cfg_preparse | awk \
 		-v"unordered_strata_string=${strata}" \
 		-v"alias_string=$aliases" \
@@ -1287,6 +1364,8 @@ cfg_crossfs() {
 			split(n_aliases[i], a, ":")
 			aliases[a[1]] = a[2]
 		}
+		# load per-stratum environment variable data
+		'"${envvarmap}"'
 	}
 	# get section
 	/^[ \t\r]*\[.*\][ \t\r]*$/ {
@@ -1368,10 +1447,26 @@ cfg_crossfs() {
 				continue
 			}
 
-			target = filter" /"key" "stratum":"path
-			if (!(target in targets)) {
-				n_targets[++targets_len] =  target
-				targets[target] = target
+			body = stratum":"path
+			sub(/\/.*$/, "", body)
+			suffix = stratum":"path
+			sub(/^[^$]*[$][^\/]*/, "", suffix)
+			if (body in envvarmap) {
+				split(envvarmap[body], a, ":")
+				for (k = 1; k in a; k++) {
+					a[k] = a[k]""suffix
+				}
+			} else {
+				split("", a, "")
+				a[1] = path
+			}
+
+			for (k = 1; k in a; k++) {
+				target = filter" /"key" "stratum":"a[k]
+				if (!(target in targets)) {
+					n_targets[++targets_len] = target
+					targets[target] = target
+				}
 			}
 		}
 
@@ -1382,10 +1477,26 @@ cfg_crossfs() {
 					continue
 				}
 
-				target = filter" /"key" "n_strata[i]":"n_values[j]
-				if (!(target in targets)) {
-					n_targets[++targets_len] =  target
-					targets[target] = target
+				body = n_strata[i]":"n_values[j]
+				sub(/\/.*$/, "", body)
+				suffix = n_strata[i]":"n_values[j]
+				sub(/^[^$]*[$][^\/]*/, "", suffix)
+				if (body in envvarmap) {
+					split(envvarmap[body], a, ":")
+					for (k = 1; k in a; k++) {
+						a[k] = a[k]""suffix
+					}
+				} else {
+					split("", a, "")
+					a[1] = n_values[j]
+				}
+
+				for (k = 1; k in a; k++) {
+					target = filter" /"key" "n_strata[i]":"a[k]
+					if (!(target in targets)) {
+						n_targets[++targets_len] =  target
+						targets[target] = target
+					}
 				}
 			}
 		}

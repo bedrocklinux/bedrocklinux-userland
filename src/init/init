@@ -420,10 +420,10 @@ touch /bedrock/strata/bedrock/bedrock/run/enabled_strata/bedrock
 ln -s "/bedrock/strata/${init_stratum}" "/bedrock/strata/bedrock/bedrock/run/init-alias"
 touch "/bedrock/strata/bedrock/bedrock/run/enabled_strata/${init_stratum}"
 
-/bedrock/libexec/brl-repair "bedrock"
+/bedrock/libexec/brl-repair --skip-crossfs "bedrock"
 
 notice "Enabling ${color_strat}${init_stratum}${color_norm}"
-/bedrock/libexec/brl-repair "${init_stratum}"
+/bedrock/libexec/brl-repair --skip-crossfs "${init_stratum}"
 
 for stratum in $(list_strata); do
 	if is_bedrock "${stratum}" ||
@@ -432,7 +432,7 @@ for stratum in $(list_strata); do
 		continue
 	fi
 	notice "Enabling ${color_strat}${stratum}${color_norm}"
-	/bedrock/libexec/brl-enable "${stratum}"
+	/bedrock/libexec/brl-enable --skip-crossfs "${stratum}"
 done
 
 step "Applying configuration"

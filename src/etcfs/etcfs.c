@@ -384,8 +384,7 @@ static inline void print_debug(const char *const name, const char *const arg)
 	 */
 	s = snprintf(out, sizeof(out), "etcfs: %s(\"%s\") called at time=%ld "
 		"by UID=%d PID=%d exe=\"%s\" cmdline=\"%s\"\n",
-		name, arg, time(NULL), context->uid, context->pid,
-		exe, cmdline);
+		name, arg, time(NULL), context->uid, context->pid, exe, cmdline);
 	if (s < 0 || s >= (int)sizeof(out)) {
 		fprintf(stderr, "etcfs: (error printing debug)\n");
 	} else {
@@ -459,8 +458,7 @@ static inline int procpath(const int fd, char *buf, size_t size)
 /*
  * Ensure a given file path contains a specific string.
  */
-static int inject(int ref_fd, const char *rpath, const char *inject,
-	const size_t inject_len)
+static int inject(int ref_fd, const char *rpath, const char *inject, const size_t inject_len)
 {
 	int rv = -1;
 	int fd = -1;
@@ -513,8 +511,7 @@ static int inject(int ref_fd, const char *rpath, const char *inject,
 		goto clean_up_and_return;
 	}
 	unlinkat(ref_fd, tmp_file, 0);
-	if ((tmp_fd = openat(ref_fd, tmp_file, O_CREAT | O_RDWR | O_NOFOLLOW,
-				stbuf.st_mode)) < 0) {
+	if ((tmp_fd = openat(ref_fd, tmp_file, O_CREAT | O_RDWR | O_NOFOLLOW, stbuf.st_mode)) < 0) {
 		goto clean_up_and_return;
 	}
 
@@ -565,8 +562,7 @@ clean_up_and_return:
 /*
  * Remove up to one instance of a given string from a file.
  */
-static int uninject(int ref_fd, const char *rpath, const char *inject,
-	const size_t inject_len)
+static int uninject(int ref_fd, const char *rpath, const char *inject, const size_t inject_len)
 {
 	int rv = -1;
 	int fd = -1;
@@ -633,8 +629,7 @@ static int uninject(int ref_fd, const char *rpath, const char *inject,
 		goto clean_up_and_return;
 	}
 	unlinkat(ref_fd, tmp_file, 0);
-	if ((tmp_fd = openat(ref_fd, tmp_file, O_CREAT | O_RDWR | O_NOFOLLOW,
-				stbuf.st_mode)) < 0) {
+	if ((tmp_fd = openat(ref_fd, tmp_file, O_CREAT | O_RDWR | O_NOFOLLOW, stbuf.st_mode)) < 0) {
 		goto clean_up_and_return;
 	}
 
@@ -698,8 +693,7 @@ clean_up_and_return:
 /*
  * Requires root.
  */
-static inline int apply_override(const int ref_fd, const char *const path,
-	const char *const rpath)
+static inline int apply_override(const int ref_fd, const char *const path, const char *const rpath)
 {
 	/*
 	 * Find override
@@ -745,8 +739,7 @@ static inline int apply_override(const int ref_fd, const char *const path,
 
 	switch (overrides[i].type) {
 	case TYPE_SYMLINK:
-		if (readlinkat(ref_fd, rpath, buf, sizeof(buf) - 1) >= 0
-			&& strcmp(buf, overrides[i].content) == 0) {
+		if (readlinkat(ref_fd, rpath, buf, sizeof(buf) - 1) >= 0 && strcmp(buf, overrides[i].content) == 0) {
 			break;
 		}
 		now = time(NULL);
@@ -760,8 +753,7 @@ static inline int apply_override(const int ref_fd, const char *const path,
 		break;
 
 	case TYPE_DIRECTORY:
-		if (fstatat(ref_fd, rpath, &stbuf, AT_SYMLINK_NOFOLLOW) >= 0
-			&& S_ISDIR(stbuf.st_mode)) {
+		if (fstatat(ref_fd, rpath, &stbuf, AT_SYMLINK_NOFOLLOW) >= 0 && S_ISDIR(stbuf.st_mode)) {
 			break;
 		}
 		now = time(NULL);
@@ -775,8 +767,7 @@ static inline int apply_override(const int ref_fd, const char *const path,
 		break;
 
 	case TYPE_INJECT:
-		if (fstatat(ref_fd, rpath, &stbuf, AT_SYMLINK_NOFOLLOW) < 0
-			|| !S_ISREG(stbuf.st_mode)) {
+		if (fstatat(ref_fd, rpath, &stbuf, AT_SYMLINK_NOFOLLOW) < 0 || !S_ISREG(stbuf.st_mode)) {
 			break;
 		}
 		now = time(NULL);
@@ -784,8 +775,7 @@ static inline int apply_override(const int ref_fd, const char *const path,
 			break;
 		}
 		overrides[i].last_override = now;
-		rv = inject(ref_fd, rpath, overrides[i].inject,
-			overrides[i].inject_len);
+		rv = inject(ref_fd, rpath, overrides[i].inject, overrides[i].inject_len);
 		break;
 	}
 
@@ -813,16 +803,14 @@ static int cfg_add_global(const char *const buf, size_t size)
 	char space;
 	char buf_global[PIPE_BUF];
 	char newline;
-	if (sscanf(nbuf, "%s%c%s%c", buf_cmd, &space, buf_global,
-			&newline) != 4) {
+	if (sscanf(nbuf, "%s%c%s%c", buf_cmd, &space, buf_global, &newline) != 4) {
 		return -EINVAL;
 	}
 
 	/*
 	 * Sanity check
 	 */
-	if (strcmp(buf_cmd, CMD_ADD_GLOBAL) != 0 || space != ' ' ||
-		newline != '\n' || strchr(buf_global, '/') == NULL) {
+	if (strcmp(buf_cmd, CMD_ADD_GLOBAL) != 0 || space != ' ' || newline != '\n' || strchr(buf_global, '/') == NULL) {
 		return -EINVAL;
 	}
 
@@ -836,8 +824,7 @@ static int cfg_add_global(const char *const buf, size_t size)
 	}
 
 	if (global_alloc < global_cnt + 1) {
-		char **new_globals = realloc(globals, (global_cnt + 1) *
-			sizeof(char *));
+		char **new_globals = realloc(globals, (global_cnt + 1) * sizeof(char *));
 		if (new_globals == NULL) {
 			return -ENOMEM;
 		}
@@ -879,16 +866,14 @@ static int cfg_rm_global(const char *const buf, size_t size)
 	char space;
 	char buf_global[PIPE_BUF];
 	char newline;
-	if (sscanf(nbuf, "%s%c%s%c", buf_cmd, &space, buf_global,
-			&newline) != 4) {
+	if (sscanf(nbuf, "%s%c%s%c", buf_cmd, &space, buf_global, &newline) != 4) {
 		return -EINVAL;
 	}
 
 	/*
 	 * Sanity check
 	 */
-	if (strcmp(buf_cmd, CMD_RM_GLOBAL) != 0 || space != ' ' ||
-		newline != '\n' || strchr(buf_global, '/') == NULL) {
+	if (strcmp(buf_cmd, CMD_RM_GLOBAL) != 0 || space != ' ' || newline != '\n' || strchr(buf_global, '/') == NULL) {
 		return -EINVAL;
 	}
 
@@ -902,8 +887,7 @@ static int cfg_rm_global(const char *const buf, size_t size)
 		return size;
 	}
 
-	cfg_stat.st_size -= strlen("global ") + strlen(globals[i]) +
-		strlen("\n");
+	cfg_stat.st_size -= strlen("global ") + strlen(globals[i]) + strlen("\n");
 
 	free(globals[i]);
 	global_cnt--;
@@ -940,8 +924,7 @@ static int cfg_add_override(const char *const buf, size_t size)
 	char buf_content[PIPE_BUF];
 	char newline;
 	if (sscanf(nbuf, "%s%c%s%c%s%c%s%c", buf_cmd, &space1, buf_type,
-			&space2, buf_path, &space3, buf_content,
-			&newline) != 8) {
+			&space2, buf_path, &space3, buf_content, &newline) != 8) {
 		return -EINVAL;
 	}
 
@@ -949,8 +932,7 @@ static int cfg_add_override(const char *const buf, size_t size)
 	 * Sanity check
 	 */
 	if (strcmp(buf_cmd, CMD_ADD_OVERRIDE) != 0 || space1 != ' ' ||
-		space2 != ' ' || space3 != ' ' || newline != '\n' ||
-		strchr(buf_path, '/') == NULL) {
+		space2 != ' ' || space3 != ' ' || newline != '\n' || strchr(buf_path, '/') == NULL) {
 		return -EINVAL;
 	}
 
@@ -1056,8 +1038,7 @@ static int cfg_add_override(const char *const buf, size_t size)
 	override_cnt++;
 
 	cfg_stat.st_size += strlen("override ") + strlen(o_type_str[type]) +
-		strlen(" ") + strlen(path) + strlen(" ") + strlen(content) +
-		strlen("\n");
+		strlen(" ") + strlen(path) + strlen(" ") + strlen(content) + strlen("\n");
 
 	return size;
 
@@ -1104,8 +1085,7 @@ static int cfg_rm_override(const char *const buf, size_t size)
 	/*
 	 * Sanity check
 	 */
-	if (strcmp(buf_cmd, CMD_RM_OVERRIDE) != 0 || space != ' ' ||
-		newline != '\n') {
+	if (strcmp(buf_cmd, CMD_RM_OVERRIDE) != 0 || space != ' ' || newline != '\n') {
 		return -EINVAL;
 	}
 
@@ -1120,14 +1100,12 @@ static int cfg_rm_override(const char *const buf, size_t size)
 	}
 
 	if (overrides[i].type == TYPE_INJECT) {
-		(void)uninject(local_ref_fd, overrides[i].path + 1,
-			overrides[i].inject, overrides[i].inject_len);
+		(void)uninject(local_ref_fd, overrides[i].path + 1, overrides[i].inject, overrides[i].inject_len);
 	}
 
 	cfg_stat.st_size -= strlen("override ") +
 		strlen(o_type_str[overrides[i].type]) +
-		strlen(" ") + strlen(overrides[i].path) + strlen(" ") +
-		strlen(overrides[i].content) + strlen("\n");
+		strlen(" ") + strlen(overrides[i].path) + strlen(" ") + strlen(overrides[i].content) + strlen("\n");
 
 	free(overrides[i].path);
 	free(overrides[i].content);
@@ -1201,8 +1179,7 @@ static void *m_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 	return NULL;
 }
 
-static int m_getattr(const char *path, struct stat *stbuf,
-	struct fuse_file_info *fi)
+static int m_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
 {
 	(void)fi;
 
@@ -1329,8 +1306,7 @@ static int m_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 		}
 		if (path[1] == '\0') {
 			if (strchr(overrides[i].path + 1, '/') == NULL) {
-				filler(buf, overrides[i].path + path_len, NULL,
-					0, 0);
+				filler(buf, overrides[i].path + path_len, NULL, 0, 0);
 			}
 		} else {
 			if (overrides[i].path[path_len] != '/') {
@@ -1338,8 +1314,7 @@ static int m_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 			}
 			if (strchr(overrides[i].path + path_len + 1, '/')
 				== NULL) {
-				filler(buf, overrides[i].path + path_len + 1,
-					NULL, 0, 0);
+				filler(buf, overrides[i].path + path_len + 1, NULL, 0, 0);
 			}
 		}
 	}
@@ -1373,8 +1348,7 @@ static int m_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 					break;
 				}
 			}
-			if (!is_global && !is_override &&
-				strcmp(buf, CFG_NAME) != 0) {
+			if (!is_global && !is_override && strcmp(buf, CFG_NAME) != 0) {
 				filler(buf, dir->d_name, NULL, 0, 0);
 			}
 		}
@@ -1483,7 +1457,8 @@ static int m_rmdir(const char *path)
  */
 static int m_rename(const char *from, const char *to, unsigned int flags)
 {
-	DEBUG("m_rename", from);
+	DEBUG("m_rename:from", from);
+	DEBUG("m_rename:to", to);
 	FS_IMP_SETUP(from);
 	from = rpath;
 	DISALLOW_ON_CFG(from);
@@ -1520,6 +1495,7 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 	if (rv >= 0 || (rv < 0 && errno != EXDEV)) {
 		goto clean_up_and_return;
 	}
+	DEBUG("m_rename:exdev", from);
 
 	struct stat stbuf;
 	if ((rv = fstatat(ref_fd, from, &stbuf, AT_SYMLINK_NOFOLLOW)) < 0) {
@@ -1531,8 +1507,7 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 	case S_IFCHR:
 	case S_IFIFO:
 	case S_IFSOCK:
-		if ((rv = mknodat(to_ref_fd, to, stbuf.st_mode,
-					stbuf.st_rdev)) < 0) {
+		if ((rv = mknodat(to_ref_fd, to, stbuf.st_mode, stbuf.st_rdev)) < 0) {
 			goto clean_up_and_return;
 		}
 		break;
@@ -1562,20 +1537,18 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 		 * Get temporary file path to populate to do a
 		 * mount-point-local rename().
 		 */
-		rv = snprintf(tmp_path, sizeof(tmp_path),
-			"./.bedrock-tmpfile-%lu", GETTID());
+		rv = snprintf(tmp_path, sizeof(tmp_path), "./.bedrock-tmpfile-%lu", GETTID());
 		if (rv < 0 || rv >= (int)sizeof(tmp_path)) {
 			rv = -1;
 			errno = ENAMETOOLONG;
 			goto clean_up_and_return;
 		}
+		DEBUG("m_rename:backup", tmp_path);
 		/*
 		 * Copy into temporary file.
 		 */
 		unlinkat(to_ref_fd, tmp_path, 0);
-		if ((to_fd = openat(to_ref_fd, tmp_path,
-					O_CREAT | O_RDWR | O_NOFOLLOW,
-					stbuf.st_mode)) < 0) {
+		if ((to_fd = openat(to_ref_fd, tmp_path, O_CREAT | O_RDWR | O_NOFOLLOW, stbuf.st_mode)) < 0) {
 			rv = -1;
 			goto clean_up_and_return;
 		}
@@ -1588,15 +1561,23 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 		}
 		while ((bytes_read = read(from_fd, buf, sizeof(buf))) > 0) {
 			if ((bytes_written = write(to_fd, buf, bytes_read)) < 0) {
+				DEBUG("m_rename:tmp-write-error", tmp_path);
 				rv = -1;
 				goto clean_up_and_return;
 			}
+		}
+		if (bytes_read < 0) {
+			DEBUG("m_rename:source-read-error", from);
+			rv = -1;
+			goto clean_up_and_return;
 		}
 		close(to_fd);
 		/*
 		 * rename() the temporary file to the target.
 		 */
+		DEBUG("m_rename:renameat", tmp_path);
 		if ((rv = renameat(to_ref_fd, tmp_path, to_ref_fd, to)) < 0) {
+			DEBUG("m_rename:renameat-error", tmp_path);
 			goto clean_up_and_return;
 		}
 		break;
@@ -1605,12 +1586,10 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 	/*
 	 * Copy metadata
 	 */
-	if ((rv = fchownat(to_ref_fd, to, stbuf.st_uid, stbuf.st_gid,
-				AT_SYMLINK_NOFOLLOW)) < 0) {
+	if ((rv = fchownat(to_ref_fd, to, stbuf.st_uid, stbuf.st_gid, AT_SYMLINK_NOFOLLOW)) < 0) {
 		goto clean_up_and_return;
 	}
-	if ((rv = fchmodat(to_ref_fd, to, stbuf.st_mode,
-				AT_SYMLINK_NOFOLLOW)) < 0) {
+	if ((rv = fchmodat(to_ref_fd, to, stbuf.st_mode, AT_SYMLINK_NOFOLLOW)) < 0) {
 		goto clean_up_and_return;
 	}
 
@@ -1639,7 +1618,8 @@ clean_up_and_return:
 
 static int m_link(const char *from, const char *to)
 {
-	DEBUG("m_link", from);
+	DEBUG("m_link:from", from);
+	DEBUG("m_link:to", to);
 	FS_IMP_SETUP(from);
 	from = rpath;
 	DISALLOW_ON_CFG(from);
@@ -1666,8 +1646,7 @@ static int m_chmod(const char *path, mode_t mode, struct fuse_file_info *fi)
 	FS_IMP_RETURN(rv);
 }
 
-static int m_chown(const char *path, uid_t uid, gid_t gid,
-	struct fuse_file_info *fi)
+static int m_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi)
 {
 	(void)fi;
 
@@ -1699,8 +1678,7 @@ static int m_truncate(const char *path, off_t size, struct fuse_file_info *fi)
 	FS_IMP_RETURN(rv);
 }
 
-static int m_utimens(const char *path, const struct timespec ts[2],
-	struct fuse_file_info *fi)
+static int m_utimens(const char *path, const struct timespec ts[2], struct fuse_file_info *fi)
 {
 	(void)fi;
 
@@ -1758,8 +1736,7 @@ static int m_open(const char *path, struct fuse_file_info *fi)
 	FS_IMP_RETURN(rv);
 }
 
-static int m_read(const char *path, char *buf, size_t size, off_t offset,
-	struct fuse_file_info *fi)
+static int m_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
 	(void)fi;
 
@@ -1787,8 +1764,7 @@ static int m_read(const char *path, char *buf, size_t size, off_t offset,
 	FS_IMP_RETURN(rv);
 }
 
-static int m_write(const char *path, const char *buf, size_t size,
-	off_t offset, struct fuse_file_info *fi)
+static int m_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
 	(void)offset;
 	(void)fi;
@@ -1803,16 +1779,13 @@ static int m_write(const char *path, const char *buf, size_t size,
 		if (context->uid != 0) {
 			rv = -1;
 			errno = EACCES;
-		} else if (strncmp(buf, CMD_ADD_GLOBAL,
-				CMD_ADD_GLOBAL_LEN) == 0) {
+		} else if (strncmp(buf, CMD_ADD_GLOBAL, CMD_ADD_GLOBAL_LEN) == 0) {
 			rv = cfg_add_global(buf, size);
 		} else if (strncmp(buf, CMD_RM_GLOBAL, CMD_RM_GLOBAL_LEN) == 0) {
 			rv = cfg_rm_global(buf, size);
-		} else if (strncmp(buf, CMD_ADD_OVERRIDE,
-				CMD_ADD_OVERRIDE_LEN) == 0) {
+		} else if (strncmp(buf, CMD_ADD_OVERRIDE, CMD_ADD_OVERRIDE_LEN) == 0) {
 			rv = cfg_add_override(buf, size);
-		} else if (strncmp(buf, CMD_RM_OVERRIDE,
-				CMD_RM_OVERRIDE_LEN) == 0) {
+		} else if (strncmp(buf, CMD_RM_OVERRIDE, CMD_RM_OVERRIDE_LEN) == 0) {
 			rv = cfg_rm_override(buf, size);
 		} else {
 			rv = -1;
@@ -1898,8 +1871,7 @@ static int m_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 	FS_IMP_RETURN(rv);
 }
 
-static int m_fallocate(const char *path, int mode,
-	off_t offset, off_t length, struct fuse_file_info *fi)
+static int m_fallocate(const char *path, int mode, off_t offset, off_t length, struct fuse_file_info *fi)
 {
 	(void)fi;
 
@@ -1919,8 +1891,7 @@ static int m_fallocate(const char *path, int mode,
 
 }
 
-static int m_setxattr(const char *path, const char *name, const char *value,
-	size_t size, int flags)
+static int m_setxattr(const char *path, const char *name, const char *value, size_t size, int flags)
 {
 	DEBUG("m_setxattr", path);
 	FS_IMP_SETUP(path);
@@ -1943,8 +1914,7 @@ static int m_setxattr(const char *path, const char *name, const char *value,
 	FS_IMP_RETURN(rv);
 }
 
-static int m_getxattr(const char *path, const char *name, char *value,
-	size_t size)
+static int m_getxattr(const char *path, const char *name, char *value, size_t size)
 {
 	DEBUG("m_getxattr", path);
 	FS_IMP_SETUP(path);
@@ -1960,8 +1930,7 @@ static int m_getxattr(const char *path, const char *name, char *value,
 			rv = strlen(GLOBAL_STRATUM);
 			strcpy(value, GLOBAL_STRATUM);
 		}
-	} else if (strcmp(rpath, CFG_NAME) == 0
-		&& strcmp(LPATH_XATTR, name) == 0) {
+	} else if (strcmp(rpath, CFG_NAME) == 0 && strcmp(LPATH_XATTR, name) == 0) {
 		if (size <= 0) {
 			rv = strlen(ROOTDIR);
 		} else if (size < strlen(ROOTDIR)) {
@@ -1998,8 +1967,7 @@ static int m_getxattr(const char *path, const char *name, char *value,
 		 * these scenarios is that the proper return value is probably
 		 * ENODATA.  Until we have a better solution, use ENODATA.
 		 */
-		if (errno == EACCES || errno == EINVAL || errno == ELOOP ||
-			errno == ENAMETOOLONG) {
+		if (errno == EACCES || errno == EINVAL || errno == ELOOP || errno == ENAMETOOLONG) {
 			errno = ENODATA;
 		}
 		rv = -1;
