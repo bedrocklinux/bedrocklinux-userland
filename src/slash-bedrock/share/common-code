@@ -1689,6 +1689,7 @@ if "${brl_color}"; then
 	export color_norm='\033[0m'
 else
 	export color_alert=''
+	export color_priority=''
 	export color_warn=''
 	export color_okay=''
 	export color_strat=''
