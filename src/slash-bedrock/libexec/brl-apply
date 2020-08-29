@@ -80,6 +80,9 @@ lock
 # Set up /etc/localtime
 ln -fns "/bedrock/cross/zoneinfo/$(cfg_value "locale" "timezone")" /bedrock/run/localtime
 
+# special case fpath
+envvars="$(cfg_keys "env-vars" | sed 's/^[^:]*://g' | grep -v "^fpath$" | sort | uniq)"
+
 cfg_envvar() {
 	# Retain backwards compatibility with non-prefix/infix/suffix config
 	# system.
@@ -98,25 +101,12 @@ cfg_envvar() {
 # Setup /etc/environment
 cat <<EOF >/bedrock/run/environment
 LANG=$(cfg_value "locale" "LANG")
-PATH=$(cfg_envvar "PATH")
-MANPATH=$(cfg_envvar "MANPATH")
-INFOPATH=$(cfg_envvar "INFOPATH")
-XDG_DATA_DIRS=$(cfg_envvar "XDG_DATA_DIRS")
-TERMINFO_DIRS=$(cfg_envvar "TERMINFO_DIRS")
+$(
+	for envvar in ${envvars}; do
+		echo "${envvar}=$(cfg_envvar "${envvar}")"
+	done
+)
 EOF
-
-PREFIX_PATH="$(cfg_value "env-vars" "PREFIX:PATH"):$(cfg_value "env-vars" "PATH")"
-SUFFIX_PATH="$(cfg_value "env-vars" "INFIX:PATH"):$(cfg_value "env-vars" "SUFFIX:PATH")"
-PREFIX_MANPATH="$(cfg_value "env-vars" "PREFIX:MANPATH"):$(cfg_value "env-vars" "MANPATH")"
-SUFFIX_MANPATH="$(cfg_value "env-vars" "INFIX:MANPATH"):$(cfg_value "env-vars" "SUFFIX:MANPATH")"
-PREFIX_INFOPATH="$(cfg_value "env-vars" "PREFIX:INFOPATH"):$(cfg_value "env-vars" "INFOPATH")"
-SUFFIX_INFOPATH="$(cfg_value "env-vars" "INFIX:INFOPATH"):$(cfg_value "env-vars" "SUFFIX:INFOPATH")"
-PREFIX_XDG_DATA_DIRS="$(cfg_value "env-vars" "PREFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "XDG_DATA_DIRS")"
-SUFFIX_XDG_DATA_DIRS="$(cfg_value "env-vars" "INFIX:XDG_DATA_DIRS"):$(cfg_value "env-vars" "SUFFIX:XDG_DATA_DIRS")"
-PREFIX_TERMINFO_DIRS="$(cfg_value "env-vars" "PREFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "TERMINFO_DIRS")"
-SUFFIX_TERMINFO_DIRS="$(cfg_value "env-vars" "INFIX:TERMINFO_DIRS"):$(cfg_value "env-vars" "SUFFIX:TERMINFO_DIRS")"
-PREFIX_fpath="$(cfg_value "env-vars" "PREFIX:fpath"):$(cfg_value "env-vars" "fpath")"
-SUFFIX_fpath="$(cfg_value "env-vars" "INFIX:fpath"):$(cfg_value "env-vars" "SUFFIX:fpath")"
 
 # Setup /etc/profile
 cat <<EOF >/bedrock/run/profile
@@ -125,12 +115,20 @@ cat <<EOF >/bedrock/run/profile
 
 br_dedup_envvar() {
 	envvar=""
+	prefix="\${1}"
+	suffix="\${2}"
 	IFS=":"
 	[ -n "\${ZSH_VERSION:-}" ] && setopt sh_word_split
-	for i in \${@}; do
+	for i in \${prefix}; do
+		case ":\${envvar}:\${suffix}:" in
+			*":\${i}:"*) ;;
+			*) envvar="\${envvar}:\${i}" ;;
+		esac
+	done
+	for i in \${suffix}; do
 		case ":\${envvar}:" in
 			*":\${i}:"*) ;;
-			*) envvar="\${envvar}:\${i}";;
+			*) envvar="\${envvar}:\${i}" ;;
 		esac
 	done
 	echo "\${envvar}" | sed -e 's/::*/:/g' -e 's/^://' -e 's/:$//'
@@ -140,64 +138,74 @@ for line in \$(
 	for s in \$(/bedrock/bin/brl list); do
 		[ -r "/bedrock/strata/\${s}/etc/profile" ] || continue
 		/bedrock/bin/strat -r "\${s}" /bin/sh -c '
-		. /etc/profile ;
-		echo "PATH=\${PATH}" ;
-		echo "MANPATH=\${MANPATH}" ;
-		echo "INFOPATH=\${INFOPATH}" ;
-		echo "XDG_DATA_DIRS=\${XDG_DATA_DIRS}" ;
-		echo "TERMINFO_DIRS=\${TERMINFO_DIRS}" ;
-		' &
+		. /etc/profile;
+$(
+	for envvar in ${envvars}; do
+		printf "\t\techo \"%s=\${%s}\";\n" "${envvar}" "${envvar}"
+	done
+) ' &
 	done
 	wait
 ); do
-	body="\$(echo "\${line}" | cut -d= -f2-)"
 	case "\${line}" in
-	"PATH="*) PATH="\${PATH}:\${body}" ;;
-	"MANPATH="*) MANPATH="\${MANPATH}:\${body}" ;;
-	"INFOPATH="*) INFOPATH="\${INFOPATH}:\${body}" ;;
-	"XDG_DATA_DIRS="*) XDG_DATA_DIRS="\${XDG_DATA_DIRS}:\${body}" ;;
-	"TERMINFO_DIRS="*) TERMINFO_DIRS="\${TERMINFO_DIRS}:\${body}" ;;
+$(
+	for envvar in ${envvars}; do
+		printf "\t\"%s=\"*) %s=\"\${%s}:\${line#*=}\";;\n" "${envvar}" "${envvar}" "${envvar}"
+	done
+)
 	esac
 done
 
 unset TZ
-export LANG="$(cfg_value "locale" "LANG")"
-export PATH="\$(br_dedup_envvar "${PREFIX_PATH}:\${PATH}:${SUFFIX_PATH}")"
-export MANPATH="\$(br_dedup_envvar "${PREFIX_MANPATH}:\${MANPATH}:${SUFFIX_MANPATH}")"
-export INFOPATH="\$(br_dedup_envvar "${PREFIX_INFOPATH}:\${INFOPATH}:${SUFFIX_INFOPATH}")"
-export XDG_DATA_DIRS="\$(br_dedup_envvar "${PREFIX_XDG_DATA_DIRS}:\${XDG_DATA_DIRS}:${SUFFIX_XDG_DATA_DIRS}")"
-export TERMINFO_DIRS="\$(br_dedup_envvar "${PREFIX_TERMINFO_DIRS}:\${TERMINFO_DIRS}:${SUFFIX_TERMINFO_DIRS}")"
+export LANG="$(cfg_value "locale" LANG)"
+$(
+	# shellcheck disable=SC2030
+	for envvar in ${envvars}; do
+		printf "export %s=\"\$(br_dedup_envvar \"%s:\${%s}\" \"%s\")\"\n" \
+			"${envvar}" \
+			"$(cfg_value "env-vars" "PREFIX:${envvar}"):$(cfg_value "env-vars" "${envvar}"):$(cfg_value "env-vars" "INFIX:${envvar}")" \
+			"${envvar}" \
+			"$(cfg_value "env-vars" "SUFFIX:${envvar}")"
+	done
+)
 
 unset -f br_dedup_envvar
 EOF
 
 # Setup /etc/zsh/zprofile, /etc/zprofile
 cat <<EOF >/bedrock/run/zprofile
+#!/usr/bin/env zsh
 [ -n "\${BEDROCK_RESTRICT:-}" ] && return
 
-# Different distros create different /etc/zsh files to inject.  Since Bedrock
-# cannot predict which are going to be available, it injects calls to this file
-# into multiple.  Ensure we only actually run the below code once.
-[ -n "\${BEDROCK_ZPROFILE_LOADED:-}" ] && return
-export BEDROCK_ZPROFILE_LOADED=1
-
-[[ -o login ]] && . /etc/profile
+# zsh does not read /etc/profile by default.  Some distros configure it to,
+# some do not.
+. /bedrock/run/profile
 
 br_dedup_envvar() {
 	envvar=""
+	prefix="\${1}"
+	suffix="\${2}"
 	IFS=":"
-	for i in \${@}; do
+	for i in \${prefix}; do
+		case ":\${envvar}:\${suffix}:" in
+			*":\${i}:"*) ;;
+			*) envvar="\${envvar}:\${i}" ;;
+		esac
+	done
+	for i in \${suffix}; do
 		case ":\${envvar}:" in
 			*":\${i}:"*) ;;
-			*) envvar="\${envvar}:\${i}";;
+			*) envvar="\${envvar}:\${i}" ;;
 		esac
 	done
 	echo "\${envvar}" | sed -e 's/::*/:/g' -e 's/^://' -e 's/:$//'
 }
 
-export fpath=(\$(br_dedup_envvar "${PREFIX_fpath}:\${fpath}:${SUFFIX_fpath}" | sed 's/:/ /g'))
-
-unset -f br_dedup_envvar
+$(
+	printf "export fpath=(\$(br_dedup_envvar \"%s:\${fpath}\" \"%s\" | sed 's/:/ /g'))\n" \
+		"$(cfg_value "env-vars" "PREFIX:fpath"):$(cfg_value "env-vars" "fpath"):$(cfg_value "env-vars" "INFIX:fpath")" \
+		"$(cfg_value "env-vars" "SUFFIX:fpath")"
+)
 EOF
 
 # Setup /etc/fish/conf.d/ configuration
@@ -205,23 +213,32 @@ cat <<EOF >/bedrock/run/fprofile
 [ -n "\$BEDROCK_RESTRICT" ]; and exit 0
 
 function br_dedup_envvar
-	set -l out
-	for i in (string split ":" \$argv[1])
-		if not contains \$i \$out; and [ -n "\$i" ]
-			set -a out \$i
+	set -l envvar
+	set -l prefix \$argv[1]
+	set -l suffix \$argv[2]
+	for i in (string split ":" \$prefix)
+		if not contains \$i \$envvar; and not contains \$i \$suffix; and [ -n "\$i" ]
+			set -a envvar \$i
 		end
 	end
-	string split ' ' \$out
+	for i in (string split ":" \$suffix)
+		if not contains \$i \$envvar; and [ -n "\$i" ]
+			set -a envvar \$i
+		end
+	end
+	string split ' ' \$envvar
 end
 
 set -e TZ
-set LANG $(cfg_value "locale" "LANG")
-set -x PATH (br_dedup_envvar "${PREFIX_PATH}:\$PATH:${SUFFIX_PATH}")
-set -x MANPATH (br_dedup_envvar "${PREFIX_MANPATH}:\$MANPATH:${SUFFIX_MANPATH}")
-set -x INFOPATH (br_dedup_envvar "${PREFIX_INFOPATH}:\$INFOPATH:${SUFFIX_INFOPATH}")
-set -x XDG_DATA_DIRS (br_dedup_envvar "${PREFIX_XDG_DATA_DIRS}:\$XDG_DATA_DIRS:${SUFFIX_XDG_DATA_DIRS}")
-set -x TERMINFO_DIRS (br_dedup_envvar "${PREFIX_TERMINFO_DIRS}}:\$TERMINFO_DIRS:${SUFFIX_TERMINFO_DIRS}")
-
+set -x LANG $(cfg_value "locale" "LANG")
+$(
+	for envvar in ${envvars}; do
+		printf "set -x %s (br_dedup_envvar \"%s\" \"%s\")\n" \
+			"${envvar}" \
+			"$(cfg_value "env-vars" "PREFIX:${envvar}"):$(cfg_value "env-vars" "${envvar}"):$(cfg_value "env-vars" "INFIX:${envvar}")" \
+			"$(cfg_value "env-vars" "SUFFIX:${envvar}")"
+	done
+)
 functions -e br_dedup_envvar
 EOF
 
