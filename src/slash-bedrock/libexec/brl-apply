@@ -297,27 +297,27 @@ fi
 if [ -r /etc/login.defs ] && awk -F'=' -v"path=$(cfg_value "env-vars" "PATH")" '
 	# Ensure login.defs uses Bedrock $PATH.
 	#
-	/^[ \t]*ENV_SUPATH[ \t][ \t]*PATH=/ && $2 == path {s=1}
-	/^[ \t]*ENV_PATH[ \t][ \t]*PATH=/ && $2 == path {n=1}
+	/^[ \t]*ENV_SUPATH[ \t][ \t]*/ && $2 == path {s=1}
+	/^[ \t]*ENV_PATH[ \t][ \t]*/ && $2 == path {n=1}
 	END {exit (s+n==2)}' /etc/login.defs; then
 	awk -F'=' -v"path=$(cfg_envvar "PATH")" '
-	/^[ \t]*ENV_SUPATH[ \t][ \t]*PATH=/ {
-		print "ENV_SUPATH\tPATH="path
+	/^[ \t]*ENV_SUPATH[ \t][ \t]*/ {
+		print "ENV_SUPATH\t"path
 		s=1
 		next
 	}
-	/^[ \t]*ENV_PATH[ \t][ \t]*PATH=/ {
-		print "ENV_PATH\tPATH="path
+	/^[ \t]*ENV_PATH[ \t][ \t]*/ {
+		print "ENV_PATH\t"path
 		n=1
 		next
 	}
 	1
 	END {
 		if(s == 0) {
-			print "ENV_SUPATH\tPATH="path
+			print "ENV_SUPATH\t"path
 		}
 		if(n == 0) {
-			print "ENV_PATH\tPATH="path
+			print "ENV_PATH\t"path
 		}
 	}
 	' /etc/login.defs >/etc/login.defs-new
