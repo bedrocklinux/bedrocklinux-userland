@@ -138,7 +138,7 @@ implementations["portage", "list-available-packages"]      = "strat -r ${stratum
 implementations["portage", "search-for-package-by-name"]   = "strat -r ${stratum} qsearch -sN ${items}"
 implementations["portage", "search-for-package-by-all"]    = "strat -r ${stratum} qsearch -sSN ${items}"
 implementations["portage", "which-package-owns-file"]      = "strat -r ${stratum} qfile -C ${items} | sed 's/: /\t/g'"
-implementations["portage", "which-packages-provide-file"]  = "strat -r ${stratum} e-file ${items} nocolor |\
+implementations["portage", "which-packages-provide-file"]  = "strat -r ${stratum} e-file -c never ${items} |\
 	awk '\
 		/^ [*]/ {\
 			name=$2\
