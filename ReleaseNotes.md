@@ -1,3 +1,12 @@
+# 0.7.18beta4
+
+- Added brl-fetch parabola, trisquel
+- Added crossfs support for wayland-sessions
+- Fixed brl priority color handling when brl colors are disabled
+- Fixed pmm support for pacman,yay search-for-package-by-name
+- Fixed pmm support for portage which-packages-provide-file
+- Improved env-var handling
+
 # 0.7.18beta3
 
 - Fixed crossfs configuration dependencies
