@@ -1,0 +1,131 @@
+#!/bedrock/libexec/busybox awk -f
+#
+# Package Manager Manager pip support script
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2013-2020 Daniel Thau <danthau@bedrocklinux.org>
+
+system_package_managers["pip"]
+package_manager_canary_executables["pip"] = "pip"
+
+#
+# General, operation independent flags.
+#
+# Unlike operations, flags should not have implementations[].
+#
+user_interfaces["pip", "assume-no"]  = ""
+user_interfaces["pip", "assume-yes"] = ""
+user_interfaces["pip", "confirm"]    = ""
+user_interfaces["pip", "quiet"]      = "-q/--quiet"
+user_interfaces["pip", "verbose"]    = "-v/--verbose"
+
+#
+# Operations which directly forward the underlying command output.
+#
+user_interfaces["pip", "install-packages"]         = "pmm install <pkgs>"
+user_interfaces["pip", "reinstall-packages"]       = "" # None that I am aware of
+user_interfaces["pip", "remove-packages-limited"]  = "pmm uninstall <pkgs>"
+user_interfaces["pip", "remove-packages-full"]     = "" # No difference between full and limited
+user_interfaces["pip", "verify-packages"]          = "pmm check <pkgs>"
+user_interfaces["pip", "verify-all-packages"]      = "pmm check"
+user_interfaces["pip", "mark-packages-explicit"]   = "" # No way to change
+user_interfaces["pip", "mark-packages-implicit"]   = "" # explicit and implicit installation
+user_interfaces["pip", "show-package-information"] = "pmm show <pkgs>"
+user_interfaces["pip", "clear-cache"]              = ""
+user_interfaces["pip", "remove-orphans"]           = ""
+user_interfaces["pip", "update-package-database"]  = ""
+user_interfaces["pip", "update-file-database"]     = ""
+user_interfaces["pip", "upgrade-packages-limited"] = ""
+user_interfaces["pip", "upgrade-packages-full"]    = ""
+
+implementations["pip", "install-packages"]         = "strat -r ${stratum} pip ${flags} install ${items}"
+implementations["pip", "reinstall-packages"]       = ""
+implementations["pip", "remove-packages-limited"]  = "strat -r ${stratum} pip ${flags} remove ${items}"
+implementations["pip", "remove-packages-full"]     = ""
+implementations["pip", "verify-packages"]          = "strat -r ${stratum} pip check ${items}"
+implementations["pip", "verify-all-packages"]      = "strat -r ${stratum} pip check"
+implementations["pip", "mark-packages-explicit"]   = ""
+implementations["pip", "mark-packages-implicit"]   = ""
+implementations["pip", "show-package-information"] = "strat -r ${stratum} pip ${flags} show ${items}"
+implementations["pip", "clear-cache"]              = ""
+implementations["pip", "remove-orphans"]           = ""
+implementations["pip", "update-package-database"]  = ""
+implementations["pip", "update-file-database"]     = ""
+implementations["pip", "upgrade-packages-limited"] = ""
+implementations["pip", "upgrade-packages-full"]    = ""
+
+#
+# Combine operations.
+#
+user_interfaces["pip", "clear-cache,remove-orphans"]                                                             = ""
+user_interfaces["pip", "mark-packages-implicit,remove-orphans"]                                                  = ""
+user_interfaces["pip", "remove-packages-limited,remove-orphans"]                                                 = ""
+user_interfaces["pip", "remove-packages-full,remove-orphans"]                                                    = ""
+user_interfaces["pip", "update-package-database,update-file-database"]                                           = ""
+user_interfaces["pip", "update-package-database,upgrade-packages-partial"]                                       = ""
+user_interfaces["pip", "update-package-database,upgrade-packages-full"]                                          = ""
+user_interfaces["pip", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""
+user_interfaces["pip", "update-package-database,update-file-database,upgrade-packages-full"]                     = ""
+user_interfaces["pip", "update-package-database,install-packages"]                                               = ""
+user_interfaces["pip", "update-package-database,update-file-database,install-packages"]                          = ""
+user_interfaces["pip", "upgrade-packages-limited,install-packages"]                                              = ""
+user_interfaces["pip", "upgrade-packages-full,install-packages"]                                                 = ""
+user_interfaces["pip", "update-package-database,upgrade-packages-partial,install-packages"]                      = ""
+user_interfaces["pip", "update-package-database,upgrade-packages-full,install-packages"]                         = ""
+user_interfaces["pip", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+user_interfaces["pip", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+implementations["pip", "clear-cache,remove-orphans"]                                                             = ""
+implementations["pip", "mark-packages-implicit,remove-orphans"]                                                  = ""
+implementations["pip", "remove-packages-limited,remove-orphans"]                                                 = ""
+implementations["pip", "remove-packages-full,remove-orphans"]                                                    = ""
+implementations["pip", "update-package-database,update-file-database"]                                           = ""
+implementations["pip", "update-package-database,upgrade-packages-partial"]                                       = ""
+implementations["pip", "update-package-database,upgrade-packages-full"]                                          = ""
+implementations["pip", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""
+implementations["pip", "update-package-database,update-file-database,upgrade-packages-full"]                     = ""
+implementations["pip", "update-package-database,install-packages"]                                               = ""
+implementations["pip", "update-package-database,update-file-database,install-packages"]                          = ""
+implementations["pip", "upgrade-packages-limited,install-packages"]                                              = ""
+implementations["pip", "upgrade-packages-full,install-packages"]                                                 = ""
+implementations["pip", "update-package-database,upgrade-packages-partial,install-packages"]                      = ""
+implementations["pip", "update-package-database,upgrade-packages-full,install-packages"]                         = ""
+implementations["pip", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+implementations["pip", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+#
+# Operations which have a standardized output format.
+#
+user_interfaces["pip", "list-installed-package-files"] = ""
+user_interfaces["pip", "list-installed-explicit"]      = ""
+user_interfaces["pip", "list-installed-implicit"]      = ""
+user_interfaces["pip", "list-installed-packages"]      = "pmm list"
+user_interfaces["pip", "list-available-packages"]      = ""
+user_interfaces["pip", "search-for-package-by-name"]   = ""
+user_interfaces["pip", "search-for-package-by-all"]    = ""
+user_interfaces["pip", "which-package-owns-file"]      = ""
+user_interfaces["pip", "which-packages-provide-file"]  = ""
+
+implementations["pip", "list-installed-package-files"] = ""
+implementations["pip", "list-installed-explicit"]      = ""
+implementations["pip", "list-installed-implicit"]      = ""
+implementations["pip", "list-installed-packages"]      = "strat -r ${stratum} pip list | awk '{print $1}' | tail -n+3"
+implementations["pip", "list-available-packages"]      = "" # Not sure how to do this
+implementations["pip", "search-for-package-by-name"]   = "" # Can't figure out how to
+implementations["pip", "search-for-package-by-all"]    = "" # differentiate between the two
+implementations["pip", "which-package-owns-file"]      = ""
+implementations["pip", "which-packages-provide-file"]  = ""
+
+#
+# Internal pmm operations.
+#
+implementations["pip", "is-package-installed"]               = "strat -r ${stratum} pip show ${items} >/dev/null"
+implementations["pip", "is-package-available"]               = "" # Obviously required, can't find a clean way to do this right now. (grep " ${items} "?)
+implementations["pip", "is-file-db-available"]               = ""
+implementations["pip", "print-file-db-install-instructions"] = ""
+implementations["pip", "print-package-version"]              = "strat -r ${stratum} pip show ${items} |\
+	awk '$1 == \"Version:\" {sub(/^[0-9]*:/, \"\"); sub(/[~+-].*$/, \"\"); print $2}'"
+implementations["pip", "cache-package-db"]                   =  ""
