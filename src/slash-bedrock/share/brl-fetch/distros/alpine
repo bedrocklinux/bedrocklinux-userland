@@ -109,17 +109,17 @@ fetch() {
 	step "Configuring"
 	setup_chroot "${target_dir}"
 	echo "${target_mirror}/${mirror_release}/main" >"${target_dir}/etc/apk/repositories"
-	LC_ALL=C chroot "${target_dir}" rc-update add devfs sysinit
-	LC_ALL=C chroot "${target_dir}" rc-update add dmesg sysinit
-	LC_ALL=C chroot "${target_dir}" rc-update add mdev sysinit
-	LC_ALL=C chroot "${target_dir}" rc-update add networking sysinit
-	LC_ALL=C chroot "${target_dir}" rc-update add hwclock boot
-	LC_ALL=C chroot "${target_dir}" rc-update add modules boot
-	LC_ALL=C chroot "${target_dir}" rc-update add sysctl boot
-	LC_ALL=C chroot "${target_dir}" rc-update add hostname boot
-	LC_ALL=C chroot "${target_dir}" rc-update add bootmisc boot
-	LC_ALL=C chroot "${target_dir}" rc-update add syslog boot
-	LC_ALL=C chroot "${target_dir}" rc-update add mount-ro shutdown
-	LC_ALL=C chroot "${target_dir}" rc-update add killprocs shutdown
-	LC_ALL=C chroot "${target_dir}" rc-update add savecache shutdown
+	LC_ALL=C chroot "${target_dir}" /sbin/rc-update add devfs sysinit
+	LC_ALL=C chroot "${target_dir}" /sbin/rc-update add dmesg sysinit
+	LC_ALL=C chroot "${target_dir}" /sbin/rc-update add mdev sysinit
+	LC_ALL=C chroot "${target_dir}" /sbin/rc-update add networking sysinit
+	LC_ALL=C chroot "${target_dir}" /sbin/rc-update add hwclock boot
+	LC_ALL=C chroot "${target_dir}" /sbin/rc-update add modules boot
+	LC_ALL=C chroot "${target_dir}" /sbin/rc-update add sysctl boot
+	LC_ALL=C chroot "${target_dir}" /sbin/rc-update add hostname boot
+	LC_ALL=C chroot "${target_dir}" /sbin/rc-update add bootmisc boot
+	LC_ALL=C chroot "${target_dir}" /sbin/rc-update add syslog boot
+	LC_ALL=C chroot "${target_dir}" /sbin/rc-update add mount-ro shutdown
+	LC_ALL=C chroot "${target_dir}" /sbin/rc-update add killprocs shutdown
+	LC_ALL=C chroot "${target_dir}" /sbin/rc-update add savecache shutdown
 }

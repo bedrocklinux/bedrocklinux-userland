@@ -23,6 +23,7 @@ speed_test_url() {
 
 list_mirrors() {
 	wget -O- "https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-${target_release}&arch=${distro_arch}" 2>/dev/null |
+		grep -ve '^[ \t]*#' |
 		sed -e 's,/$,,' |
 		sed 's,/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*$,,'
 }

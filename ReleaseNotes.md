@@ -2,6 +2,7 @@
 
 - Improve plymouth handling
 - Improve brl-fetch handling of different ssl standards
+- Follow upstream changes for brl-fetch handling of Alpine, Fedora, Gentoo, and KISS
 
 # 0.7.18beta4
 

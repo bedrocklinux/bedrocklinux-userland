@@ -31,14 +31,15 @@ list_mirrors() {
 
 brl_arch_to_distro() {
 	case "${1}" in
+	"aarch64") echo "arm64" ;;
 	"armv7hl") echo "armv7a_hardfp" ;;
 	"armv7l") echo "armv7a" ;;
+	"i486") echo "i486" ;;
+	"i686") echo "i686" ;;
 	"ppc") echo "ppc" ;;
 	"ppc64") echo "ppc64" ;;
 	"ppc64le") echo "ppc64le" ;;
 	"s390x") echo "s3960x" ;;
-	"i486") echo "i486" ;;
-	"i686") echo "i686" ;;
 	"x86_64") echo "amd64" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
