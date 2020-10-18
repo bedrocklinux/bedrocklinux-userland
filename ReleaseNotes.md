@@ -1,8 +1,9 @@
 # 0.7.18beta5
 
-- Improve plymouth handling
-- Improve brl-fetch handling of different ssl standards
+- Disable brl-fetch parabola, trisquel
 - Follow upstream changes for brl-fetch handling of Alpine, Fedora, Gentoo, and KISS
+- Improve brl-fetch handling of different ssl standards
+- Improve plymouth handling
 
 # 0.7.18beta4
 
