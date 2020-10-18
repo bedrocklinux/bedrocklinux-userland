@@ -1,3 +1,7 @@
+# 0.7.18beta5
+
+- Improve plymouth handling
+
 # 0.7.18beta4
 
 - Added brl-fetch parabola, trisquel

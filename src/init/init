@@ -29,8 +29,7 @@ fatal_error() {
 setup_term() {
 	# Ensure plymouth is not running, as it will fight with us over control
 	# of the terminal.
-	killall -q plymouthd
-	killall -q -9 plymouthd
+	/bedrock/libexec/plymouth-quit
 
 	# Plymouth will lock the terminal settings.  This causes the following
 	# commands to fail if not unlocked.

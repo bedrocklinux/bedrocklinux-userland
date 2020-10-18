@@ -682,6 +682,14 @@ $(SLASHBR)/libexec/keyboard_is_present: $(COMPLETED)/builddir $(COMPLETED)/musl
 		cp keyboard_is_present $(SLASHBR)/libexec/keyboard_is_present
 keyboard_is_present: $(SLASHBR)/libexec/keyboard_is_present
 
+$(SLASHBR)/libexec/plymouth-quit: $(COMPLETED)/builddir $(COMPLETED)/musl
+	rm -rf $(SRC)/plymouth-quit
+	cp -r src/plymouth-quit/ $(SRC)
+	cd $(SRC)/plymouth-quit && \
+		$(MAKE) CC=$(MUSLCC) && \
+		cp plymouth-quit $(SLASHBR)/libexec/plymouth-quit
+plymouth-quit: $(SLASHBR)/libexec/plymouth-quit
+
 $(SLASHBR)/libexec/bouncer: $(COMPLETED)/builddir $(COMPLETED)/musl
 	rm -rf $(SRC)/bouncer
 	cp -r src/bouncer/ $(SRC)
@@ -728,6 +736,7 @@ $(BUILD)/userland.tar: \
 	$(SLASHBR)/libexec/lvm \
 	$(SLASHBR)/libexec/manage_tty_lock \
 	$(SLASHBR)/libexec/netselect \
+	$(SLASHBR)/libexec/plymouth-quit \
 	$(SLASHBR)/libexec/setcap \
 	$(SLASHBR)/libexec/setfattr \
 	$(SLASHBR)/libexec/zstd
