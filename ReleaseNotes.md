@@ -1,6 +1,7 @@
 # 0.7.18beta5
 
 - Added code to load modules on init to help with keyboard detection
+- Added more setfattr hijack sanity checks
 - Added themes, backgrounds to crossfs defaults
 - Disabled brl-fetch parabola, trisquel
 - Fixed fish envvar handling

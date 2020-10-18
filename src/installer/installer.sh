@@ -143,6 +143,11 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	extract_tarball | tar xOf - bedrock/libexec/getfattr >"${getf}"
 	chmod +x "${setf}"
 	chmod +x "${getf}"
+	if ! "${setf}" --help >/dev/null; then
+		rm "${setf}"
+		rm "${getf}"
+		abort "Unable to run setfattr."
+	fi
 	if ! "${setf}" -n 'user.bedrock.test' -v 'x' "${getf}"; then
 		rm "${setf}"
 		rm "${getf}"
