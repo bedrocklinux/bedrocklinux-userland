@@ -182,6 +182,10 @@ wait_for_keyboard() {
 	# Vocally wait for a keyboard to be available to assuage these
 	# concerns.
 
+	for module in $(cfg_values "init" "modules"); do
+		modprobe "${module}" 2>/dev/null
+	done
+
 	if /bedrock/libexec/keyboard_is_present; then
 		return
 	fi

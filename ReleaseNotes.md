@@ -1,9 +1,10 @@
 # 0.7.18beta5
 
-- Disable brl-fetch parabola, trisquel
-- Follow upstream changes for brl-fetch handling of Alpine, Fedora, Gentoo, and KISS
-- Improve brl-fetch handling of different ssl standards
-- Improve plymouth handling
+- Added code to load modules on init to help with keyboard detection
+- Disabled brl-fetch parabola, trisquel
+- Followed upstream changes for brl-fetch handling of Alpine, Fedora, Gentoo, and KISS
+- Improved brl-fetch handling of different ssl standards
+- Improved plymouth handling
 
 # 0.7.18beta4
 
