@@ -226,16 +226,17 @@ function br_dedup_envvar
 			set -a envvar \$i
 		end
 	end
-	string split ' ' \$envvar
+	echo -s :\$envvar | sed -e 's/::*/:/g' -e 's/^://' -e 's/:$//'
 end
 
 set -e TZ
 set -x LANG $(cfg_value "locale" "LANG")
 $(
 	for envvar in ${envvars}; do
-		printf "set -x %s (br_dedup_envvar \"%s\" \"%s\")\n" \
+		printf "set -x %s (br_dedup_envvar \"%s:\$%s\" \"%s\")\n" \
 			"${envvar}" \
 			"$(cfg_value "env-vars" "PREFIX:${envvar}"):$(cfg_value "env-vars" "${envvar}"):$(cfg_value "env-vars" "INFIX:${envvar}")" \
+			"${envvar}" \
 			"$(cfg_value "env-vars" "SUFFIX:${envvar}")"
 	done
 )

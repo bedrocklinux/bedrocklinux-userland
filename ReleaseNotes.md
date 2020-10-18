@@ -5,6 +5,7 @@
 - Followed upstream changes for brl-fetch handling of Alpine, Fedora, Gentoo, and KISS
 - Improved brl-fetch handling of different ssl standards
 - Improved plymouth handling
+- Fixed fish envvar handling
 
 # 0.7.18beta4
 
