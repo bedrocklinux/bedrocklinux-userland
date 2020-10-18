@@ -135,6 +135,12 @@ setup_chroot() {
 	[ -e "${dir}/etc/ssl" ] || cp -rpL /etc/ssl "${dir}/etc/"
 	[ -e "${dir}/etc/passwd" ] || cp -rpL /etc/passwd "${dir}/etc/"
 	[ -e "${dir}/etc/group" ] || cp -rpL /etc/group "${dir}/etc/"
+	# Void expects /etc/ssl/certs but Fedora uses /etc/pki.  If p11-kit is
+	# available, use that to try to convert /etc/pki to /etc/ssl/certs for
+	# Void fetch.
+	mkdir -p "${dir}/etc/ssl/certs"
+	p11-kit extract --format=pem-directory-hash --filter=ca-anchors --overwrite --purpose server-auth "${dir}/etc/ssl/certs" 2>/dev/null 2>&1 || true
+
 
 	mount --bind "${dir}" "${dir}"
 	if [ -d "${dir}/target-root" ]; then

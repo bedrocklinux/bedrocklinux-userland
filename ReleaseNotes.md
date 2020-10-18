@@ -1,6 +1,7 @@
 # 0.7.18beta5
 
 - Improve plymouth handling
+- Improve brl-fetch handling of different ssl standards
 
 # 0.7.18beta4
 
