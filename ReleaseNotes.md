@@ -1,53 +1,41 @@
-# 0.7.18beta5
-
-- Added code to load modules on init to help with keyboard detection
-- Added more setfattr hijack sanity checks
-- Added themes, backgrounds to crossfs defaults
-- Disabled brl-fetch parabola, trisquel
-- Fixed fish envvar handling
-- Followed upstream changes for brl-fetch handling of Alpine, Fedora, Gentoo, and KISS
-- Improved brl-fetch handling of different ssl standards
-- Improved plymouth handling
-
-# 0.7.18beta4
-
-- Added brl-fetch parabola, trisquel
-- Added crossfs support for wayland-sessions
-- Fixed brl priority color handling when brl colors are disabled
-- Fixed pmm support for pacman,yay search-for-package-by-name
-- Fixed pmm support for portage which-packages-provide-file
-- Improved env-var handling
-
-# 0.7.18beta3
-
-- Fixed crossfs configuration dependencies
-
-# 0.7.18beta2
-
-- Added envvar crossfs settings
-- Fixed brl-fetch centos
-- Improved brl-fetch locale-gen failure handling
-
-# 0.7.18beta1
+# 0.7.18
 
 - Added automatic restriction of CRUX's prt-get, pkgmk
+- Added code to load modules on init to help with keyboard detection
+- Added crossfs support for wayland-sessions
+- Added envvar crossfs settings
+- Added more setfattr hijack sanity checks
 - Added pmm support for dnf short aliases
 - Added retention of BEDROCK_RESTRICTION across sudo call
+- Added themes, backgrounds to crossfs defaults
 - Fixed /bedrock/cross/bin/X11 self-reference loop
 - Fixed brl fetch --list tab completion comment
+- Fixed brl priority color handling when brl colors are disabled
+- Fixed brl-fetch Alpine
+- Fixed brl-fetch Fedora
+- Fixed brl-fetch Gentoo
+- Fixed brl-fetch KISS
+- Fixed brl-fetch centos
 - Fixed brl-fetch devuan detection of stable release
 - Fixed brl-fetch manjaro
 - Fixed brl-strat completion
 - Fixed detection of package manager user interface at hijack
+- Fixed fish envvar handling
 - Fixed overwriting system and user-set PATH entries
 - Fixed pmm creation of redundant items when superseding
+- Fixed pmm support for pacman,yay search-for-package-by-name
+- Fixed pmm support for portage which-packages-provide-file
 - Fixed pmm using supersede logic when unneeded
 - Fixed portage is-file-db-available noise
 - Fixed restriction of XDG_DATA_DIRS
 - Fixed zprofile restriction check
+- Improved brl-fetch handling of different ssl standards
+- Improved brl-fetch locale-gen failure handling
 - Improved brl-fetch void to use smaller base-minimal
 - Improved crossfs multithread performance if openat2 available (Linux 5.6 and up)
+- Improved env-var handling
 - Improved etcfs debug output
+- Improved plymouth handling
 
 # 0.7.17
 
