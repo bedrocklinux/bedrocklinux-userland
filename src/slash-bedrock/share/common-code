@@ -1330,14 +1330,14 @@ cfg_crossfs() {
 		envvarmap[\"${s}:\$INFOPATH\"]=\"$(dedup_filter_envvar "${PREFIX_INFOPATH}:$(echo "${out}" | awk -F= '/^INFOPATH=/{sub(/^INFOPATH=/,"");print;exit}'):${SUFFIX_INFOPATH}")\"
 		envvarmap[\"${s}:\$XDG_DATA_DIRS\"]=\"$(dedup_filter_envvar "${PREFIX_XDG_DATA_DIRS}:$(echo "${out}" | awk -F= '/^XDG_DATA_DIRS=/{sub(/^XDG_DATA_DIRS=/,"");print;exit}'):${SUFFIX_XDG_DATA_DIRS}")\"
 		envvarmap[\"${s}:\$TERMINFO_DIRS\"]=\"$(dedup_filter_envvar "${PREFIX_TERMINFO_DIRS}:$(echo "${out}" | awk -F= '/^TERMINFO_DIRS=/{sub(/^TERMINFO_DIRS=/,"");print;exit}'):${SUFFIX_TERMINFO_DIRS}")\"
-		envvarmap[\"${s}:\$fpath\"]=\"$(dedup_filter_envvar "${PREFIX_fpath}:${fpath// /:}:${SUFFIX_fpath}")\"
+		envvarmap[\"${s}:\$fpath\"]=\"$(dedup_filter_envvar "${PREFIX_fpath}:$(echo "${fpath}" | sed 's/ /:/g'):${SUFFIX_fpath}")\"
 		"
 		localPATH="$(dedup_filter_envvar "${localPATH}:$(echo "${out}" | awk -F= '/^PATH=/{sub(/^PATH=/,"");print;exit}')")"
 		localMANPATH="$(dedup_filter_envvar "${localMANPATH}:$(echo "${out}" | awk -F= '/^MANPATH=/{sub(/^MANPATH=/,"");print;exit}')")"
 		localINFOPATH="$(dedup_filter_envvar "${localINFOPATH}:$(echo "${out}" | awk -F= '/^INFOPATH=/{sub(/^INFOPATH=/,"");print;exit}')")"
 		localXDG_DATA_DIRS="$(dedup_filter_envvar "${localXDG_DATA_DIRS}:$(echo "${out}" | awk -F= '/^XDG_DATA_DIRS=/{sub(/^XDG_DATA_DIRS=/,"");print;exit}')")"
 		localTERMINFO_DIRS="$(dedup_filter_envvar "${localTERMINFO_DIRS}:$(echo "${out}" | awk -F= '/^TERMINFO_DIRS=/{sub(/^TERMINFO_DIRS=/,"");print;exit}')")"
-		localfpath="$(dedup_filter_envvar "${localfpath}:${fpath// /:}")"
+		localfpath="$(dedup_filter_envvar "${localfpath}:$(echo "${fpath}" | sed 's/ /:/g')")"
 	done
 	envvarmap="${envvarmap}
 	envvarmap[\"local:\$PATH\"]=\"$(dedup_filter_envvar "${PREFIX_PATH}:${localPATH}:${SUFFIX_PATH}")\"
