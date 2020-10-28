@@ -107,4 +107,12 @@ fetch() {
 	mkdir -p "${target_dir}/etc/portage/repos.conf"
 	cp "${target_dir}/usr/share/portage/config/repos.conf" "${target_dir}/etc/portage/repos.conf/gentoo.conf"
 	LC_ALL=C chroot "${target_dir}" emerge-webrsync
+	echo "Defaulting to en_US ISO-8859-1 and en_US-UTF-8 UTF-8"
+	cat>>${target_dir}/etc/locale.gen<<EOF
+	en_US ISO-8859-1
+	en_US.UTF-8 UTF-8
+	C.UTF-8 UTF-8
+	EOF
+	chroot "${target_dir}" locale-gen
+	chroot "${target_dir}" eselect locale set 5
 }
