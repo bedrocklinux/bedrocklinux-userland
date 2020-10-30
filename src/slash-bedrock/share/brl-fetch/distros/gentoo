@@ -111,7 +111,6 @@ fetch() {
 	cat>>${target_dir}/etc/locale.gen<<EOF
 	en_US ISO-8859-1
 	en_US.UTF-8 UTF-8
-	C.UTF-8 UTF-8
 	EOF
 	chroot "${target_dir}" locale-gen
 	chroot "${target_dir}" eselect locale set 5
