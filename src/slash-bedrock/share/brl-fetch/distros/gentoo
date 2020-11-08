@@ -98,6 +98,7 @@ fetch() {
 
 	step "Running bootstrap software"
 	setup_chroot "${bootstrap_dir}"
+	setup_ssl "${bootstrap_dir}"
 	share_cache "." "${bootstrap_dir}/tarballs"
 	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xpfv /tarballs/stage3.tar.* --xattrs-include='*.*' --numeric-owner" | awk 'NR%100==0' | progress_unknown
 

@@ -112,6 +112,7 @@ fetch() {
 	cp -a "/etc/group" "${target_dir}/etc/group"
 
 	setup_chroot "${bootstrap_dir}"
+	setup_ssl "${bootstrap_dir}"
 	setup_pacman "${bootstrap_dir}"
 	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/pacman/pkg/"
 	# sed is not included in base, but is needed to basestrap.

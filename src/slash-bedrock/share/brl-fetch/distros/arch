@@ -71,7 +71,6 @@ setup_pacman() {
 	fi
 }
 
-#-v"prefix=${repo}/os/${target_arch}/"
 fetch() {
 	bootstrap_deps="arch-install-scripts"
 
@@ -112,6 +111,7 @@ fetch() {
 	cp -a "/etc/group" "${target_dir}/etc/group"
 
 	setup_chroot "${bootstrap_dir}"
+	setup_ssl "${bootstrap_dir}"
 	setup_pacman "${bootstrap_dir}"
 	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/pacman/pkg/"
 	LC_ALL=C chroot "${bootstrap_dir}" pacstrap "/target-root" base

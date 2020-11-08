@@ -127,20 +127,38 @@ download_files() {
 	)
 }
 
+setup_ssl() {
+	dir="${1}"
+
+	# Different distros have different expectations for /etc/ssl.  Pull
+	# /etc/ssl from the calling stratum and massage it so that it works
+	# with most distro expectations.
+	#
+	# Only use this with temporary/bootstrap chroot environments, as it may
+	# pollute the target /etc/ssl in a way which upsets package managers.
+	# If the final fetched distros needs /etc/ssl, the bootstrap
+	# environment should install the corresponding package.
+
+	# Back up then later restore the initial /etc/ssl to ensure it takes
+	# precedence over the one grabbed from the calling stratum.
+	if [ -e "${dir}/etc/ssl" ]; then
+		mv "${dir}/etc/ssl" "${dir}/etc/brl-fetch-ssl-backup"
+	else
+		mkdir -p "${dir}/etc/brl-fetch-ssl-backup"
+	fi
+	cp -rpL /etc/ssl "${dir}/etc/" >/dev/null 2>&1 || true
+	p11-kit extract --format=pem-directory-hash --filter=ca-anchors --overwrite --purpose server-auth "${dir}/etc/ssl/certs" >/dev/null 2>&1 || true
+	cp -rp "${dir}/etc/brl-fetch-ssl-backup/"* "${dir}/etc/ssl" >/dev/null 2>&1 || true
+	rm -r -- "${dir}/etc/brl-fetch-ssl-backup/"
+}
+
 setup_chroot() {
 	dir="${1}"
 
 	mkdir -p "${dir}/etc"
 	cp -rpL /etc/resolv.conf "${dir}/etc/resolv.conf"
-	[ -e "${dir}/etc/ssl" ] || cp -rpL /etc/ssl "${dir}/etc/"
 	[ -e "${dir}/etc/passwd" ] || cp -rpL /etc/passwd "${dir}/etc/"
 	[ -e "${dir}/etc/group" ] || cp -rpL /etc/group "${dir}/etc/"
-	# Void expects /etc/ssl/certs but Fedora uses /etc/pki.  If p11-kit is
-	# available, use that to try to convert /etc/pki to /etc/ssl/certs for
-	# Void fetch.
-	mkdir -p "${dir}/etc/ssl/certs"
-	p11-kit extract --format=pem-directory-hash --filter=ca-anchors --overwrite --purpose server-auth "${dir}/etc/ssl/certs" 2>/dev/null 2>&1 || true
-
 
 	mount --bind "${dir}" "${dir}"
 	if [ -d "${dir}/target-root" ]; then

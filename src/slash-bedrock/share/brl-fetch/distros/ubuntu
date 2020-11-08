@@ -137,6 +137,7 @@ fetch() {
 
 	step "Running bootstrap software"
 	setup_chroot "${bootstrap_dir}"
+	setup_ssl "${bootstrap_dir}"
 	set +o pipefail
 	if LANG=C chroot "${bootstrap_dir}" debootstrap --help | grep -q "cache-dir"; then
 		share_cache "packages" "${bootstrap_dir}/packages"

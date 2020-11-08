@@ -111,6 +111,7 @@ fetch() {
 	cp -a "/etc/group" "${target_dir}/etc/group"
 
 	setup_chroot "${bootstrap_dir}"
+	setup_ssl "${bootstrap_dir}"
 	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/pacman/pkg/"
 	# -a to use the api, -P all protocols, -t 1 timeout if it takes longer than 1 second
 	LC_ALL=C chroot "${bootstrap_dir}" pacman-mirrors -S stable -f 1 -a -P all -t 1

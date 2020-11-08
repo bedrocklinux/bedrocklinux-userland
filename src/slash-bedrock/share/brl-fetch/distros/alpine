@@ -100,6 +100,7 @@ fetch() {
 
 	step "Running bootstrap software"
 	setup_chroot "${bootstrap_dir}"
+	setup_ssl "${bootstrap_dir}"
 	# apk does not appear to cache downloaded packages anywhere we forward
 	# from a previous fetch.
 	set +o pipefail

@@ -104,6 +104,7 @@ fetch() {
 
 	step "Running bootstrap software"
 	setup_chroot "${bootstrap_dir}"
+	setup_ssl "${bootstrap_dir}"
 	# system passwd/group confuses os-install's hash check
 	rm -f "${bootstrap_dir}/etc/passwd" "${bootstrap_dir}/etc/group"
 	# swupd appears to remove packs after use such that we can't cache them between runs.

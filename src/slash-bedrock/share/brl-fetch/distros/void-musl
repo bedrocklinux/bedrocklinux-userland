@@ -113,6 +113,7 @@ fetch() {
 	done
 	chroot "${bootstrap_dir}" /busybox --install
 	setup_chroot "${bootstrap_dir}"
+	setup_ssl "${bootstrap_dir}"
 	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/xbps"
 	case "${distro}:${distro_arch}" in
 	"void:aarch64") prefix="aarch64" ;;

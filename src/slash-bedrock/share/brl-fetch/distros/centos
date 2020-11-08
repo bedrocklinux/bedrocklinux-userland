@@ -145,6 +145,7 @@ fetch() {
 
 	step "Installing bootstrap packages"
 	setup_chroot "${bootstrap_dir}"
+	# setup_ssl "${bootstrap_dir}" # fights with yum/dnf later on, not actually needed
 	share_cache "packages" "${bootstrap_dir}/packages"
 	bootstrap_packages="$(awk -v"d=/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
 	# shellcheck disable=SC2086

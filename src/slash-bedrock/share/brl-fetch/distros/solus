@@ -72,6 +72,7 @@ fetch() {
 
 	step "Running bootstrap software"
 	setup_chroot "${bootstrap_dir}"
+	setup_ssl "${bootstrap_dir}"
 	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/eopkg/packages"
 
 	# eopkg errors when installing baselayout, presumably due to
