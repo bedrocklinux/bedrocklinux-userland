@@ -1266,7 +1266,7 @@ for distro in ${distros}; do
 			setup_chroot "${target_dir}"
 		fi
 		echo "### Added by Bedrock Linux when acquiring this stratum" >>"${target_dir}/etc/locale.gen"
-		for line in ${localegen}; do
+		echo "${localegen}" | while read line; do
 			echo "${line}" >>"${target_dir}/etc/locale.gen"
 			if ! LC_ALL=C chroot "${target_dir}" locale-gen; then
 				notice "${color_warn}Could not set ${line} locale, skipping.${color_norm}"

@@ -1,3 +1,9 @@
+# 0.7.19beta1
+
+- Fix brl-fetch localegen logic issue in some situations
+- Improve brl-fetch /etc/ssl handling (fixes `brl fetch arch` for some users)
+- Improve non-local cwd handling in brl code
+
 # 0.7.18
 
 - Added automatic restriction of CRUX's prt-get, pkgmk
