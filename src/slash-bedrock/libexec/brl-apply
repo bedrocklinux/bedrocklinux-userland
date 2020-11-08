@@ -135,6 +135,7 @@ br_dedup_envvar() {
 }
 
 for line in \$(
+	cd /
 	for s in \$(/bedrock/bin/brl list); do
 		[ -r "/bedrock/strata/\${s}/etc/profile" ] || continue
 		/bedrock/bin/strat -r "\${s}" /bin/sh -c '

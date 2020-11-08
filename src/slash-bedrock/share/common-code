@@ -1317,11 +1317,11 @@ cfg_crossfs() {
 	localfpath=''
 	for s in $(/bedrock/bin/brl list); do
 		if [ -r "/bedrock/strata/${s}/etc/profile" ]; then
-			out="$(/bedrock/bin/strat -r "${s}" /bin/sh -c '. /etc/profile ; env')"
+			out="$(/bedrock/bin/strat -r "${s}" /bin/sh -c '. /etc/profile ; env' 2>/dev/null)"
 		else
 			out=""
 		fi
-		fpath="$(strat -r "${s}" zsh -l -c "echo \"\${fpath}\"" 2>/dev/null)" || true
+		fpath="$(/bedrock/bin/strat -r "${s}" zsh -l -c "echo \"\${fpath}\"" 2>/dev/null)" || true
 
 		# shellcheck disable=SC20089
 		envvarmap="${envvarmap}
