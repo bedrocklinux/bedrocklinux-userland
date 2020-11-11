@@ -24,7 +24,7 @@ package_manager_canary_executables["dnf"] = "dnf"
 # Unlike operations, flags should not have implementations[].
 #
 user_interfaces["dnf", "assume-no"]  = "--assumeno"
-user_interfaces["dnf", "assume-yes"] = "-y/--yes"
+user_interfaces["dnf", "assume-yes"] = "-y/--assumeyes"
 user_interfaces["dnf", "confirm"]    = ""
 user_interfaces["dnf", "quiet"]      = "-q/--quiet"
 user_interfaces["dnf", "verbose"]    = "-v/--verbose"
