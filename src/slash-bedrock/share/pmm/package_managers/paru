@@ -1,0 +1,167 @@
+#!/bedrock/libexec/busybox awk -f
+#
+# Package Manager Manager paru support script
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Original work Copyright (c) 2020 Daniel Thau <danthau@bedrocklinux.org>
+# Modified work Copyright (c) 2020 Nicholas Serrano
+
+#
+# `paru -S --asexplicit` is used because `paru -S` retains
+# explicit/implicit tracking on reinstalls.  Without `--asexplicit`, attempts
+# to force a package to be explicitly installed by installing it would fail if
+# it is already installed as a dependency.
+#
+# paru refuses to run as root.  ${unprivileged_user} wrapping is required for
+# all calls.
+#
+# paru effectively supersedes pacman.  If both are in consideration for a given
+# operation, pacman is dropped.
+#
+
+package_manager_canary_executables["paru"] = "paru"
+supersedes["paru"] = "pacman"
+
+#
+# General, operation independent flags.
+#
+# Unlike operations, flags should not have implementations[].
+#
+user_interfaces["paru", "assume-no"]  = ""
+user_interfaces["paru", "assume-yes"] = "--noconfirm"
+user_interfaces["paru", "confirm"]    = ""
+user_interfaces["paru", "quiet"]      = "-q/--quiet"
+user_interfaces["paru", "verbose"]    = "-v/--verbose"
+
+#
+# Operations which directly forward the underlying command output.
+#
+user_interfaces["paru", "install-packages"]         = "pmm -S/--sync <pkgs>"
+user_interfaces["paru", "reinstall-packages"]       = "" # not differentiated from install
+user_interfaces["paru", "remove-packages-limited"]  = "pmm -R/--remove <pkgs>"
+user_interfaces["paru", "remove-packages-full"]     = "pmm -R/--remove -n/--nosave <pkgs>"
+user_interfaces["paru", "verify-packages"]          = "pmm -Q/--query -k/--check <pkgs>"
+user_interfaces["paru", "verify-all-packages"]      = "pmm -Q/--query -k/--check"
+user_interfaces["paru", "mark-packages-explicit"]   = "pmm -D/--database --asexplicit <pkgs>"
+user_interfaces["paru", "mark-packages-implicit"]   = "pmm -D/--database --asdeps <pkgs>"
+user_interfaces["paru", "show-package-information"] = "pmm -S/--sync -i/--info <pkgs>"
+user_interfaces["paru", "clear-cache"]              = "pmm -S/--sync -c/--clean"
+user_interfaces["paru", "remove-orphans"]           = "pmm -c/--clean"
+user_interfaces["paru", "update-package-database"]  = "pmm -S/--sync -y/--refresh"
+user_interfaces["paru", "update-file-database"]     = "pmm -F/--files -y/--refresh"
+user_interfaces["paru", "upgrade-packages-limited"] = "" # no partial upgrade concept
+user_interfaces["paru", "upgrade-packages-full"]    = "pmm -S/--sync -u/--sysupgrade"
+
+implementations["paru", "install-packages"]         = "${unprivileged_user} strat -r ${stratum} paru ${flags} -S --asexplicit ${items}"
+implementations["paru", "reinstall-packages"]       = "${unprivileged_user} strat -r ${stratum} paru ${flags} -S ${items}"
+implementations["paru", "remove-packages-limited"]  = "${unprivileged_user} strat -r ${stratum} paru ${flags} -R ${items}"
+implementations["paru", "remove-packages-full"]     = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Rn ${items}"
+implementations["paru", "verify-packages"]          = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Qk ${items}"
+implementations["paru", "verify-all-packages"]      = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Qk"
+implementations["paru", "mark-packages-explicit"]   = "${unprivileged_user} strat -r ${stratum} paru ${flags} -D --asexplicit ${items}"
+implementations["paru", "mark-packages-implicit"]   = "${unprivileged_user} strat -r ${stratum} paru ${flags} -D --asdeps ${items}"
+implementations["paru", "show-package-information"] = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Si ${items}"
+implementations["paru", "clear-cache"]              = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Sc ${items}"
+implementations["paru", "remove-orphans"]           = "${unprivileged_user} strat -r ${stratum} paru ${flags} --clean"
+implementations["paru", "update-package-database"]  = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Sy"
+implementations["paru", "update-file-database"]     = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Fy"
+implementations["paru", "upgrade-packages-limited"] = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Su"
+implementations["paru", "upgrade-packages-full"]    = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Su"
+
+#
+# Combine operations.
+#
+user_interfaces["paru", "clear-cache,remove-orphans"]                                                             = ""
+user_interfaces["paru", "mark-packages-implicit,remove-orphans"]                                                  = ""
+user_interfaces["paru", "remove-packages-limited,remove-orphans"]                                                 = "pmm -R/--remove -s/--recursive <pkgs>"
+user_interfaces["paru", "remove-packages-full,remove-orphans"]                                                    = "pmm -R/--remove -s/--recursive -n/--nosave <pkgs>"
+user_interfaces["paru", "update-package-database,update-file-database"]                                           = "pmm -S/--sync -y/--refresh"
+user_interfaces["paru", "update-package-database,upgrade-packages-partial"]                                       = ""
+user_interfaces["paru", "update-package-database,upgrade-packages-full"]                                          = ""
+user_interfaces["paru", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""
+user_interfaces["paru", "update-package-database,update-file-database,upgrade-packages-full"]                     = "pmm -S/--sync -y/--refresh -u/--sysupgrade"
+user_interfaces["paru", "update-package-database,install-packages"]                                               = ""
+user_interfaces["paru", "update-package-database,update-file-database,install-packages"]                          = "pmm -S/--sync -y/--refresh <pkgs>"
+user_interfaces["paru", "upgrade-packages-limited,install-packages"]                                              = ""
+user_interfaces["paru", "upgrade-packages-full,install-packages"]                                                 = "pmm -S/--sync -u/--sysupgrade <pkgs>"
+user_interfaces["paru", "update-package-database,upgrade-packages-partial,install-packages"]                      = ""
+user_interfaces["paru", "update-package-database,upgrade-packages-full,install-packages"]                         = ""
+user_interfaces["paru", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+user_interfaces["paru", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+implementations["paru", "clear-cache,remove-orphans"]                                                             = ""
+implementations["paru", "mark-packages-implicit,remove-orphans"]                                                  = ""
+implementations["paru", "remove-packages-limited,remove-orphans"]                                                 = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Rs ${items}"
+implementations["paru", "remove-packages-full,remove-orphans"]                                                    = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Rs ${items}"
+implementations["paru", "update-package-database,update-file-database"]                                           = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Sy"
+implementations["paru", "update-package-database,upgrade-packages-partial"]                                       = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Syu"
+implementations["paru", "update-package-database,upgrade-packages-full"]                                          = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Syu"
+implementations["paru", "update-package-database,update-file-database,upgrade-packages-partial"]                  = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Syu"
+implementations["paru", "update-package-database,update-file-database,upgrade-packages-full"]                     = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Syu"
+implementations["paru", "update-package-database,install-packages"]                                               = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Sy --asexplicit ${items}"
+implementations["paru", "update-package-database,update-file-database,install-packages"]                          = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Sy --asexplicit ${items}"
+implementations["paru", "upgrade-packages-limited,install-packages"]                                              = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Su --asexplicit ${items}"
+implementations["paru", "upgrade-packages-full,install-packages"]                                                 = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Su --asexplicit ${items}"
+implementations["paru", "update-package-database,upgrade-packages-partial,install-packages"]                      = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Syu --asexplicit ${items}"
+implementations["paru", "update-package-database,upgrade-packages-full,install-packages"]                         = "${unprivileged_user} strat -r ${stratum} paru ${flags} -Syu --asexplicit ${items}"
+implementations["paru", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+implementations["paru", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+#
+# Operations which have a standardized output format.
+#
+user_interfaces["paru", "list-installed-package-files"] = "pmm -Q/--query -l/--list <pkgs>"
+user_interfaces["paru", "list-installed-explicit"]      = "pmm -Q/--query -e/--explicit"
+user_interfaces["paru", "list-installed-implicit"]      = "pmm -Q/--query -d/--deps"
+user_interfaces["paru", "list-installed-packages"]      = "pmm -Q/--query"
+user_interfaces["paru", "list-available-packages"]      = "pmm -S/--sync -l/--list"
+user_interfaces["paru", "search-for-package-by-name"]   = ""
+user_interfaces["paru", "search-for-package-by-all"]    = "pmm -S/--sync -s/--search <string>"
+user_interfaces["paru", "which-package-owns-file"]      = "pmm -Q/--query -o/--owns <file>"
+user_interfaces["paru", "which-packages-provide-file"]  = "pmm -F/--files <file>"
+
+implementations["paru", "list-installed-package-files"] = "${unprivileged_user} strat -r ${stratum} paru -Ql ${items} | cut -d' ' -f2-"
+implementations["paru", "list-installed-explicit"]      = "${unprivileged_user} strat -r ${stratum} paru -Qe | cut -d' ' -f1"
+implementations["paru", "list-installed-implicit"]      = "${unprivileged_user} strat -r ${stratum} paru -Qd | cut -d' ' -f1"
+implementations["paru", "list-installed-packages"]      = "${unprivileged_user} strat -r ${stratum} paru -Q | cut -d' ' -f1"
+implementations["paru", "list-available-packages"]      = "${unprivileged_user} strat -r ${stratum} paru -Sl | cut -d' ' -f2"
+implementations["paru", "search-for-package-by-name"]   = "${unprivileged_user} strat -r ${stratum} paru -Sl | cut -d' ' -f2 | grep ${items}"
+implementations["paru", "search-for-package-by-all"]    = "${unprivileged_user} strat -r ${stratum} paru -Ss ${items} | awk -F'[ /]' '/^[^ ]/{print$2}'"
+implementations["paru", "which-package-owns-file"]      = "${unprivileged_user} strat -r ${stratum} paru -Qo ${items} | awk '{print$(NF-1)}'"
+implementations["paru", "which-packages-provide-file"]  = "${unprivileged_user} strat -r ${stratum} paru -F ${items} |\
+	awk '/^[^ ]/ {\
+		split($(NF-1), a, \"/\");\
+		print a[2]\"\t/\"$1\
+	}'"
+
+#
+# Internal pmm operations.
+#
+implementations["paru", "is-package-installed"]               = "${unprivileged_user} strat -r ${stratum} paru -Q ${items} >/dev/null 2>&1"
+implementations["paru", "is-package-available"]               = "${unprivileged_user} strat -r ${stratum} paru -Si ${items} >/dev/null 2>&1"
+implementations["paru", "is-file-db-available"]               = "true"
+implementations["paru", "print-file-db-install-instructions"] = ""
+implementations["paru", "print-package-version"]              = "${unprivileged_user} strat -r ${stratum} paru -Si ${items} |\
+	awk '\
+		$1 == \"Version\" {\
+			sub(/[0-9]*:/, \"\", $3);\
+			sub(/^[^0-9]/, \"\", $3);\
+			sub(/[^0-9.].*/, \"\", $3);\
+			sub(/[.]$/, \"\", $3);\
+			print $3\
+		}'"
+implementations["paru", "cache-package-db"]                   = "${unprivileged_user} strat -r ${stratum} paru -Sl |\
+	awk '$3 == \"unknown-version\" {\
+		print $2\"\t0\"\
+		next\
+	}\
+	{\
+		sub(/[0-9]*:/, \"\", $3);\
+		sub(/^[^0-9]*/, \"\", $3);\
+		sub(/[^0-9.].*/, \"\", $3);\
+		sub(/[.]$/, \"\", $3);\
+		print $2\"\t\"$3\
+	}'"
