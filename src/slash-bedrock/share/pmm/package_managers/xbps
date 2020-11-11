@@ -61,7 +61,9 @@ implementations["xbps", "upgrade-packages-full"]    = "strat -r ${stratum} xbps-
 # Combine operations.
 #
 user_interfaces["xbps", "clear-cache,remove-orphans"]                                                             = "pmm-remove -O -o"
+user_interfaces["xbps", "install-packages,mark-packages-explicit"]                                                = ""
 user_interfaces["xbps", "mark-packages-implicit,remove-orphans"]                                                  = ""
+user_interfaces["xbps", "reinstall-packages,mark-packages-explicit"]                                              = ""
 user_interfaces["xbps", "remove-packages-limited,remove-orphans"]                                                 = "pmm-remove -R <pkgs>"
 user_interfaces["xbps", "remove-packages-full,remove-orphans"]                                                    = ""
 user_interfaces["xbps", "update-package-database,update-file-database"]                                           = ""
@@ -79,7 +81,9 @@ user_interfaces["xbps", "update-package-database,update-file-database,upgrade-pa
 user_interfaces["xbps", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
 
 implementations["xbps", "clear-cache,remove-orphans"]                                                             = "strat -r ${stratum} xbps-remove ${flags} -Oo"
+implementations["xbps", "install-packages,mark-packages-explicit"]                                                = ""
 implementations["xbps", "mark-packages-implicit,remove-orphans"]                                                  = ""
+implementations["xbps", "reinstall-packages,mark-packages-explicit"]                                              = ""
 implementations["xbps", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} xbps-remove ${flags} -R ${items}"
 implementations["xbps", "remove-packages-full,remove-orphans"]                                                    = "strat -r ${stratum} xbps-remove ${flags} -R ${items}"
 implementations["xbps", "update-package-database,update-file-database"]                                           = ""

@@ -54,7 +54,7 @@ user_interfaces["yay", "update-file-database"]     = "pmm -F/--files -y/--refres
 user_interfaces["yay", "upgrade-packages-limited"] = "" # no partial upgrade concept
 user_interfaces["yay", "upgrade-packages-full"]    = "pmm -S/--sync -u/--sysupgrade"
 
-implementations["yay", "install-packages"]         = "${unprivileged_user} strat -r ${stratum} yay ${flags} -S --asexplicit ${items}"
+implementations["yay", "install-packages"]         = "${unprivileged_user} strat -r ${stratum} yay ${flags} -S ${items}"
 implementations["yay", "reinstall-packages"]       = "${unprivileged_user} strat -r ${stratum} yay ${flags} -S ${items}"
 implementations["yay", "remove-packages-limited"]  = "${unprivileged_user} strat -r ${stratum} yay ${flags} -R ${items}"
 implementations["yay", "remove-packages-full"]     = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Rn ${items}"
@@ -74,7 +74,9 @@ implementations["yay", "upgrade-packages-full"]    = "${unprivileged_user} strat
 # Combine operations.
 #
 user_interfaces["yay", "clear-cache,remove-orphans"]                                                             = ""
+user_interfaces["yay", "install-packages,mark-packages-explicit"]                                                = "pmm -S/--sync --asexplicit <pkgs>"
 user_interfaces["yay", "mark-packages-implicit,remove-orphans"]                                                  = ""
+user_interfaces["yay", "reinstall-packages,mark-packages-explicit"]                                              = "" # not differentiated from install
 user_interfaces["yay", "remove-packages-limited,remove-orphans"]                                                 = "pmm -R/--remove -s/--recursive <pkgs>"
 user_interfaces["yay", "remove-packages-full,remove-orphans"]                                                    = "pmm -R/--remove -s/--recursive -n/--nosave <pkgs>"
 user_interfaces["yay", "update-package-database,update-file-database"]                                           = "pmm -S/--sync -y/--refresh"
@@ -92,7 +94,9 @@ user_interfaces["yay", "update-package-database,update-file-database,upgrade-pac
 user_interfaces["yay", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
 
 implementations["yay", "clear-cache,remove-orphans"]                                                             = ""
+implementations["yay", "install-packages,mark-packages-explicit"]                                                = "${unprivileged_user} strat -r ${stratum} yay ${flags} -S --asexplicit ${items}"
 implementations["yay", "mark-packages-implicit,remove-orphans"]                                                  = ""
+implementations["yay", "reinstall-packages,mark-packages-explicit"]                                              = "${unprivileged_user} strat -r ${stratum} yay ${flags} -S --asexplicit ${items}"
 implementations["yay", "remove-packages-limited,remove-orphans"]                                                 = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Rs ${items}"
 implementations["yay", "remove-packages-full,remove-orphans"]                                                    = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Rs ${items}"
 implementations["yay", "update-package-database,update-file-database"]                                           = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Sy"

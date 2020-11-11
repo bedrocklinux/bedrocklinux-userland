@@ -48,7 +48,7 @@ user_interfaces["pacman", "update-file-database"]     = "pmm -F/--files -y/--ref
 user_interfaces["pacman", "upgrade-packages-limited"] = "" # no partial upgrade concept
 user_interfaces["pacman", "upgrade-packages-full"]    = "pmm -S/--sync -u/--sysupgrade"
 
-implementations["pacman", "install-packages"]         = "strat -r ${stratum} pacman ${flags} -S --asexplicit ${items}"
+implementations["pacman", "install-packages"]         = "strat -r ${stratum} pacman ${flags} -S ${items}"
 implementations["pacman", "reinstall-packages"]       = "strat -r ${stratum} pacman ${flags} -S ${items}"
 implementations["pacman", "remove-packages-limited"]  = "strat -r ${stratum} pacman ${flags} -R ${items}"
 implementations["pacman", "remove-packages-full"]     = "strat -r ${stratum} pacman ${flags} -Rn ${items}"
@@ -68,7 +68,9 @@ implementations["pacman", "upgrade-packages-full"]    = "strat -r ${stratum} pac
 # Combine operations.
 #
 user_interfaces["pacman", "clear-cache,remove-orphans"]                                                             = ""
+user_interfaces["pacman", "install-packages,mark-packages-explicit"]                                                = "pmm -S/--sync --asexplicit <pkgs>"
 user_interfaces["pacman", "mark-packages-implicit,remove-orphans"]                                                  = ""
+user_interfaces["pacman", "reinstall-packages,mark-packages-explicit"]                                              = "" # not differentiated from install
 user_interfaces["pacman", "remove-packages-limited,remove-orphans"]                                                 = "pmm -R/--remove -s/--recursive <pkgs>"
 user_interfaces["pacman", "remove-packages-full,remove-orphans"]                                                    = "pmm -R/--remove -s/--recursive -n/--nosave <pkgs>"
 user_interfaces["pacman", "update-package-database,update-file-database"]                                           = "pmm -S/--sync -y/--refresh"
@@ -86,7 +88,9 @@ user_interfaces["pacman", "update-package-database,update-file-database,upgrade-
 user_interfaces["pacman", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
 
 implementations["pacman", "clear-cache,remove-orphans"]                                                             = ""
+implementations["pacman", "install-packages,mark-packages-explicit"]                                                = "strat -r ${stratum} pacman ${flags} -S --asexplicit ${items}"
 implementations["pacman", "mark-packages-implicit,remove-orphans"]                                                  = ""
+implementations["pacman", "reinstall-packages,mark-packages-explicit"]                                              = "strat -r ${stratum} pacman ${flags} -S --asexplicit ${items}"
 implementations["pacman", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} pacman ${flags} -Rs ${items}"
 implementations["pacman", "remove-packages-full,remove-orphans"]                                                    = "strat -r ${stratum} pacman ${flags} -Rs ${items}"
 implementations["pacman", "update-package-database,update-file-database"]                                           = "strat -r ${stratum} pacman ${flags} -Sy"

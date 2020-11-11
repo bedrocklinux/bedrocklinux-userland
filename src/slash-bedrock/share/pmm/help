@@ -62,7 +62,9 @@ help["upgrade-packages-full"]    = "fully upgrade installed packages (e.g. also 
 # to pair package managers with operations and must remain distinct.
 #
 help["clear-cache,remove-orphans"]                                                             = "clear cache files and uninstall orphan packages"
+help["install-packages,mark-packages-explicit"]                                                = "install then mark <pkgs> as explicitly installed"
 help["mark-packages-implicit,remove-orphans"]                                                  = "mark <pkgs> as installed only to satisfy dependency then remove orphans"
+help["reinstall-packages,mark-packages-explicit"]                                              = "reinstall then mark <pkgs> as explicitly installed"
 help["remove-packages-limited,remove-orphans"]                                                 = "uninstall <pkgs> then uninstall orphans"
 help["remove-packages-full,remove-orphans"]                                                    = "fully uninstall <pkgs> then uninstall orphans"
 help["update-package-database,update-file-database"]                                           = "update all databases"
