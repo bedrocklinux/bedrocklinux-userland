@@ -62,8 +62,8 @@ implementations["apt", "upgrade-packages-full"]    = "strat -r ${stratum} apt ${
 #
 user_interfaces["apt", "clear-cache,remove-orphans"]                                                             = ""
 user_interfaces["apt", "mark-packages-implicit,remove-orphans"]                                                  = ""
-user_interfaces["apt", "remove-packages-limited,remove-orphans"]                                                 = ""
-user_interfaces["apt", "remove-packages-full,remove-orphans"]                                                    = ""
+user_interfaces["apt", "remove-packages-limited,remove-orphans"]                                                 = "pmm remove --auto-remove/--autoremove <pkgs>"
+user_interfaces["apt", "remove-packages-full,remove-orphans"]                                                    = "pmm purge --auto-remove/--autoremove <pkgs>"
 user_interfaces["apt", "update-package-database,update-file-database"]                                           = ""
 user_interfaces["apt", "update-package-database,upgrade-packages-partial"]                                       = ""
 user_interfaces["apt", "update-package-database,upgrade-packages-full"]                                          = ""
@@ -80,8 +80,8 @@ user_interfaces["apt", "update-package-database,update-file-database,upgrade-pac
 
 implementations["apt", "clear-cache,remove-orphans"]                                                             = ""
 implementations["apt", "mark-packages-implicit,remove-orphans"]                                                  = ""
-implementations["apt", "remove-packages-limited,remove-orphans"]                                                 = ""
-implementations["apt", "remove-packages-full,remove-orphans"]                                                    = ""
+implementations["apt", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} apt ${flags} remove --autoremove ${items}"
+implementations["apt", "remove-packages-full,remove-orphans"]                                                    = "strat -r ${stratum} apt ${flags} purge --autoremove ${items}"
 implementations["apt", "update-package-database,update-file-database"]                                           = ""
 implementations["apt", "update-package-database,upgrade-packages-partial"]                                       = ""
 implementations["apt", "update-package-database,upgrade-packages-full"]                                          = ""
