@@ -204,7 +204,7 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		}
 	}')"
 	if [ -n "${pmm_ui:-}" ]; then
-		notice "Using ${color_cmd}${pmm_ui}${color_norm} for as pmm user interface"
+		notice "Using ${color_cmd}${pmm_ui}${color_norm} as pmm user interface"
 	else
 		notice "No recognized system package managers discovered.  Leaving pmm user interface unset."
 	fi
