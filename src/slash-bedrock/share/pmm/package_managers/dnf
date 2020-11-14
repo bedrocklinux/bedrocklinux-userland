@@ -48,21 +48,21 @@ user_interfaces["dnf", "update-file-database"]     = "" # uses combine
 user_interfaces["dnf", "upgrade-packages-limited"] = "" # uses combine
 user_interfaces["dnf", "upgrade-packages-full"]    = "" # uses combine
 
-implementations["dnf", "install-packages"]         = "strat -r ${stratum} dnf ${flags} install ${items} && strat -r ${stratum} dnf ${flags} mark install ${items}"
-implementations["dnf", "reinstall-packages"]       = "strat -r ${stratum} dnf ${flags} reinstall ${items}"
-implementations["dnf", "remove-packages-limited"]  = "strat -r ${stratum} dnf -C ${flags} remove ${items}"
-implementations["dnf", "remove-packages-full"]     = "strat -r ${stratum} dnf -C ${flags} remove ${items}"
-implementations["dnf", "verify-packages"]          = "strat -r ${stratum} rpm -V ${items}"
-implementations["dnf", "verify-all-packages"]      = "strat -r ${stratum} rpm -Va"
-implementations["dnf", "mark-packages-explicit"]   = "strat -r ${stratum} dnf -C ${flags} mark install ${items}"
-implementations["dnf", "mark-packages-implicit"]   = "strat -r ${stratum} dnf -C ${flags} mark remove ${items}"
+implementations["dnf", "install-packages"]         = "${root_user} strat -r ${stratum} dnf ${flags} install ${items} && ${root_user} strat -r ${stratum} dnf ${flags} mark install ${items}"
+implementations["dnf", "reinstall-packages"]       = "${root_user} strat -r ${stratum} dnf ${flags} reinstall ${items}"
+implementations["dnf", "remove-packages-limited"]  = "${root_user} strat -r ${stratum} dnf -C ${flags} remove ${items}"
+implementations["dnf", "remove-packages-full"]     = "${root_user} strat -r ${stratum} dnf -C ${flags} remove ${items}"
+implementations["dnf", "verify-packages"]          = "${root_user} strat -r ${stratum} rpm -V ${items}"
+implementations["dnf", "verify-all-packages"]      = "${root_user} strat -r ${stratum} rpm -Va"
+implementations["dnf", "mark-packages-explicit"]   = "${root_user} strat -r ${stratum} dnf -C ${flags} mark install ${items}"
+implementations["dnf", "mark-packages-implicit"]   = "${root_user} strat -r ${stratum} dnf -C ${flags} mark remove ${items}"
 implementations["dnf", "show-package-information"] = "strat -r ${stratum} dnf -C ${flags} info ${items}"
-implementations["dnf", "clear-cache"]              = "strat -r ${stratum} dnf -C ${flags} clean all"
-implementations["dnf", "remove-orphans"]           = "strat -r ${stratum} dnf -C ${flags} autoremove"
+implementations["dnf", "clear-cache"]              = "${root_user} strat -r ${stratum} dnf -C ${flags} clean all"
+implementations["dnf", "remove-orphans"]           = "${root_user} strat -r ${stratum} dnf -C ${flags} autoremove"
 implementations["dnf", "update-package-database"]  = "strat -r ${stratum} dnf --refresh ${flags} check-update || true"
 implementations["dnf", "update-file-database"]     = "strat -r ${stratum} dnf --refresh ${flags} check-update || true"
-implementations["dnf", "upgrade-packages-limited"] = "strat -r ${stratum} dnf ${flags} upgrade"
-implementations["dnf", "upgrade-packages-full"]    = "strat -r ${stratum} dnf ${flags} upgrade"
+implementations["dnf", "upgrade-packages-limited"] = "${root_user} strat -r ${stratum} dnf ${flags} upgrade"
+implementations["dnf", "upgrade-packages-full"]    = "${root_user} strat -r ${stratum} dnf ${flags} upgrade"
 
 #
 # Combine operations.
@@ -90,10 +90,10 @@ implementations["dnf", "mark-packages-implicit,remove-orphans"]                 
 implementations["dnf", "remove-packages-limited,remove-orphans"]                                                 = ""
 implementations["dnf", "remove-packages-full,remove-orphans"]                                                    = ""
 implementations["dnf", "update-package-database,update-file-database"]                                           = "strat -r ${stratum} dnf --refresh ${flags} check-update || true"
-implementations["dnf", "update-package-database,upgrade-packages-partial"]                                       = "strat -r ${stratum} dnf --refresh ${flags} upgrade"
-implementations["dnf", "update-package-database,upgrade-packages-full"]                                          = "strat -r ${stratum} dnf --refresh ${flags} upgrade"
-implementations["dnf", "update-package-database,update-file-database,upgrade-packages-partial"]                  = "strat -r ${stratum} dnf --refresh ${flags} upgrade"
-implementations["dnf", "update-package-database,update-file-database,upgrade-packages-full"]                     = "strat -r ${stratum} dnf --refresh ${flags} upgrade"
+implementations["dnf", "update-package-database,upgrade-packages-partial"]                                       = "${root_user} strat -r ${stratum} dnf --refresh ${flags} upgrade"
+implementations["dnf", "update-package-database,upgrade-packages-full"]                                          = "${root_user} strat -r ${stratum} dnf --refresh ${flags} upgrade"
+implementations["dnf", "update-package-database,update-file-database,upgrade-packages-partial"]                  = "${root_user} strat -r ${stratum} dnf --refresh ${flags} upgrade"
+implementations["dnf", "update-package-database,update-file-database,upgrade-packages-full"]                     = "${root_user} strat -r ${stratum} dnf --refresh ${flags} upgrade"
 implementations["dnf", "update-package-database,install-packages"]                                               = ""
 implementations["dnf", "update-package-database,update-file-database,install-packages"]                          = ""
 implementations["dnf", "upgrade-packages-limited,install-packages"]                                              = ""
@@ -184,7 +184,7 @@ implementations["dnf", "is-package-installed"]               = "strat -r ${strat
 implementations["dnf", "is-package-available"]               = "strat -r ${stratum} dnf -Cq info ${items} >/dev/null 2>&1"
 implementations["dnf", "is-file-db-available"]               = "true"
 implementations["dnf", "print-file-db-install-instructions"] = ""
-implementations["dnf", "print-package-version"]              = "dnf -Cq info ${items} | awk '$1 == \"Version\" {print $3}'"
+implementations["dnf", "print-package-version"]              = "strat -r ${stratum} dnf -Cq info ${items} | awk '$1 == \"Version\" {print $3}'"
 implementations["dnf", "cache-package-db"]                   = "strat -r ${stratum} dnf -Cq info --available |\
 	awk '\
 		$1 == \"Name\" {\

@@ -41,21 +41,21 @@ user_interfaces["apk", "update-file-database"]     = "" # file search command do
 user_interfaces["apk", "upgrade-packages-limited"] = "" # no limited upgrade concept
 user_interfaces["apk", "upgrade-packages-full"]    = "pmm upgrade"
 
-implementations["apk", "install-packages"]         = "strat -r ${stratum} apk ${flags} add ${items}"
-implementations["apk", "reinstall-packages"]       = "strat -r ${stratum} apk ${flags} fix -r ${items}"
-implementations["apk", "remove-packages-limited"]  = "strat -r ${stratum} apk ${flags} del ${items}"
-implementations["apk", "remove-packages-full"]     = "strat -r ${stratum} apk ${flags} del --purge ${items}"
+implementations["apk", "install-packages"]         = "${root_user} strat -r ${stratum} apk ${flags} add ${items}"
+implementations["apk", "reinstall-packages"]       = "${root_user} strat -r ${stratum} apk ${flags} fix -r ${items}"
+implementations["apk", "remove-packages-limited"]  = "${root_user} strat -r ${stratum} apk ${flags} del ${items}"
+implementations["apk", "remove-packages-full"]     = "${root_user} strat -r ${stratum} apk ${flags} del --purge ${items}"
 implementations["apk", "verify-packages"]          = "" # could not find operation in package manager documentation
-implementations["apk", "verify-all-packages"]      = "strat -r ${stratum} apk ${flags} audit --system --check-permissions ${items}"
-implementations["apk", "mark-packages-explicit"]   = "strat -r ${stratum} apk ${flags} add ${items}"
-implementations["apk", "mark-packages-implicit"]   = "strat -r ${stratum} apk ${flags} del ${items}"
-implementations["apk", "show-package-information"] = "strat -r ${stratum} apk ${flags} info ${items}"
+implementations["apk", "verify-all-packages"]      = "strat -r ${stratum} apk ${flags} audit --system --check-permissions"
+implementations["apk", "mark-packages-explicit"]   = "${root_user} strat -r ${stratum} apk ${flags} add ${items}"
+implementations["apk", "mark-packages-implicit"]   = "${root_user} strat -r ${stratum} apk ${flags} del ${items}"
+implementations["apk", "show-package-information"] = "${root_user} strat -r ${stratum} apk ${flags} info ${items}"
 implementations["apk", "clear-cache"]              = "" # could not find operation in package manager documentation
 implementations["apk", "remove-orphans"]           = "" # implicit with apk del
-implementations["apk", "update-package-database"]  = "strat -r ${stratum} apk ${flags} update"
+implementations["apk", "update-package-database"]  = "${root_user} strat -r ${stratum} apk ${flags} update"
 implementations["apk", "update-file-database"]     = "" # no file database concept
-implementations["apk", "upgrade-packages-limited"] = "strat -r ${stratum} apk ${flags} upgrade"
-implementations["apk", "upgrade-packages-full"]    = "strat -r ${stratum} apk ${flags} upgrade"
+implementations["apk", "upgrade-packages-limited"] = "${root_user} strat -r ${stratum} apk ${flags} upgrade"
+implementations["apk", "upgrade-packages-full"]    = "${root_user} strat -r ${stratum} apk ${flags} upgrade"
 
 #
 # Combine operations.
@@ -79,10 +79,10 @@ user_interfaces["apk", "update-package-database,update-file-database,upgrade-pac
 user_interfaces["apk", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
 
 implementations["apk", "clear-cache,remove-orphans"]                                                             = ""
-implementations["apk", "mark-packages-implicit,remove-orphans"]                                                  = "strat -r ${stratum} apk ${flags} del ${items}"
-implementations["apk", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} apk ${flags} del ${items}"
-implementations["apk", "remove-packages-full,remove-orphans"]                                                    = "strat -r ${stratum} apk ${flags} del --purge ${items}"
-implementations["apk", "update-package-database,update-file-database"]                                           = "strat -r ${stratum} apk ${flags} update"
+implementations["apk", "mark-packages-implicit,remove-orphans"]                                                  = "${root_user} strat -r ${stratum} apk ${flags} del ${items}"
+implementations["apk", "remove-packages-limited,remove-orphans"]                                                 = "${root_user} strat -r ${stratum} apk ${flags} del ${items}"
+implementations["apk", "remove-packages-full,remove-orphans"]                                                    = "${root_user} strat -r ${stratum} apk ${flags} del --purge ${items}"
+implementations["apk", "update-package-database,update-file-database"]                                           = "${root_user} strat -r ${stratum} apk ${flags} update"
 implementations["apk", "update-package-database,upgrade-packages-partial"]                                       = ""
 implementations["apk", "update-package-database,upgrade-packages-full"]                                          = ""
 implementations["apk", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""

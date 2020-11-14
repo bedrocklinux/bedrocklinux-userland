@@ -23,6 +23,7 @@
 
 package_manager_canary_executables["yay"] = "yay"
 supersedes["yay"] = "pacman"
+auto_escalate["yay"] = "sudo"
 
 #
 # General, operation independent flags.

@@ -177,6 +177,19 @@ fi
 #
 #     package_manager_canary_executables["xbps"] = "xbps-install"
 #
+# - A supersedes[] entry, mapping a package manager name to another indicates
+# that the given package managers operations will take precedence
+# over shared operations in the superseded package manager. For example:
+#
+#     supersedes["yay"] = "pacman"
+#
+# - A auto_escalate[] entry, mapping a package manager name to a privilege
+# escalating executable indicates the package manager has automatic privilege
+# escalating behavior and will automatically escalate other package managers
+# where appropriate using the mapped executable. For example:
+#
+#     auto_escalate["yay"] = "sudo"
+#
 # - user_interfaces[], a map from either a [package-manager, operation] or a
 # [package-manager, flag] to a string representing a user interface call
 # requesting the corresponding operation or flag.  Variable components, such as
@@ -267,6 +280,8 @@ $(cat /bedrock/share/pmm/package_managers/* /bedrock/share/pmm/help /bedrock/sha
 # - operations[]
 # - system_package_managers[]
 # - package_manager_canary_executables[]
+# - supersedes[]
+# - auto_escalate[]
 # - am_root
 #
 # Additional, the following values are gathered while parsing the provided
@@ -786,6 +801,12 @@ function prep_shell_environment(stratum, package_manager, items, cmd,
 		abort("/bedrock/etc/bedrock.conf [pmm]/unprivileged-user is set to "unprivileged_user" but that envvar is empty/unset.\nEither populate envvar or change bedrock.conf [pmm]/unprivileged-user to run `"cmd"`")
 	} else {
 		output = output " export unprivileged_user=\"sudo -u " unprivileged_user "\";"
+	}
+
+	if (am_root || cmd !~ /[$]\{root_user\}/ || auto_escalate[ui] == "") {
+		output = output " export root_user=\"\";"
+	} else {
+		output = output " export root_user=\"" auto_escalate[ui] "\";"
 	}
 
 	output = output " export flags=\""
