@@ -184,7 +184,7 @@ implementations["dnf", "is-package-installed"]               = "strat -r ${strat
 implementations["dnf", "is-package-available"]               = "strat -r ${stratum} dnf -Cq info ${items} >/dev/null 2>&1"
 implementations["dnf", "is-file-db-available"]               = "true"
 implementations["dnf", "print-file-db-install-instructions"] = ""
-implementations["dnf", "print-package-version"]              = "dnf -Cq info ${items} | awk '$1 == \"Version\" {print $3}'"
+implementations["dnf", "print-package-version"]              = "strat -r ${stratum} dnf -Cq info ${items} | awk '$1 == \"Version\" {print $3}'"
 implementations["dnf", "cache-package-db"]                   = "strat -r ${stratum} dnf -Cq info --available |\
 	awk '\
 		$1 == \"Name\" {\
