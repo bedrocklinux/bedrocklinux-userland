@@ -849,6 +849,9 @@ function show_cmd(cmd, env,
 	if (env ~ /export unprivileged_user=""/) {
 		gsub(/\$\{unprivileged_user\} /,"", show)
 	}
+	if (env ~ /export root_user=""/) {
+		gsub(/\$\{root_user\} /,"", show)
+	}
 	# Escape everything except shell variables to ensure ${stratum} et al
 	# are expanded.
 	gsub(/[^\na-zA-Z0-9_\/${}-]/,"\\\\&", show)
