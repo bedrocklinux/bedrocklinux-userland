@@ -34,7 +34,7 @@ user_interfaces["dnf", "verbose"]    = "-v/--verbose"
 #
 user_interfaces["dnf", "install-packages"]         = "pmm install/in <pkgs>"
 user_interfaces["dnf", "reinstall-packages"]       = "pmm reinstall/rei <pkgs>"
-user_interfaces["dnf", "remove-packages-limited"]  = "pmm remove/rm/erase <pkgs>"
+user_interfaces["dnf", "remove-packages-limited"]  = "pmm remove/rm/erase --noautoremove <pkgs>"
 user_interfaces["dnf", "remove-packages-full"]     = "" # could not find a way to remove config files
 user_interfaces["dnf", "verify-packages"]          = "pmm-rpm -V/--verify <pkgs>"
 user_interfaces["dnf", "verify-all-packages"]      = "pmm-rpm -V/--verify -a/--all"
@@ -50,8 +50,8 @@ user_interfaces["dnf", "upgrade-packages-full"]    = "" # uses combine
 
 implementations["dnf", "install-packages"]         = "strat -r ${stratum} dnf ${flags} install ${items} && strat -r ${stratum} dnf ${flags} mark install ${items}"
 implementations["dnf", "reinstall-packages"]       = "strat -r ${stratum} dnf ${flags} reinstall ${items}"
-implementations["dnf", "remove-packages-limited"]  = "strat -r ${stratum} dnf -C ${flags} remove ${items}"
-implementations["dnf", "remove-packages-full"]     = "strat -r ${stratum} dnf -C ${flags} remove ${items}"
+implementations["dnf", "remove-packages-limited"]  = "strat -r ${stratum} dnf -C ${flags} remove --noautoremove ${items}"
+implementations["dnf", "remove-packages-full"]     = "strat -r ${stratum} dnf -C ${flags} remove --noautoremove ${items}"
 implementations["dnf", "verify-packages"]          = "strat -r ${stratum} rpm -V ${items}"
 implementations["dnf", "verify-all-packages"]      = "strat -r ${stratum} rpm -Va"
 implementations["dnf", "mark-packages-explicit"]   = "strat -r ${stratum} dnf -C ${flags} mark install ${items}"
@@ -69,8 +69,8 @@ implementations["dnf", "upgrade-packages-full"]    = "strat -r ${stratum} dnf ${
 #
 user_interfaces["dnf", "clear-cache,remove-orphans"]                                                             = ""
 user_interfaces["dnf", "mark-packages-implicit,remove-orphans"]                                                  = ""
-user_interfaces["dnf", "remove-packages-limited,remove-orphans"]                                                 = ""
-user_interfaces["dnf", "remove-packages-full,remove-orphans"]                                                    = ""
+user_interfaces["dnf", "remove-packages-limited,remove-orphans"]                                                 = "pmm remove/rm/erase <pkgs>"
+user_interfaces["dnf", "remove-packages-full,remove-orphans"]                                                    = "" # could not find a way to remove config files
 user_interfaces["dnf", "update-package-database,update-file-database"]                                           = "pmm check-update"
 user_interfaces["dnf", "update-package-database,upgrade-packages-partial"]                                       = ""
 user_interfaces["dnf", "update-package-database,upgrade-packages-full"]                                          = ""
@@ -87,8 +87,8 @@ user_interfaces["dnf", "update-package-database,update-file-database,upgrade-pac
 
 implementations["dnf", "clear-cache,remove-orphans"]                                                             = ""
 implementations["dnf", "mark-packages-implicit,remove-orphans"]                                                  = ""
-implementations["dnf", "remove-packages-limited,remove-orphans"]                                                 = ""
-implementations["dnf", "remove-packages-full,remove-orphans"]                                                    = ""
+implementations["dnf", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} dnf -C ${flags} remove ${items}"
+implementations["dnf", "remove-packages-full,remove-orphans"]                                                    = "strat -r ${stratum} dnf -C ${flags} remove ${items}"
 implementations["dnf", "update-package-database,update-file-database"]                                           = "strat -r ${stratum} dnf --refresh ${flags} check-update || true"
 implementations["dnf", "update-package-database,upgrade-packages-partial"]                                       = "strat -r ${stratum} dnf --refresh ${flags} upgrade"
 implementations["dnf", "update-package-database,upgrade-packages-full"]                                          = "strat -r ${stratum} dnf --refresh ${flags} upgrade"
