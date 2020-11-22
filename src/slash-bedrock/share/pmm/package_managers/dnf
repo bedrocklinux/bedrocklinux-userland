@@ -48,7 +48,7 @@ user_interfaces["dnf", "update-file-database"]     = "" # uses combine
 user_interfaces["dnf", "upgrade-packages-limited"] = "" # uses combine
 user_interfaces["dnf", "upgrade-packages-full"]    = "" # uses combine
 
-implementations["dnf", "install-packages"]         = "strat -r ${stratum} dnf ${flags} install ${items} && strat -r ${stratum} dnf ${flags} mark install ${items}"
+implementations["dnf", "install-packages"]         = "strat -r ${stratum} dnf ${flags} install ${items}"
 implementations["dnf", "reinstall-packages"]       = "strat -r ${stratum} dnf ${flags} reinstall ${items}"
 implementations["dnf", "remove-packages-limited"]  = "strat -r ${stratum} dnf -C ${flags} remove ${items}"
 implementations["dnf", "remove-packages-full"]     = "strat -r ${stratum} dnf -C ${flags} remove ${items}"
@@ -68,7 +68,9 @@ implementations["dnf", "upgrade-packages-full"]    = "strat -r ${stratum} dnf ${
 # Combine operations.
 #
 user_interfaces["dnf", "clear-cache,remove-orphans"]                                                             = ""
+user_interfaces["dnf", "install-packages,mark-packages-explicit"]                                                = ""
 user_interfaces["dnf", "mark-packages-implicit,remove-orphans"]                                                  = ""
+user_interfaces["dnf", "reinstall-packages,mark-packages-explicit"]                                              = ""
 user_interfaces["dnf", "remove-packages-limited,remove-orphans"]                                                 = ""
 user_interfaces["dnf", "remove-packages-full,remove-orphans"]                                                    = ""
 user_interfaces["dnf", "update-package-database,update-file-database"]                                           = "pmm check-update"
@@ -86,7 +88,9 @@ user_interfaces["dnf", "update-package-database,update-file-database,upgrade-pac
 user_interfaces["dnf", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
 
 implementations["dnf", "clear-cache,remove-orphans"]                                                             = ""
+implementations["dnf", "install-packages,mark-packages-explicit"]                                                = ""
 implementations["dnf", "mark-packages-implicit,remove-orphans"]                                                  = ""
+implementations["dnf", "reinstall-packages,mark-packages-explicit"]                                              = ""
 implementations["dnf", "remove-packages-limited,remove-orphans"]                                                 = ""
 implementations["dnf", "remove-packages-full,remove-orphans"]                                                    = ""
 implementations["dnf", "update-package-database,update-file-database"]                                           = "strat -r ${stratum} dnf --refresh ${flags} check-update || true"

@@ -80,7 +80,9 @@ operations["upgrade-packages-full"]    = "every, -,                    zero, -, 
 # code happy.
 #
 operations["clear-cache,remove-orphans"]                                                             = "every, -,                    zero, -, -"
+operations["install-packages,mark-packages-explicit"]                                                = "first, is-package-installed, many, -, -"
 operations["mark-packages-implicit,remove-orphans"]                                                  = "first, is-package-installed, many, -, -"
+operations["reinstall-packages,mark-packages-explicit"]                                              = "first, is-package-installed, many, -, -"
 operations["remove-packages-limited,remove-orphans"]                                                 = "first, is-package-installed, many, -, -"
 operations["remove-packages-full,remove-orphans"]                                                    = "first, is-package-installed, many, -, -"
 operations["update-package-database,update-file-database"]                                           = "every, -,                    zero, -, update-package-cache"

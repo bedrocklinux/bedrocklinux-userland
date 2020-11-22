@@ -25,7 +25,7 @@ user_interfaces["apt", "verbose"]    = ""
 #
 # Operations which directly forward the underlying command output.
 #
-user_interfaces["apt", "install-packages"]         = "pmm install <pkgs>"
+user_interfaces["apt", "install-packages"]         = "" # uses combine
 user_interfaces["apt", "reinstall-packages"]       = "pmm reinstall <pkgs>"
 user_interfaces["apt", "remove-packages-limited"]  = "pmm remove <pkgs>"
 user_interfaces["apt", "remove-packages-full"]     = "pmm purge <pkgs>"
@@ -61,9 +61,11 @@ implementations["apt", "upgrade-packages-full"]    = "strat -r ${stratum} apt ${
 # Combine operations.
 #
 user_interfaces["apt", "clear-cache,remove-orphans"]                                                             = ""
+user_interfaces["apt", "install-packages,mark-packages-explicit"]                                                = "pmm install <pkgs>"
 user_interfaces["apt", "mark-packages-implicit,remove-orphans"]                                                  = ""
-user_interfaces["apt", "remove-packages-limited,remove-orphans"]                                                 = ""
-user_interfaces["apt", "remove-packages-full,remove-orphans"]                                                    = ""
+user_interfaces["apt", "reinstall-packages,mark-packages-explicit"]                                              = ""
+user_interfaces["apt", "remove-packages-limited,remove-orphans"]                                                 = "pmm remove --auto-remove/--autoremove <pkgs>"
+user_interfaces["apt", "remove-packages-full,remove-orphans"]                                                    = "pmm purge --auto-remove/--autoremove <pkgs>"
 user_interfaces["apt", "update-package-database,update-file-database"]                                           = ""
 user_interfaces["apt", "update-package-database,upgrade-packages-partial"]                                       = ""
 user_interfaces["apt", "update-package-database,upgrade-packages-full"]                                          = ""
@@ -79,9 +81,11 @@ user_interfaces["apt", "update-package-database,update-file-database,upgrade-pac
 user_interfaces["apt", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
 
 implementations["apt", "clear-cache,remove-orphans"]                                                             = ""
+implementations["apt", "install-packages,mark-packages-explicit"]                                                = "strat -r ${stratum} apt ${flags} install ${items}"
 implementations["apt", "mark-packages-implicit,remove-orphans"]                                                  = ""
-implementations["apt", "remove-packages-limited,remove-orphans"]                                                 = ""
-implementations["apt", "remove-packages-full,remove-orphans"]                                                    = ""
+implementations["apt", "reinstall-packages,mark-packages-explicit"]                                              = ""
+implementations["apt", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} apt ${flags} remove --autoremove ${items}"
+implementations["apt", "remove-packages-full,remove-orphans"]                                                    = "strat -r ${stratum} apt ${flags} purge --autoremove ${items}"
 implementations["apt", "update-package-database,update-file-database"]                                           = ""
 implementations["apt", "update-package-database,upgrade-packages-partial"]                                       = ""
 implementations["apt", "update-package-database,upgrade-packages-full"]                                          = ""

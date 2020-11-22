@@ -37,7 +37,7 @@ user_interfaces["portage", "verbose"]    = "-v/--verbose"
 #
 # Operations which directly forward the underlying command output.
 #
-user_interfaces["portage", "install-packages"]         = "pmm <pkgs>"
+user_interfaces["portage", "install-packages"]         = "" # uses combine
 user_interfaces["portage", "reinstall-packages"]       = "" # not differentiated from install
 user_interfaces["portage", "remove-packages-limited"]  = "" # would be `pmm -C/--unmerge`, but warnings in man page.  Favor remove-packages,remove-orphans
 user_interfaces["portage", "remove-packages-full"]     = "" # Differentiated from non-full via envvar which pmm cannot replicate: https://devmanual.gentoo.org/general-concepts/config-protect/index.html
@@ -73,7 +73,9 @@ implementations["portage", "upgrade-packages-full"]    = "strat -r ${stratum} em
 # Combine operations.
 #
 user_interfaces["portage", "clear-cache,remove-orphans"]                                                             = ""
+user_interfaces["portage", "install-packages,mark-packages-explicit"]                                                = "pmm <pkgs>"
 user_interfaces["portage", "mark-packages-implicit,remove-orphans"]                                                  = ""
+user_interfaces["portage", "reinstall-packages,mark-packages-explicit"]                                              = ""
 user_interfaces["portage", "remove-packages-limited,remove-orphans"]                                                 = "pmm -c/--depclean <pkgs>"
 user_interfaces["portage", "remove-packages-full,remove-orphans"]                                                    = "" # Differentiated from non-full via envvar which pmm cannot replicate: https://devmanual.gentoo.org/general-concepts/config-protect/index.html
 user_interfaces["portage", "update-package-database,update-file-database"]                                           = ""
@@ -91,7 +93,9 @@ user_interfaces["portage", "update-package-database,update-file-database,upgrade
 user_interfaces["portage", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
 
 implementations["portage", "clear-cache,remove-orphans"]                                                             = ""
+implementations["portage", "install-packages,mark-packages-explicit"]                                                = "strat -r ${stratum} emerge ${flags} ${items}"
 implementations["portage", "mark-packages-implicit,remove-orphans"]                                                  = ""
+implementations["portage", "reinstall-packages,mark-packages-explicit"]                                              = "strat -r ${stratum} emerge ${flags} ${items}"
 implementations["portage", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} emerge ${flags} -c ${items}"
 implementations["portage", "remove-packages-full,remove-orphans"]                                                    = ""
 implementations["portage", "update-package-database,update-file-database"]                                           = ""
