@@ -132,7 +132,8 @@ implementations["yay", "search-for-package-by-all"]    = "${unprivileged_user} s
 implementations["yay", "which-package-owns-file"]      = "${unprivileged_user} strat -r ${stratum} yay -Qo ${items} | awk '{print$(NF-1)}'"
 implementations["yay", "which-packages-provide-file"]  = "${unprivileged_user} strat -r ${stratum} yay -F ${items} |\
 	awk '/^[^ ]/ {\
-		split($(NF-1), a, \"/\");\
+		split($1, a, \"/\");\
+	} /^[ ]/ {\
 		print a[2]\"\t/\"$1\
 	}'"
 
