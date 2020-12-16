@@ -133,7 +133,8 @@ implementations["paru", "search-for-package-by-all"]    = "${unprivileged_user} 
 implementations["paru", "which-package-owns-file"]      = "${unprivileged_user} strat -r ${stratum} paru -Qo ${items} | awk '{print$(NF-1)}'"
 implementations["paru", "which-packages-provide-file"]  = "${unprivileged_user} strat -r ${stratum} paru -F ${items} |\
 	awk '/^[^ ]/ {\
-		split($(NF-1), a, \"/\");\
+		split($1, a, \"/\");\
+	} /^[ ]/ {\
 		print a[2]\"\t/\"$1\
 	}'"
 
