@@ -126,7 +126,8 @@ implementations["pacman", "search-for-package-by-all"]    = "strat -r ${stratum}
 implementations["pacman", "which-package-owns-file"]      = "strat -r ${stratum} pacman -Qo ${items} | awk '{print$(NF-1)}'"
 implementations["pacman", "which-packages-provide-file"]  = "strat -r ${stratum} pacman -F ${items} |\
 	awk '/^[^ ]/ {\
-		split($(NF-1), a, \"/\");\
+		split($1, a, \"/\");\
+	} /^[ ]/ {\
 		print a[2]\"\t/\"$1\
 	}'"
 
