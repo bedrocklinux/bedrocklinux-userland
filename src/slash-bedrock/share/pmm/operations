@@ -57,6 +57,7 @@
 # Operations which directly forward the underlying command output.
 #
 operations["install-packages"]         = "first, is-package-available, many, -, -"
+operations["install-packages-explicit-deps"] = "first, is-package-available, many, -, -"
 operations["reinstall-packages"]       = "first, is-package-installed, many, -, -"
 operations["remove-packages-limited"]  = "first, is-package-installed, many, -, -"
 operations["remove-packages-full"]     = "first, is-package-installed, many, -, -"

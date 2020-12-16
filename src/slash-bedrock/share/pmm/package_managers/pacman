@@ -88,9 +88,9 @@ user_interfaces["pacman", "update-package-database,update-file-database,upgrade-
 user_interfaces["pacman", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
 
 implementations["pacman", "clear-cache,remove-orphans"]                                                             = ""
-implementations["pacman", "install-packages,mark-packages-explicit"]                                                = "strat -r ${stratum} pacman ${flags} -S --asexplicit ${items}"
+implementations["pacman", "install-packages,mark-packages-explicit"]                                                = ""
 implementations["pacman", "mark-packages-implicit,remove-orphans"]                                                  = ""
-implementations["pacman", "reinstall-packages,mark-packages-explicit"]                                              = "strat -r ${stratum} pacman ${flags} -S --asexplicit ${items}"
+implementations["pacman", "reinstall-packages,mark-packages-explicit"]                                              = ""
 implementations["pacman", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} pacman ${flags} -Rs ${items}"
 implementations["pacman", "remove-packages-full,remove-orphans"]                                                    = "strat -r ${stratum} pacman ${flags} -Rs ${items}"
 implementations["pacman", "update-package-database,update-file-database"]                                           = "strat -r ${stratum} pacman ${flags} -Sy"

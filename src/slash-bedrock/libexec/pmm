@@ -1442,8 +1442,6 @@ function generate_cmd_list(_return, uncollected_cmds,
 			abort("Operation \""operation"\" expects one argument but more than one were provided")
 		} else if (count == "many" && (!(1 in items))) {
 			abort("Operation \""operation"\" expects one or more arguments but none were provided")
-		} else if (count != "zero" && items_consumed) {
-			abort("Multiple suboperations in \""selected_operation"\" consumed items.  Please bug report this.")
 		} else if (count != "zero") {
 			items_consumed = 1
 		}
