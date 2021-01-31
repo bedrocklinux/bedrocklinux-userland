@@ -1,3 +1,10 @@
+# 0.7.20beta1
+
+- Fixed brl-fetch centos
+- Handle bootloaders configured to use some non-/sbin/init inits
+- Various pmm fixes
+- brl-import command
+
 # 0.7.19
 
 - Add more global /etc items
