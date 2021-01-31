@@ -654,7 +654,7 @@ $(SLASHBR)/libexec/zstd: vendor/zstd/.success_retrieving_source $(COMPLETED)/mus
 	rm -rf $(VENDOR)/zstd
 	cp -r vendor/zstd $(VENDOR)
 	cd $(VENDOR)/zstd && \
-		make CC=$(MUSLCC) && \
+		make CC=$(MUSLCC) zstd && \
 		cp zstd $(SLASHBR)/libexec/zstd
 zstd: $(SLASHBR)/libexec/zstd
 
