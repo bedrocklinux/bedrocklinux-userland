@@ -171,6 +171,13 @@ setup_chroot() {
 	mkdir -p "${dir}/sys"
 	mount -t sysfs /sys "${dir}/sys"
 
+	mkdir -p "${dir}/run"
+	mount -t tmpfs run "${dir}/run"
+	chmod 1777 "${dir}/run"
+
+	mkdir -p "${dir}/run/shm"
+	chmod 1777 "${dir}/run/shm"
+
 	mkdir -p "${dir}/dev"
 	mount --bind /dev "${dir}/dev"
 	mount --bind /dev/pts "${dir}/dev/pts"
@@ -178,13 +185,6 @@ setup_chroot() {
 	mkdir -p "${dir}/dev/shm/"
 	mount -t tmpfs shm "${dir}/dev/shm"
 	chmod 1777 "${dir}/dev/shm"
-
-	mkdir -p "${dir}/run"
-	mount -t tmpfs run "${dir}/run"
-	chmod 1777 "${dir}/run"
-
-	mkdir -p "${dir}/run/shm"
-	chmod 1777 "${dir}/run/shm"
 }
 
 tear_down_chroot() {
