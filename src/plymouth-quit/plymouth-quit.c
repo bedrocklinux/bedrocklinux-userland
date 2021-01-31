@@ -22,6 +22,9 @@
 
 int main(int argc, char *argv[])
 {
+	(void)argc;
+	(void)argv;
+
 	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (fd < 0) {
 		perror("socket");
@@ -32,9 +35,9 @@ int main(int argc, char *argv[])
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
 	addr.sun_path[0] = '\0';
-	strncpy(addr.sun_path+1, PLYMOUTH_ABSTRACT_SOCKET_PATH, strlen(PLYMOUTH_ABSTRACT_SOCKET_PATH));
+	strncpy(addr.sun_path + 1, PLYMOUTH_ABSTRACT_SOCKET_PATH, strlen(PLYMOUTH_ABSTRACT_SOCKET_PATH) + 1);
 
-	if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)-81) < 0) {
+	if (connect(fd, (struct sockaddr *)&addr, sizeof(addr) - 81) < 0) {
 		switch (errno) {
 		case ECONNREFUSED:
 			/*
