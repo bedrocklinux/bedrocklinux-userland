@@ -1393,7 +1393,7 @@ cfg_crossfs() {
 		else
 			out=""
 		fi
-		fpath="$(/bedrock/bin/strat -r "${s}" zsh -l -c "echo \"\${fpath}\"" 2>/dev/null)" || true
+		fpath="$(/bedrock/bin/strat -r "${s}" zsh -l -c "echo \"fpath=\${fpath}\"" 2>/dev/null | grep '^fpath=' | cut -d= -f2-)" || true
 
 		# shellcheck disable=SC20089
 		envvarmap="${envvarmap}
