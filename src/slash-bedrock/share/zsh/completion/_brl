@@ -18,6 +18,7 @@ _brl_subcommands() {
 		'which:Query which stratum provides object'
 
 		'fetch:Fetch new strata'
+		'import:Import new strata'
 		'remove:Remove strata (or aliases)'
 		'rename:Rename a stratum'
 		'copy:Copy a stratum'
@@ -126,6 +127,10 @@ case "${words[2]}" in
 	args+=('(-e --dont-enable)'{-e,--dont-enable}'[skip enabling newly fetched strata]')
 	args+=('(-s --dont-show)'{-s,--dont-show}'[skip showing newly fetched strata]')
 	args+=("*:distro:($(/bedrock/bin/brl fetch --list))")
+	;;
+"import")
+	args+=("2:new stratum:")
+	args+=("3:source:_path_files -f")
 	;;
 "remove")
 	args+=('(-d --disable)'{-d,--disable}'[disable then remove enabled strata]')

@@ -1,0 +1,176 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl import
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2020-2021 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Creates strata from specified file(s)
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl import ${color_sub}<name> <source>${color_norm}
+
+Creates a new ${color_term}stratum${color_norm} named ${color_sub}<name>${color_norm} from specified a ${color_sub}<source>${color_norm}.
+Requires root.  Some sources may require external tooling (e.g. ${color_cmd}qemu-img${color_norm})
+
+If using a VM image, use one large partition.  Do not use separate /boot or /home.
+
+Sources:
+  Directory
+  Tarball (${color_file}.tar${color_norm})
+  Qemu qcow/qcow2/qcow3 image (${color_file}.qcow${color_norm}, ${color_file}.qcow2${color_norm}, ${color_file}.qcow3${color_norm})
+  VirtualBox image (${color_file}.vdi${color_norm})
+  VMware image (${color_file}.vmdk${color_norm})
+
+Example:
+  ${color_cmd}$ wget http://example.com/arch-root.tar
+  ${color_rcmd}# brl import arch arch-root.tar
+
+  ${color_cmd}$ qemu-image create -f qcow3 disk.qcow3 10G
+  ${color_cmd}$ qemu-system-x86_64 ./disk.qcow3 -drive ubuntu.iso # install in VM
+  ${color_rcmd}# brl import ubuntu disk.qcow3
+${color_norm}"
+}
+
+require_cmd() {
+	cmd="${1}"
+	if ! which "${cmd}" >/dev/null 2>&1; then
+		abort "Specified source type requires \"${cmd}\" in \`\$PATH\`.  Install it and try again."
+	fi
+}
+
+copy_dir_contents() {
+	src="${1}"
+	dst="${2}"
+
+	mkdir -p "${dst}"
+	count=0
+	for f in "${src}"/*; do
+		case "$(basename "${f}")" in
+		"*" | "brl-import") continue ;;
+		esac
+		count=$((count + 1))
+	done
+	for f in "${src}"/*; do
+		case "$(basename "${f}")" in
+		"*" | "brl-import") continue ;;
+		esac
+		cp -a "${f}" "${tgt}"
+		echo "x"
+	done | progress_bar "${count}"
+}
+
+# Some virtual machines hide everything in an `@` directory
+# Some directories/tarballs/etc contain an undesired parent directory
+remove_root_dir() {
+	if [ -d "${tgt}/@" ] && ls "${tgt}/@/"* >/dev/null 2>&1; then
+		dir="${tgt}/@"
+	elif [ "$(find "${tgt}" -mindepth 1 -maxdepth 1 | wc -l)" -ne 1 ]; then
+		return
+	elif ! [ -d "$(find "${tgt}" -mindepth 1 -maxdepth 1)" ]; then
+		return
+	else
+		dir="$(find "${tgt}" -mindepth 1 -maxdepth 1)"
+	fi
+	notice "Moving files"
+	mv "${dir}/"* "${tgt}"
+	less_lethal_rm_rf "${dir}"
+}
+
+import_abort() {
+	printf "${color_alert}ERROR: %s\\n${color_norm}" "${@}" >&2
+	notice "Cleaning up"
+	less_lethal_rm_rf "${tgt}"
+	exit 1
+}
+
+handle_help "${@:-}"
+min_args "${#}" "2"
+name="${1}"
+src="${2}"
+tgt="/bedrock/strata/${name}/"
+tmp="${tgt}/brl-import/"
+
+require_root
+lock
+
+ensure_legal_stratum_name "${name}"
+
+if is_stratum_or_alias "${name}"; then
+	abort "Something already exists at \"/bedrock/strata/${name}\".  Either choose another name or remove preexisting stratum/alias with \`brl remove ${name}\` and try again."
+fi
+
+trap 'import_abort "Unexpected error occurred."' EXIT
+
+mkdir -p "${tgt}" "${tmp}"
+
+case "${src}" in
+*.qcow | *.qcow2 | *.qcow3 | *.vmdk | *.vdi)
+	require_cmd qemu-img
+	step_init 7
+
+	step "Converting image format"
+	# -p makes its own progress bar
+	qemu-img convert -p -Oraw "${src}" "${tmp}/disk.img"
+
+	step "Mounting disk image"
+	sector_size="$(fdisk -l "${tmp}/disk.img" | awk '/Units: sectors of/ {print $(NF-1)}')"
+	partitions="$(fdisk -l "${tmp}/disk.img" | awk '/^\// && $NF == "Linux" {i++} END {print i}')"
+	if [ "${partitions}" -gt 1 ]; then
+		import_abort "Too many partitions; unable to guess root partition.  Install one big partition in VM and try again."
+	elif [ "${partitions}" -lt 1 ]; then
+		import_abort "Unable to find Linux partition in image."
+	fi
+	offset="$(fdisk -l "${tmp}/disk.img" | awk -v"sector_size=${sector_size}" '/^\// && $NF == "Linux" {
+			if ($2 == "*") {
+				print $5 * sector_size
+			} else {
+				print $4 * sector_size
+			}
+		}')"
+	mount -oloop,offset="${offset}" "${tmp}/disk.img" "${tmp}"
+
+	step "Copying files"
+	copy_dir_contents "${tmp}" "${tgt}"
+	;;
+*.tar | *.tar.gz | *.tar.bz2 | *.tar.xz)
+	step_init 6
+	step "Extracting tarball"
+	mkdir -p "${tgt}"
+	tar -xv -f "${src}" -C "${tgt}" | awk 'NR%100==0' | progress_unknown
+	;;
+*)
+	if [ -d "${src}" ]; then
+		step_init 6
+		step "Copying files"
+		copy_dir_contents "${src}" "${tgt}"
+	else
+		import_abort "Could not determine source type.  See --help."
+	fi
+	;;
+esac
+
+remove_root_dir
+
+step "Cleaning up"
+less_lethal_rm_rf "${tmp}"
+
+step "Importing users and groups"
+import_users_and_groups "${tgt}/etc/passwd" "${tgt}/etc/group"
+
+drop_lock
+
+step "${color_term}Showing${color_norm}"
+/bedrock/libexec/brl-show "${name}"
+
+step "${color_term}Enabling${color_norm}"
+/bedrock/libexec/brl-enable "${name}"
+
+notice "Successfully ${color_term}imported${color_norm} ${color_strat}${name}${color_norm}"
+
+exit_success

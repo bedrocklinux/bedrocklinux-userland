@@ -173,6 +173,78 @@ step() {
 		"${percent}"
 }
 
+get_width() {
+	width=$( (stty size 2>/dev/null || echo "x 40") | cut -d' ' -f2)
+	if [ "${width}" -gt 80 ]; then
+		width=80
+	fi
+}
+
+progress_bar() {
+	get_width
+	awk -v"total=${1}" -v"width=${width}" '
+		BEGIN {
+			width -= 8
+			bar = ""
+			for (i = 0; i < width; i++) {
+				bar = bar " "
+			}
+			printf "\r[%s] %3d%%", bar, NR * 100 / total
+		}
+		{
+			bar = ""
+			for (i = 0; i < width; i++) {
+				if ((NR / total) >= (i / width)) {
+					bar = bar "\\"
+				} else {
+					bar = bar " "
+				}
+			}
+			printf "\r[%s] %3d%%", bar, NR * 100 / total
+		}
+		END {
+			bar = ""
+			for (i = 0; i < width; i++) {
+				bar = bar "\\"
+			}
+			printf "\r[%s] 100%%\n", bar
+		}
+	' -
+}
+
+progress_unknown() {
+	get_width
+	awk -v"width=${width}" '
+		BEGIN {
+			width -= 8
+			s[0] = "-"; s[1] = "\\"; s[2] = "|"; s[3] = "/"
+			printf "\r["
+			for (i = 0; i < width; i++) {
+				bar = bar " "
+			}
+			printf "\r[%s]  ??%%", bar
+		}
+		{
+			bar = ""
+			for (i = 0; i < width; i++) {
+				if (!(i % 3)) {
+					bar = bar "" s[(NR + i) % 4]
+				} else {
+					bar = bar " "
+				}
+			}
+			printf "\r[%s]  ??%%", bar
+		}
+		END {
+			bar = ""
+			for (i = 0; i < width; i++) {
+				bar = bar "\\"
+			}
+			printf "\r[%s] 100%%\n", bar
+		}
+	' -
+}
+
 # Abort if parameter is not a legal stratum name.
 ensure_legal_stratum_name() {
 	name="${1}"
@@ -1645,6 +1717,69 @@ cfg_etcfs() {
 			}
 		' "${mount}/${key}"
 	done
+}
+
+import_users_and_groups() {
+	passwd_file="${1}"
+	group_file="${2}"
+
+	if [ -r "${group_file}" ]; then
+		while read -r line; do
+			group="$(echo "${line}" | awk -F: '{print$1}')"
+			if ! awk -F: -v"group=${group}" '$1 == group {exit 1}' /etc/group; then
+				continue
+			fi
+
+			gid="$(echo "${line}" | awk -F: '{print$3}')"
+			if awk -F: -v"gid=${gid}" '$3 == gid {exit 1}' /etc/group; then
+				addgroup -g "${gid}" -S "${group}"
+			else
+				addgroup -S "${group}"
+			fi
+		done <"${group_file}"
+	fi
+
+	if [ -r "${passwd_file}" ]; then
+		while read -r line; do
+			user="$(echo "${line}" | awk -F: '{print$1}')"
+			if ! awk -F: -v"user=${user}" '$1 == user {exit 1}' /etc/passwd; then
+				continue
+			fi
+
+			uid="$(echo "${line}" | awk -F: '{print$3}')"
+			gid="$(echo "${line}" | awk -F: '{print$4}')"
+			group="$(awk -F: -v"gid=${gid}" '$3 == gid {print$1;exit}' "${group_file}")"
+			if [ -z "${group}" ]; then
+				group="nogroup"
+				if ! grep -q "^${group}:" /etc/group; then
+					addgroup -S "nogroup"
+				fi
+			fi
+			gecos="$(echo "${line}" | awk -F: '{print$5}')"
+			home="$(echo "${line}" | awk -F: '{print$6}')"
+			shell="/bedrock/cross/bin/$(basename "$(echo "${line}" | awk -F: '{print$7}')")"
+			if awk -F: -v"uid=${uid}" '$3 == uid {exit 1}' /etc/passwd; then
+				adduser -h "${home}" -g "${gecos}" -s "${shell}" -G "${group}" -S -D -H -u "${uid}" "${user}"
+			else
+				adduser -h "${home}" -g "${gecos}" -s "${shell}" -G "${group}" -S -D -H "${user}"
+			fi
+		done <"${passwd_file}"
+	fi
+
+	# We just imported users & groups, now let's add users to groups
+	if [ -r "${group_file}" ]; then
+		while read -r line; do
+			if [ -z "$(echo "${line}" | awk -F: '{print$4}')" ]; then
+				continue
+			fi
+			group="$(echo "${line}" | awk -F: '{print$1}')"
+			for user in $(echo "${line}" | cut -d: -f4- | sed 's/,/ /g'); do
+				if grep -q "^${user}:" /etc/passwd; then
+					addgroup "${user}" "${group}"
+				fi
+			done
+		done <"${group_file}"
+	fi
 }
 
 trap 'abort "Unexpected error occurred."' EXIT

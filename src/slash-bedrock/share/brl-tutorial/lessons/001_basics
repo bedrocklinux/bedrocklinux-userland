@@ -395,16 +395,19 @@ in another ${stratum}.
 )
 "
 
-section "Manually adding ${strata}" "
-If you would like to make a ${stratum} from some distro that ${brl_fetch} does not
-support, simply:
+section "brl import" "
+If you would like to make a ${stratum} from some distro that ${brl_fetch} does
+not support, you may use the ${brl_import} to do so.
 
-- Get that distro's files somehow, such as installing them in a VM and mounting
-the VM image.
-- Copy them into ${color_file}/bedrock/strata/${color_sub}<new-stratum-name>${color_norm}.  Be careful to preserve
-permissions and symbolic links!
-- Run ${color_cmd}brl show ${color_sub}<new-stratum-name>${color_norm} to register the new ${stratum} with ${Bedrock}
-- Run ${color_cmd}brl enable ${color_sub}<new-stratum-name>${color_norm} to begin to use it.
+Get the desired files in some format such as:
+
+- directory containing desired files
+- tarball containing desired files
+- Virtual Machine image (e.g. .qcow, .vdi, .vmdk)
+
+then run
+
+$(rcmd "brl import <name> </path/to/source>")
 "
 
 section "${bedrock_conf}" "

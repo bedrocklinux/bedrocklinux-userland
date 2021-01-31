@@ -150,6 +150,12 @@ _brl() {
 		opts="${opts} $(_brl_unused_all "-s --dont-show" "${COMP_WORDS[@]}")"
 		opts="${opts} $(/bedrock/bin/brl fetch --list)"
 		;;
+	"import")
+		if [ "${COMP_CWORD}" -eq 3 ]; then
+			compopt -o filenames
+			opts="${opts} $(compgen -d -f -- "${cur}")"
+		fi
+		;;
 	"remove")
 		opts="${opts} $(_brl_unused_all "-d --disable" "${COMP_WORDS[@]}")"
 		saw_disable_flag=false

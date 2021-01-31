@@ -57,7 +57,7 @@ function _brl_which_any
 	return 0
 end
 
-complete -f -c brl -a 'help strat list which fetch remove rename copy status enable disable repair hide show alias deref update reload version report tutorial' -d 'brl subcommand' -n "_brl_argnum 1"
+complete -f -c brl -a 'help strat list which fetch import remove rename copy status enable disable repair hide show alias deref update reload version report tutorial' -d 'brl subcommand' -n "_brl_argnum 1"
 
 complete -f -c brl -o 'h' -d 'print help message' -n "_brl_argnum 1"
 complete -f -c brl -o 'h' -d 'print help message' -n "_brl_argnum 2"
@@ -114,6 +114,8 @@ complete -f -c brl -n '_brl_arg_is 2 fetch' -l 'dont-enable' -d 'skip enabling n
 complete -f -c brl -n '_brl_arg_is 2 fetch' -o 's' -d 'skip showing newly fetched strata'
 complete -f -c brl -n '_brl_arg_is 2 fetch' -l 'dont-show' -d 'skip showing newly fetched strata'
 complete -f -c brl -n '_brl_arg_is 2 fetch' -a '(/bedrock/bin/brl fetch --list)' -d 'distro'
+
+complete -f -c brl -n '_brl_arg_is 3 import' -a '(__fish_complete_path)' -d 'source'
 
 complete -f -c brl -n '_brl_arg_is 2 remove' -a '(/bedrock/bin/brl list -aAi)' -d 'aliases and strata'
 
