@@ -780,36 +780,8 @@ $(BUILD)/userland.tar: \
 	ln -s ../bin/strat $(SLASHBR)/libexec/brl-strat
 	ln -s /bedrock/run/init-alias $(SLASHBR)/strata/init
 	ln -s ../cross/.local-alias $(SLASHBR)/strata/local
-	ln -s /sbin/init $(BUILD)/sbin/fallback-init
-	ln -s /sbin/init $(BUILD)/sbin/myinit
-	ln -s /sbin/init $(BUILD)/sbin/ninit
-	ln -s /sbin/init $(BUILD)/sbin/openrc-init
-	ln -s /sbin/init $(BUILD)/sbin/runit-init
-	ln -s /sbin/init $(BUILD)/sbin/simpleinit
-	ln -s /sbin/init $(BUILD)/sbin/upstart
-	mkdir -p $(BUILD)/lib/sysvinit
-	ln -s /sbin/init $(BUILD)/lib/sysvinit/init
-	mkdir -p $(BUILD)/lib/systemd
-	ln -s /sbin/init $(BUILD)/lib/systemd/systemd
-	mkdir -p $(BUILD)/usr/lib/systemd
-	ln -s /sbin/init $(BUILD)/usr/lib/systemd/systemd
-	mkdir -p $(BUILD)/usr/bin/
-	ln -s /sbin/init $(BUILD)/usr/bin/intra-desktop
 	# create a tarball
-	cd $(BUILD) && fakeroot tar cf userland.tar-new \
-		bedrock/ \
-		sbin/init \
-		sbin/fallback-init \
-		sbin/myinit \
-		sbin/ninit \
-		sbin/openrc-init \
-		sbin/runit-init \
-		sbin/simpleinit \
-		sbin/upstart \
-		lib/sysvinit/init \
-		lib/systemd/systemd \
-		usr/lib/systemd/systemd \
-		usr/bin/intra-desktop
+	cd $(BUILD) && fakeroot tar cf userland.tar-new bedrock/ sbin/init
 	cd $(BUILD) && mv userland.tar-new userland.tar
 tarball: $(BUILD)/userland.tar
 
