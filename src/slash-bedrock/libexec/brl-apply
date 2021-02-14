@@ -156,6 +156,7 @@ $(
 )
 	esac
 done
+unset line
 
 unset TZ
 export LANG="$(cfg_value "locale" LANG)"
