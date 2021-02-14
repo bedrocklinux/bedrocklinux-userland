@@ -1,3 +1,9 @@
+# 0.7.20beta2
+
+- Fix busybox latest stable version detection
+- Avoid leaking ${line} variable from /etc/profile envvar handling
+- Revert new logic to handle non-/sbin/init inits; was found to be incomplete.
+
 # 0.7.20beta1
 
 - Fixed brl-fetch centos
