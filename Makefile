@@ -442,11 +442,12 @@ util-linux: $(COMPLETED)/util-linux
 vendor/busybox/.success_retrieving_source:
 	rm -rf vendor/busybox
 	mkdir -p vendor/busybox
+	# despite "_stable" in branch name, latest _stable branch is unstable; use second latest branch.
 	git clone --depth=1 \
 		-b `git ls-remote --heads 'git://git.busybox.net/busybox' | \
 		awk -F/ '$$NF ~ /stable$$/ {print $$NF}' | \
 		sort -t _ -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
-		tail -n1` 'git://git.busybox.net/busybox' \
+		tail -n2 | head -n1` 'git://git.busybox.net/busybox' \
 		vendor/busybox
 	touch vendor/busybox/.success_retrieving_source
 build/all/busybox/bedrock-config: vendor/busybox/.success_retrieving_source
