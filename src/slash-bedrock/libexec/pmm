@@ -274,6 +274,7 @@ $(cat /bedrock/share/pmm/package_managers/* /bedrock/share/pmm/help /bedrock/sha
 #
 # - global_flags[]
 # - selected_operation
+# - package_will_be_installed[]
 #
 
 # Single quotes are most definitely desired here
@@ -1289,6 +1290,10 @@ function check_applicability(check, operation, stratum, package_manager, item,
 
 	cache_available = check_package_cache_available(stratum, package_manager)
 
+    if (operation == "install-packages") {
+        package_will_be_installed[package] = 1
+    }
+
 	# version flag applicability constraints
 	if (item != "" && (("approx-version" in global_flags) ||
 			("exact-version" in global_flags) ||
@@ -1349,6 +1354,9 @@ function check_applicability(check, operation, stratum, package_manager, item,
 	} else if (cache_available && check == "is-package-available") {
 		return cache_is_package_available(stratum, package_manager, item) == 0
 	} else if ((package_manager, check) in implementations) {
+	    if(check == "is-package-installed" && package_will_be_installed[package]) {
+	        return 1
+	    }
 		return run_shell(implementations[package_manager, check], stratum, package_manager, item, 0) == 0
 	}
 }
@@ -1368,10 +1376,20 @@ function find_applicable_pairs(operation, check, type, item, pre, post, uncollec
 			continue
 		}
 		if (type == "first") {
+		    if (restrict_to_last == "true") {
+		        if (package_manager != last_saved["package_manager"] || stratum != last_saved["stratum"]) {
+
+		            continue
+		        }
+		    }
 			uncollected_cmds[++uncollected_cmd_count] = (operation, stratum, package_manager, item, pre, post)
+    		last_saved["package_manager"] = package_manager
+    		last_saved["stratum"] = stratum
 			break
 		} else if (type == "every") {
 			uncollected_cmds[++uncollected_cmd_count] = (operation, stratum, package_manager, item, pre, post)
+    		last_saved["package_manager"] = package_manager
+    		last_saved["stratum"] = stratum
 		} else if (type == "newest" || type == "oldest") {
 			if (check_package_cache_available(stratum, package_manager)) {
 				cache_print_package_version(stratum, package_manager, item, _return, output)
@@ -1394,6 +1412,8 @@ function find_applicable_pairs(operation, check, type, item, pre, post, uncollec
 	}
 	if ((type == "newest" || type == "oldest") && best_stratum != "") {
 		uncollected_cmds[++uncollected_cmd_count] = (operation, best_stratum, best_package_manager, item, pre, post)
+		last_saved["package_manager"] = best_package_manager
+		last_saved["stratum"] = best_stratum
 	}
 	return uncollected_cmd_count
 }
@@ -1442,6 +1462,8 @@ function generate_cmd_list(_return, uncollected_cmds,
 			abort("Operation \""operation"\" expects one argument but more than one were provided")
 		} else if (count == "many" && (!(1 in items))) {
 			abort("Operation \""operation"\" expects one or more arguments but none were provided")
+		} else if (count != "zero" && items_consumed) {
+		    restrict_to_last = "true"
 		} else if (count != "zero") {
 			items_consumed = 1
 		}
