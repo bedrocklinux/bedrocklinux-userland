@@ -230,8 +230,8 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		timezone="$(cat /etc/timezone)"
 	elif [ -h /etc/localtime ] && readlink /etc/localtime | grep -q '^/usr/share/zoneinfo/' && [ -r /etc/localtime ]; then
 		timezone="$(readlink /etc/localtime | sed 's,^/usr/share/zoneinfo/,,')"
-	elif [ -r /etc/rc.conf ] && grep -q '^TIMEZONE=' /etc/rc.conf; then
-		timezone="$(awk -F[=] '$1 == "TIMEZONE" {print$NF}')"
+	elif [ -r /etc/rc.conf ] && grep -q '^TIMEZONE=.' /etc/rc.conf; then
+		timezone="$(awk -F[=] '$1 == "TIMEZONE" {print$NF}' /etc/rc.conf)"
 	elif [ -r /etc/localtime ]; then
 		timezone="$(find /usr/share/zoneinfo -type f -exec sha1sum {} \; 2>/dev/null | awk -v"l=$(sha1sum /etc/localtime | cut -d' ' -f1)" '$1 == l {print$NF;exit}' | sed 's,/usr/share/zoneinfo/,,')"
 	fi
