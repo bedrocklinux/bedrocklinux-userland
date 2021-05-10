@@ -55,7 +55,7 @@ fetch() {
 	eopkgdb_to_brldb "${bootstrap_dir}/eopkg-index.xml" "${bootstrap_dir}/brldb"
 
 	step "Calculating required bootstrap packages"
-	bootstrap_deps="$(cat "${bootstrap_dir}/brldb/required")"
+	bootstrap_deps="perl $(cat "${bootstrap_dir}/brldb/required")"
 	brldb_calculate_required_packages "${bootstrap_dir}/brldb" "${bootstrap_dir}/required_packages" "${bootstrap_deps}"
 
 	step "Downloading bootstrap packages"
@@ -90,6 +90,10 @@ fetch() {
 	chroot "${bootstrap_dir}" eopkg --debug -y -D/target-root rdb
 	chroot "${bootstrap_dir}" eopkg -y -D/target-root ar Solus "${target_mirror}/packages/shannon/eopkg-index.xml.xz"
 
+	# Fix certs
+	# https://discuss.getsol.us/d/4996-help-with-ssl-certificate-error
+	chroot "${bootstrap_dir}" usysconf run -f ssl-certs
+
 	# system.base contains util-linux which depends on python3.  However,
 	# installing system.base does not pull in python3, but rather just
 	# errors about a missing dependency.  To resolve this, explicitly
@@ -98,7 +102,7 @@ fetch() {
 	# Explicitly install system.base just in case python3 didn't pull
 	# something from system.base in as a dependency.
 	chroot "${bootstrap_dir}" eopkg -y -D/target-root install -c system.base
-	# perl is an unlisted required package.  Installing vim runs /usr/bin/c_rehash which requires perl.
+	# perl is an unlisted required package.
 	chroot "${bootstrap_dir}" eopkg -y -D/target-root install perl
 
 	# There are various compatibility issues between Bedrock and Solus'
@@ -117,6 +121,11 @@ fetch() {
 	# relative.
 	rm "${target_dir}/etc/fonts"
 	ln -s "../usr/share/fonts" "${target_dir}/etc/fonts"
+
+	# Fix certs
+	# https://discuss.getsol.us/d/4996-help-with-ssl-certificate-error
+	setup_chroot "${target_dir}"
+	chroot "${target_dir}" usysconf run -f ssl-certs
 }
 
 eopkgdb_to_brldb() {
