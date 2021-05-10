@@ -39,7 +39,7 @@ EOF
 }
 
 default_release() {
-	wget -O- https://api.github.com/repos/kisslinux/repo/releases/latest 2>/dev/null | awk -F'"' '
+	download -q https://api.github.com/repos/kisslinux/repo/releases/latest - | awk -F'"' '
 	$2 == "assets" {
 		in_assets = 1
 	}
@@ -52,7 +52,7 @@ default_release() {
 }
 
 list_releases() {
-	wget -O- https://api.github.com/repos/kisslinux/repo/releases 2>/dev/null | awk -F'"' '
+	download -q https://api.github.com/repos/kisslinux/repo/releases - | awk -F'"' '
 	$2 == "assets" {
 		in_assets = 1
 	}
@@ -67,7 +67,7 @@ list_releases() {
 fetch() {
 	prefix="https://github.com/kisslinux/repo/releases/download/"
 	step "Downloading bootstrap software"
-	wget -O "${bootstrap_dir}/checksum" "${prefix}/${target_release}/kiss-chroot-${target_release}.tar.xz.sha256"
+	download "${prefix}/${target_release}/kiss-chroot-${target_release}.tar.xz.sha256" "${bootstrap_dir}/checksum"
 	bootstrap_checksum="$(awk '{print$1}' "${bootstrap_dir}/checksum")"
 	checksum_download "${cache}/bootstrap.tar.xz" "sha256sum" "${bootstrap_checksum}" "${prefix}/${target_release}/kiss-chroot-${target_release}.tar.xz"
 

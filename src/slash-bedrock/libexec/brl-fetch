@@ -101,7 +101,7 @@ find_link() {
 
 	printf "Looking for file matching: ${color_file}${regex}${color_norm}\\n" >&2
 	printf "at: ${color_link}${index}${color_norm}\\n" >&2
-	path="$(wget -O- "${index}" 2>/dev/null | list_links | sed 's,^.*/,,' | grep -- "${regex}" | head -n1)"
+	path="$(download -q "${index}" - | list_links | sed 's,^.*/,,' | grep -- "${regex}" | head -n1)"
 	if ! echo "${path}" | grep -q '[^[:space:]]'; then
 		abort "Unable to find file.  Try manually specifying a known good mirror with \`--mirror\`."
 	fi
@@ -121,7 +121,7 @@ download_files() {
 		IFS="
 "
 		for file in ${files}; do
-			wget "${file}" 2>/dev/null
+			download -q "${file}"
 			echo "${file}"
 		done | progress_bar "$(echo "${files}" | wc -l)"
 	)
@@ -262,7 +262,7 @@ pick_mirror() {
 		# If bedrock.conf specifies mirror, try it.  If it works, use it.
 		for mirror in $(cfg_value "brl-fetch-mirrors" "${key}"); do
 			echo "X"
-			if wget -O- "${mirror}/${test_file}" >/dev/null 2>&1; then
+			if download -q "${mirror}/${test_file}" - >/dev/null; then
 				echo "${mirror}" >"${mirror_file}"
 				return
 			fi
@@ -271,7 +271,7 @@ pick_mirror() {
 		# If bedrock.conf specifies mirror prefix, try it.  If it works, use it.
 		for prefix in $(cfg_values "brl-fetch-mirrors" "mirror-prefix"); do
 			echo "X"
-			if wget -O- "${prefix}/${suffix}/${test_file}" >/dev/null 2>&1; then
+			if download -q "${prefix}/${suffix}/${test_file}" - >/dev/null; then
 				echo "${prefix}/${suffix}" >"${mirror_file}"
 				return
 			fi
@@ -323,7 +323,7 @@ pick_mirror() {
 	notice "Finding fastest mirror from ${count}" >&2
 	for mirror in ${mirrors}; do
 		echo "mirror ${mirror}"
-		time wget -O- "${mirror}/${test_file}" >/dev/null
+		download -t "${mirror}/${test_file}" - >/dev/null
 		echo "result ${?}"
 	done 2>&1 | awk -vout="${mirror_file}" '
 		$1 == "mirror" {
@@ -386,7 +386,7 @@ checksum_download() {
 	fi
 
 	mkdir -p "$(dirname "${file}")"
-	wget -O "${file}" "${url}"
+	download "${url}" "${file}"
 
 	# Check download is valid
 	if [ "$("${checksum_cmd}" "${file}" | awk '{print$1}')" != "${checksum}" ]; then

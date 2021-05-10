@@ -23,7 +23,7 @@ speed_test_url() {
 
 list_mirrors() {
 	mirror_list_url='https://crux.nu/Main/Download'
-	wget -O- "${mirror_list_url}" 2>/dev/null |
+	download -q "${mirror_list_url}" - |
 		awk '/<table/,/<\/table/' |
 		list_links |
 		grep "^http"
@@ -42,7 +42,7 @@ list_architectures() {
 
 list_releases() {
 	for mirror in "${flag_mirror}" $(list_mirrors); do
-		if wget -O- "${mirror}" 2>/dev/null |
+		if download -q "${mirror}" - |
 			list_links |
 			grep -e '^crux-[0-9]' -e 'latest' |
 			sed -e 's/^crux-//' -e 's,/$,,'; then
@@ -52,7 +52,7 @@ list_releases() {
 }
 
 default_release() {
-	wget -O- 'https://crux.nu/Main/Download' 2>/dev/null |
+	download -q 'https://crux.nu/Main/Download' - |
 		grep 'CRUX [0-9][0-9]*[.]' |
 		sed 's/^.*CRUX \([0-9][0-9]*[.][0-9]*\).*$/\1/' |
 		head -n1
@@ -60,7 +60,7 @@ default_release() {
 
 fetch() {
 	step "Downloading bootstrap software"
-	wget -O "${bootstrap_dir}/checksum" "${target_mirror}/crux-${target_release}/iso/crux-${target_release}.md5"
+	download "${target_mirror}/crux-${target_release}/iso/crux-${target_release}.md5" "${bootstrap_dir}/checksum"
 	bootstrap_checksum="$(awk '{print$1}' "${bootstrap_dir}/checksum")"
 	bootstrap_url="${target_mirror}/crux-${target_release}/iso/crux-${target_release}.iso"
 	checksum_download "${cache}/crux.iso" "md5sum" "${bootstrap_checksum}" "${bootstrap_url}"

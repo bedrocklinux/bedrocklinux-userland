@@ -58,7 +58,7 @@ EOF
 
 default_release() {
 	for mirror in "${flag_mirror}" $(list_mirrors); do
-		release="$(wget -O- "${mirror}/dists/stable/Release" 2>/dev/null | awk '$1 == "Codename:" {print$2;exit}')"
+		release="$(download -q "${mirror}/dists/stable/Release" - | awk '$1 == "Codename:" {print$2;exit}')"
 		if [ -n "${release}" ]; then
 			echo "${release}"
 			return
@@ -68,7 +68,7 @@ default_release() {
 
 list_releases() {
 	for mirror in "${flag_mirror}" $(list_mirrors); do
-		if wget -O- "${mirror}/dists" 2>/dev/null |
+		if download -q "${mirror}/dists" - |
 			list_links | grep '/$' |
 			grep -v -- '-' |
 			grep -ve '[.]' -ve '^/' |
@@ -90,7 +90,7 @@ fetch() {
 	esac
 
 	step "Downloading package information database"
-	wget -O "${bootstrap_dir}/Packages.gz" "${target_mirror}/dists/${target_release}/main/binary-${distro_arch}/Packages.gz"
+	download "${target_mirror}/dists/${target_release}/main/binary-${distro_arch}/Packages.gz" "${bootstrap_dir}/Packages.gz"
 	gunzip "${bootstrap_dir}/Packages.gz"
 
 	step "Converting distro package information database to brl format"

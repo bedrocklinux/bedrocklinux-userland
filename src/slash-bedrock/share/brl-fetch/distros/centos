@@ -41,7 +41,7 @@ list_mirrors() {
 	# However, user-provided mirrors will most likely not include such a
 	# suffix.  To enforce uniformity, strip the repository suffix.
 	#
-	wget -O- "http://mirrorlist.centos.org/?release=${target_release}&arch=${distro_arch}&repo=${repo}" 2>/dev/null |
+	download -q "http://mirrorlist.centos.org/?release=${target_release}&arch=${distro_arch}&repo=${repo}" - |
 		awk -vsuffix="$(get_mirror_suffix)" '{
 			sl=length(suffix)
 			ml=length($0)
@@ -82,7 +82,7 @@ default_release() {
 
 list_releases() {
 	for mirror in "${flag_mirror}" "http://mirror.centos.org/centos/"; do
-		if wget -O- "${mirror}" 2>/dev/null |
+		if download -q "${mirror}" - |
 			list_links |
 			grep '^[0-9][0-9a-z-]*/$' |
 			sed 's,/$,,'; then
@@ -108,7 +108,7 @@ fetch() {
 
 	step "Downloading package information database"
 	url="$(find_link "${target_mirror}/${suffix}/repodata/" "primary.xml.gz")"
-	wget -O "${bootstrap_dir}/primary.xml.gz" "${url}"
+	download "${url}" "${bootstrap_dir}/primary.xml.gz"
 
 	step "Extracting package information database"
 	gunzip "${bootstrap_dir}/primary.xml.gz"

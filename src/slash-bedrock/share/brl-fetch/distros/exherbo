@@ -65,7 +65,7 @@ fetch() {
 	ex_checksum_fn=sha1sum
 
 	step "Downloading & verifying bootstrap software"
-	wget -O "${bootstrap_dir}/${ex_checksum_fn}" "${target_mirror}"/stages/"${ex_checksum_fn}"
+	download "${target_mirror}"/stages/"${ex_checksum_fn}" "${bootstrap_dir}/${ex_checksum_fn}"
 	ex_sha1sum="$(awk -v"name=${ex_stage}" '/^# .* HASH$/ {hash=$1;next} $2 == name {print$1;exit}' "${bootstrap_dir}/${ex_checksum_fn}")"
 	checksum_download "${cache}/${ex_stage}" "sha1sum" "${ex_sha1sum}" "${target_mirror}"/stages/"${ex_stage}"
 

@@ -23,7 +23,7 @@ speed_test_url() {
 
 list_mirrors() {
 	mirror_list_url="https://www.gentoo.org/downloads/mirrors/"
-	wget -O- "${mirror_list_url}" 2>/dev/null |
+	download -q "${mirror_list_url}" - |
 		awk '/Region/,/<footer>/' |
 		list_links |
 		grep "^http"
@@ -69,12 +69,12 @@ list_releases() {
 
 fetch() {
 	step "Finding bootstrap software"
-	groups="$(wget -O- "${target_mirror}/releases/" 2>/dev/null |
+	groups="$(download -q "${target_mirror}/releases/" - |
 		list_links |
 		grep '/$' |
 		sed -e 's,/$,,')"
 	group="$(for group in ${groups}; do
-		if wget -O- "${target_mirror}/releases/${group}/autobuilds/" 2>/dev/null |
+		if download -q "${target_mirror}/releases/${group}/autobuilds/" - |
 			list_links |
 			grep "^current-stage3-${distro_arch}/$" >/dev/null; then
 			echo "${group}"
@@ -88,7 +88,7 @@ fetch() {
 	step "Downloading bootstrap software"
 	bootstrap_url="$(find_link "${target_mirror}/releases/${group}/autobuilds/current-stage3-${distro_arch}/" "^stage3-${distro_arch}-[^.]*[.]tar[.]\(xz\|bz2\)$")"
 	bootstrap_name="$(echo "${bootstrap_url}" | sed 's,^.*/,,')"
-	wget -O "${bootstrap_dir}/checksum" "${bootstrap_url}.DIGESTS"
+	download "${bootstrap_url}.DIGESTS" "${bootstrap_dir}/checksum"
 	bootstrap_checksum="$(awk -v"name=${bootstrap_name}" '/^# .* HASH$/ {hash=$2;next} hash == "SHA512" && $2 == name {print$1;exit}' "${bootstrap_dir}/checksum")"
 	cache_name="stage3.tar.$(echo "${bootstrap_name}" | sed 's/^.*[.]//')"
 	checksum_download "${cache}/${cache_name}" "sha512sum" "${bootstrap_checksum}" "${bootstrap_url}"

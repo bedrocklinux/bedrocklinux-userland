@@ -23,7 +23,7 @@ speed_test_url() {
 
 list_mirrors() {
 	mirror_list_url='http://nl.alpinelinux.org/alpine/MIRRORS.txt'
-	wget -O- "${mirror_list_url}" 2>/dev/null
+	download -q "${mirror_list_url}" -
 }
 
 brl_arch_to_distro() {
@@ -58,14 +58,14 @@ default_release() {
 list_releases() {
 	for mirror in "${flag_mirror}" $(list_mirrors); do
 		# get list of all releases, irrelevant of architecture
-		if ! release_pages="$(wget -O- "${mirror}" 2>/dev/null |
+		if ! release_pages="$(download -q "${mirror}" - |
 			list_links |
 			grep '/$')"; then
 			continue
 		fi
 		for page in ${release_pages}; do
 			# find architectures supported by given release
-			page_archs="$(wget -O- "${mirror}/${page}/main/" 2>/dev/null |
+			page_archs="$(download -q "${mirror}/${page}/main/" - |
 				list_links | sed -e 's,/$,,')"
 			# print release if it supports architecture
 			for arch in ${page_archs}; do
@@ -91,7 +91,7 @@ fetch() {
 	# verify against a cache, but it is not trivial to extract into a
 	# useable format.
 	url="$(find_link "${target_mirror}/${mirror_release}/main/${distro_arch}/" "^apk-tools-static.*.apk")"
-	wget -O "${bootstrap_dir}/apk-tools-static.apk" "${url}"
+	download "${url}" "${bootstrap_dir}/apk-tools-static.apk"
 
 	step "Preparing bootstrap software"
 	tar xf "${bootstrap_dir}/apk-tools-static.apk" -O sbin/apk.static >"${bootstrap_dir}/apk"
