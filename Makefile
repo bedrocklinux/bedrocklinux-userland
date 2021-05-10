@@ -135,7 +135,7 @@ BEDROCK_VERSION=0.7.20beta2
 CODENAME=Poki
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | awk 'NR==2')
-ARCH_BIT_DEPTH=$(shell ./detect_arch.sh | tail -1)
+ARCH_BIT_DEPTH=$(shell ./detect_arch.sh | awk 'NR==3')
 RELEASE=Bedrock Linux $(BEDROCK_VERSION) $(CODENAME)
 INSTALLER=bedrock-linux-$(BEDROCK_VERSION)-$(ARCHITECTURE).sh
 
@@ -161,6 +161,7 @@ remove_vendor_source:
 
 fetch_vendor_sources: \
 	vendor/busybox/.success_retrieving_source \
+	vendor/curl/.success_retrieving_source \
 	vendor/libaio/.success_retrieving_source \
 	vendor/libattr/.success_retrieving_source \
 	vendor/libcap/.success_fetching_source \
@@ -169,6 +170,7 @@ fetch_vendor_sources: \
 	vendor/lvm2/.success_retrieving_source \
 	vendor/musl/.success_fetching_source \
 	vendor/netselect/.success_retrieving_source \
+	vendor/openssl/.success_retrieving_source \
 	vendor/uthash/.success_fetching_source \
 	vendor/util-linux/.success_fetching_source \
 	vendor/zstd/.success_retrieving_source
@@ -272,7 +274,13 @@ $(COMPLETED)/musl: vendor/musl/.success_fetching_source $(COMPLETED)/builddir $(
 	# et al when sanity testing a compiler, requiring another method to
 	# ensure meson tests the compiler with -static.  Thus this hack: embed
 	# the -static flag into musl-gcc.
-	sed 's/ -specs/ -static -specs/' $(SUPPORT)/bin/musl-gcc > $(SUPPORT)/bin/musl-gcc-new
+	#
+	# i386 requires -latomic.  If building i386, shove -latomic in here as well.
+	if [ "$(ARCHITECTURE)" = "i386" ]; then \
+		sed 's/ -specs/ -static -latomic -specs/' $(SUPPORT)/bin/musl-gcc > $(SUPPORT)/bin/musl-gcc-new; \
+	else \
+		sed 's/ -specs/ -static -specs/' $(SUPPORT)/bin/musl-gcc > $(SUPPORT)/bin/musl-gcc-new; \
+	fi
 	mv $(SUPPORT)/bin/musl-gcc-new $(SUPPORT)/bin/musl-gcc
 	chmod a+rx $(SUPPORT)/bin/musl-gcc
 	touch $(COMPLETED)/musl
@@ -435,6 +443,34 @@ $(COMPLETED)/util-linux: vendor/util-linux/.success_fetching_source $(COMPLETED)
 	touch $(COMPLETED)/util-linux
 util-linux: $(COMPLETED)/util-linux
 
+vendor/openssl/.success_retrieving_source:
+	rm -rf vendor/openssl
+	mkdir -p vendor/openssl
+	git clone --depth=1 \
+		-b `git ls-remote --tags 'https://github.com/openssl/openssl.git' | \
+		awk -F/ '{print $$NF}' | \
+		grep '^OpenSSL_1_1_[0-9a-z]*$$' | \
+		sort -t '_' -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1` 'https://github.com/openssl/openssl.git' \
+		vendor/openssl
+	touch vendor/openssl/.success_retrieving_source
+$(COMPLETED)/openssl: vendor/openssl/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl
+	rm -rf $(VENDOR)/openssl
+	cp -r vendor/openssl $(VENDOR)
+	cd $(VENDOR)/openssl && \
+		if [ "$(ARCHITECTURE)" = "mips64el" ]; then \
+			CC=$(MUSLCC) linux$(ARCH_BIT_DEPTH) ./Configure --prefix="$(SUPPORT)" no-shared linux64-mips64; \
+		elif [ "$(ARCHITECTURE)" = "ppc64" ]; then \
+			CC=$(MUSLCC) linux$(ARCH_BIT_DEPTH) ./Configure --prefix="$(SUPPORT)" no-shared linux-ppc64le; \
+		else \
+			CC=$(MUSLCC) linux$(ARCH_BIT_DEPTH) ./config --prefix="$(SUPPORT)" no-shared; \
+		fi && \
+		$(MAKE) CC=$(MUSLCC) && \
+		$(MAKE) install_sw && \
+		$(MAKE) clean # openssl tests use quite a lot of disk
+	touch $(COMPLETED)/openssl
+openssl: $(COMPLETED)/openssl
+
 #
 # Compiled binaries which will go into the output script.  Populates $(SLASHBR)
 #
@@ -518,7 +554,8 @@ build/all/busybox/bedrock-config: vendor/busybox/.success_retrieving_source
 		./set_bb_option "CONFIG_SYSROOT" "\"\"" && \
 		./set_bb_option "CONFIG_TEST" "y" && \
 		./set_bb_option "CONFIG_TEST1" "y" && \
-		./set_bb_option "CONFIG_VI" "y"
+		./set_bb_option "CONFIG_VI" "y" && \
+		./set_bb_option "CONFIG_WGET" "n"
 	cd build/all/busybox && \
 		cp .config bedrock-config
 $(SLASHBR)/libexec/busybox: vendor/busybox/.success_retrieving_source build/all/busybox/bedrock-config $(COMPLETED)/builddir $(COMPLETED)/musl
@@ -547,6 +584,26 @@ $(SLASHBR)/libexec/busybox: vendor/busybox/.success_retrieving_source build/all/
 		$(MAKE) CC=$(MUSLCC) && \
 		cp busybox $(SLASHBR)/libexec/busybox
 busybox: $(SLASHBR)/libexec/busybox
+
+vendor/curl/.success_retrieving_source:
+	rm -rf vendor/curl
+	mkdir -p vendor/curl
+	git clone --depth=1 \
+		-b `git ls-remote --tags 'https://github.com/curl/curl.git' | \
+		awk -F/ '{print $$NF}' | \
+		grep '^curl-[0-9_]*$$' | \
+		sort -t '_' -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1` 'https://github.com/curl/curl.git' \
+		vendor/curl
+	touch vendor/curl/.success_retrieving_source
+$(SLASHBR)/libexec/curl: vendor/curl/.success_retrieving_source $(COMPLETED)/builddir $(COMPLETED)/musl $(COMPLETED)/openssl
+	rm -rf $(VENDOR)/curl
+	cp -r vendor/curl $(VENDOR)
+	cd $(VENDOR)/curl && autoreconf -fi && \
+		CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib" ./configure --with-openssl --enable-static --disable-shared --enable-https --enable-ipv6 && \
+		$(MAKE) CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib" && \
+		cp src/curl $(SLASHBR)/libexec/curl
+curl: $(SLASHBR)/libexec/curl
 
 vendor/libattr/.success_retrieving_source:
 	git clone --depth=1 \
@@ -730,6 +787,7 @@ $(BUILD)/userland.tar: \
 	$(SLASHBR)/libexec/bouncer \
 	$(SLASHBR)/libexec/busybox \
 	$(SLASHBR)/libexec/crossfs \
+	$(SLASHBR)/libexec/curl \
 	$(SLASHBR)/libexec/dmsetup \
 	$(SLASHBR)/libexec/etcfs \
 	$(SLASHBR)/libexec/getfattr \

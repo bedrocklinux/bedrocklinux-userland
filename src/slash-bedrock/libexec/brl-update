@@ -52,7 +52,7 @@ download_update() {
 		# Get releases file.  These are lists of Bedrock updates and
 		# their corresponding URLs.
 		printf "Checking %s... " "${mirror}"
-		if ! wget -O- "${mirror}" >"${releases}" 2>/bedrock/run/tmp; then
+		if ! download "${mirror}" "${releases}" 2>/bedrock/run/tmp; then
 			echo "ERROR!"
 			sed 's/^/  /g' /bedrock/run/tmp
 			continue
@@ -90,7 +90,7 @@ download_update() {
 	notice "Found update at ${color_link}${newest_update_url}${color_norm}"
 
 	notice "Downloading update"
-	if ! wget -O- "${newest_update_url}" >"${update}" 2>/bedrock/run/tmp; then
+	if ! download "${newest_update_url}" "${update}" 2>/bedrock/run/tmp; then
 		cat /bedrock/run/tmp
 		abort "Unable to download update."
 	fi

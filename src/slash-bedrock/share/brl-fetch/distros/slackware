@@ -23,7 +23,7 @@ speed_test_url() {
 
 list_mirrors() {
 	mirror_list_url='https://mirrors.slackware.com/mirrorlist/'
-	wget -O- "${mirror_list_url}" 2>/dev/null |
+	download -q "${mirror_list_url}" - |
 		sed 's/[<> \t\n\r]/\n/g' |
 		awk -F"[=>]" '/^href=/ || /^HREF=/ {print$2}' |
 		grep "^http"
@@ -50,7 +50,7 @@ default_release() {
 
 list_releases() {
 	for mirror in "${flag_mirror}" $(list_mirrors); do
-		if wget -O- "${mirror}" 2>/dev/null |
+		if download -q "${mirror}" - |
 			list_links |
 			grep -e '^slackware64-[0-9]' |
 			sed -e 's/^slackware64-//' -e 's,/$,,'; then
@@ -64,7 +64,7 @@ fetch() {
 	prefix="${target_mirror}/${distro_arch}-${target_release}/${distro_arch}/"
 
 	step "Downloading bootstrap packages"
-	wget -O "${bootstrap_dir}/checksum" "${prefix}/CHECKSUMS.md5"
+	download "${prefix}/CHECKSUMS.md5" "${bootstrap_dir}/checksum"
 
 	checksum_downloads "${cache}/packages/" "$(
 		awk -vm="${prefix}" '

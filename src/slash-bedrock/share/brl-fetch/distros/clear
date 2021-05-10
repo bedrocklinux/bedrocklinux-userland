@@ -46,9 +46,9 @@ list_releases() {
 
 fetch() {
 	step "Calculating required bootstrap packages"
-	clear_update="$(wget -O- "${target_mirror}/current/latest")"
+	clear_update="$(download "${target_mirror}/current/latest" -)"
 	notice "Using update ${clear_update}"
-	wget -O "${bootstrap_dir}/Manifest.MoM" "${target_mirror}/update/${clear_update}/Manifest.MoM" >/dev/null 2>&1
+	download -q "${target_mirror}/update/${clear_update}/Manifest.MoM" "${bootstrap_dir}/Manifest.MoM"
 	loop=true
 	NL="
 "
@@ -61,7 +61,7 @@ fetch() {
 			fi
 			loop=true
 			update="$(awk -v"bundle=${bundle}" '$0 ~ /^M/ && $4 == bundle {print $3; exit}' "${bootstrap_dir}/Manifest.MoM")"
-			wget -O "${bootstrap_dir}/Manifest.${bundle}" "${target_mirror}/update/${update}/Manifest.${bundle}" >/dev/null 2>&1
+			download -q "${target_mirror}/update/${update}/Manifest.${bundle}" "${bootstrap_dir}/Manifest.${bundle}"
 			required_bundles="${required_bundles}${NL}$(awk '$1 == "includes:" {print $2}' "${bootstrap_dir}/Manifest.${bundle}")"
 			echo "${required_bundles}" | sort | uniq | grep "." >"${bootstrap_dir}/required_bundles"
 			echo "x"
@@ -77,7 +77,7 @@ fetch() {
 	total="$(echo "${required_bundles}" | wc -w)"
 	for bundle in ${required_bundles}; do
 		update="$(awk -v"bundle=${bundle}" '$0 ~ /^M/ && $4 == bundle {print $3; exit}' "${bootstrap_dir}/Manifest.MoM")"
-		wget -O "${bootstrap_dir}/pack-${bundle}-from-0.tar" "${target_mirror}/update/${update}/pack-${bundle}-from-0.tar" >/dev/null 2>&1
+		download -q "${target_mirror}/update/${update}/pack-${bundle}-from-0.tar" "${bootstrap_dir}/pack-${bundle}-from-0.tar"
 		echo "x"
 	done | progress_bar "${total}"
 

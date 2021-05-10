@@ -26,7 +26,7 @@ list_mirrors() {
 	"x86_64")
 		echo 'http://archive.ubuntu.com/ubuntu'
 		mirror_list_url='https://launchpad.net/ubuntu/+archivemirrors'
-		wget -O- "${mirror_list_url}" 2>/dev/null |
+		download -q "${mirror_list_url}" - |
 			awk '/mirrors_list/,/<\/div/' |
 			list_links |
 			grep "^http"
@@ -66,14 +66,14 @@ default_release() {
 	# parsing.
 	release_list_url='http://cdimage.ubuntu.com/releases/'
 	set +o pipefail
-	num="$(wget -O- "${release_list_url}" 2>/dev/null 2>/dev/null |
+	num="$(download -q "${release_list_url}" - 2>/dev/null |
 		list_links |
 		sed 's,/,,g' |
 		grep '^[0-9]*[.][0-9]*$' |
 		sort -rn |
 		head -n1)"
 
-	codenames="$(wget -O- "http://archive.ubuntu.com/ubuntu/dists" 2>/dev/null 2>/dev/null |
+	codenames="$(download -q "http://archive.ubuntu.com/ubuntu/dists" - 2>/dev/null |
 		list_links |
 		grep '/$' |
 		grep -v -- '-' |
@@ -82,7 +82,7 @@ default_release() {
 		sed 's,/$,,g')"
 
 	for codename in ${codenames}; do
-		if ! wget -O- "http://archive.ubuntu.com/ubuntu/dists/${codename}/Release" 2>/dev/null |
+		if ! download -q "http://archive.ubuntu.com/ubuntu/dists/${codename}/Release" - |
 			awk -v"n=${num}" '$1 == "Version:" && $2 == n {exit 1}'; then
 			echo "${codename}"
 			set +o pipefail
@@ -94,7 +94,7 @@ default_release() {
 
 list_releases() {
 	for mirror in "${flag_mirror}" $(list_mirrors); do
-		if wget -O- "${mirror}/dists" 2>/dev/null |
+		if download -q "${mirror}/dists" - |
 			list_links |
 			grep '/$' |
 			grep -v -- '-' |
@@ -118,7 +118,7 @@ fetch() {
 	fi
 
 	step "Downloading package information database"
-	wget -O "${bootstrap_dir}/Packages.gz" "${target_mirror}/dists/${target_release}/main/binary-${distro_arch}/Packages.gz"
+	download "${target_mirror}/dists/${target_release}/main/binary-${distro_arch}/Packages.gz" "${bootstrap_dir}/Packages.gz"
 	gunzip "${bootstrap_dir}/Packages.gz"
 
 	step "Converting distro package information database to brl format"

@@ -25,7 +25,7 @@ list_mirrors() {
 	# All mirrors:
 	# Server-side filtered list of mirrors:
 	mirror_list_url="https://raw.githubusercontent.com/artix-linux/packages/master/artix-mirrorlist/repos/core-any/mirrorlist"
-	wget -qO- "${mirror_list_url}" |
+	download -q "${mirror_list_url}" - |
 		awk -F "[ $]" ' /^Server/ {print$3} '
 }
 
@@ -74,9 +74,9 @@ fetch() {
 	bootstrap_deps="artools-base util-linux gettext"
 
 	step "Downloading package information database"
-	wget -O "${bootstrap_dir}/system.db.tar.xz" "${target_mirror}/system/os/${distro_arch}/system.db.tar.xz"
-	wget -O "${bootstrap_dir}/world.db.tar.xz" "${target_mirror}/world/os/${distro_arch}/world.db.tar.xz"
-	wget -O "${bootstrap_dir}/galaxy.db.tar.xz" "${target_mirror}/galaxy/os/${distro_arch}/galaxy.db.tar.xz"
+	download "${target_mirror}/system/os/${distro_arch}/system.db.tar.xz" "${bootstrap_dir}/system.db.tar.xz"
+	download "${target_mirror}/world/os/${distro_arch}/world.db.tar.xz" "${bootstrap_dir}/world.db.tar.xz"
+	download "${target_mirror}/galaxy/os/${distro_arch}/galaxy.db.tar.xz" "${bootstrap_dir}/galaxy.db.tar.xz"
 
 	step "Decompressing package information database"
 	mkdir -p "${bootstrap_dir}/pacmandb/system" "${bootstrap_dir}/pacmandb/world" "${bootstrap_dir}/pacmandb/galaxy"

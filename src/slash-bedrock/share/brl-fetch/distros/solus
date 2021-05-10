@@ -48,7 +48,7 @@ list_releases() {
 
 fetch() {
 	step "Downloading package information database"
-	wget "${target_mirror}/packages/shannon/eopkg-index.xml.xz" -O "${bootstrap_dir}/eopkg-index.xml.xz"
+	download "${target_mirror}/packages/shannon/eopkg-index.xml.xz" "${bootstrap_dir}/eopkg-index.xml.xz"
 	unxz "${bootstrap_dir}/eopkg-index.xml.xz"
 
 	step "Converting distro package information database to brl format"

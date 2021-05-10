@@ -23,7 +23,7 @@ speed_test_url() {
 
 list_mirrors() {
 	mirror_list_url='https://docs.voidlinux.org/xbps/repositories/mirrors/index.html'
-	wget -O- "${mirror_list_url}" 2>/dev/null |
+	download -q "${mirror_list_url}" - |
 		awk '/Tier 1 mirrors are/,/<\/table>/' |
 		list_links
 }
@@ -75,7 +75,7 @@ fetch() {
 	"aarch64") prefix="aarch64" ;;
 	*) prefix="musl" ;;
 	esac
-	wget -O "${bootstrap_dir}/repodata.tar.zstd" "${target_mirror}/current/${prefix}/${distro_arch}-musl-repodata"
+	download "${target_mirror}/current/${prefix}/${distro_arch}-musl-repodata" "${bootstrap_dir}/repodata.tar.zstd"
 
 	step "Downloading bootstrap software"
 	pair="$(/bedrock/libexec/zstd -d <"${bootstrap_dir}/repodata.tar.zstd" | tar xf - -O "index.plist" | awk -F'[<>]' '

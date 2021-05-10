@@ -27,7 +27,7 @@ list_mirrors() {
 
 	# additional mirrors
 	mirror_list_url='https://openwrt.org/downloads'
-	wget -O- "${mirror_list_url}" 2>/dev/null |
+	download -q "${mirror_list_url}" - |
 		awk '/id="mirrors"/,/<\/table>/' |
 		list_links |
 		grep "^http"
@@ -60,7 +60,7 @@ default_release() {
 
 list_releases() {
 	for mirror in "${flag_mirror}" $(list_mirrors); do
-		if wget -O- "${mirror}/releases/" 2>/dev/null |
+		if download -q "${mirror}/releases/" - |
 			list_links |
 			grep '^[0-9][0-9.]*/$' |
 			sed 's,/$,,'; then
@@ -80,7 +80,7 @@ fetch() {
 	esac
 
 	bootstrap_name="$(echo "${bootstrap_url}" | sed 's,^.*/,,')"
-	wget -O "${bootstrap_dir}/checksum" "$(echo "${bootstrap_url}" | sed 's,/[^/]*$,sha256sums,')"
+	download "$(echo "${bootstrap_url}" | sed 's,/[^/]*$,sha256sums,')" "${bootstrap_dir}/checksum"
 	bootstrap_checksum="$(awk -vname="${bootstrap_name}" '$2 == "*"name {print$1}' "${bootstrap_dir}/checksum")"
 
 	checksum_download "${cache}/bootstrap.tar.gz" "sha256sum" "${bootstrap_checksum}" "${bootstrap_url}"

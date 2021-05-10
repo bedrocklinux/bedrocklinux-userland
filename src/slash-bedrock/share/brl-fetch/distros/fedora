@@ -22,7 +22,7 @@ speed_test_url() {
 }
 
 list_mirrors() {
-	wget -O- "https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-${target_release}&arch=${distro_arch}" 2>/dev/null |
+	download -q "https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-${target_release}&arch=${distro_arch}" - |
 		grep -ve '^[ \t]*#' |
 		sed -e 's,/$,,' |
 		sed 's,/[^/]*/[^/]*/[^/]*/[^/]*/[^/]*$,,'
@@ -59,7 +59,7 @@ default_release() {
 }
 
 list_releases() {
-	wget -O- 'https://download-ib01.fedoraproject.org/pub/fedora-secondary/releases/' 2>/dev/null |
+	download -q 'https://download-ib01.fedoraproject.org/pub/fedora-secondary/releases/' - |
 		list_links |
 		grep '^[0-9][0-9]*/$' |
 		sed 's,/$,,'
@@ -82,7 +82,7 @@ fetch() {
 
 	step "Downloading package information database"
 	url="$(find_link "${target_mirror}/${suffix}/repodata/" "primary.xml.gz")"
-	wget -O "${bootstrap_dir}/primary.xml.gz" "${url}"
+	download "${url}" "${bootstrap_dir}/primary.xml.gz"
 
 	step "Extracting package information database"
 	gunzip "${bootstrap_dir}/primary.xml.gz"

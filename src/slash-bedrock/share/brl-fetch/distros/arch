@@ -26,7 +26,7 @@ list_mirrors() {
 	# mirror_list_url='https://www.archlinux.org/mirrorlist/all/'
 	# Server-side filtered list of mirrors:
 	mirror_list_url='https://www.archlinux.org/mirrorlist/?country=all&protocol=https&ip_version=4&ip_version=6&use_mirror_status=on'
-	wget -O- "${mirror_list_url}" 2>/dev/null |
+	download -q "${mirror_list_url}" - |
 		awk -F "[ $]" ' /^#Server/ {print$3} '
 }
 
@@ -75,8 +75,8 @@ fetch() {
 	bootstrap_deps="arch-install-scripts"
 
 	step "Downloading package information database"
-	wget -O "${bootstrap_dir}/core.db.tar.gz" "${target_mirror}/core/os/${distro_arch}/core.db.tar.gz"
-	wget -O "${bootstrap_dir}/extra.db.tar.gz" "${target_mirror}/extra/os/${distro_arch}/extra.db.tar.gz"
+	download "${target_mirror}/core/os/${distro_arch}/core.db.tar.gz" "${bootstrap_dir}/core.db.tar.gz"
+	download "${target_mirror}/extra/os/${distro_arch}/extra.db.tar.gz" "${bootstrap_dir}/extra.db.tar.gz"
 
 	step "Decompressing package information database"
 	mkdir -p "${bootstrap_dir}/pacmandb/core" "${bootstrap_dir}/pacmandb/extra"

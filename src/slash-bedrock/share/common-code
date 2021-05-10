@@ -1782,6 +1782,58 @@ import_users_and_groups() {
 	fi
 }
 
+# Different distros have different /etc/ssl setups, and apparently neither
+# busybox wget nor curl will portably auto-detect certificate path.  Wrap curl
+# to do so.
+#
+# - If first argument is `-q`, runs in quiet mode
+# - If first argument is `-t`, times run
+# - After any flags first argument must be URL
+# - After any flags second argument may be "-" to print download to stdout
+# - After any flags second argument may be path to download file
+# - If no second argument downloads to current working directory with default name
+download() {
+	# follow redirects, error on 404
+	local quiet=""
+	local time=""
+	if [ "${1}" = "-q" ]; then
+		quiet="-s"
+		shift
+	elif [ "${1}" = "-t" ]; then
+		quiet="-s"
+		time="time"
+		shift
+	else
+		echo "Downloading ${1}" >&2
+	fi
+
+	certpath=""
+	for path in \
+		"/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem" \
+		"/etc/pki/tls/cacert.pem" \
+		"/etc/pki/tls/certs/ca-bundle.crt" \
+		"/etc/ssl/ca-bundle.pem" \
+		"/etc/ssl/cert.pem" \
+		"/etc/ssl/certs/ca-certificates.crt"; do
+		path="$(realpath "${path}" 2>/dev/null)" || continue
+		if stat -c "%U:%G:%a" "${path}" 2>/dev/null | grep -q "^root:root:.44$"; then
+			certpath="${path}"
+			break
+		fi
+	done
+	if [ -z "${certpath}" ]; then
+		abort "Unable to determine calling stratum certificate file"
+	fi
+
+	# word splitting is desired
+	# shellcheck disable=SC2086
+	case "${2:-}" in
+	"-") ${time} /bedrock/libexec/curl ${quiet} --location --fail --cacert "${certpath}" "${1}" ;;
+	"") ${time} /bedrock/libexec/curl ${quiet} --location --fail --cacert "${certpath}" -O "${1}" ;;
+	*) ${time} /bedrock/libexec/curl ${quiet} --location --fail --cacert "${certpath}" "${1}" >"${2}" ;;
+	esac
+}
+
 trap 'abort "Unexpected error occurred."' EXIT
 
 set -eu
