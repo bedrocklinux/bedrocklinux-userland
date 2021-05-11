@@ -882,11 +882,10 @@ $(INSTALLER): $(BUILD)/unsigned-installer.sh
 		mv $(BUILD)/signed-installer.sh $(INSTALLER); \
 	fi
 	chmod +x $(INSTALLER)
-	@ printf "\e[32m\n"
-	@ echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g'
-	@ echo "=== Completed creating $(INSTALLER) ==="
-	@ echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g'
-	@ printf "\e[39m\n"
+	@ printf "\e[32m\n%s\n%s\n%s\n\e[39m\n" \
+		"$$(echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g')" \
+		"$$(echo "=== Completed creating $(INSTALLER) ===")" \
+		"$$(echo "=== Completed creating $(INSTALLER) ===" | sed 's/./=/g')"
 #
 # Code quality enforcement
 #
@@ -916,11 +915,10 @@ format:
 		indent $(INDENT_FLAGS) "$$file" || exit 1; \
 		rm -f "$$file~"; \
 	done
-	@ printf "\e[32m\n"
-	@ echo "======================================"
-	@ echo "=== Completed formatting code base ==="
-	@ echo "======================================"
-	@ printf "\e[39m\n"
+	@ printf "\e[32m\n%s\n%s\n%s\n\e[39m\n" \
+		"$$(echo "=== Completed formatting code base ===" | sed 's/./=/g')" \
+		"$$(echo "=== Completed formatting code base ===")" \
+		"$$(echo "=== Completed formatting code base ===" | sed 's/./=/g')"
 
 check:
 	# Run various static checkers against the codebase.
@@ -998,9 +996,10 @@ check:
 		echo "checking formatting of $$file"; \
 		! cat "$$file" | indent $(INDENT_FLAGS) | diff -- "$$file" - | grep '.' || exit 1; \
 	done
-	@ echo "======================================="
-	@ echo "=== All static analysis checks pass ==="
-	@ echo "======================================="
+	@ printf "\e[32m\n%s\n%s\n%s\n\e[39m\n" \
+		"$$(echo "=== All static analysis checks pass ===" | sed 's/./=/g')" \
+		"$$(echo "=== All static analysis checks pass ===")" \
+		"$$(echo "=== All static analysis checks pass ===" | sed 's/./=/g')"
 
 #
 # Release build environment setup
@@ -1197,11 +1196,10 @@ release-build-environment:
 		fi; \
 		brl show -b "brl-build-$${arch}"; \
 	done
-	@ printf "\e[32m\n"
-	@ echo "===================================="
-	@ echo "=== Completed Build Strata Setup ==="
-	@ echo "===================================="
-	@ printf "\e[39m\n"
+	@ printf "\e[32m\n%s\n%s\n%s\n\e[39m\n" \
+		"$$(echo "=== Completed Build Strata Setup ===" | sed 's/./=/g')" \
+		"$$(echo "=== Completed Build Strata Setup ===")" \
+		"$$(echo "=== Completed Build Strata Setup ===" | sed 's/./=/g')"
 
 # Make job coordination gets confused across `strat`, and thus a job count must
 # be explicitly set for each item here.  This limits parallelization
@@ -1332,9 +1330,8 @@ release: \
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-ppc64le.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-s390x.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-x86_64.sh ]
-	@ printf "\e[32m\n"
-	@ echo "=== Completed Bedrock Linux $(BEDROCK_VERSION) release build ===" | sed 's/./=/g'
-	@ echo "=== Completed Bedrock Linux $(BEDROCK_VERSION) release build ==="
-	@ echo "=== Completed Bedrock Linux $(BEDROCK_VERSION) release build ===" | sed 's/./=/g'
-	@ printf "\e[39m\n"
+	@ printf "\e[32m\n%s\n%s\n%s\n\e[39m\n" \
+		"$$(echo "=== Completed Bedrock Linux $(BEDROCK_VERSION) release build ===" | sed 's/./=/g')" \
+		"$$(echo "=== Completed Bedrock Linux $(BEDROCK_VERSION) release build ===")" \
+		"$$(echo "=== Completed Bedrock Linux $(BEDROCK_VERSION) release build ===" | sed 's/./=/g')"
 
