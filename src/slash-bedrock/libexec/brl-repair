@@ -62,7 +62,7 @@ ensure_mnt() {
 
 	# If a non-global mount exists, unmount it.
 	if [ "${type}" != "missing" ] && ! "${global}"; then
-		if [ "${strategy}" == "new" ]; then
+		if [ "${strategy}" = "new" ]; then
 			abort "Cannot repair \"$stratum\" with --new strategy due to problematic mount at \"${mnt}\""
 		fi
 		umount_r --init "${root}${mnt}"
@@ -72,7 +72,7 @@ ensure_mnt() {
 
 	# If a mount exists but it is the incorrect filesystem type, unmount it.
 	if [ "${type}" != "missing" ] && [ -n "$tgt_type" ] && [ "${type}" != "${tgt_type}" ]; then
-		if [ "${strategy}" == "new" ]; then
+		if [ "${strategy}" = "new" ]; then
 			abort "Cannot repair \"$stratum\" with --new strategy due to problematic mount at \"${mnt}\""
 		fi
 		umount_r --init "${root}${mnt}"
@@ -83,7 +83,7 @@ ensure_mnt() {
 	# If a mount point is private but needs to be shared, we need to
 	# re-mount it with shared set on the source.
 	if ! is_bedrock "${stratum}" && ! "${shared}" && "${tgt_share}"; then
-		if [ "${strategy}" == "new" ]; then
+		if [ "${strategy}" = "new" ]; then
 			abort "Cannot repair \"$stratum\" with --new strategy due to problematic mount at \"${mnt}\""
 		fi
 		umount_r --init "${root}${mnt}"
