@@ -1,3 +1,9 @@
+# 0.7.20beta3
+
+- Fixed brl-fetch solus
+- Improved ssl handling portability
+- Switched from busybox wget to curl
+
 # 0.7.20beta2
 
 - Fix busybox latest stable version detection
