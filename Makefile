@@ -671,11 +671,12 @@ vendor/lvm2/.success_retrieving_source:
 	git clone \
 		-b `git ls-remote --tags 'https://sourceware.org/git/lvm2.git' | \
 		awk -F/ '{print $$NF}' | \
-		sed -e 's/^v//g' -e 's/_/./g' | \
-		grep '^[0-9.]*$$' | \
-		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		grep '^v[0-9_]*$$' | \
+		sed 's/^v//g' | \
+		grep '^2_02_' | \
+		sort -t _ -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
 		tail -n1 | \
-		sed -e 's/^/v/' -e 's/[.]/_/g'` 'https://sourceware.org/git/lvm2.git' \
+		sed 's/^/v/'` 'https://sourceware.org/git/lvm2.git' \
 		vendor/lvm2
 	wget -O vendor/lvm2/mallinfo.patch https://git.alpinelinux.org/aports/plain/main/lvm2/mallinfo.patch
 	wget -O vendor/lvm2/fix-stdio.patch https://git.alpinelinux.org/aports/plain/main/lvm2/fix-stdio-usage.patch
@@ -689,7 +690,7 @@ $(COMPLETED)/lvm2: vendor/lvm2/.success_retrieving_source $(COMPLETED)/musl $(CO
 		CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib -fPIC" ./configure --disable-udev-systemd-background-jobs --disable-selinux --enable-static_link && \
 		$(MAKE) tools CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib -L$(VENDOR)/lvm2/libdm/ioctl -fPIC" interfacebuilddir=$(VENDOR)/lvm2/libdm/ioctl
 	cp $(VENDOR)/lvm2/tools/lvm.static $(SLASHBR)/libexec/lvm
-	cp $(VENDOR)/lvm2/libdm/dm-tools/dmsetup.static $(SLASHBR)/libexec/dmsetup
+	cp $(VENDOR)/lvm2/tools/dmsetup.static $(SLASHBR)/libexec/dmsetup
 	touch $(COMPLETED)/lvm2
 $(SLASHBR)/libexec/lvm: $(COMPLETED)/lvm2
 $(SLASHBR)/libexec/dmsetup: $(COMPLETED)/lvm2
