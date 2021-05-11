@@ -960,22 +960,24 @@ check:
 	# - SC2059: don't use variables in printf format string.  Following
 	#   this recommendation with ANSI color variables did not work for some
 	#   reason.  Excluding the check for the time being.
-	# - SC2039: `[ \< ]` and `[ \> ]` are non-POSIX.  However, they do work
+	# - SC2039, SC3012: `[ \< ]` and `[ \> ]` are non-POSIX.  However, they do work
 	#   with busybox.
+	# - SC3045, SC3040: busybox-ism is okay
 	# - SC1090: Can't follow dynamic sources.  That's fine, we know where
 	#   they are and are including them in the list to be checked.
+	export EXCLUDE="SC1008,SC2059,SC2039,SC1090,SC3012,SC3045,SC3040"; \
 	for file in $$(find src/ -type f); do \
 		if head -n1 "$$file" | grep -q '^#!.*busybox sh$$'; then \
 			echo "checking shell file $$file"; \
-			shellcheck -x -s sh --exclude="SC1008,SC2059,SC2039,SC1090" "$$file" || exit 1; \
+			shellcheck -x -s sh --exclude="$${EXCLUDE}" "$$file" || exit 1; \
 			! cat "$$file" | shfmt -p -d | grep '.' || exit 1; \
 		elif head -n1 "$$file" | grep -q '^#!.*bash$$'; then \
 			echo "checking bash file $$file"; \
-			shellcheck -x -s bash --exclude="SC1008,SC2059,SC2039,SC1090" "$$file" || exit 1; \
+			shellcheck -x -s bash --exclude="$${EXCLUDE}" "$$file" || exit 1; \
 			! cat "$$file" | shfmt -ln bash -d | grep '.' || exit 1; \
 		elif head -n1 "$$file" | grep -q -e '^#!.*zsh$$' -e '^#compdef' "$$file"; then \
 			echo "checking zsh file $$file"; \
-			shellcheck -x -s bash --exclude="SC1008,SC2059,SC2039,SC1090" "$$file" || exit 1; \
+			shellcheck -x -s bash --exclude="$${EXCLUDE}" "$$file" || exit 1; \
 			! cat "$$file" | shfmt -ln bash -d | grep '.' || exit 1; \
 		fi; \
 	done
