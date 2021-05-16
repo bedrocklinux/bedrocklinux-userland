@@ -529,7 +529,7 @@ update() {
 		done
 	fi
 
-	if ver_cmp_first_newer "0.7.18beta1" "${current_version}"; then
+	if ver_cmp_first_newer "0.7.20beta4" "${current_version}"; then
 		notice "Updated crossfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
 	fi
 	if ver_cmp_first_newer "0.7.18beta1" "${current_version}"; then

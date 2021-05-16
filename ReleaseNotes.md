@@ -1,3 +1,7 @@
+# 0.7.20beta4
+
+- Work-around Linux kernel FUSE atomic write bug
+
 # 0.7.20beta3
 
 - Fixed brl-fetch solus
