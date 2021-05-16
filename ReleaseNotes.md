@@ -1,32 +1,12 @@
-# 0.7.20beta4
+# 0.7.20
 
-- Work-around Linux kernel FUSE atomic write bug
-
-# 0.7.20beta3
-
-- Fixed brl-fetch solus
-- Improved ssl handling portability
-- Switched from busybox wget to curl
-
-# 0.7.20beta2
-
-- Fix busybox latest stable version detection
-- Avoid leaking ${line} variable from /etc/profile envvar handling
-- Revert new logic to handle non-/sbin/init inits; was found to be incomplete.
-
-# 0.7.20beta1
-
+- Added brl-import command
 - Fixed brl-fetch centos
-- Handle bootloaders configured to use some non-/sbin/init inits
-- Various pmm fixes
-- brl-import command
-
-# 0.7.19
-
-- Add more global /etc items
-- Fix brl-fetch localegen logic issue in some situations
-- Improve brl-fetch `/etc/ssl` handling (fixes `brl fetch arch` for some users)
-- Improve non-local cwd handling in brl code
+- Fixed brl-fetch localegen logic issue in some situations
+- Fixed brl-fetch solus
+- Fixed various pmm issues
+- Improved brl SSL handling portability
+- Worked around Linux kernel FUSE atomic write bug
 
 # 0.7.18
 
