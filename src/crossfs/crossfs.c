@@ -5,7 +5,7 @@
  *      modify it under the terms of the GNU General Public License
  *      version 2 as published by the Free Software Foundation.
  *
- * Copyright (c) 2014-2020 Daniel Thau <danthau@bedrocklinux.org>
+ * Copyright (c) 2014-2021 Daniel Thau <danthau@bedrocklinux.org>
  *
  * This program implements a filesystem which provides cross-stratum file
  * access.  It fulfills filesystem requests by forwarding the appropriate
@@ -1084,23 +1084,13 @@ static void cfg_clear(void)
  * Every path item should start with a forward slash.
  *
  * Entire line must be expressed within a single call and must fit within
- * PIPE_BUF, including trailing null.  Close and sync after each line.
+ * PIPE_BUF, including trailing null.  Calling function should buffer multiple
+ * writes if necessary.
  *
  * The filter value is only meaningful in the first submission for a path.
  */
-static int cfg_add(const char *const buf, size_t size)
+static int cfg_add(const char *const buf)
 {
-	/*
-	 * Ensure there is a trailing null so that sscanf doesn't overflow if
-	 * we somehow get bad input.
-	 */
-	char nbuf[PIPE_BUF];
-	if (size > sizeof(nbuf) - 1) {
-		return -ENAMETOOLONG;
-	}
-	memcpy(nbuf, buf, size);
-	nbuf[size] = '\0';
-
 	/*
 	 * Tokenize
 	 */
@@ -1113,7 +1103,7 @@ static int cfg_add(const char *const buf, size_t size)
 	char buf_stratum[PIPE_BUF];
 	char buf_lpath[PIPE_BUF];
 	char newline;
-	if (sscanf(nbuf, "%s%c%s%c%s%c%[^:]:%s%c", buf_cmd, &space1, buf_filter, &space2, buf_cpath, &space3,
+	if (sscanf(buf, "%s%c%s%c%s%c%[^:]:%s%c", buf_cmd, &space1, buf_filter, &space2, buf_cpath, &space3,
 			buf_stratum, buf_lpath, &newline) != 9) {
 		return -EINVAL;
 	}
@@ -1194,7 +1184,7 @@ static int cfg_add(const char *const buf, size_t size)
 				cfg->back[i].alias.name_len, buf_stratum,
 				stratum_len) == 0
 			&& pstrcmp(cfg->back[i].lpath, cfg->back[i].lpath_len, buf_lpath, lpath_len) == 0) {
-			return size;
+			return 0;
 		}
 	}
 
@@ -1266,9 +1256,9 @@ static int cfg_add(const char *const buf, size_t size)
 	back->local = local;
 	cfg->back_cnt++;
 
-	cfg_stat.st_size += strlen(nbuf) - CMD_ADD_LEN - 1;
+	cfg_stat.st_size += strlen(buf) - CMD_ADD_LEN - 1;
 
-	return size;
+	return 0;
 
 free_and_abort_enomem:
 	if (lpath != NULL) {
@@ -1302,23 +1292,13 @@ free_and_abort_enomem:
  * Every path item should start with a forward slash.
  *
  * Entire line must be expressed within a single call and must fit within
- * PIPE_BUF, including trailing null.  Close and sync after each line.
+ * PIPE_BUF, including trailing null.  Calling function should buffer multiple
+ * writes if necessary.
  *
  * The filter value is only meaningful in the first submission for a path.
  */
-static int cfg_rm(const char *const buf, size_t size)
+static int cfg_rm(const char *const buf)
 {
-	/*
-	 * Ensure there is a trailing null so that sscanf doesn't overflow if
-	 * we somehow get bad input.
-	 */
-	char nbuf[PIPE_BUF];
-	if (size > sizeof(nbuf) - 1) {
-		return -ENAMETOOLONG;
-	}
-	memcpy(nbuf, buf, size);
-	nbuf[size] = '\0';
-
 	/*
 	 * Tokenize
 	 */
@@ -1331,7 +1311,7 @@ static int cfg_rm(const char *const buf, size_t size)
 	char buf_stratum[PIPE_BUF];
 	char buf_lpath[PIPE_BUF];
 	char newline;
-	if (sscanf(nbuf, "%s%c%s%c%s%c%[^:]:%s%c", buf_cmd, &space1,
+	if (sscanf(buf, "%s%c%s%c%s%c%[^:]:%s%c", buf_cmd, &space1,
 			buf_filter, &space2, buf_cpath, &space3, buf_stratum, buf_lpath, &newline) != 9) {
 		return -EINVAL;
 	}
@@ -1404,7 +1384,7 @@ static int cfg_rm(const char *const buf, size_t size)
 		*back = cfg->back[cfg->back_cnt - 1];
 	}
 	cfg->back_cnt--;
-	cfg_stat.st_size -= strlen(nbuf) - CMD_RM_LEN - 1;
+	cfg_stat.st_size -= strlen(buf) - CMD_RM_LEN - 1;
 
 	if (cfg->back_cnt == 0) {
 		free(cfg->cpath);
@@ -1415,7 +1395,7 @@ static int cfg_rm(const char *const buf, size_t size)
 		cfg_cnt--;
 	}
 
-	return size;
+	return 0;
 }
 
 static int cfg_read(char *buf, size_t size, off_t offset)
@@ -2188,21 +2168,54 @@ static int m_write(const char *ipath, const char *buf, size_t size, off_t offset
 
 	FS_IMP_SETUP(CFG_WRLOCK);
 
+	/*
+	 * Linux 5.12.3 broke atomic PIPE_BUF writes in FUSE.  This issue was
+	 * backported to other kernels such as 5.11.20, 5.10.37, and 5.4.118.
+	 * To work around this, buffer inputs until we see a newline indicating
+	 * a completed command.
+	 *
+	 * On any bad input, clear buffer so next input isn't tainted.
+	 *
+	 * This must be behind a WRLOCK to ensure sequential writes are
+	 * properly grouped and ordered.
+	 */
+	static char nbuf[PIPE_BUF * 2 + 1];
+	static char nbuf_len;
+	static int nbuf_continuation = 0;
+	if (!nbuf_continuation) {
+		nbuf[0] = '\0';
+		nbuf_len = 0;
+	}
+	nbuf_continuation = 0;
+
 	size_t ipath_len = strlen(ipath);
 	struct fuse_context *context = fuse_get_context();
 	if (pstrcmp(ipath, ipath_len, CFG_PATH, CFG_PATH_LEN) != 0) {
 		rv = -EROFS;
 	} else if (context->uid != 0) {
 		rv = -EACCES;
-	} else if (size >= CMD_CLEAR_LEN && memcmp(buf, CMD_CLEAR, CMD_CLEAR_LEN) == 0) {
-		cfg_clear();
-		rv = size;
-	} else if (size >= CMD_ADD_LEN && memcmp(buf, CMD_ADD, CMD_ADD_LEN) == 0) {
-		rv = cfg_add(buf, size);
-	} else if (size >= CMD_RM_LEN && memcmp(buf, CMD_RM, CMD_RM_LEN) == 0) {
-		rv = cfg_rm(buf, size);
+	} else if (size > (sizeof(nbuf) - nbuf_len - 1)) {
+		rv = -ENAMETOOLONG;
 	} else {
-		rv = -EINVAL;
+		strncat(nbuf, buf, size);
+		nbuf_len += size;
+		if (strchr(nbuf, '\n') == NULL) {
+			nbuf_continuation = 1;
+			rv = size;
+		} else if (size >= CMD_CLEAR_LEN && memcmp(nbuf, CMD_CLEAR, CMD_CLEAR_LEN) == 0) {
+			cfg_clear();
+			rv = size;
+		} else if (size >= CMD_ADD_LEN && memcmp(nbuf, CMD_ADD, CMD_ADD_LEN) == 0) {
+			if ((rv = cfg_add(nbuf)) >= 0) {
+				rv = size;
+			}
+		} else if (size >= CMD_RM_LEN && memcmp(nbuf, CMD_RM, CMD_RM_LEN) == 0) {
+			if ((rv = cfg_rm(nbuf)) >= 0) {
+				rv = size;
+			}
+		} else {
+			rv = -EINVAL;
+		}
 	}
 
 	FS_IMP_RETURN(rv);
