@@ -962,10 +962,10 @@ check:
 	#   reason.  Excluding the check for the time being.
 	# - SC2039, SC3012: `[ \< ]` and `[ \> ]` are non-POSIX.  However, they do work
 	#   with busybox.
-	# - SC3045, SC3040: busybox-ism is okay
+	# - SC3045, SC3040, SC3043: busybox-ism is okay
 	# - SC1090: Can't follow dynamic sources.  That's fine, we know where
 	#   they are and are including them in the list to be checked.
-	export EXCLUDE="SC1008,SC2059,SC2039,SC1090,SC3012,SC3045,SC3040"; \
+	export EXCLUDE="SC1008,SC2059,SC2039,SC1090,SC3012,SC3045,SC3040,SC3043"; \
 	for file in $$(find src/ -type f); do \
 		if head -n1 "$$file" | grep -q '^#!.*busybox sh$$'; then \
 			echo "checking shell file $$file"; \
