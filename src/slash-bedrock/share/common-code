@@ -511,7 +511,9 @@ set_attr() {
 rm_attr() {
 	file="${1}"
 	attr="${2}"
-	/bedrock/libexec/setfattr -x "user.bedrock.${attr}" "${file}"
+	if has_attr "${file}" "${attr}"; then
+		/bedrock/libexec/setfattr -x "user.bedrock.${attr}" "${file}"
+	fi
 }
 
 # Checks if argument is an existing stratum
