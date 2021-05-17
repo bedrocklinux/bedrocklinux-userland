@@ -206,7 +206,7 @@ list_backends() {
 		fi
 		for arch in $(list_architectures); do
 			if [ "${arch}" = "${target_arch}" ]; then
-				basename "${backend}"
+				printf "${color_strat}%s${color_norm}\\n" "${backend##*/}"
 				break
 			fi
 		done
