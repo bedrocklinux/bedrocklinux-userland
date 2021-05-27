@@ -18,7 +18,7 @@ check_supported() {
 }
 
 speed_test_url() {
-	echo "system/os/${distro_arch}/system.db.tar.xz"
+	echo "system/os/${distro_arch}/system.db.tar.gz"
 }
 
 list_mirrors() {
@@ -71,19 +71,19 @@ setup_pacman() {
 }
 
 fetch() {
-	bootstrap_deps="artools-base util-linux gettext"
+	bootstrap_deps="artools-base util-linux gettext pacman"
 
 	step "Downloading package information database"
-	download "${target_mirror}/system/os/${distro_arch}/system.db.tar.xz" "${bootstrap_dir}/system.db.tar.xz"
-	download "${target_mirror}/world/os/${distro_arch}/world.db.tar.xz" "${bootstrap_dir}/world.db.tar.xz"
-	download "${target_mirror}/galaxy/os/${distro_arch}/galaxy.db.tar.xz" "${bootstrap_dir}/galaxy.db.tar.xz"
+	download "${target_mirror}/system/os/${distro_arch}/system.db.tar.gz" "${bootstrap_dir}/system.db.tar.gz"
+	download "${target_mirror}/world/os/${distro_arch}/world.db.tar.gz" "${bootstrap_dir}/world.db.tar.gz"
+	download "${target_mirror}/galaxy/os/${distro_arch}/galaxy.db.tar.gz" "${bootstrap_dir}/galaxy.db.tar.gz"
 
 	step "Decompressing package information database"
 	mkdir -p "${bootstrap_dir}/pacmandb/system" "${bootstrap_dir}/pacmandb/world" "${bootstrap_dir}/pacmandb/galaxy"
 	(
-		tar -xvJ -f "${bootstrap_dir}/system.db.tar.xz" -C "${bootstrap_dir}/pacmandb/system/"
-		tar -xvJ -f "${bootstrap_dir}/world.db.tar.xz" -C "${bootstrap_dir}/pacmandb/world/"
-		tar -xvJ -f "${bootstrap_dir}/galaxy.db.tar.xz" -C "${bootstrap_dir}/pacmandb/galaxy/"
+		tar -xv -f "${bootstrap_dir}/system.db.tar.gz" -C "${bootstrap_dir}/pacmandb/system/"
+		tar -xv -f "${bootstrap_dir}/world.db.tar.gz" -C "${bootstrap_dir}/pacmandb/world/"
+		tar -xv -f "${bootstrap_dir}/galaxy.db.tar.gz" -C "${bootstrap_dir}/pacmandb/galaxy/"
 	) | awk 'NR%100==0' | progress_unknown
 
 	step "Converting distro package information database to brl format"
