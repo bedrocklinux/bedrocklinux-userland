@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2021 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -99,7 +99,8 @@ list_releases() {
 			grep '/$' |
 			grep -v -- '-' |
 			grep -ve '[.]' -ve '^/' |
-			sed 's,/$,,g'; then
+			sed 's,/$,,g' |
+			grep -v '^devel$'; then
 			break
 		fi
 	done
