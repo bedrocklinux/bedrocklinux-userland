@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2021 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -24,8 +24,8 @@ speed_test_url() {
 list_mirrors() {
 	mirror_list_url='https://www.debian.org/mirror/list'
 	download -q "${mirror_list_url}" - |
-		awk '/Primary Debian mirror sites/,/<\/div/' |
-		grep -B3 "\<${distro_arch}\>" |
+		awk '/<table/,/<\/table/' |
+		grep -B1 "\<${distro_arch}\>" |
 		list_links |
 		grep "^http"
 }
