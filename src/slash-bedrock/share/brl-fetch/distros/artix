@@ -62,7 +62,7 @@ setup_pacman() {
 
 	LC_ALL=C chroot "${1}" /usr/bin/update-ca-trust
 	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --init
-	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate artix archlinux
+	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate artix
 
 	if ! grep -q "^Server" "${1}/etc/pacman.d/mirrorlist"; then
 		echo "### Set by Bedrock Linux when acquiring this stratum" >>"${1}/etc/pacman.d/mirrorlist"
