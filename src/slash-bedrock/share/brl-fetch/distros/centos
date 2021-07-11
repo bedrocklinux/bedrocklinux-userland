@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2021 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -100,7 +100,7 @@ determine_package_manager() {
 }
 
 bootstrap_deps() {
-	echo "${package_manager} rpm centos-release filesystem"
+	echo "${package_manager} rpm centos-release filesystem centos-gpg-keys shadow-utils"
 }
 
 fetch() {
@@ -149,6 +149,7 @@ fetch() {
 	share_cache "packages" "${bootstrap_dir}/packages"
 	bootstrap_packages="$(awk -v"d=/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
 	# shellcheck disable=SC2086
+	LC_ALL=C chroot "${bootstrap_dir}" sh -c 'rpm --import /etc/pki/rpm-gpg/*'
 	LC_ALL=C chroot "${bootstrap_dir}" rpm -i ${bootstrap_packages}
 
 	step "Running bootstrap software"

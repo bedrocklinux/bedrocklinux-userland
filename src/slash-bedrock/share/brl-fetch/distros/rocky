@@ -67,7 +67,7 @@ list_releases() {
 }
 
 bootstrap_deps() {
-	echo "dnf rpm rocky-release filesystem"
+	echo "dnf rpm rocky-release filesystem shadow-utils rocky-gpg-keys"
 }
 
 fetch() {
@@ -115,6 +115,7 @@ fetch() {
 	share_cache "packages" "${bootstrap_dir}/packages"
 	bootstrap_packages="$(awk -v"d=/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
 	# shellcheck disable=SC2086
+	LC_ALL=C chroot "${bootstrap_dir}" sh -c 'rpm --import /etc/pki/rpm-gpg/*'
 	LC_ALL=C chroot "${bootstrap_dir}" rpm -i ${bootstrap_packages}
 
 	step "Running bootstrap software"

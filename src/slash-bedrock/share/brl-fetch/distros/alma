@@ -1,5 +1,3 @@
-TODO: add aarch64 support
-
 #!/bedrock/libexec/busybox sh
 #
 # Alma bootstrap support
@@ -43,6 +41,7 @@ list_mirrors() {
 brl_arch_to_distro() {
 	case "${1}" in
 	"x86_64") echo "x86_64" ;;
+	"aarch64") echo "aarch64" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
 	esac
 }
@@ -121,6 +120,7 @@ fetch() {
 	share_cache "packages" "${bootstrap_dir}/packages"
 	bootstrap_packages="$(awk -v"d=/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
 	# shellcheck disable=SC2086
+	LC_ALL=C chroot "${bootstrap_dir}" sh -c 'rpm --import /etc/pki/rpm-gpg/*'
 	LC_ALL=C chroot "${bootstrap_dir}" rpm -i ${bootstrap_packages}
 
 	step "Running bootstrap software"
