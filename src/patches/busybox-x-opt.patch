@@ -1,0 +1,55 @@
+From 98f49ddcfbbeeda32de65aefeeb529a8e2aa5281 Mon Sep 17 00:00:00 2001
+From: Daniel Thau <danthau@bedrocklinux.org>
+Date: Sun, 9 May 2021 10:37:58 -0400
+Subject: [PATCH] mount: support "X-" and "x-" options
+
+util-linux supports userspace application-specific capital "X-" mount
+options which serve as /etc/fstab comments.  They should be ignored by
+mount and should not be passed to mount(2).
+
+util-linux also supports userspace application-specific lowercase "x-"
+mount options which serve as comments both in /etc/fstab and
+/run/mount/utab.  Similar to "X-", they should not be passed to
+mount(2).  Had busybox support for /run/mount/utab, they should be
+stored there; since busybox does not, they are simply ignored
+completely.
+
+This is commonly used by systemd, e.g. "x-systemd.device-timeout=0".
+---
+ util-linux/mount.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/util-linux/mount.c b/util-linux/mount.c
+index 831dab9e2..e26db33ed 100644
+--- a/util-linux/mount.c
++++ b/util-linux/mount.c
+@@ -347,6 +347,8 @@ static const int32_t mount_options[] ALIGN4 = {
+ 		IF_DESKTOP(/* "nofail" */ MOUNT_NOFAIL,)
+ 		/* "_netdev" */ 0,
+ 		IF_DESKTOP(/* "comment=" */ 0,) /* systemd uses this in fstab */
++		IF_DESKTOP(/* "X-" */ 0,) /* fstab comment */
++		IF_DESKTOP(/* "x-" */ 0,) /* fstab and utab comment */
+ 	)
+ 
+ 	IF_FEATURE_MOUNT_FLAGS(
+@@ -410,6 +412,8 @@ static const char mount_option_str[] ALIGN1 =
+ 		IF_DESKTOP("nofail\0")
+ 		"_netdev\0"
+ 		IF_DESKTOP("comment=\0") /* systemd uses this in fstab */
++		IF_DESKTOP("X-\0") /* fstab comment */
++		IF_DESKTOP("x-\0") /* fstab and utab comment */
+ 	)
+ 	IF_FEATURE_MOUNT_FLAGS(
+ 		// vfs flags
+@@ -610,6 +614,8 @@ static unsigned long parse_mount_options(char *options, char **unrecognized)
+ 			 && (options[opt_len] == '\0'
+ 			    /* or is it "comment=" thingy in fstab? */
+ 			    IF_FEATURE_MOUNT_FSTAB(IF_DESKTOP( || option_str[opt_len-1] == '=' ))
++			    /* or is it a "X-" or "x-" fstab comment? */
++			    IF_FEATURE_MOUNT_FSTAB(IF_DESKTOP( || strcasecmp(option_str, "x-") == 0))
+ 			    )
+ 			) {
+ 				unsigned long fl = mount_options[i];
+-- 
+2.20.1
+
