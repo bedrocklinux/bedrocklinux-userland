@@ -141,12 +141,13 @@ complete_hijack() {
 	done
 
 	step "Creating root files and directories"
-	for dir in /bin /dev /etc /lib/systemd /mnt /proc /root /run /sbin /sys /tmp /usr/bin /usr/sbin /var; do
+	for dir in /bin /dev /etc /lib/systemd /mnt /proc /root /run /sbin /sys /tmp /usr/bin /usr/sbin /usr/share/info /var; do
 		mkdir -p "${dir}"
 	done
 	ln -s ../bedrock/etc/bedrock-release /etc/bedrock-release
 	ln -s ../bedrock/etc/os-release /etc/os-release
 	/bedrock/libexec/busybox --install -s
+	touch /usr/share/info/.keepinfodir
 	mv "/bedrock/strata/${hijacked}/sbin/init" "/sbin/init"
 
 	step "Restoring ${color_term}hijacked${color_norm} init systems"

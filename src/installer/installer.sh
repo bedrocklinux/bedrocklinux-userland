@@ -484,6 +484,12 @@ update() {
 		enforce_id_ranges
 	fi
 
+	if ver_cmp_first_newer "0.7.21beta1" "${current_version}"; then
+		# Keeps Gentoo/portage from trying to write to /bedrock/cross/info/
+		mkdir -p /bedrock/strata/bedrock/usr/share/info/
+		touch /bedrock/strata/bedrock/usr/share/info/.keepinfodir
+	fi
+
 	# All crossfs builds prior to 0.7.8 became confused if bouncer changed
 	# out from under them.  If upgrading such a version, do not upgrade
 	# bouncer in place until reboot.
