@@ -1,3 +1,8 @@
+# 0.7.21beta2
+
+- Fixed brl-fetch handling of keys in rpm distros
+- Removed errant "TODO"
+
 # 0.7.21beta1
 
 - Added automatic restriction of cmake, dkms
