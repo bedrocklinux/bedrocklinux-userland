@@ -1,3 +1,14 @@
+# 0.7.21beta1
+
+- Added automatic restriction of cmake, dkms
+- Added brl-fetch alma
+- Added brl-fetch rocky
+- Added pmm upgrade-packages*,remove-orphans operations
+- Fixed brl-fetch artix
+- Fixed brl-fetch debian
+- Fixed brl-fetch ubuntu
+- Fixed Gentoo/portage attempting to write to /bedrock/cross/info
+
 # 0.7.20
 
 - Added brl-import command
