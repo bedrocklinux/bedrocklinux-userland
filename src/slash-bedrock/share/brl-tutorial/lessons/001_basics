@@ -397,7 +397,7 @@ in another ${stratum}.
 
 section "brl import" "
 If you would like to make a ${stratum} from some distro that ${brl_fetch} does
-not support, you may use the ${brl_import} to do so.
+not support, you may use the ${brl_import} command to do so.
 
 Get the desired files in some format such as:
 
