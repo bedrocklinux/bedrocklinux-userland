@@ -1,0 +1,128 @@
+#!/bedrock/libexec/busybox sh
+#
+# Artix Linux with s6 init bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2021 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	false
+}
+
+speed_test_url() {
+	echo "system/os/${distro_arch}/system.db.tar.gz"
+}
+
+list_mirrors() {
+	# All mirrors:
+	# Server-side filtered list of mirrors:
+	mirror_list_url="https://raw.githubusercontent.com/artix-linux/packages/master/artix-mirrorlist/repos/core-any/mirrorlist"
+	download -q "${mirror_list_url}" - |
+		awk -F "[ $]" ' /^Server/ {print$3} '
+}
+
+brl_arch_to_distro() {
+	case "${1}" in
+	"x86_64") echo "x86_64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+	esac
+}
+
+list_architectures() {
+	echo "x86_64"
+}
+
+default_release() {
+	echo "rolling"
+}
+
+list_releases() {
+	echo "rolling"
+}
+
+setup_pacman() {
+	# Remove auto architecture detection, as it will confuse things like
+	# i686 on an x86_64 box and armv7hl on a aarch64 box.
+	#
+	# Also remove CheckSpace, which sometimes gets confused by Bedrock's
+	# mount setup.
+	sed 's/^Architecture[ \t]*=.*$//' "${1}/etc/pacman.conf" |
+		awk -v"a=${distro_arch}" '{print} $0 == "[options]" {print "Architecture = "a}' |
+		sed 's/^[ \t]*CheckSpace/# &/' \
+			>"${1}/etc/pacman.conf-new"
+	mv "${1}/etc/pacman.conf-new" "${1}/etc/pacman.conf"
+
+	LC_ALL=C chroot "${1}" /usr/bin/update-ca-trust
+	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --init
+	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate artix
+
+	if ! grep -q "^Server" "${1}/etc/pacman.d/mirrorlist"; then
+		echo "### Set by Bedrock Linux when acquiring this stratum" >>"${1}/etc/pacman.d/mirrorlist"
+		echo "Server = ${target_mirror}/\$repo/os/\$arch" >>"$1/etc/pacman.d/mirrorlist"
+	fi
+}
+
+fetch() {
+	bootstrap_deps="artools-base util-linux gettext pacman"
+
+	step "Downloading package information database"
+	download "${target_mirror}/system/os/${distro_arch}/system.db.tar.gz" "${bootstrap_dir}/system.db.tar.gz"
+	download "${target_mirror}/world/os/${distro_arch}/world.db.tar.gz" "${bootstrap_dir}/world.db.tar.gz"
+	download "${target_mirror}/galaxy/os/${distro_arch}/galaxy.db.tar.gz" "${bootstrap_dir}/galaxy.db.tar.gz"
+
+	step "Decompressing package information database"
+	mkdir -p "${bootstrap_dir}/pacmandb/system" "${bootstrap_dir}/pacmandb/world" "${bootstrap_dir}/pacmandb/galaxy"
+	(
+		tar -xv -f "${bootstrap_dir}/system.db.tar.gz" -C "${bootstrap_dir}/pacmandb/system/"
+		tar -xv -f "${bootstrap_dir}/world.db.tar.gz" -C "${bootstrap_dir}/pacmandb/world/"
+		tar -xv -f "${bootstrap_dir}/galaxy.db.tar.gz" -C "${bootstrap_dir}/pacmandb/galaxy/"
+	) | awk 'NR%100==0' | progress_unknown
+
+	step "Converting distro package information database to brl format"
+	pacmandb_to_brldb "${bootstrap_dir}/pacmandb" "${bootstrap_dir}/brldb"
+
+	step "Calculating required bootstrap packages"
+	brldb_calculate_required_packages "${bootstrap_dir}/brldb" "${bootstrap_dir}/required_packages" "${bootstrap_deps}"
+
+	step "Downloading bootstrap packages"
+	# brldb contains repo/filename
+	# files are at mirror/repo/os/arch/filename
+	checksum_downloads "${cache}/packages/" "$(awk -v"a=${distro_arch}" -v"m=${target_mirror}" '{sub("/", "/os/"a"/"); print m"/"$0}' "${bootstrap_dir}/required_packages")"
+
+	step "Extracting bootstrap packages"
+	bootstrap_packages="$(awk -v"d=${cache}/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
+	# shellcheck disable=SC2086
+	extract_pacman_pkgs "${bootstrap_dir}" ${bootstrap_packages}
+
+	step "Running bootstrap software"
+	# pacstrap mounts devtmpfs (which is shared with the host system) and
+	# chowns files in it based on /etc/passwd and /etc/group.  Ensure
+	# system copies of files are used to avoid problematic file ownership
+	# change in /dev.
+	mkdir -p "${target_dir}/etc"
+	cp -a "/etc/passwd" "${target_dir}/etc/passwd"
+	cp -a "/etc/group" "${target_dir}/etc/group"
+
+	setup_chroot "${bootstrap_dir}"
+	setup_ssl "${bootstrap_dir}"
+	setup_pacman "${bootstrap_dir}"
+	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/pacman/pkg/"
+	# sed is not included in base, but is needed to basestrap.
+	LC_ALL=C chroot "${bootstrap_dir}" basestrap "/target-root" base sed s6-base dbus-s6 elogind-s6 eudev-s6
+
+	step "Configuring"
+	setup_chroot "${target_dir}"
+	setup_pacman "${target_dir}"
+	cp "${cache}/packages/"* "${target_dir}/var/cache/pacman/"
+	if LC_ALL=C chroot "${target_dir}" pacman -Q linux >/dev/null 2>&1; then
+		LC_ALL=C chroot "${target_dir}" pacman --noconfirm -R linux
+	fi
+}
