@@ -431,4 +431,18 @@ exec /bedrock/libexec/pmm ${pmm_ui} ${file} \"\${@}\""
 	fi
 fi
 
+# Patch s6 init to skip unmounting /run, as this breaks Bedrock's pre-init setup of /run
+for stratum in $(/bedrock/bin/brl list -ei); do
+	init="$(realpath "/bedrock/strata/${stratum}/sbin/init")"
+	if ! grep -q "^s6-linux-init" "${init}" 2>/dev/null; then
+		continue
+	fi
+	if grep -q "^s6-linux-init -N " "${init}" 2>/dev/null; then
+		continue
+	fi
+	cp "${init}" "${init}-bedrock-patch"
+	sed 's/s6-linux-init /s6-linux-init -N /' "${init}" > "${init}-bedrock-patch"
+	mv "${init}-bedrock-patch" "${init}"
+done
+
 exit_success
