@@ -1,3 +1,8 @@
+# 0.7.21beta3
+
+- Added brl-fetch artix-s6
+- Fixed booting with s6 breaking Bedrock's /run setup
+
 # 0.7.21beta2
 
 - Fixed brl-fetch handling of keys in rpm distros
