@@ -162,6 +162,7 @@ remove_vendor_source:
 fetch_vendor_sources: \
 	vendor/busybox/.success_retrieving_source \
 	vendor/curl/.success_retrieving_source \
+	vendor/kmod/.success_retrieving_source \
 	vendor/libaio/.success_retrieving_source \
 	vendor/libattr/.success_retrieving_source \
 	vendor/libcap/.success_fetching_source \
@@ -173,6 +174,8 @@ fetch_vendor_sources: \
 	vendor/openssl/.success_retrieving_source \
 	vendor/uthash/.success_fetching_source \
 	vendor/util-linux/.success_fetching_source \
+	vendor/xz/.success_retrieving_source \
+	vendor/zlib/.success_retrieving_source \
 	vendor/zstd/.success_retrieving_source
 
 clean:
@@ -531,7 +534,6 @@ build/all/busybox/bedrock-config: vendor/busybox/.success_retrieving_source
 		./set_bb_option "CONFIG_FEATURE_CHECK_TAINTED_MODULE" "y" && \
 		./set_bb_option "CONFIG_FEATURE_FIND_MMIN" "y" && \
 		./set_bb_option "CONFIG_FEATURE_FIND_XDEV" "y" && \
-		./set_bb_option "CONFIG_FEATURE_MODPROBE_BLACKLIST" "y" && \
 		./set_bb_option "CONFIG_FEATURE_MODUTILS_ALIAS" "y" && \
 		./set_bb_option "CONFIG_FEATURE_MODUTILS_SYMBOLS" "y" && \
 		./set_bb_option "CONFIG_FEATURE_PREFER_APPLETS" "y" && \
@@ -548,7 +550,6 @@ build/all/busybox/bedrock-config: vendor/busybox/.success_retrieving_source
 		./set_bb_option "CONFIG_LAST_SYSTEM_ID" "65535" && \
 		./set_bb_option "CONFIG_LFS" "y" && \
 		./set_bb_option "CONFIG_LSMOD" "y" && \
-		./set_bb_option "CONFIG_MODPROBE" "y" && \
 		./set_bb_option "CONFIG_PIVOT_ROOT" "y" && \
 		./set_bb_option "CONFIG_RMMOD" "y" && \
 		./set_bb_option "CONFIG_STATIC" "y" && \
@@ -556,6 +557,11 @@ build/all/busybox/bedrock-config: vendor/busybox/.success_retrieving_source
 		./set_bb_option "CONFIG_TEST" "y" && \
 		./set_bb_option "CONFIG_TEST1" "y" && \
 		./set_bb_option "CONFIG_VI" "y" && \
+		./set_bb_option "CONFIG_DEPMOD" "n" && \
+		./set_bb_option "CONFIG_INSMOD" "n" && \
+		./set_bb_option "CONFIG_LSMOD" "n" && \
+		./set_bb_option "CONFIG_MODPROBE" "n" && \
+		./set_bb_option "CONFIG_RMMOD" "n" && \
 		./set_bb_option "CONFIG_WGET" "n"
 	cd build/all/busybox && \
 		cp .config bedrock-config
@@ -710,13 +716,85 @@ vendor/zstd/.success_retrieving_source:
 		sed -e 's/^/v/'` 'https://github.com/facebook/zstd.git' \
 		vendor/zstd
 	touch vendor/zstd/.success_retrieving_source
-$(SLASHBR)/libexec/zstd: vendor/zstd/.success_retrieving_source $(COMPLETED)/musl
+$(COMPLETED)/zstd: vendor/zstd/.success_retrieving_source $(COMPLETED)/musl
 	rm -rf $(VENDOR)/zstd
 	cp -r vendor/zstd $(VENDOR)
 	cd $(VENDOR)/zstd && \
-		make CC=$(MUSLCC) zstd && \
+		$(MAKE) CC=$(MUSLCC) zstd lib prefix=$(SUPPORT) install && \
 		cp zstd $(SLASHBR)/libexec/zstd
-zstd: $(SLASHBR)/libexec/zstd
+	touch $(COMPLETED)/zstd
+$(SLASHBR)/libexec/zstd: $(COMPLETED)/zstd
+zstd: $(COMPLETED)/zstd
+
+vendor/zlib/.success_retrieving_source:
+	rm -rf vendor/zlib/
+	mkdir -p vendor/zlib
+	cd vendor/zlib && wget -O- 'http://zlib.net/zlib-1.2.11.tar.gz' | gunzip | tar xf -
+	mv vendor/zlib/*/* vendor/zlib/
+	touch vendor/zlib/.success_retrieving_source
+$(COMPLETED)/zlib: vendor/zlib/.success_retrieving_source $(COMPLETED)/musl
+	rm -rf $(VENDOR)/zlib
+	cp -r vendor/zlib $(VENDOR)
+	cd $(VENDOR)/zlib && \
+		./configure --prefix=$(SUPPORT) --static && \
+		$(MAKE) CC=$(MUSLCC) install prefix=$(SUPPORT)
+	touch $(COMPLETED)/zlib
+zlib: $(COMPLETED)/zlib
+
+vendor/xz/.success_retrieving_source:
+	rm -rf vendor/xz/
+	mkdir -p vendor/xz
+	git clone \
+		-b `git ls-remote --tags 'https://git.tukaani.org/xz.git' | \
+		awk -F/ '{print $$NF}' | \
+		sed -e 's/^v//g' | \
+		grep '^[0-9.]*$$' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed -e 's/^/v/'` 'https://git.tukaani.org/xz.git' \
+		vendor/xz
+	touch vendor/xz/.success_retrieving_source
+$(COMPLETED)/xz: vendor/xz/.success_retrieving_source $(COMPLETED)/musl
+	rm -rf $(VENDOR)/xz
+	cp -r vendor/xz $(VENDOR)
+	cd $(VENDOR)/xz && \
+		./autogen.sh --no-po4a
+	cd $(VENDOR)/xz && case "$(ARCHITECTURE)" in \
+		ppc) ./configure --prefix=$(SUPPORT) --enable-static --disable-shared --host=powerpc-linux-gnu;; \
+		ppc64) ./configure --prefix=$(SUPPORT) --enable-static --disable-shared --host=powerpc64-linux-gnu;; \
+		ppc64le) ./configure --prefix=$(SUPPORT) --enable-static --disable-shared --host=powerpc64le-linux-gnu;; \
+		*) ./configure --prefix=$(SUPPORT) --enable-static --disable-shared;; \
+	esac
+	cd $(VENDOR)/xz && $(MAKE) CC=$(MUSLCC) install prefix=$(SUPPORT)
+	rm $(SUPPORT)/lib/liblzma.la
+	touch $(COMPLETED)/xz
+xz: $(COMPLETED)/xz
+
+# Build our own modprobe, rather than using busybox's, for .ko.zst support.
+vendor/kmod/.success_retrieving_source:
+	rm -rf vendor/kmod/
+	mkdir -p vendor/kmod
+	git clone --depth 1 \
+		-b `git ls-remote --tags 'https://git.kernel.org/pub/scm/utils/kernel/kmod/kmod.git' | \
+		awk -F/ '{print $$NF}' | \
+		sed -e 's/^v//g' | \
+		grep '^[0-9.]*$$' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed -e 's/^/v/'` 'https://git.kernel.org/pub/scm/utils/kernel/kmod/kmod.git' \
+		vendor/kmod
+	touch vendor/kmod/.success_retrieving_source
+$(SLASHBR)/libexec/modprobe: vendor/kmod/.success_retrieving_source $(COMPLETED)/musl $(COMPLETED)/zstd $(COMPLETED)/zlib $(COMPLETED)/xz
+	rm -rf $(VENDOR)/kmod
+	cp -r vendor/kmod $(VENDOR)
+	cd $(VENDOR)/kmod && \
+		./autogen.sh --with-xz --with-zlib --with-zstd --prefix=$(SUPPORT) --includedir=$(SUPPORT)/include --libdir=$(SUPPORT)/lib --bindir=$(SUPPORT)/bin \
+			CC=$(MUSLCC) CCLD=$(MUSLCC) LD=$(MUSLCC) PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig && \
+		./configure --with-xz --with-zlib --with-zstd --prefix=$(SUPPORT) --includedir=$(SUPPORT)/include --libdir=$(SUPPORT)/lib --bindir=$(SUPPORT)/bin \
+			CC=$(MUSLCC) LDFLAGS="-L$(SUPPORT)/lib" PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig && \
+		$(MAKE) CC=$(MUSLCC) LDFLAGS="-L$(SUPPORT)/lib" PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig tools/modprobe
+	cp $(VENDOR)/kmod/tools/modprobe $(SLASHBR)/libexec/modprobe
+modprobe: $(SLASHBR)/libexec/modprobe
 
 $(SLASHBR)/bin/strat: $(COMPLETED)/builddir $(COMPLETED)/musl $(COMPLETED)/libcap
 	rm -rf $(SRC)/strat
@@ -796,6 +874,7 @@ $(BUILD)/userland.tar: \
 	$(SLASHBR)/libexec/keyboard_is_present \
 	$(SLASHBR)/libexec/lvm \
 	$(SLASHBR)/libexec/manage_tty_lock \
+	$(SLASHBR)/libexec/modprobe \
 	$(SLASHBR)/libexec/netselect \
 	$(SLASHBR)/libexec/plymouth-quit \
 	$(SLASHBR)/libexec/setcap \
@@ -1215,7 +1294,7 @@ release-build-environment:
 # to make eight installers at a time with a max of three jobs for each.
 #
 # At the time of writing, there are five items which can be compiled natively
-# on x8_64 which take a relatively negligible amount of time, and ten items
+# on x86_64 which take a relatively negligible amount of time, and ten items
 # that have to be run through qemu and compose the majority of the build time.
 # Consider optimizing the job distribution with this in mind.  For example, a
 # 24 thread CPU may get better build times if slightly over registered to

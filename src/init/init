@@ -67,7 +67,7 @@ ensure_essential_environment() {
 	fi
 
 	if ! grep -q "\\<fuse\\>" /proc/filesystems; then
-		modprobe fuse
+		/bedrock/libexec/modprobe fuse
 	fi
 
 	if ! [ -e /dev/fuse ]; then
@@ -76,7 +76,7 @@ ensure_essential_environment() {
 	fi
 
 	if ! grep -q "\\<binfmt_misc\\>" /proc/filesystems; then
-		modprobe binfmt_misc >/dev/null 2>&1 || true
+		/bedrock/libexec/modprobe binfmt_misc >/dev/null 2>&1 || true
 	fi
 
 	# Systemd seems confused when an initrd-systemd launches Bedrock's init
@@ -184,7 +184,7 @@ wait_for_keyboard() {
 	# concerns.
 
 	for module in $(cfg_values "init" "modules"); do
-		modprobe "${module}" 2>/dev/null
+		/bedrock/libexec/modprobe "${module}" 2>/dev/null
 	done
 
 	if /bedrock/libexec/keyboard_is_present; then
