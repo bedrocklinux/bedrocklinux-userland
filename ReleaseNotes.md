@@ -1,3 +1,7 @@
+# 0.7.21beta4
+
+- Added zstd support to modprobe
+
 # 0.7.21beta3
 
 - Added brl-fetch artix-s6
