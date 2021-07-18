@@ -680,7 +680,6 @@ vendor/lvm2/.success_retrieving_source:
 		awk -F/ '{print $$NF}' | \
 		grep '^v[0-9_]*$$' | \
 		sed 's/^v//g' | \
-		grep '^2_02_' | \
 		sort -t _ -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
 		tail -n1 | \
 		sed 's/^/v/'` 'https://sourceware.org/git/lvm2.git' \
@@ -689,6 +688,8 @@ vendor/lvm2/.success_retrieving_source:
 	wget -O vendor/lvm2/fix-stdio.patch https://git.alpinelinux.org/aports/plain/main/lvm2/fix-stdio-usage.patch
 	cd vendor/lvm2 && patch -p0 -i mallinfo.patch
 	cd vendor/lvm2 && patch -p0 -i fix-stdio.patch
+	# hack to fix bad imports looking for LOCK_EX
+	echo '#include <sys/file.h>' >> vendor/lvm2/lib/misc/lib.h
 	touch vendor/lvm2/.success_retrieving_source
 $(COMPLETED)/lvm2: vendor/lvm2/.success_retrieving_source $(COMPLETED)/musl $(COMPLETED)/libaio $(COMPLETED)/util-linux
 	rm -rf $(VENDOR)/lvm2
@@ -696,8 +697,10 @@ $(COMPLETED)/lvm2: vendor/lvm2/.success_retrieving_source $(COMPLETED)/musl $(CO
 	cd $(VENDOR)/lvm2 && \
 		CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib -fPIC" ./configure --disable-udev-systemd-background-jobs --disable-blkid_wiping --disable-selinux --enable-static_link && \
 		$(MAKE) tools CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib -L$(VENDOR)/lvm2/libdm/ioctl -fPIC" interfacebuilddir=$(VENDOR)/lvm2/libdm/ioctl
+	cd $(VENDOR)/lvm2/libdm/dm-tools && \
+		$(MAKE) CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib -L$(VENDOR)/lvm2/libdm/ioctl -fPIC" interfacebuilddir=$(VENDOR)/lvm2/libdm/ioctl
 	cp $(VENDOR)/lvm2/tools/lvm.static $(SLASHBR)/libexec/lvm
-	cp $(VENDOR)/lvm2/tools/dmsetup.static $(SLASHBR)/libexec/dmsetup
+	cp $(VENDOR)/lvm2/libdm/dm-tools/dmsetup.static $(SLASHBR)/libexec/dmsetup
 	touch $(COMPLETED)/lvm2
 $(SLASHBR)/libexec/lvm: $(COMPLETED)/lvm2
 $(SLASHBR)/libexec/dmsetup: $(COMPLETED)/lvm2
