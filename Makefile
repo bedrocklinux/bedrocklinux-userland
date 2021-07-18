@@ -766,7 +766,7 @@ $(COMPLETED)/xz: vendor/xz/.success_retrieving_source $(COMPLETED)/musl
 	touch $(COMPLETED)/xz
 xz: $(COMPLETED)/xz
 
-# Build our own modprobe, rather than using busybox's, for .ko.zst support.
+# Build our own kmod suite, rather than using busybox's, for .ko.zst support.
 vendor/kmod/.success_retrieving_source:
 	rm -rf vendor/kmod/
 	mkdir -p vendor/kmod
@@ -780,7 +780,7 @@ vendor/kmod/.success_retrieving_source:
 		sed -e 's/^/v/'` 'https://git.kernel.org/pub/scm/utils/kernel/kmod/kmod.git' \
 		vendor/kmod
 	touch vendor/kmod/.success_retrieving_source
-$(SLASHBR)/libexec/modprobe: vendor/kmod/.success_retrieving_source $(COMPLETED)/musl $(COMPLETED)/zstd $(COMPLETED)/zlib $(COMPLETED)/xz
+$(SLASHBR)/libexec/kmod: vendor/kmod/.success_retrieving_source $(COMPLETED)/musl $(COMPLETED)/zstd $(COMPLETED)/zlib $(COMPLETED)/xz
 	rm -rf $(VENDOR)/kmod
 	cp -r vendor/kmod $(VENDOR)
 	cd $(VENDOR)/kmod && \
@@ -788,9 +788,9 @@ $(SLASHBR)/libexec/modprobe: vendor/kmod/.success_retrieving_source $(COMPLETED)
 			CC=$(MUSLCC) CCLD=$(MUSLCC) LD=$(MUSLCC) PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig && \
 		./configure --with-xz --with-zlib --with-zstd --prefix=$(SUPPORT) --includedir=$(SUPPORT)/include --libdir=$(SUPPORT)/lib --bindir=$(SUPPORT)/bin \
 			CC=$(MUSLCC) LDFLAGS="-L$(SUPPORT)/lib" PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig && \
-		$(MAKE) CC=$(MUSLCC) LDFLAGS="-L$(SUPPORT)/lib" PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig tools/modprobe
-	cp $(VENDOR)/kmod/tools/modprobe $(SLASHBR)/libexec/modprobe
-modprobe: $(SLASHBR)/libexec/modprobe
+		$(MAKE) CC=$(MUSLCC) LDFLAGS="-L$(SUPPORT)/lib" PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig tools/kmod
+	cp $(VENDOR)/kmod/tools/kmod $(SLASHBR)/libexec/kmod
+kmod: $(SLASHBR)/libexec/kmod
 
 $(SLASHBR)/bin/strat: $(COMPLETED)/builddir $(COMPLETED)/musl $(COMPLETED)/libcap
 	rm -rf $(SRC)/strat
@@ -868,9 +868,9 @@ $(BUILD)/userland.tar: \
 	$(SLASHBR)/libexec/etcfs \
 	$(SLASHBR)/libexec/getfattr \
 	$(SLASHBR)/libexec/keyboard_is_present \
+	$(SLASHBR)/libexec/kmod \
 	$(SLASHBR)/libexec/lvm \
 	$(SLASHBR)/libexec/manage_tty_lock \
-	$(SLASHBR)/libexec/modprobe \
 	$(SLASHBR)/libexec/netselect \
 	$(SLASHBR)/libexec/plymouth-quit \
 	$(SLASHBR)/libexec/setcap \

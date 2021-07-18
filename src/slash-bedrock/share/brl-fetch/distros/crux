@@ -66,7 +66,7 @@ fetch() {
 	checksum_download "${cache}/crux.iso" "md5sum" "${bootstrap_checksum}" "${bootstrap_url}"
 
 	step "Preparing bootstrap software"
-	/bedrock/libexec/modprobe iso9660 >/dev/null 2>&1 || true
+	modprobe iso9660 >/dev/null 2>&1 || true
 	mount -t iso9660 -o loop,ro "${cache}/crux.iso" "${bootstrap_dir}"
 	cat "${bootstrap_dir}"/crux/core/pkgutils*.tar.xz | xz -d | tar xf - -O usr/bin/pkgadd >"${target_dir}/pkgadd"
 	chmod a+rx "${target_dir}/pkgadd"

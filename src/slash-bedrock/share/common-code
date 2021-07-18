@@ -831,7 +831,7 @@ setup_binfmt_misc() {
 
 	# ensure module is loaded
 	if ! [ -d "${mount}" ]; then
-		/bedrock/libexec/modprobe binfmt_misc
+		modprobe binfmt_misc
 	fi
 	if ! [ -d "${mount}" ]; then
 		abort "Unable to mount binfmt_misc to register handler for ${stratum}"

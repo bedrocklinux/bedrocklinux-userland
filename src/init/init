@@ -67,7 +67,7 @@ ensure_essential_environment() {
 	fi
 
 	if ! grep -q "\\<fuse\\>" /proc/filesystems; then
-		/bedrock/libexec/modprobe fuse
+		modprobe fuse
 	fi
 
 	if ! [ -e /dev/fuse ]; then
@@ -76,7 +76,7 @@ ensure_essential_environment() {
 	fi
 
 	if ! grep -q "\\<binfmt_misc\\>" /proc/filesystems; then
-		/bedrock/libexec/modprobe binfmt_misc >/dev/null 2>&1 || true
+		modprobe binfmt_misc >/dev/null 2>&1 || true
 	fi
 
 	# Systemd seems confused when an initrd-systemd launches Bedrock's init
@@ -146,6 +146,12 @@ complete_hijack() {
 	done
 	ln -s ../bedrock/etc/bedrock-release /etc/bedrock-release
 	ln -s ../bedrock/etc/os-release /etc/os-release
+	ln -s /bedrock/libexec/kmod /sbin/depmod
+	ln -s /bedrock/libexec/kmod /sbin/insmod
+	ln -s /bedrock/libexec/kmod /sbin/lsmod
+	ln -s /bedrock/libexec/kmod /sbin/modinfo
+	ln -s /bedrock/libexec/kmod /sbin/modprobe
+	ln -s /bedrock/libexec/kmod /sbin/rmmod
 	/bedrock/libexec/busybox --install -s
 	touch /usr/share/info/.keepinfodir
 	mv "/bedrock/strata/${hijacked}/sbin/init" "/sbin/init"
@@ -184,7 +190,7 @@ wait_for_keyboard() {
 	# concerns.
 
 	for module in $(cfg_values "init" "modules"); do
-		/bedrock/libexec/modprobe "${module}" 2>/dev/null
+		modprobe "${module}" 2>/dev/null
 	done
 
 	if /bedrock/libexec/keyboard_is_present; then
