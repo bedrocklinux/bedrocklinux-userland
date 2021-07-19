@@ -37,6 +37,26 @@
 # Current release #
 ###################
 
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-x86_64.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-s390x.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-ppc64le.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-ppc64.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-ppc.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-mipsel.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-mips64el.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-mips.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-i686.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-i586.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-i486.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-i386.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-armv7l.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-armv7hl.sh
+https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta5/bedrock-linux-0.7.21beta5-aarch64.sh
+
+#################
+# Past releases #
+#################
+
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta4/bedrock-linux-0.7.21beta4-x86_64.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta4/bedrock-linux-0.7.21beta4-s390x.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta4/bedrock-linux-0.7.21beta4-ppc64le.sh
@@ -52,11 +72,6 @@ https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21be
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta4/bedrock-linux-0.7.21beta4-armv7l.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta4/bedrock-linux-0.7.21beta4-armv7hl.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta4/bedrock-linux-0.7.21beta4-aarch64.sh
-
-#################
-# Past releases #
-#################
-
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta3/bedrock-linux-0.7.21beta3-x86_64.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta3/bedrock-linux-0.7.21beta3-s390x.sh
 https://github.com/bedrocklinux/bedrocklinux-userland/releases/download/0.7.21beta3/bedrock-linux-0.7.21beta3-ppc64le.sh

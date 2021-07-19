@@ -1,3 +1,7 @@
+# 0.7.21beta5
+
+- Improved modprobe zstd support
+
 # 0.7.21beta4
 
 - Added zstd support to modprobe
