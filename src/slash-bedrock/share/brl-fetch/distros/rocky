@@ -30,7 +30,12 @@ speed_test_url() {
 }
 
 list_mirrors() {
-	echo "https://download.rockylinux.org/pub/rocky/${target_release}/BaseOS/${distro_arch}/"
+	mirror_list_url='https://mirrors.rockylinux.org/mirrormanager/mirrors'
+	download -q "${mirror_list_url}" - |
+		awk '/<table/,/<\/table/' |
+		grep '<a class.*">http' |
+		list_links |
+		grep "^http"
 }
 
 brl_arch_to_distro() {
