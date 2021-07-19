@@ -1,31 +1,16 @@
-# 0.7.21beta5
-
-- Improved modprobe zstd support
-
-# 0.7.21beta4
-
-- Added zstd support to modprobe
-
-# 0.7.21beta3
-
-- Added brl-fetch artix-s6
-- Fixed booting with s6 breaking Bedrock's /run setup
-
-# 0.7.21beta2
-
-- Fixed brl-fetch handling of keys in rpm distros
-- Removed errant "TODO"
-
-# 0.7.21beta1
+# 0.7.21
 
 - Added automatic restriction of cmake, dkms
 - Added brl-fetch alma
+- Added brl-fetch artix-s6
 - Added brl-fetch rocky
 - Added pmm upgrade-packages*,remove-orphans operations
+- Added zstd support to modprobe
+- Fixed Gentoo/portage attempting to write to /bedrock/cross/info
+- Fixed booting with s6 breaking Bedrock's /run setup
 - Fixed brl-fetch artix
 - Fixed brl-fetch debian
 - Fixed brl-fetch ubuntu
-- Fixed Gentoo/portage attempting to write to /bedrock/cross/info
 
 # 0.7.20
 
