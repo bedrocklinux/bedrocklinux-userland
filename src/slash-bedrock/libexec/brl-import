@@ -120,7 +120,8 @@ case "${src}" in
 
 	step "Mounting disk image"
 	sector_size="$(fdisk -l "${tmp}/disk.img" | awk '/Units: sectors of/ {print $(NF-1)}')"
-	partitions="$(fdisk -l "${tmp}/disk.img" | awk '/^\// && $NF == "Linux" {i++} END {print i}')"
+
+	partitions="$(fdisk -l "${tmp}/disk.img" | awk '/^\// && $NF == "Linux" {i++} END {print i+0}')"
 	if [ "${partitions}" -gt 1 ]; then
 		import_abort "Too many partitions; unable to guess root partition.  Install one big partition in VM and try again."
 	elif [ "${partitions}" -lt 1 ]; then
