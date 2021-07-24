@@ -126,8 +126,14 @@ fetch() {
 	set -o pipefail
 
 	step "Configuring"
-	if [ "${target_release}" != "sid" ] && [ "${target_release}" != "unstable" ] && [ "${target_release}" != "testing" ]; then
+	if echo "${target_release}" | grep -q "^\(sid\|unstable\)$"; then
+		true # no security maintainers for these releases
+	elif echo "${target_release}" | grep -q "^\(buzz\|rex\|bo\|hamm\|slink\|potato\|woody\|sarge\|etch\|lenny\|squeeze\|wheezy\|jessie\|stretch\|buster\)$"; then
+		# old security format
 		echo "deb http://security.debian.org/ ${target_release}/updates main" >>"${target_dir}/etc/apt/sources.list"
+	else
+		# new security format
+		echo "deb http://security.debian.org/debian-security ${target_release}-security main" >>"${target_dir}/etc/apt/sources.list"
 	fi
 	set +o pipefail
 	setup_chroot "${target_dir}"
