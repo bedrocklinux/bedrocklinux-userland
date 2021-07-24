@@ -1,3 +1,8 @@
+# 0.7.22beta1
+
+- Fixed brl-fetch debian for bullseye
+- Fixed resolv.conf on some distros
+
 # 0.7.21
 
 - Added automatic restriction of cmake, dkms
