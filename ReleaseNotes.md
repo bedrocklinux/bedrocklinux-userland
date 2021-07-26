@@ -1,3 +1,8 @@
+# 0.7.22beta2
+
+- Added code to handle errant program clearing modules.dep
+- Fixed GRUB theme handling
+
 # 0.7.22beta1
 
 - Fixed brl-fetch debian for bullseye
