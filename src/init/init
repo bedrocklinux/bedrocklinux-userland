@@ -66,6 +66,13 @@ ensure_essential_environment() {
 		mount -t tmpfs tmpfs /run
 	fi
 
+	# If the user runs a non-zstd-aware depmod with a zstd-based module
+	# set, it may clear modules.dep.  If so, fix modules.dep.
+	if [ -e /lib/modules/$(uname -r)/modules.dep ] && \
+			[ "$(stat -c%s "/lib/modules/$(uname -r)/modules.dep")" -eq 0 ]; then
+		depmod
+	fi
+
 	if ! grep -q "\\<fuse\\>" /proc/filesystems; then
 		modprobe fuse
 	fi
