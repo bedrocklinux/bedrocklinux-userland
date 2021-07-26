@@ -152,6 +152,7 @@ complete_hijack() {
 	ln -s /bedrock/libexec/kmod /sbin/modinfo
 	ln -s /bedrock/libexec/kmod /sbin/modprobe
 	ln -s /bedrock/libexec/kmod /sbin/rmmod
+	ln -s /bedrock/strata/hijacked/usr/share/grub /usr/share/grub
 	/bedrock/libexec/busybox --install -s
 	touch /usr/share/info/.keepinfodir
 	mv "/bedrock/strata/${hijacked}/sbin/init" "/sbin/init"

@@ -534,6 +534,12 @@ update() {
 			fi
 		done
 	fi
+	if ver_cmp_first_newer "0.7.18beta1" "${current_version}"; then
+		notice "Updated etcfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
+	fi
+	if ver_cmp_first_newer "0.7.20beta4" "${current_version}"; then
+		notice "Updated crossfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
+	fi
 	if ver_cmp_first_newer "0.7.21beta5" "${current_version}"; then
 		ln -fns /bedrock/libexec/kmod /bedrock/strata/bedrock/sbin/depmod
 		ln -fns /bedrock/libexec/kmod /bedrock/strata/bedrock/sbin/insmod
@@ -542,13 +548,12 @@ update() {
 		ln -fns /bedrock/libexec/kmod /bedrock/strata/bedrock/sbin/modprobe
 		ln -fns /bedrock/libexec/kmod /bedrock/strata/bedrock/sbin/rmmod
 	fi
+	if ver_cmp_first_newer "0.7.22beta2" "${current_version}" && \
+			! [ -e /bedrock/strata/bedrock/usr/share/grub ] && \
+			! [ -h /bedrock/strata/bedrock/usr/share/grub ]; then
+		ln -s /bedrock/strata/hijacked/usr/share/grub /bedrock/strata/bedrock/usr/share/grub
+	fi
 
-	if ver_cmp_first_newer "0.7.20beta4" "${current_version}"; then
-		notice "Updated crossfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
-	fi
-	if ver_cmp_first_newer "0.7.18beta1" "${current_version}"; then
-		notice "Updated etcfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
-	fi
 	if "${new_conf}"; then
 		notice "New reference configuration created at ${color_file}/bedrock/etc/bedrock.conf-${new_version}${color_norm}."
 		notice "Compare against ${color_file}/bedrock/etc/bedrock.conf${color_norm} and consider merging changes."
