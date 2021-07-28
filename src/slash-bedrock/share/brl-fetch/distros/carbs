@@ -1,0 +1,60 @@
+#!/bedrock/libexec/busybox sh
+#
+# Carbs Linux bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2019-2020 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	false
+}
+
+speed_test_url() {
+	echo "sha256sums.txt"
+}
+
+list_mirrors() {
+	echo 'https://dl.carbslinux.org/releases/'
+}
+
+brl_arch_to_distro() {
+	case "${1}" in
+	"x86_64") echo "x86_64" ;;
+	"i686") echo "i686" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+	esac
+}
+
+list_architectures() {
+	cat <<EOF
+x86_64
+i686
+EOF
+}
+
+default_release() {
+	echo "rolling"
+}
+
+list_releases() {
+	echo "rolling"
+}
+
+fetch() {
+	prefix="https://dl.carbslinux.org/releases"
+	step "Downloading bootstrap software"
+	download "${prefix}/${target_arch}/carbs-rootfs.tar.xz.sha256" "${bootstrap_dir}/checksum"
+	bootstrap_checksum="$(awk '{print$1}' "${bootstrap_dir}/checksum")"
+	checksum_download "${cache}/bootstrap.tar.xz" "sha256sum" "${bootstrap_checksum}" "${prefix}/${target_arch}/carbs-rootfs.tar.xz"
+
+	step "Extracting bootstrap software"
+	tar -xv -f "${cache}/bootstrap.tar.xz" -C "${target_dir}" | awk 'NR%100==0' | progress_unknown
+}
