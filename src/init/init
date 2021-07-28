@@ -70,7 +70,9 @@ ensure_essential_environment() {
 	# set, it may clear modules.dep.  If so, fix modules.dep.
 	if [ -e /lib/modules/$(uname -r)/modules.dep ] && \
 			[ "$(stat -c%s "/lib/modules/$(uname -r)/modules.dep")" -eq 0 ]; then
+		printf "Regenerating modules.dep... "
 		depmod
+		echo "done"
 	fi
 
 	if ! grep -q "\\<fuse\\>" /proc/filesystems; then
