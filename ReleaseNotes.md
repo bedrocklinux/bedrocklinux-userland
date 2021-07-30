@@ -1,3 +1,7 @@
+# 0.7.23beta1
+
+- Add support for s6-linux-init upgrade
+
 # 0.7.22
 
 - Added code to handle errant program clearing modules.dep
