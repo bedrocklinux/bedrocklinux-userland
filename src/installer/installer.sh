@@ -484,12 +484,6 @@ update() {
 		enforce_id_ranges
 	fi
 
-	if ver_cmp_first_newer "0.7.21beta1" "${current_version}"; then
-		# Keeps Gentoo/portage from trying to write to /bedrock/cross/info/
-		mkdir -p /bedrock/strata/bedrock/usr/share/info/
-		touch /bedrock/strata/bedrock/usr/share/info/.keepinfodir
-	fi
-
 	# All crossfs builds prior to 0.7.8 became confused if bouncer changed
 	# out from under them.  If upgrading such a version, do not upgrade
 	# bouncer in place until reboot.
@@ -505,7 +499,6 @@ update() {
 	if ver_cmp_first_newer "0.7.14beta1" "${current_version}"; then
 		brl show --pmm $(brl list -ed)
 	fi
-
 
 	notice "Successfully updated to ${new_version}"
 
@@ -534,11 +527,10 @@ update() {
 			fi
 		done
 	fi
-	if ver_cmp_first_newer "0.7.18beta1" "${current_version}"; then
-		notice "Updated etcfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
-	fi
-	if ver_cmp_first_newer "0.7.20beta4" "${current_version}"; then
-		notice "Updated crossfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
+	if ver_cmp_first_newer "0.7.21beta1" "${current_version}"; then
+		# Keeps Gentoo/portage from trying to write to /bedrock/cross/info/
+		mkdir -p /bedrock/strata/bedrock/usr/share/info/
+		touch /bedrock/strata/bedrock/usr/share/info/.keepinfodir
 	fi
 	if ver_cmp_first_newer "0.7.21beta5" "${current_version}"; then
 		ln -fns /bedrock/libexec/kmod /bedrock/strata/bedrock/sbin/depmod
@@ -552,6 +544,12 @@ update() {
 			! [ -e /bedrock/strata/bedrock/usr/share/grub ] && \
 			! [ -h /bedrock/strata/bedrock/usr/share/grub ]; then
 		ln -s /bedrock/strata/hijacked/usr/share/grub /bedrock/strata/bedrock/usr/share/grub
+	fi
+	if ver_cmp_first_newer "0.7.23beta1" "${current_version}"; then
+		notice "Updated etcfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
+	fi
+	if ver_cmp_first_newer "0.7.23beta1" "${current_version}"; then
+		notice "Updated crossfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
 	fi
 
 	if "${new_conf}"; then
