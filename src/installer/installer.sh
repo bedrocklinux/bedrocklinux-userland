@@ -161,6 +161,15 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	rm "${setf}"
 	rm "${getf}"
 
+	setc="/bedrock-linux-installer-$$-setcap"
+	extract_tarball | tar xOf - bedrock/libexec/setcap >"${setc}"
+	chmod +x "${setc}"
+	if ! "${setc}" cap_sys_chroot=ep "${setc}" 2>/dev/null; then
+		rm "${setc}"
+		abort "Unable to set Linux capabilities.  Does your kernel support them, e.g. CONFIG_EXT4_FS_SECURITY?"
+	fi
+	rm "${setc}"
+
 	step "Gathering information"
 	name=""
 	if [ -n "${1:-}" ]; then
