@@ -1,3 +1,7 @@
+# 0.7.23beta2
+
+- Fix s6-linux-init upgrade directory handling
+
 # 0.7.23beta1
 
 - Add support for s6-linux-init upgrade

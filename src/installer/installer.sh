@@ -554,7 +554,7 @@ update() {
 			! [ -h /bedrock/strata/bedrock/usr/share/grub ]; then
 		ln -s /bedrock/strata/hijacked/usr/share/grub /bedrock/strata/bedrock/usr/share/grub
 	fi
-	if ver_cmp_first_newer "0.7.23beta1" "${current_version}"; then
+	if ver_cmp_first_newer "0.7.23beta2" "${current_version}"; then
 		notice "Updated etcfs.  Cannot restart Bedrock FUSE filesystems live.  Reboot to complete change."
 	fi
 	if ver_cmp_first_newer "0.7.23beta1" "${current_version}"; then
