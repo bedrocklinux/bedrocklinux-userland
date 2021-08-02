@@ -1897,7 +1897,7 @@ static int m_setxattr(const char *path, const char *name, const char *value, siz
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDWR | O_NOFOLLOW);
+	int fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDONLY | O_NOFOLLOW);
 	if (fd >= 0) {
 		char buf[PATH_MAX];
 		if (procpath(fd, buf, sizeof(buf)) < 0) {
