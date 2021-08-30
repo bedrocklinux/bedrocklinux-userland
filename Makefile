@@ -200,7 +200,7 @@ $(COMPLETED)/builddir:
 	# create bedrock-release
 	echo "$(RELEASE)" > $(SLASHBR)/etc/bedrock-release
 	# create os-release
-	sed -e "s,^VERSION=.*,VERISON=\"$(BEDROCK_VERSION) ($(CODENAME))\"," \
+	sed -e "s,^VERSION=.*,VERSION=\"$(BEDROCK_VERSION) ($(CODENAME))\"," \
 		-e "s,^VERSION_ID=.*,VERSION_ID=\"$(BEDROCK_VERSION)\"," \
 		-e "s,^PRETTY_NAME=.*,PRETTY_NAME=\"$(RELEASE)\"," \
 		$(SLASHBR)/etc/os-release > $(SLASHBR)/etc/os-release-new
