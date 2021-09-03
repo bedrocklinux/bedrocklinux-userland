@@ -18,7 +18,7 @@
 
 # Something already created a /etc/resolv.conf
 if [ -e /etc/resolv.conf ] || [ -h /etc/resolv.conf ]; then
-	return
+	exit
 fi
 
 # Try known resolv.conf locations from various distros
@@ -30,6 +30,6 @@ for f in /etc/resolvconf/run/resolv.conf \
 		; do
 	if [ -e "${f}" ]; then
 		ln -s "${f}" /etc/resolv.conf
-		return
+		exit
 	fi
 done
