@@ -110,18 +110,57 @@ list_pms(){
 }
 
 list_installed(){
-    /bedrock/libexec/pmm apt pmm "${restricted_pm[@]}" "${restricted_strata[@]}" --quiet list --installed 2>/dev/null | awk '{print $2}'
+    # Populated when run
+    # shellcheck disable=SC2034
+    local _cache_dir var
+    local -a pkgs
+    local cache_id="_pmm_list_installed-${restricted_pm[2]}-${restricted_strata[2]}"
+    if ( [[ ${#pkgs} -eq 0 ]] || _cache_invalid "${cache_id}" )  && ! _retrieve_cache "${cache_id}"; then
+        pkgs=("${(f)$(/bedrock/libexec/pmm apt pmm "${restricted_pm[@]}" "${restricted_strata[@]}" --quiet list --installed 2>/dev/null | awk '{print $2}')}")
+        _store_cache "${cache_id}" pkgs
+    fi
+
+    compadd "${(M)pkgs[@]:#${words[CURRENT]}*}"
 }
 
 list_available(){
-    /bedrock/libexec/pmm apt pmm "${restricted_pm[@]}" "${restricted_strata[@]}" --quiet list 2>/dev/null | awk '{print $2}'
+    # Populated when run
+    # shellcheck disable=SC2034
+    local _cache_dir var
+    local -a pkgs
+    local cache_id="_pmm_list_available-${restricted_pm[2]}-${restricted_strata[2]}"
+    if ( [[ ${#pkgs} -eq 0 ]] || _cache_invalid "${cache_id}" )  && ! _retrieve_cache "${cache_id}"; then
+        pkgs=("${(f)$(/bedrock/libexec/pmm apt pmm "${restricted_pm[@]}" "${restricted_strata[@]}" --quiet list 2>/dev/null | awk '{print $2}')}")
+        _store_cache "${cache_id}" pkgs
+    fi
+    compadd "${(M)pkgs[@]:#${words[CURRENT]}*}"
 }
 
 list_manual(){
-    /bedrock/libexec/pmm apt pmm-mark "${restricted_pm[@]}" "${restricted_strata[@]}" --quiet showmanual 2>/dev/null | awk '{print $2}'
+    # Populated when run
+    # shellcheck disable=SC2034
+    local _cache_dir var
+    local -a pkgs
+    local cache_id="_pmm_list_manual-${restricted_pm[2]}-${restricted_strata[2]}"
+    if ( [[ ${#pkgs} -eq 0 ]] || _cache_invalid "${cache_id}" )  && ! _retrieve_cache "${cache_id}"; then
+        pkgs=("${(f)$(/bedrock/libexec/pmm apt pmm-mark "${restricted_pm[@]}" "${restricted_strata[@]}" --quiet showmanual 2>/dev/null | awk '{print $2}')}")
+        _store_cache "${cache_id}" pkgs
+    fi
+
+    compadd "${(M)pkgs[@]:#${words[CURRENT]}*}"
 }
 list_automatic(){
-    /bedrock/libexec/pmm apt pmm-mark "${restricted_pm[@]}" "${restricted_strata[@]}" --quiet showauto 2>/dev/null| awk '{print $2}'
+    # Populated when run
+    # shellcheck disable=SC2034
+    local _cache_dir var
+    local -a pkgs
+    local cache_id="_pmm_list_automatic-${restricted_pm[2]}-${restricted_strata[2]}"
+    if ( [[ ${#pkgs} -eq 0 ]] || _cache_invalid "${cache_id}" )  && ! _retrieve_cache "${cache_id}"; then
+        pkgs=("${(f)$(/bedrock/libexec/pmm apt pmm-mark "${restricted_pm[@]}" "${restricted_strata[@]}" --quiet showauto 2>/dev/null| awk '{print $2}')}")
+        _store_cache "${cache_id}" pkgs
+    fi
+
+    compadd "${(M)pkgs[@]:#${words[CURRENT]}*}"
 }
 
 apk_flags(){
@@ -158,30 +197,24 @@ apk_operations_handler(){
         pmm)
             case ${words[1]} in
                 add)
-                    # list available pkgs
+                    list_available
                 ;;
                 fix)
                     case ${words[2]} in
                         -r|--reinstall)
-                            # We want word splitting here
-                            # shellcheck disable=SC2046
-                            compadd $(list_installed)
+                            list_installed
                         ;;
                     esac
                     _arguments "(-r --reinstall)"{-r,--reinstall}"[${help["reinstall-packages"]}]"
                 ;;
                 del)
                     _arguments "--purge[${help["remove-packages-full,remove-orphans"]}]"
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_installed)
+                    list_installed
                 ;;
                 info)
                     case ${words[2]} in
                         -L|--contents)
-                            # We want word splitting here
-                            # shellcheck disable=SC2046
-                            compadd $(list_installed)
+                            list_installed
                         ;;
                         -W|--who-owns)
                             _files
@@ -191,7 +224,7 @@ apk_operations_handler(){
                         "(-L --contents -W --who-owns)"{-L,--contents}"[${help["list-installed-package-files"]}]" \
                         "(-L --contents -W --who-owns)"{-W,--who-owns}"[${help["which-package-owns-file"]}]"
                     _values "pkgs" "first" "second"
-                    # List available pkgs
+                    list_available
                 ;;
                 list)
                     _arguments "(-I --installed)"{-I,--installed}"[${help["list-installed-packages"]}]"
@@ -261,24 +294,18 @@ apt_operations_handler(){
         pmm)
             case ${words[1]} in
                 install|show)
-                    # list available pkgs
+                    list_available
                 ;;
                 reinstall)
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_installed)
+                    list_installed
                 ;;
                 remove)
                     _arguments "(--auto-remove --autoremove)"{--auto-remove,--autoremove}"[${help["remove-packages-limited,remove-orphans"]}]"
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_installed)
+                    list_installed
                 ;;
                 purge)
                     _arguments "(--auto-remove --autoremove)"{--auto-remove,--autoremove}"[${help["remove-packages-full,remove-orphans"]}]"
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_installed)
+                    list_installed
                 ;;
                 upgrade)
                     _arguments "(--auto-remove --autoremove)"{--auto-remove,--autoremove}"[${help["upgrade-packages-limited,remove-orphans"]}]"
@@ -297,14 +324,10 @@ apt_operations_handler(){
         pmm-dpkg)
             case ${words[1]} in
                 -V)
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_installed)
+                    list_installed
                 ;;
                 -L|--listfiles)
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    [[ -z ${words[2]} ]] && compadd $(list_installed)
+                    [[ -z ${words[2]} ]] && list_installed
                 ;;
                 -S|--search)
                     _files
@@ -314,14 +337,10 @@ apt_operations_handler(){
         pmm-mark)
             case ${words[1]} in
                 manual)
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_automatic)
+                    list_automatic
                 ;;
                 auto)
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_manual)
+                    list_manual
                 ;;
             esac
         ;;
@@ -391,31 +410,23 @@ dnf_operations_handler(){
         pmm)
             case ${words[1]} in
                 in|install)
-                    # List available pkgs
+                    list_available
                 ;;
                 rei|reinstall)
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_installed)
+                    list_installed
                 ;;
                 rm|remove|erase)
                     _arguments "--noautoremove[${help["remove-packages-limited"]}]"
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_installed)
+                    list_installed
                 ;;
                 mark)
                     case ${words[2]} in
                         install)
-                        # We want word splitting here
-                        # shellcheck disable=SC2046
-                        compadd $(list_automatic)
+                        list_automatic
                         return
                         ;;
                         remove)
-                        # We want word splitting here
-                        # shellcheck disable=SC2046
-                        compadd $(list_manual)
+                        list_manual
                         return
                         ;;
                     esac
@@ -427,7 +438,7 @@ dnf_operations_handler(){
                     _describe 'operations' ops
                 ;;
                 info)
-                    # List available pkgs
+                    list_available
                 ;;
                 clean)
                     case ${words[2]} in
@@ -483,16 +494,12 @@ dnf_operations_handler(){
                     esac
                     _arguments \
                     "(-a --all)"{-a,--all}"[${help["verify-all-packages"]}]"
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_installed)
+                    list_installed
                 ;;
                 -q|--query)
                     case ${words[2]} in
                         -l|--list)
-                            # We want word splitting here
-                            # shellcheck disable=SC2046
-                            compadd $(list_installed)
+                            list_installed
                         ;;
                         -f|--files)
                             _files
@@ -541,12 +548,12 @@ pacman_operations_handler(){
                 -S|--sync)
                     case ${words[2]} in
                         -i|--info)
-                            # list available pkgs
+                            list_available
                             return
                         ;;
                         -y|--refresh)
                             _arguments "(-u --sysupgrade)"{-u,--sysupgrade}"[${help["update-package-database,update-file-database,upgrade-packages-full"]}]"
-                            # list available pkgs
+                            list_available
                             return
                         ;;
                         -c|--clean|-u|--sysupgrade|-l|--list|-s|--search)
@@ -563,7 +570,7 @@ pacman_operations_handler(){
                         "(-s --search)"{-s,--search}"[${help["search-for-package-by-all"]}]"
                     )
                     _arguments -s "${ops[@]}"
-                    # List available pkgs
+                    list_available
                 ;;
                 -R|--remove)
                     case ${words[2]} in
@@ -571,9 +578,7 @@ pacman_operations_handler(){
                             _arguments "(-n --nosave)"{-n,--nosave}"[${help["remove-packages-full,remove-orphans"]}]"
                         ;&
                         -n|--nosave)
-                            # We want word splitting here
-                            # shellcheck disable=SC2046
-                            compadd $(list_installed)
+                            list_installed
                             return
                         ;;
                     esac
@@ -583,16 +588,12 @@ pacman_operations_handler(){
                         "(-n --nosave -s --recursive)"{-s,--recursive}"[${help["remove-packages-limited,remove-orphans"]}]"
                     )
                     _arguments -s "${ops[@]}"
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_installed)
+                    list_installed
                 ;;
                 -Q|--query)
                     case ${words[2]} in
                         -k|--check|-l|--list)
-                            # We want word splitting here
-                            # shellcheck disable=SC2046
-                            compadd $(list_installed)
+                            list_installed
                             return
                         ;;
                         -e|--explicit|-d|--deps)
@@ -616,14 +617,10 @@ pacman_operations_handler(){
                 -D|--database)
                     case ${words[2]} in
                         --asexplicit)
-                            # We want word splitting here
-                            # shellcheck disable=SC2046
-                            compadd $(list_automatic)
+                            list_automatic
                         ;;
                         --asdeps)
-                            # We want word splitting here
-                            # shellcheck disable=SC2046
-                            compadd $(list_manual)
+                            list_manual
                         ;;
                     esac
                     local -a ops
@@ -686,7 +683,7 @@ portage_flags(){
 portage_operations(){
     case $ui_file in
         pmm)
-            # List available pkgs
+            list_available
             ops+=(
                 "-w:${help["mark-packages-explicit"]}"
                 "--select:${help["mark-packages-explicit"]}"
@@ -707,9 +704,7 @@ portage_operations(){
             )
         ;;
         pmm-qcheck)
-            # We want word splitting here
-            # shellcheck disable=SC2046
-            compadd $(list_installed)
+            list_installed
         ;;
         pmm-eclean)
             ops+=(
@@ -739,17 +734,13 @@ portage_operations_handler(){
         pmm)
             case ${words[1]} in
                 -w|--select)
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_automatic)
+                    list_automatic
                 ;;
                 --deselect)
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_manual)
+                    list_manual
                 ;;
                 -s|--search)
-                    # list available pkgs
+                    list_available
                 ;;
                 -u|--update)
                     case ${words[2]} in
@@ -770,9 +761,7 @@ portage_operations_handler(){
                         "(-D --deep)"{-D,--deep}"[]"
                 ;;
                 -c|--depclean)
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_installed)
+                    list_installed
                 ;;
                 -p|--pretend)
                     if [[ ${words[2]} != "@selected" ]]; then
@@ -788,9 +777,7 @@ portage_operations_handler(){
         pmm-qlist)
             case ${words[1]} in
                 -e)
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_installed)
+                    list_installed
                 ;;
             esac
         ;;
@@ -807,7 +794,7 @@ xbps_flags(){
 xbps_operations(){
     case $ui_file in
         pmm-install)
-            # list available pkgs
+            list_available
             ops+=(
                 "-f:${help["reinstall-packages"]}"
                 "--force:${help["reinstall-packages"]}"
@@ -818,9 +805,7 @@ xbps_operations(){
             )
         ;;
         pmm-remove)
-            # We want word splitting here
-            # shellcheck disable=SC2046
-            compadd $(list_installed)
+            list_installed
             ops+=(
                 "-O:${help["clear-cache"]}"
                 "--clean-cache:${help["clear-cache"]}"
@@ -830,9 +815,7 @@ xbps_operations(){
             )
         ;;
         pmm-pkgdb)
-            # We want word splitting here
-            # shellcheck disable=SC2046
-            compadd $(list_installed)
+            list_installed
             ops+=(
                 "-a:${help["verify-all-packages"]}"
                 "-m"
@@ -862,13 +845,11 @@ xbps_operations_handler(){
         pmm-install)
             case ${words[1]} in
                 -f|--force)
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_installed)
+                    list_installed
                 ;;
                 -S|--sync)
                     _arguments "(-u --upgrade)"{-u,--upgrade}"[${help["update-package-database,upgrade-packages-full"]}]"
-                    # list available pkgs
+                    list_available
                 ;;
             esac
         ;;
@@ -878,9 +859,7 @@ xbps_operations_handler(){
                     _arguments "(-o)-o[${help["clear-cache,remove-orphans"]}]"
                 ;;
                 -R)
-                    # We want word splitting here
-                    # shellcheck disable=SC2046
-                    compadd $(list_installed)
+                   list_installed
                 ;;
             esac
         ;;
@@ -889,15 +868,11 @@ xbps_operations_handler(){
                 -m)
                     case ${words[2]} in
                         manual)
-                            # We want word splitting here
-                            # shellcheck disable=SC2046
-                            compadd $(list_automatic)
+                            list_automatic
                             return
                         ;;
                         auto)
-                            # We want word splitting here
-                            # shellcheck disable=SC2046
-                            compadd $(list_manual)
+                            list_manual
                             return
                         ;;
                     esac
@@ -915,9 +890,7 @@ xbps_operations_handler(){
                 -R)
                     case ${words[2]} in
                         -f|--files)
-                            # We want word splitting here
-                            # shellcheck disable=SC2046
-                            compadd $(list_installed)
+                            list_installed
                             return
                         ;;
                         -s|--search)
@@ -936,7 +909,7 @@ xbps_operations_handler(){
                         "(-f --files)"{-f,--files}"[${help["list-installed-package-files"]}]" \
                         "(-s --search)"{-s,--search}"[${help["search-for-package-by-all"]}]" \
                         "(-o --ownedby)"{-o,--ownedby}"[${help["which-packages-provide-file"]}]"
-                    # list available pkgs
+                    list_available
                 ;;
             esac
         ;;
