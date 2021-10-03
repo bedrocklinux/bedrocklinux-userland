@@ -1,3 +1,9 @@
+# 0.7.24beta1
+
+- Added pmm zsh completion
+- Fixed brl-fetch fedora locale
+- Fixed resolve.conf handling with some distros/inits
+
 # 0.7.23
 
 - Add support for s6
