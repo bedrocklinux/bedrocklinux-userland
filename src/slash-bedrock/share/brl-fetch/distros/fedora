@@ -157,6 +157,34 @@ fetch() {
 	# Need to set database timestamps for pmm due to `dnf -C` usage
 	umount -l "${bootstrap_dir}/var/cache/dnf" >/dev/null 2>&1 || true
 	umount -l "${bootstrap_dir}/var/cache/yum" >/dev/null 2>&1 || true
+
+	step "Configuring"
 	setup_chroot "${target_dir}"
 	LC_ALL=C chroot "${target_dir}" "${package_manager}" -y update
+
+	# Fedora does not use localegen; need to special case locale handling.
+	LC_ALL=C chroot "${target_dir}" "${package_manager}" -y install glibc-locale-source
+	localegen="$(cfg_values "locale" "localegen")"
+	if [ -n "${localegen}" ]; then
+		unset IFS
+		echo "${localegen}" | while read -r line; do
+			name="$(echo "${line}" | cut -d'.' -f1)"
+			locale="$(echo "${line}" | cut -d' ' -f1)"
+			charset="$(echo "${line}" | cut -d' ' -f2)"
+			if [ -e "${target_dir}/usr/share/locale/${name}" ]; then
+				input="${name}"
+			else
+				notice "${color_warn}Could not set \"${locale} ${charset}\" locale, skipping.${color_norm}"
+				continue
+			fi
+			if [ -e "${target_dir}/usr/share/locale/locale.alias" ]; then
+				alias="-A /usr/share/locale/locale.alias"
+			else
+				unset alias
+			fi
+			if ! LC_ALL=C chroot "${target_dir}" localedef -i "${input:-}" -c -f "${charset}" ${alias:-} "${locale}"; then
+				notice "${color_warn}Could not set \"${locale} ${charset}\" locale, skipping.${color_norm}"
+			fi
+		done
+	fi
 }
