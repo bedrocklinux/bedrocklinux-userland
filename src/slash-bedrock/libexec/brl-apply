@@ -343,6 +343,14 @@ if [ -r /etc/fstab ] && awk '$1$2$3$4$5$6 !~ "#" && $6 != "" && $6 != 0 {x=1} EN
 	' /etc/fstab >/etc/fstab-new && mv /etc/fstab-new /etc/fstab
 fi
 
+# When using 66 init, make a tmpfs available for 66's LIVE directory.
+# The init_cmd variable is exported by bedrock init for use here.
+if [ -n $init_cmd ] && echo $init_cmd | grep -q '66'; then
+    live_dir=$(awk -F= '/^LIVE=/ { print $2 }' /etc/66/init.conf)
+    mkdir -p $live_dir
+    mount -t tmpfs tmpfs $live_dir -o rw,nosuid,nodev,mode=755,exec
+fi
+
 # Disable SELinux
 for stratum in $(/bedrock/bin/brl list -ei); do
 	root="$(stratum_root --empty "${stratum}")"
@@ -443,6 +451,21 @@ for stratum in $(/bedrock/bin/brl list -ei); do
 	cp "${init}" "${init}-bedrock-patch"
 	sed 's/s6-linux-init /s6-linux-init -N /' "${init}" > "${init}-bedrock-patch"
 	mv "${init}-bedrock-patch" "${init}"
+done
+
+# Patch 66 init to skip unmounting /run, as this breaks Bedrock's pre-init setup of /run
+for stratum in $(/bedrock/bin/brl list -ei); do
+	stratum_root="/bedrock/strata/${stratum}"
+	for init in "${stratum_root}/bin/66" "${stratum_root}/usr/bin/66"; do
+		if [ -x ${init} ] && grep -q '\-m' ${init}; then
+			cp "${init}" "${init}-bedrock-patch"
+			# This is obviously not robust against the various
+			# forms the call to 66-boot can take, but KISS is
+			# probably sufficient for now.
+			sed 's/-m//' "${init}" > "${init}-bedrock-patch"
+			mv "${init}-bedrock-patch" "${init}"
+		fi
+	done
 done
 
 exit_success
