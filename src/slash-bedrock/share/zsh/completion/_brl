@@ -24,7 +24,7 @@ _brl_subcommands() {
 		'copy:Copy a stratum'
 
 		'status:Query stratum status'
-		'enable:Enable or fix strata'
+		'enable:Enable strata'
 		'disable:Disable strata'
 		'repair:Repairs broken strata'
 
@@ -34,8 +34,8 @@ _brl_subcommands() {
 		'alias:Create a stratum alias'
 		'deref:Dereference stratum aliases'
 
+		'apply:Apply configuration changes'
 		'update:Update Bedrock Linux system'
-		'reload:Reload configuration'
 		'version:Query Bedrock Linux version'
 		'report:Generate report'
 		'tutorial:Run interactive tutorial'
@@ -77,6 +77,9 @@ case "${words[2]}" in
 	args+=('(-D --disabled-aliases)'{-D,--disabled-aliases}'[list aliases to disabled strata]')
 	args+=('(-a --all-strata)'{-a,--all-strata}'[list all strata]')
 	args+=('(-A --all-aliases)'{-A,--all-aliases}'[list all aliases]')
+	args+=('(-r --deref)'{-d,--deref}'[list aliases dereferenced]')
+	args+=('(-i --include-hidden)'{-i,--include-hidden}'[list hidden strata]')
+	args+=('(-v --everything)'{-v,--everything}'[list everything, equivalent to -aAir]')
 	;;
 "which")
 	if [[ "${CURRENT}" -eq 3 ]]; then
@@ -111,8 +114,8 @@ case "${words[2]}" in
 	;;
 "fetch")
 	if [[ "${CURRENT}" -eq 3 ]]; then
-		args+=('(-L --list)'{-l,--list}'[list supported distros]')
-		args+=('(-X --experimental)'{-x,--experimental}'[list experimental distros]')
+		args+=('(-L --list)'{-L,--list}'[list supported distros]')
+		args+=('(-X --experimental)'{-X,--experimental}'[list experimental distros]')
 	fi
 	args+=('(-R --releases)'{-R,--releases}'[list releases provided by distros]')
 	args+=('(-A --archs)'{-A,--archs}'[list CPU architectures supported by distros]')
@@ -173,6 +176,9 @@ case "${words[2]}" in
 	))")
 	;;
 "repair")
+    args+=("(-n --new)"{-n,--new}"[only add new mounts, do not remove anything]")
+    args+=("(-r --retain)"{-r,--retain}"[try to retain as much as possible except problematic mount points]")
+    args+=("(-c --clear)"{-c,--clear}"[clears strata proceses and mount points]")
 	args+=("*:strata or aliases:($(/bedrock/bin/brl list -aA))")
 	;;
 "hide")
@@ -180,6 +186,8 @@ case "${words[2]}" in
 	args+=('(-b --boot)'{-b,--boot}'[do not automatically enable stratum during boot]')
 	args+=("(-c --cross)"{-c,--cross}"[do not include stratum's files in /bedrock/cross]")
 	args+=("(-i --init)"{-i,--init}"[do not include stratum's init options during boot]")
+	args+=("(-l --list)"{-l,--list}'[do not list with `brl list` without `-i` flag]')
+	args+=("(-p --pmm)"{-p,--pmm}'[do not consider for `pmm` operations]')
 	args+=("*:strata or aliases:($(/bedrock/bin/brl list -aA))")
 	;;
 "show")
@@ -187,6 +195,8 @@ case "${words[2]}" in
 	args+=('(-b --boot)'{-b,--boot}'[automatically enable stratum during boot]')
 	args+=("(-c --cross)"{-c,--cross}"[include stratum's files in /bedrock/cross]")
 	args+=("(-i --init)"{-i,--init}"[include stratum's init options during boot]")
+	args+=("(-l --list)"{-l,--list}'[list with `brl list` without `-i` flag]')
+	args+=("(-p --pmm)"{-p,--pmm}'[consider for `pmm` operations]')
 	args+=("*:strata or aliases:($(/bedrock/bin/brl list -aAi))")
 	;;
 "alias")
