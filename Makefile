@@ -314,10 +314,10 @@ $(COMPLETED)/libcap: vendor/libcap/.success_fetching_source $(COMPLETED)/builddi
 	mv $(VENDOR)/libcap/Make.Rules-new $(VENDOR)/libcap/Make.Rules
 	cd $(VENDOR)/libcap/libcap && \
 		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) LD="$(MUSLCC) -Wl,-x -shared" lib=$(SUPPORT)/lib prefix=$(SUPPORT) BUILD_CFLAGS="$(CFLAGS) -static" && \
-		$(MAKE) install RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib
+		$(MAKE) install-static RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib
 	cd $(VENDOR)/libcap/progs && \
-		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) LD="$(MUSLCC) -Wl,-x -shared" lib=$(SUPPORT)/lib prefix=$(SUPPORT) LDFLAGS=-static && \
-		$(MAKE) install RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib
+		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) LD="$(MUSLCC) -Wl,-x -shared" lib=$(SUPPORT)/lib prefix=$(SUPPORT) LDFLAGS=-static DYNAMIC=no && \
+		$(MAKE) install RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib DYNAMIC=no
 	touch $(COMPLETED)/libcap
 libcap: $(COMPLETED)/libcap
 
@@ -441,8 +441,8 @@ $(COMPLETED)/util-linux: vendor/util-linux/.success_fetching_source $(COMPLETED)
 	cd $(VENDOR)/util-linux && ./autogen.sh && \
 		CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib" ./configure --enable-static=yes --disable-all-programs --enable-libblkid --enable-libuuid && \
 		$(MAKE) CC=$(MUSLCC) CFLAGS="-I$(SUPPORT)/include -L$(SUPPORT)/lib"
-	cp $(VENDOR)/util-linux/.libs/libblkid.* $(SUPPORT)/lib
-	cp $(VENDOR)/util-linux/.libs/libuuid.* $(SUPPORT)/lib
+	cp $(VENDOR)/util-linux/.libs/libblkid.* $(SUPPORT)/lib || true
+	cp $(VENDOR)/util-linux/.libs/libuuid.* $(SUPPORT)/lib || true
 	touch $(COMPLETED)/util-linux
 util-linux: $(COMPLETED)/util-linux
 
@@ -1351,13 +1351,13 @@ release-ppc: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-ppc make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-gcc' \
-		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-ld' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-gcc' \
 		bedrock-linux-$(BEDROCK_VERSION)-ppc.sh
 release-ppc64: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-ppc64 make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-gcc' \
-		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-ld' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-gcc' \
 		bedrock-linux-$(BEDROCK_VERSION)-ppc64.sh
 release-ppc64le: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-ppc64le make -j$(SUBJOBS) GPGID='$(GPGID)' \
