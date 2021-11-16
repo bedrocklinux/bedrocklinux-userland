@@ -1,14 +1,12 @@
-# 0.7.24beta2
-
-- Fixed brl-fetch centos
-- Fixed brl-fetch ubuntu
-- Improved theoretical robustness of init selection menu
-
-# 0.7.24beta1
+# 0.7.24
 
 - Added pmm zsh completion
+- Fixed brl zsh completion
+- Fixed brl-fetch centos
 - Fixed brl-fetch fedora locale
+- Fixed brl-fetch ubuntu
 - Fixed resolve.conf handling with some distros/inits
+- Improved theoretical robustness of init selection menu
 
 # 0.7.23
 
