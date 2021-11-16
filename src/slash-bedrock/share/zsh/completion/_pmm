@@ -255,7 +255,7 @@ apt_operations(){
                 "autoclean:${help["clear-cache"]}"
                 "auto-clean:${help["clear-cache"]}"
                 "autoremove:${help["remove-orphans"]}"
-                "update${help["update-package-database"]}"
+                "update:${help["update-package-database"]}"
                 "upgrade:${help["upgrade-packages-limited"]}"
                 "dist-upgrade:${help["upgrade-packages-full"]}"
                 "full-upgrade:${help["upgrade-packages-full"]}"
