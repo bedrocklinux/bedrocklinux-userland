@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2018-2020 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2018-2021 Daniel Thau <danthau@bedrocklinux.org>
 #
 # Installs or updates a Bedrock Linux system.
 
@@ -119,6 +119,9 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 		abort "grub-mkrelpath/grub2-mkrelpath --relative does not support bind-mounts on /boot.  Continuing may break the bootloader on a kernel update.  This is a known Bedrock issue with OpenSUSE+btrfs/GRUB."
 	elif [ -r /boot/grub/grub.cfg ] && { grep -q 'subvol=' /boot/grub/grub.cfg || grep -q 'ZFS=' /boot/grub/grub.cfg; }; then
 		abort '`subvol=` or `ZFS=` detected in `/boot/grub/grub.cfg` indicating GRUB usage on either BTRFS or ZFS.  GRUB can get confused when updating this content on Bedrock which results in a non-booting system.  Either use another filesystem or another bootloader.'
+	elif grep -qi 'btrfs' '/proc/mounts' && find /boot -iname "*grub*" >/dev/null 2>&1; then
+		# Some users have reported getting past above two checks.  This additional check is prone to false-positive, but it's better to be conservative here.
+		abort 'Detected BTRFS mount and GRUB reference in /boot.  GRUB can get confused when updating its configuration in this scenario.  Either use another filesystem or another bootloader.'
 	elif [ -e /bedrock/ ]; then
 		# Prefer this check at end of sanity check list so other sanity
 		# checks can be tested directly on a Bedrock system.
