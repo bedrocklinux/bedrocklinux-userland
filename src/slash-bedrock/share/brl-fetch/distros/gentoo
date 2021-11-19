@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2021 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -68,6 +68,12 @@ list_releases() {
 }
 
 fetch() {
+	# TODO: Gentoo apprently removed minimal Stage 3, now requires an init.
+	# Defaulting to openrc.  In Bedrock 0.8.0 when `brl fetch --flavor` is
+	# available make deskop vs hardened vs musl, openrc vs systemd,
+	# flavors.
+	flavor="desktop-openrc"
+
 	step "Finding bootstrap software"
 	groups="$(download -q "${target_mirror}/releases/" - |
 		list_links |
@@ -76,7 +82,7 @@ fetch() {
 	group="$(for group in ${groups}; do
 		if download -q "${target_mirror}/releases/${group}/autobuilds/" - |
 			list_links |
-			grep "^current-stage3-${distro_arch}/$" >/dev/null; then
+			grep "^current-stage3-${distro_arch}-${flavor}/$" >/dev/null; then
 			echo "${group}"
 			break
 		fi
@@ -86,7 +92,7 @@ fetch() {
 	fi
 
 	step "Downloading bootstrap software"
-	bootstrap_url="$(find_link "${target_mirror}/releases/${group}/autobuilds/current-stage3-${distro_arch}/" "^stage3-${distro_arch}-[^.]*[.]tar[.]\(xz\|bz2\)$")"
+	bootstrap_url="$(find_link "${target_mirror}/releases/${group}/autobuilds/current-stage3-${distro_arch}-${flavor}/" "^stage3-${distro_arch}-[^.]*[.]tar[.]\(xz\|bz2\)$")"
 	bootstrap_name="$(echo "${bootstrap_url}" | sed 's,^.*/,,')"
 	download "${bootstrap_url}.DIGESTS" "${bootstrap_dir}/checksum"
 	bootstrap_checksum="$(awk -v"name=${bootstrap_name}" '/^# .* HASH$/ {hash=$2;next} hash == "SHA512" && $2 == name {print$1;exit}' "${bootstrap_dir}/checksum")"
