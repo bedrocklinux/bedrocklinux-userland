@@ -59,10 +59,11 @@ default_release() {
 }
 
 list_releases() {
-	download -q 'https://download-ib01.fedoraproject.org/pub/fedora-secondary/releases/' - |
+	download -q 'https://dl.fedoraproject.org/pub/fedora/linux/releases/' - |
 		list_links |
 		grep '^[0-9][0-9]*/$' |
-		sed 's,/$,,'
+		sed 's,/$,,' |
+		sort -n
 }
 
 determine_package_manager() {
