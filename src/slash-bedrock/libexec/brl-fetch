@@ -421,10 +421,12 @@ extract_debs() {
 				gunzip "./data.tar.gz"
 			elif [ -e "./data.tar.xz" ]; then
 				unxz "./data.tar.xz"
+			elif [ -e "./data.tar.zst" ]; then
+				 /bedrock/libexec/zstd -qd "./data.tar.zst"
 			fi
 			tar xf data.tar
 			rm "./debian-binary"
-			rm "./data.tar"
+			rm "./data.tar"*
 			rm "./control.tar."*
 			echo "${file}"
 		done | progress_bar "${#}"

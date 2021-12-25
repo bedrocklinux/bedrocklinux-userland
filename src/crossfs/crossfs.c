@@ -714,7 +714,7 @@ static inline int insert_h_kv(struct h_kv **kvs, char *key, size_t key_len, char
 static inline int fchroot_open(int root_fd, const char *bpath, int flags)
 {
 	if (openat2_available) {
-		return openat2_fchroot_open(root_fd, bpath, flags, 0);
+		return openat2_fchroot_open(root_fd, bpath, O_NONBLOCK | flags, 0);
 	}
 
 	int rv = -EINVAL;
@@ -724,7 +724,7 @@ static inline int fchroot_open(int root_fd, const char *bpath, int flags)
 		|| (fchdir(root_fd) >= 0 && chroot(".") >= 0)) {
 		current_root_fd = root_fd;
 
-		rv = open(bpath, flags);
+		rv = open(bpath, O_NONBLOCK | flags);
 	}
 
 	pthread_mutex_unlock(&root_lock);
@@ -1582,7 +1582,7 @@ static inline int set_local_stratum(void)
 	 *
 	 * Happily, openat() is sufficient for our needs here.
 	 */
-	local_stratum.root_fd = openat(procfs_fd, procroot, O_DIRECTORY);
+	local_stratum.root_fd = openat(procfs_fd, procroot, O_NONBLOCK | O_DIRECTORY);
 	if (local_stratum.root_fd < 0) {
 		goto fallback_virtual;
 	}

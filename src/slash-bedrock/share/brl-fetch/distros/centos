@@ -75,7 +75,6 @@ EOF
 
 default_release() {
 	list_releases |
-		grep -ve "[a-z-]" | # do not default stream releases, only fixed ones
 		sort -n |
 		tail -n1
 }
@@ -100,7 +99,12 @@ determine_package_manager() {
 }
 
 bootstrap_deps() {
-	echo "${package_manager} rpm centos-release filesystem centos-gpg-keys shadow-utils"
+	echo "${package_manager} rpm centos-release filesystem shadow-utils"
+
+	# At the time of writing, CentOS 8-stream no longer includes repos as a dependency of the package manager
+	if echo "${target_release}" | grep -q stream; then
+		echo "centos-stream-repos centos-gpg-keys"
+	fi
 }
 
 fetch() {

@@ -1,3 +1,18 @@
+# 0.7.24
+
+- Added pmm zsh completion
+- Fixed brl zsh completion
+- Fixed brl-fetch centos
+- Fixed brl-fetch fedora locale
+- Fixed brl-fetch ubuntu
+- Fixed resolve.conf handling with some distros/inits
+- Improved theoretical robustness of init selection menu
+
+# 0.7.23
+
+- Add support for s6
+- Security updates for openssl
+
 # 0.7.22
 
 - Added code to handle errant program clearing modules.dep

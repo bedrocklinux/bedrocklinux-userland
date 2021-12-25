@@ -466,7 +466,7 @@ static int inject(int ref_fd, const char *rpath, const char *inject, const size_
 	char tmp_file[PATH_MAX];
 	tmp_file[0] = '\0';
 
-	if ((fd = openat(ref_fd, rpath, O_RDONLY)) < 0) {
+	if ((fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDONLY)) < 0) {
 		goto clean_up_and_return;
 	}
 
@@ -511,7 +511,7 @@ static int inject(int ref_fd, const char *rpath, const char *inject, const size_
 		goto clean_up_and_return;
 	}
 	unlinkat(ref_fd, tmp_file, 0);
-	if ((tmp_fd = openat(ref_fd, tmp_file, O_CREAT | O_RDWR | O_NOFOLLOW, stbuf.st_mode)) < 0) {
+	if ((tmp_fd = openat(ref_fd, tmp_file, O_NONBLOCK | O_CREAT | O_RDWR | O_NOFOLLOW, stbuf.st_mode)) < 0) {
 		goto clean_up_and_return;
 	}
 
@@ -572,7 +572,7 @@ static int uninject(int ref_fd, const char *rpath, const char *inject, const siz
 
 	char buf[inject_len * 2];
 
-	if ((fd = openat(ref_fd, rpath, O_RDONLY)) < 0) {
+	if ((fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDONLY)) < 0) {
 		goto clean_up_and_return;
 	}
 
@@ -629,7 +629,7 @@ static int uninject(int ref_fd, const char *rpath, const char *inject, const siz
 		goto clean_up_and_return;
 	}
 	unlinkat(ref_fd, tmp_file, 0);
-	if ((tmp_fd = openat(ref_fd, tmp_file, O_CREAT | O_RDWR | O_NOFOLLOW, stbuf.st_mode)) < 0) {
+	if ((tmp_fd = openat(ref_fd, tmp_file, O_NONBLOCK | O_CREAT | O_RDWR | O_NOFOLLOW, stbuf.st_mode)) < 0) {
 		goto clean_up_and_return;
 	}
 
@@ -1242,7 +1242,7 @@ static int m_opendir(const char *path, struct fuse_file_info *fi)
 	DISALLOW_ON_CFG(rpath);
 
 	DIR *d;
-	int fd = openat(ref_fd, rpath, O_DIRECTORY | O_RDONLY | O_NOFOLLOW);
+	int fd = openat(ref_fd, rpath, O_NONBLOCK | O_DIRECTORY | O_RDONLY | O_NOFOLLOW);
 	if (fd < 0) {
 		rv = -1;
 	} else if ((d = fdopendir(fd)) == NULL) {
@@ -1272,7 +1272,7 @@ static int m_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 
 	int dir_exists = 0;
 
-	int fd = openat(global_ref_fd, rpath, O_DIRECTORY | O_RDONLY);
+	int fd = openat(global_ref_fd, rpath, O_NONBLOCK | O_DIRECTORY | O_RDONLY);
 	DIR *d = fdopendir(fd);
 	if (d) {
 		dir_exists = 1;
@@ -1319,7 +1319,7 @@ static int m_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 		}
 	}
 
-	fd = openat(ref_fd, rpath, O_DIRECTORY | O_RDONLY);
+	fd = openat(ref_fd, rpath, O_NONBLOCK | O_DIRECTORY | O_RDONLY);
 	d = fdopendir(fd);
 	if (d) {
 		dir_exists = 1;
@@ -1548,11 +1548,11 @@ static int m_rename(const char *from, const char *to, unsigned int flags)
 		 * Copy into temporary file.
 		 */
 		unlinkat(to_ref_fd, tmp_path, 0);
-		if ((to_fd = openat(to_ref_fd, tmp_path, O_CREAT | O_RDWR | O_NOFOLLOW, stbuf.st_mode)) < 0) {
+		if ((to_fd = openat(to_ref_fd, tmp_path, O_NONBLOCK | O_CREAT | O_RDWR | O_NOFOLLOW, stbuf.st_mode)) < 0) {
 			rv = -1;
 			goto clean_up_and_return;
 		}
-		if ((from_fd = openat(ref_fd, from, O_RDONLY | O_NOFOLLOW)) < 0) {
+		if ((from_fd = openat(ref_fd, from, O_NONBLOCK | O_RDONLY | O_NOFOLLOW)) < 0) {
 			rv = -1;
 			goto clean_up_and_return;
 		}
@@ -1667,7 +1667,7 @@ static int m_truncate(const char *path, off_t size, struct fuse_file_info *fi)
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_RDWR | O_NOFOLLOW);
+	int fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDWR | O_NOFOLLOW);
 	if (fd < 0) {
 		rv = fd;
 	} else {
@@ -1697,7 +1697,7 @@ static int m_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, fi->flags, mode);
+	int fd = openat(ref_fd, rpath, O_NONBLOCK | fi->flags, mode);
 	if (fd < 0) {
 		rv = -1;
 	} else {
@@ -1723,7 +1723,7 @@ static int m_open(const char *path, struct fuse_file_info *fi)
 			rv = 0;
 		}
 	} else {
-		int fd = openat(ref_fd, rpath, fi->flags);
+		int fd = openat(ref_fd, rpath, O_NONBLOCK | fi->flags);
 		if (fd < 0) {
 			rv = -1;
 			fi->fh = -1;
@@ -1752,7 +1752,7 @@ static int m_read(const char *path, char *buf, size_t size, off_t offset, struct
 			errno = EACCES;
 		}
 	} else {
-		int fd = openat(ref_fd, rpath, O_RDONLY | O_NOFOLLOW);
+		int fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDONLY | O_NOFOLLOW);
 		if (fd >= 0) {
 			rv = pread(fd, buf, size, offset);
 			close(fd);
@@ -1794,7 +1794,7 @@ static int m_write(const char *path, const char *buf, size_t size, off_t offset,
 		pthread_rwlock_unlock(&cfg_lock);
 		pthread_rwlock_rdlock(&cfg_lock);
 	} else {
-		int fd = openat(ref_fd, rpath, O_WRONLY | O_NOFOLLOW);
+		int fd = openat(ref_fd, rpath, O_NONBLOCK | O_WRONLY | O_NOFOLLOW);
 		if (fd >= 0) {
 			rv = pwrite(fd, buf, size, offset);
 			close(fd);
@@ -1812,7 +1812,7 @@ static int m_statfs(const char *path, struct statvfs *stbuf)
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_RDONLY | O_NOFOLLOW | O_DIRECTORY);
+	int fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDONLY | O_NOFOLLOW | O_DIRECTORY);
 
 	if (fd >= 0) {
 		rv = fstatvfs(fd, stbuf);
@@ -1879,7 +1879,7 @@ static int m_fallocate(const char *path, int mode, off_t offset, off_t length, s
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_RDWR | O_NOFOLLOW);
+	int fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDWR | O_NOFOLLOW);
 	if (fd >= 0) {
 		rv = fallocate(fd, mode, offset, length);
 		close(fd);
@@ -1897,7 +1897,7 @@ static int m_setxattr(const char *path, const char *name, const char *value, siz
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_RDWR | O_NOFOLLOW);
+	int fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDONLY | O_NOFOLLOW);
 	if (fd >= 0) {
 		char buf[PATH_MAX];
 		if (procpath(fd, buf, sizeof(buf)) < 0) {
@@ -1943,7 +1943,7 @@ static int m_getxattr(const char *path, const char *name, char *value, size_t si
 	} else if (strcmp(rpath, CFG_NAME) == 0) {
 		rv = -1;
 		errno = ENODATA;
-	} else if ((fd = openat(ref_fd, rpath, O_RDONLY | O_NOFOLLOW)) < 0) {
+	} else if ((fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDONLY | O_NOFOLLOW)) < 0) {
 		/*
 		 * Linux fails to provide a lgetxattr() equivalent which apply
 		 * to file descriptors and directly (without following) on
@@ -2028,7 +2028,7 @@ static int m_listxattr(const char *path, char *list, size_t size)
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_RDWR | O_NOFOLLOW);
+	int fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDWR | O_NOFOLLOW);
 	if (fd >= 0) {
 		char buf[PATH_MAX];
 		if (procpath(fd, buf, sizeof(buf)) < 0) {
@@ -2051,7 +2051,7 @@ static int m_removexattr(const char *path, const char *name)
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_RDWR | O_NOFOLLOW);
+	int fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDWR | O_NOFOLLOW);
 	if (fd >= 0) {
 		char buf[PATH_MAX];
 		if (procpath(fd, buf, sizeof(buf)) < 0) {
@@ -2173,7 +2173,7 @@ int main(int argc, char *argv[])
 	 */
 	int global_root_fd = open(global_root, O_DIRECTORY);
 	const char *const rmntpt = (mntpt && mntpt[1]) ? mntpt + 1 : ".";
-	if ((global_ref_fd = openat(global_root_fd, rmntpt, O_DIRECTORY)) < 0) {
+	if ((global_ref_fd = openat(global_root_fd, rmntpt, O_NONBLOCK | O_DIRECTORY)) < 0) {
 		fprintf(stderr, "error: unable to open global mount point\n");
 		return 1;
 	}

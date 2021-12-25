@@ -320,7 +320,7 @@ $(rcmd "brl update")
 "
 
 section "pmm" "
-Manually updating all package managers as show in the previous section may be a
+Manually updating all package managers as shown in the previous section may be a
 bit tedious.  Other multi-package-manager workflows, such as searching multiple
 package managers to see which provides a package, that can also be tedious to
 do by hand.

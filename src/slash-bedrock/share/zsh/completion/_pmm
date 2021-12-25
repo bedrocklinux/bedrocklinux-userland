@@ -1,0 +1,984 @@
+#compdef pmm pmm-file pmm-dpkg pmm-mark pmm-rpm pmm-e-file pmm-qfile pmm-qsearch pmm-qlist pmm-qcheck pmm-eclean pmm-xlocate pmm-install pmm-pkgdb pmm-query pmm-remove
+# zsh tab completion for pmm
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+
+setopt localoptions warncreateglobal
+
+# zsh-ism: this file is effectively a function.
+# shellcheck disable=SC2168
+local user_interface ui_file
+# zsh-ism: this file is effectively a function.
+# shellcheck disable=SC2168
+local -A help
+# Populated when run
+# shellcheck disable=SC2154
+ui_file="${words[1]}"
+eval "$(awk '{a=$1$2 ;$1=$2=""; sub(/^[ \t]+/, "");print a$0}' /bedrock/share/pmm/help)"
+
+cfg_preparse() {
+	awk -v"RS=" '{
+		# join continued lines
+		gsub(/\\\n/, "")
+		print
+	}' /bedrock/etc/bedrock.conf | awk '
+	/[#;]/ {
+		# strip comments
+		sub(/#.*$/, "")
+		sub(/;.*$/, "")
+	}
+	# print non-blank lines
+	/[^ \t\r\n]/'
+}
+
+
+cfg_value() {
+	cfg_preparse | awk -v"tgt_section=${1}" -v"tgt_key=${2}" '
+	/^[ \t\r]*\[.*\][ \t\r]*$/ {
+		sub(/^[ \t\r]*\[[ \t\r]*/, "")
+		sub(/[ \t\r]*\][ \t\r]*$/, "")
+		in_section = ($0 == tgt_section)
+		next
+	}
+	/=/ && in_section {
+		key = substr($0, 0, index($0, "=")-1)
+		gsub(/[ \t\r]*/, "", key)
+		if (key != tgt_key) {
+			next
+		}
+		value = substr($0, index($0, "=")+1)
+		gsub(/^[ \t\r]*/, "", value)
+		gsub(/[ \t\r]*$/, "", value)
+		print value
+	}'
+}
+
+user_interface="$(cfg_value "pmm" "user-interface")"
+
+is_enabled() {
+    [ -e "/bedrock/run/enabled_strata/$(deref "${1}")" ]
+}
+
+has_attr() {
+    local file attr
+    file="${1}"
+    attr="${2}"
+    /bedrock/libexec/getfattr --only-values --absolute-names -n "user.bedrock.${attr}" "${file}" >/dev/null 2>&1
+}
+
+list_strata() {
+    find /bedrock/strata/ -maxdepth 1 -mindepth 1 -type d -exec basename {} \;
+}
+
+deref() {
+    local alias filepath name
+    alias="${1}"
+    if ! filepath="$(realpath "/bedrock/strata/${alias}" 2>/dev/null)"; then
+        return 1
+    elif ! name="$(basename "${filepath}")"; then
+        return 1
+    else
+        echo "${name}"
+    fi
+}
+
+list_pmm_strata(){
+    local stratum
+    for stratum in $(list_strata); do
+        if is_enabled "${stratum}" && has_attr "/bedrock/strata/${stratum}" "show_pmm"; then
+            echo "${stratum}"
+        fi
+    done
+}
+
+list_pms(){
+    local cfg_cache_package_manager_list strata
+    cfg_cache_package_manager_list="$(cfg_value "pmm" "cache-package-manager-list")"
+    # We want word splitting here
+    # shellcheck disable=SC2046
+    strata="$(printf 'strata["%s"]\n' $(list_pmm_strata) | sort)"
+    if [ "${cfg_cache_package_manager_list}" = "true" ] &&
+    [ "$(cat /bedrock/var/cache/pmm/strata 2>/dev/null)" = "${strata}" ] &&
+    [ "$(cat /bedrock/var/cache/pmm/bedrock_conf_sha1sum 2>/dev/null)" = "$(sha1sum <"/bedrock/etc/bedrock.conf")" ] &&
+    [ -r "/bedrock/var/cache/pmm/package_manager_list" ]; then
+        # Cache is valid and requested, use it
+        awk -F":" '{print substr($2, 1, length($2)-1)}' /bedrock/var/cache/pmm/package_manager_list
+    fi
+}
+
+list_installed(){
+    # Populated when run
+    # shellcheck disable=SC2034
+    local _cache_dir var
+    local -a pkgs
+    local cache_id="_pmm_list_installed-${restricted_pm[2]}-${restricted_strata[2]}"
+    if ( [[ ${#pkgs} -eq 0 ]] || _cache_invalid "${cache_id}" )  && ! _retrieve_cache "${cache_id}"; then
+        pkgs=("${(f)$(/bedrock/libexec/pmm apt pmm "${restricted_pm[@]}" "${restricted_strata[@]}" --quiet list --installed 2>/dev/null | awk '{print $2}')}")
+        _store_cache "${cache_id}" pkgs
+    fi
+
+    compadd "${(M)pkgs[@]:#${words[CURRENT]}*}"
+}
+
+list_available(){
+    # Populated when run
+    # shellcheck disable=SC2034
+    local _cache_dir var
+    local -a pkgs
+    local cache_id="_pmm_list_available-${restricted_pm[2]}-${restricted_strata[2]}"
+    if ( [[ ${#pkgs} -eq 0 ]] || _cache_invalid "${cache_id}" )  && ! _retrieve_cache "${cache_id}"; then
+        pkgs=("${(f)$(/bedrock/libexec/pmm apt pmm "${restricted_pm[@]}" "${restricted_strata[@]}" --quiet list 2>/dev/null | awk '{print $2}')}")
+        _store_cache "${cache_id}" pkgs
+    fi
+    compadd "${(M)pkgs[@]:#${words[CURRENT]}*}"
+}
+
+list_manual(){
+    # Populated when run
+    # shellcheck disable=SC2034
+    local _cache_dir var
+    local -a pkgs
+    local cache_id="_pmm_list_manual-${restricted_pm[2]}-${restricted_strata[2]}"
+    if ( [[ ${#pkgs} -eq 0 ]] || _cache_invalid "${cache_id}" )  && ! _retrieve_cache "${cache_id}"; then
+        pkgs=("${(f)$(/bedrock/libexec/pmm apt pmm-mark "${restricted_pm[@]}" "${restricted_strata[@]}" --quiet showmanual 2>/dev/null | awk '{print $2}')}")
+        _store_cache "${cache_id}" pkgs
+    fi
+
+    compadd "${(M)pkgs[@]:#${words[CURRENT]}*}"
+}
+list_automatic(){
+    # Populated when run
+    # shellcheck disable=SC2034
+    local _cache_dir var
+    local -a pkgs
+    local cache_id="_pmm_list_automatic-${restricted_pm[2]}-${restricted_strata[2]}"
+    if ( [[ ${#pkgs} -eq 0 ]] || _cache_invalid "${cache_id}" )  && ! _retrieve_cache "${cache_id}"; then
+        pkgs=("${(f)$(/bedrock/libexec/pmm apt pmm-mark "${restricted_pm[@]}" "${restricted_strata[@]}" --quiet showauto 2>/dev/null| awk '{print $2}')}")
+        _store_cache "${cache_id}" pkgs
+    fi
+
+    compadd "${(M)pkgs[@]:#${words[CURRENT]}*}"
+}
+
+apk_flags(){
+    flags+=(
+        '(-v --verbose -q --quiet)'{-v,--verbose}"[${help["verbose"]}]"
+        '(-v --verbose -q --quiet)'{-q,--quiet}"[${help["quiet"]}]"
+        '(-i --interactive)'{-i,--interactive}"[${help["confirm"]}]"
+    )
+}
+
+apk_operations(){
+    case $ui_file in
+        pmm)
+            ops+=(
+                "add:${help["install-packages"]}"
+                "fix"
+                "audit:${help["verify-packages"]}"
+                "info:${help["show-package-information"]}"
+                "upgrade:${help["upgrade-packages-full"]}"
+                "del:${help["mark-packages-implicit,remove-orphans"]}"
+                "update:${help["update-package-database,update-file-database"]}"
+                "list:${help["list-available-packages"]}"
+                "search:${help["search-for-package-by-all"]}"
+            )
+        ;;
+        pmm-file)
+            _files
+        ;;
+    esac
+}
+
+apk_operations_handler(){
+    case $ui_file in
+        pmm)
+            case ${words[1]} in
+                add)
+                    list_available
+                ;;
+                fix)
+                    case ${words[2]} in
+                        -r|--reinstall)
+                            list_installed
+                        ;;
+                    esac
+                    _arguments "(-r --reinstall)"{-r,--reinstall}"[${help["reinstall-packages"]}]"
+                ;;
+                del)
+                    _arguments "--purge[${help["remove-packages-full,remove-orphans"]}]"
+                    list_installed
+                ;;
+                info)
+                    case ${words[2]} in
+                        -L|--contents)
+                            list_installed
+                        ;;
+                        -W|--who-owns)
+                            _files
+                        ;;
+                    esac
+                    _arguments \
+                        "(-L --contents -W --who-owns)"{-L,--contents}"[${help["list-installed-package-files"]}]" \
+                        "(-L --contents -W --who-owns)"{-W,--who-owns}"[${help["which-package-owns-file"]}]"
+                    _values "pkgs" "first" "second"
+                    list_available
+                ;;
+                list)
+                    _arguments "(-I --installed)"{-I,--installed}"[${help["list-installed-packages"]}]"
+                ;;
+            esac
+        ;;
+    esac
+}
+
+apt_flags(){
+    flags+=(
+        "(--assume-no -y --yes --assume-yes)--assume-no[${help["assume-no"]}]"
+        '(--assume-no -y --yes --assume-yes)'{-y,--yes,--assume-yes}"[${help["assume-yes"]}]"
+        '(-q --quiet)'{-q,--quiet}"[${help["quiet"]}]"
+    )
+}
+
+apt_operations(){
+    case $ui_file in
+        pmm)
+            ops+=(
+                "install:${help["install-packages"]}"
+                "reinstall:${help["reinstall-packages"]}"
+                "remove:${help["remove-packages-limited"]}"
+                "purge:${help["remove-packages-full"]}"
+                "show:${help["show-package-information"]}"
+                "clear:${help["clear-cache"]}"
+                "autoclean:${help["clear-cache"]}"
+                "auto-clean:${help["clear-cache"]}"
+                "autoremove:${help["remove-orphans"]}"
+                "update:${help["update-package-database"]}"
+                "upgrade:${help["upgrade-packages-limited"]}"
+                "dist-upgrade:${help["upgrade-packages-full"]}"
+                "full-upgrade:${help["upgrade-packages-full"]}"
+                "list:${help["list-available-packages"]}"
+                "search:${help["search-for-package-by-all"]}"
+            )
+        ;;
+        pmm-dpkg)
+            ops+=(
+                "-V:${help["verify-all-packages"]}"
+                "-L:${help["list-installed-package-files"]}"
+                "--listfiles:${help["list-installed-package-files"]}"
+                "-S:${help["which-package-owns-file"]}"
+                "--search:${help["which-package-owns-file"]}"
+            )
+        ;;
+        pmm-mark)
+            ops+=(
+                "manual:${help["mark-packages-explicit"]}"
+                "auto:${help["mark-packages-implicit"]}"
+                "showmanual:${help["list-installed-explicit"]}"
+                "showauto:${help["list-installed-implicit"]}"
+            )
+        ;;
+        pmm-file)
+            ops+=(
+                "update:${help["update-file-database"]}"
+                "search:${help["which-packages-provide-file"]}"
+            )
+        ;;
+    esac
+}
+
+apt_operations_handler(){
+    case $ui_file in
+        pmm)
+            case ${words[1]} in
+                install|show)
+                    list_available
+                ;;
+                reinstall)
+                    list_installed
+                ;;
+                remove)
+                    _arguments "(--auto-remove --autoremove)"{--auto-remove,--autoremove}"[${help["remove-packages-limited,remove-orphans"]}]"
+                    list_installed
+                ;;
+                purge)
+                    _arguments "(--auto-remove --autoremove)"{--auto-remove,--autoremove}"[${help["remove-packages-full,remove-orphans"]}]"
+                    list_installed
+                ;;
+                upgrade)
+                    _arguments "(--auto-remove --autoremove)"{--auto-remove,--autoremove}"[${help["upgrade-packages-limited,remove-orphans"]}]"
+                ;;
+                full-upgrade)
+                    _arguments "(--auto-remove --autoremove)"{--auto-remove,--autoremove}"[${help["upgrade-packages-full,remove-orphans"]}]"
+                ;;
+                list)
+                    _arguments "(--installed)--installed[${help["list-installed-packages"]}]"
+                ;;
+                search)
+                    _arguments "(-n --names-only)"{-n,--names-only}"[${help["search-for-package-by-name"]}]"
+                ;;
+            esac
+        ;;
+        pmm-dpkg)
+            case ${words[1]} in
+                -V)
+                    list_installed
+                ;;
+                -L|--listfiles)
+                    [[ -z ${words[2]} ]] && list_installed
+                ;;
+                -S|--search)
+                    _files
+                ;;
+            esac
+        ;;
+        pmm-mark)
+            case ${words[1]} in
+                manual)
+                    list_automatic
+                ;;
+                auto)
+                    list_manual
+                ;;
+            esac
+        ;;
+        pmm-file)
+            if [[ ${words[1]} = search ]]; then
+                _files
+            fi
+        ;;
+    esac
+}
+
+dnf_flags(){
+    flags+=(
+        "(-y --assumeyes --assumeno)--assumeno[${help["assume-no"]}]"
+        "(-y --assumeyes --assumeno)"{-y,--assumeyes}"[${help["assume-yes"]}]"
+        '(-v --verbose -q --quiet)'{-v,--verbose}"[${help["verbose"]}]"
+    )
+    if [[ ${ui_file} = pmm-rpm ]]; then
+        flags+=(
+            "(-v --verbose --quiet)--quiet[${help["quiet"]}]"
+        )
+    else
+        flags+=(
+            '(-v --verbose -q --quiet)'{-q,--quiet}"[${help["quiet"]}]"
+        )
+    fi
+}
+
+dnf_operations(){
+    case $ui_file in
+        pmm)
+            ops+=(
+                "in:${help["install-packages"]}"
+                "install:${help["install-packages"]}"
+                "rei:${help["reinstall-packages"]}"
+                "reinstall:${help["reinstall-packages"]}"
+                "rm:${help["remove-packages-limited,remove-orphans"]}"
+                "remove:${help["remove-packages-limited,remove-orphans"]}"
+                "erase:${help["remove-packages-limited,remove-orphans"]}"
+                "mark"
+                "info:${help["show-package-information"]}"
+                'clean'
+                "autoremove:${help["remove-orphans"]}"
+                "check-update:${help["update-package-database,update-file-database"]}"
+                "upgrade:${help["update-package-database,update-file-database,upgrade-packages-full"]}"
+                "update:${help["update-package-database,update-file-database,upgrade-packages-full"]}"
+                "up:${help["update-package-database,update-file-database,upgrade-packages-full"]}"
+                "history"
+                "list"
+                "search:${help["search-for-package-by-all"]}"
+                "provides:${help["which-packages-provide-file"]}"
+            )
+        ;;
+        pmm-rpm)
+            ops+=(
+                "-V:${help["verify-packages"]}"
+                "--verify:${help["verify-packages"]}"
+                '-q'
+                '--query'
+            )
+        ;;
+    esac
+}
+
+dnf_operations_handler(){
+    case $ui_file in
+        pmm)
+            case ${words[1]} in
+                in|install)
+                    list_available
+                ;;
+                rei|reinstall)
+                    list_installed
+                ;;
+                rm|remove|erase)
+                    _arguments "--noautoremove[${help["remove-packages-limited"]}]"
+                    list_installed
+                ;;
+                mark)
+                    case ${words[2]} in
+                        install)
+                        list_automatic
+                        return
+                        ;;
+                        remove)
+                        list_manual
+                        return
+                        ;;
+                    esac
+                    local -a ops
+                    ops=(
+                        "install:${help["mark-packages-explicit"]}"
+                        "remove:${help["mark-packages-implicit"]}"
+                    )
+                    _describe 'operations' ops
+                ;;
+                info)
+                    list_available
+                ;;
+                clean)
+                    case ${words[2]} in
+                        all)
+                            return
+                        ;;
+                    esac
+                    local -a ops
+                    ops=(
+                        "all:${help["clear-cache"]}"
+                    )
+                    _describe 'operations' ops
+                ;;
+                history)
+                    case ${words[2]} in
+                        userinstalled)
+                            return
+                        ;;
+                    esac
+                    local -a ops
+                    ops=(
+                        "userinstalled:${help["list-installed-explicit"]}"
+                    )
+                    _describe 'operations' ops
+                ;;
+                list)
+                    case ${words[2]} in
+                        --installed|installed|--available|available)
+                            return
+                        ;;
+                    esac
+                    local -a ops
+                    ops=(
+                        "--installed:${help["list-installed-packages"]}"
+                        "installed:${help["list-installed-packages"]}"
+                        "--available:${help["list-available-packages"]}"
+                        "available:${help["list-available-packages"]}"
+                    )
+                    _describe 'operations' ops
+                ;;
+                provides)
+                    _files
+                ;;
+            esac
+        ;;
+        pmm-rpm)
+            case ${words[1]} in
+                -V|--verify)
+                    case ${words[2]} in
+                        -a|--all)
+                            return
+                        ;;
+                    esac
+                    _arguments \
+                    "(-a --all)"{-a,--all}"[${help["verify-all-packages"]}]"
+                    list_installed
+                ;;
+                -q|--query)
+                    case ${words[2]} in
+                        -l|--list)
+                            list_installed
+                        ;;
+                        -f|--files)
+                            _files
+                        ;;
+                    esac
+                    _arguments -s \
+                    "(-l --list -f --files)"{-l,--list}"[${help["list-installed-package-files"]}]" \
+                    "(-l --list -f --files)"{-f,--files}"[${help["which-package-owns-file"]}]"
+                ;;
+            esac
+        ;;
+    esac
+}
+
+pacman_flags(){
+    flags+=(
+        "(--noconfirm)--noconfirm[${help["assume-yes"]}]"
+        '(-v --verbose -q --quiet)'{-v,--verbose}"[${help["verbose"]}]"
+        '(-v --verbose -q --quiet)'--quiet"[${help["quiet"]}]"
+    )
+}
+
+pacman_operations(){
+    case $ui_file in
+        pmm)
+            ops+=(
+                "-S:${help["install-packages"]}"
+                "--sync:${help["install-packages"]}"
+                "-R:${help["remove-packages-limited"]}"
+                "--remove:${help["remove-packages-limited"]}"
+                "-Q:${help["list-installed-packages"]}"
+                "--query:${help["list-installed-packages"]}"
+                "-D"
+                "--database"
+                "-F:${help["which-packages-provide-file"]}"
+                "--files:${help["which-packages-provide-file"]}"
+            )
+        ;;
+    esac
+}
+
+pacman_operations_handler(){
+    case $ui_file in
+        pmm)
+            case ${words[1]} in
+                -S|--sync)
+                    case ${words[2]} in
+                        -i|--info)
+                            list_available
+                            return
+                        ;;
+                        -y|--refresh)
+                            _arguments "(-u --sysupgrade)"{-u,--sysupgrade}"[${help["update-package-database,update-file-database,upgrade-packages-full"]}]"
+                            list_available
+                            return
+                        ;;
+                        -c|--clean|-u|--sysupgrade|-l|--list|-s|--search)
+                            return
+                        ;;
+                    esac
+                    local -a ops
+                    ops=(
+                        "(-i --info)"{-i,--info}"[${help["show-package-information"]}]"
+                        "(-c --clean)"{-c,--clean}"[${help["clear-cache"]}]"
+                        "(-y --refresh)"{-y,--refresh}"[${help["update-package-database,update-file-database"]}]"
+                        "(-u --sysupgrade)"{-u,--sysupgrade}"[${help["upgrade-packages-full"]}]"
+                        "(-l --list)"{-l,--list}"[${help["list-available-packages"]}]"
+                        "(-s --search)"{-s,--search}"[${help["search-for-package-by-all"]}]"
+                    )
+                    _arguments -s "${ops[@]}"
+                    list_available
+                ;;
+                -R|--remove)
+                    case ${words[2]} in
+                        -s|--recursive)
+                            _arguments "(-n --nosave)"{-n,--nosave}"[${help["remove-packages-full,remove-orphans"]}]"
+                        ;&
+                        -n|--nosave)
+                            list_installed
+                            return
+                        ;;
+                    esac
+                    local -a ops
+                    ops=(
+                        "(-n --nosave -s --recursive)"{-n,--nosave}"[${help["remove-packages-full"]}]"
+                        "(-n --nosave -s --recursive)"{-s,--recursive}"[${help["remove-packages-limited,remove-orphans"]}]"
+                    )
+                    _arguments -s "${ops[@]}"
+                    list_installed
+                ;;
+                -Q|--query)
+                    case ${words[2]} in
+                        -k|--check|-l|--list)
+                            list_installed
+                            return
+                        ;;
+                        -e|--explicit|-d|--deps)
+                            return
+                        ;;
+                        -o|--owns)
+                            _files
+                            return
+                        ;;
+                    esac
+                    local -a ops
+                    ops=(
+                        "(-k --check)"{-k,--check}"[${help["verify-all-packages"]}]"
+                        "(-l --list)"{-l,--list}"[${help["list-installed-package-files"]}]"
+                        "(-e --explicit)"{-e,--explicit}"[${help["list-installed-explicit"]}]"
+                        "(-d --deps)"{-d,--deps}"[${help["list-installed-implicit"]}]"
+                        "(-o --owns)"{-o,--owns}"[${help["which-package-owns-file"]}]"
+                    )
+                    _arguments -s "${ops[@]}"
+                ;;
+                -D|--database)
+                    case ${words[2]} in
+                        --asexplicit)
+                            list_automatic
+                        ;;
+                        --asdeps)
+                            list_manual
+                        ;;
+                    esac
+                    local -a ops
+                    ops=(
+                        "(--asexplicit --asdeps)--asexplicit[${help["mark-packages-explicit"]}]:packages:"
+                        "(--asexplicit --asdeps)--asdeps[${help["mark-packages-implicit"]}]:packages:"
+                    )
+                    _arguments "${ops[@]}"
+                ;;
+                -F|--files)
+                    _arguments "(-y --refresh)"{-y,--refresh}"[${help["update-file-database"]}]"
+                    if [[ ${words[2]} != "-y" ]] && [[ ${words[2]} != "--refresh" ]]; then
+                        _files
+                    fi
+                ;;
+            esac
+        ;;
+    esac
+}
+
+paru_flags(){
+    pacman_flags
+}
+
+paru_operations(){
+    pacman_operations
+    case $ui_file in
+        pmm)
+            ops+=(
+                "-c:${help["remove-orphans"]}"
+                "--clean:${help["remove-orphans"]}"
+            )
+        ;;
+    esac
+}
+
+paru_operations_handler(){
+    pacman_operations_handler
+}
+
+yay_flags(){
+    pacman_flags
+}
+
+yay_operations(){
+    pacman_operations
+}
+
+yay_operations_handler(){
+    pacman_operations_handler
+}
+
+portage_flags(){
+    flags+=(
+        '(-v --verbose -q --quiet)'{-v,--verbose}"[${help["verbose"]}]"
+        '(-v --verbose -q --quiet)'{-q,--quiet}"[${help["quiet"]}]"
+    )
+}
+
+portage_operations(){
+    case $ui_file in
+        pmm)
+            list_available
+            ops+=(
+                "-w:${help["mark-packages-explicit"]}"
+                "--select:${help["mark-packages-explicit"]}"
+                "--deselect:${help["mark-packages-implicit"]}"
+                "-s:${help["show-package-information"]}"
+                "--search:${help["show-package-information"]}"
+                "-c:${help["remove-orphans"]}"
+                "--depclean:${help["remove-orphans"]}"
+                "--sync:${help["update-package-database"]}"
+                "-u"
+                "--update"
+                "-p"
+                "--pretend"
+                "-s:${help["search-for-package-by-name"]}"
+                "--search:${help["search-for-package-by-name"]}"
+                "-S:${help["search-for-package-by-all"]}"
+                "--searchdesc:${help["search-for-package-by-all"]}"
+            )
+        ;;
+        pmm-qcheck)
+            list_installed
+        ;;
+        pmm-eclean)
+            ops+=(
+                "distfiles:${help["clear-cache"]}"
+            )
+        ;;
+        pmm-qlist)
+            ops+=(
+                "-e:${help["list-installed-package-files"]}"
+                "-I:${help["list-installed-packages"]}"
+                "--installed${help["list-installed-packages"]}"
+            )
+        ;;
+        pmm-qsearch)
+            ops+=(
+                "-a:${help["list-available-packages"]}"
+            )
+        ;;
+        pmm-qfile|pmm-e-file)
+            _files
+        ;;
+    esac
+}
+
+portage_operations_handler(){
+    case $ui_file in
+        pmm)
+            case ${words[1]} in
+                -w|--select)
+                    list_automatic
+                ;;
+                --deselect)
+                    list_manual
+                ;;
+                -s|--search)
+                    list_available
+                ;;
+                -u|--update)
+                    case ${words[2]} in
+                        -D|--deep)
+                            if [[ ${words[3]} = "@world" ]] || [[ ${words[4]} = "@world" ]]; then
+                                return
+                            fi
+                            _arguments \
+                                "(-N --newuse)"{-N,--newuse}"[]"
+                            local -a ops
+                            ops=(
+                                "@world:"
+                            )
+                            _describe "" ops
+                        ;;
+                    esac
+                    _arguments \
+                        "(-D --deep)"{-D,--deep}"[]"
+                ;;
+                -c|--depclean)
+                    list_installed
+                ;;
+                -p|--pretend)
+                    if [[ ${words[2]} != "@selected" ]]; then
+                        local -a ops
+                        ops=(
+                            "@selected"
+                        )
+                        _describe "" ops
+                    fi
+                ;;
+            esac
+        ;;
+        pmm-qlist)
+            case ${words[1]} in
+                -e)
+                    list_installed
+                ;;
+            esac
+        ;;
+    esac
+}
+
+xbps_flags(){
+    flags+=(
+        "(-y --yes)"{-y,--yes}"[${help["assume-yes"]}]"
+        '(-v --verbose)'{-v,--verbose}"[${help["verbose"]}]"
+    )
+}
+
+xbps_operations(){
+    case $ui_file in
+        pmm-install)
+            list_available
+            ops+=(
+                "-f:${help["reinstall-packages"]}"
+                "--force:${help["reinstall-packages"]}"
+                "-S:${help["update-package-database"]}"
+                "--sync:${help["update-package-database"]}"
+                "-u:${help["upgrade-packages-full"]}"
+                "--upgrade:${help["upgrade-packages-full"]}"
+            )
+        ;;
+        pmm-remove)
+            list_installed
+            ops+=(
+                "-O:${help["clear-cache"]}"
+                "--clean-cache:${help["clear-cache"]}"
+                "-o:${help["remove-orphans"]}"
+                "--remove-orphans:${help["remove-orphans"]}"
+                "-R:${help["remove-packages-limited,remove-orphans"]}"
+            )
+        ;;
+        pmm-pkgdb)
+            list_installed
+            ops+=(
+                "-a:${help["verify-all-packages"]}"
+                "-m"
+            )
+        ;;
+        pmm-query)
+            ops+=(
+                "-R:${help["show-package-information"]}"
+                "-m:${help["list-installed-explicit"]}"
+                "--list-manual-pkgs:${help["list-installed-explicit"]}"
+                "-l:${help["list-installed-packages"]}"
+                "--list-pkgs:${help["list-installed-packages"]}"
+                "-o:${help["which-package-owns-file"]}"
+                "--ownedby:${help["which-package-owns-file"]}"
+            )
+        ;;
+        pmm-xlocate)
+            ops+=(
+                "-S:${help["update-file-database"]}"
+            )
+        ;;
+    esac
+}
+
+xbps_operations_handler(){
+    case $ui_file in
+        pmm-install)
+            case ${words[1]} in
+                -f|--force)
+                    list_installed
+                ;;
+                -S|--sync)
+                    _arguments "(-u --upgrade)"{-u,--upgrade}"[${help["update-package-database,upgrade-packages-full"]}]"
+                    list_available
+                ;;
+            esac
+        ;;
+        pmm-remove)
+            case ${words[1]} in
+                -O)
+                    _arguments "(-o)-o[${help["clear-cache,remove-orphans"]}]"
+                ;;
+                -R)
+                   list_installed
+                ;;
+            esac
+        ;;
+        pmm-pkgdb)
+            case ${words[1]} in
+                -m)
+                    case ${words[2]} in
+                        manual)
+                            list_automatic
+                            return
+                        ;;
+                        auto)
+                            list_manual
+                            return
+                        ;;
+                    esac
+                    local -a ops
+                    ops=(
+                        "manual:${help["mark-packages-explicit"]}"
+                        "auto:${help["mark-packages-implicit"]}"
+                    )
+                    _describe "" ops
+                ;;
+            esac
+        ;;
+        pmm-query)
+            case ${words[1]} in
+                -R)
+                    case ${words[2]} in
+                        -f|--files)
+                            list_installed
+                            return
+                        ;;
+                        -s|--search)
+                            local -a ops
+                            ops=(
+                                "*:${help["list-available-packages"]}"
+                            )
+                            _describe "" ops
+                            return
+                        ;;
+                        -o|--ownedby)
+                            _files
+                        ;;
+                    esac
+                    _arguments \
+                        "(-f --files)"{-f,--files}"[${help["list-installed-package-files"]}]" \
+                        "(-s --search)"{-s,--search}"[${help["search-for-package-by-all"]}]" \
+                        "(-o --ownedby)"{-o,--ownedby}"[${help["which-packages-provide-file"]}]"
+                    list_available
+                ;;
+            esac
+        ;;
+    esac
+}
+
+# zsh-ism: this file is effectively a function.
+# shellcheck disable=SC2168
+local -a flags
+flags=(
+    '(- *)'{-h,--help}'[print help message]'
+    '(--strat --stratum)'{--strat,--stratum}+"[${help["strat"]}]:stratum:($(list_pmm_strata))"
+    '(--pm --package-manager)'{--pm,--package-manager}+"[${help["package-manager"]}]:package manager:($(list_pms))"
+    "--every[${help["every"]}]"
+    "(--oldest --approx-version --exact-version --newer-or-equal --newer-than --older-or-equal --older-than)--newest[${help["newest"]}]"
+    "(--newest --approx-version --exact-version --newer-or-equal --newer-than --older-or-equal --older-than)--oldest[${help["oldest"]}]"
+    "(--newest --oldest --exact-version --newer-or-equal --newer-than --older-or-equal --older-than)--approx-version+[${help["approx-version"]}]:version:"
+    "(--newest --oldest --approx-version --newer-or-equal --newer-than --older-or-equal --older-than)--exact-version+[${help["exact-version"]}]:version:"
+    "(--newest --oldest --approx-version --exact-version --newer-than --older-or-equal --older-than)--newer-or-equal+[${help["newer-or-equal"]}]:version:"
+    "(--newest --oldest --approx-version --exact-version --newer-or-equal --older-or-equal --older-than)--newer-than+[${help["newer-than"]}]:version:"
+    "(--newest --oldest --approx-version --exact-version --newer-or-equal --newer-than --older-than)--older-or-equal+[${help["older-or-equal"]}]:version:"
+    "(--newest --oldest --approx-version --exact-version --newer-or-equal --newer-than --older-or-equal)--older-than+[${help["older-than"]}]:version:"
+)
+# zsh-ism: this file is effectively a function.
+# shellcheck disable=SC2168
+local index 
+# zsh-ism: this file is effectively a function.
+# shellcheck disable=SC2168
+local -a restricted_strata restricted_pm
+
+index=${words[(I)--strat]}
+if (( index )) then
+    restricted_strata=(--strat "${words[index+1]}")
+fi
+
+index=${words[(I)--pm|--package-manager]}
+if (( index )) then
+    restricted_pm=(--pm "${words[index+1]}")
+fi
+
+_call_function - "${user_interface}_flags"
+
+_process_operations(){
+    if (( CURRENT == 1 )); then
+        local -a ops
+        if [[ $ui_file = pmm ]]; then
+            ops=(
+                "--diff-world:${help["diff-world"]}"
+                "--update-world-installed:${help["update-world-installed"]}"
+                "--update-world-removed:${help["update-world-removed"]}"
+                "--update-world:${help["update-world"]}"
+                "--apply-world-installed:${help["apply-world-installed"]}"
+                "--apply-world-removed:${help["apply-world-removed"]}"
+                "--apply-world:${help["apply-world"]}"
+                "--check-pmm-configuration:${help["check-pmm-configuration"]}"
+                "--list-pmm-ui-files:${help["list-pmm-ui-files"]}:"
+            )
+        fi
+        _call_function - "${user_interface}_operations"
+        _describe 'operations' ops
+    else
+        case ${words[1]} in
+            (--diff-world|--update-world|--update-world-installed|--update-world-removed|--apply-world|--apply-world-installed|--apply-world-removed|--check-pm-configuration|--list-pmm-configuration)
+                return
+            ;;
+        esac
+        _call_function - "${user_interface}_operations_handler"
+    fi
+}
+
+_arguments -s "${flags[@]}" \
+    '*:: :_process_operations'
