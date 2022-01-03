@@ -1,3 +1,11 @@
+# 0.7.25beta1
+
+- Fixed brl-fetch centos
+- Fixed brl-fetch fedora
+- Fixed brl-fetch gentoo
+- Improved systemd 250 shutdown performance
+- Increased hijack-time GRUB+BTRFS detection sensitivity
+
 # 0.7.24
 
 - Added pmm zsh completion
