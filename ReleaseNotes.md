@@ -1,8 +1,9 @@
-# 0.7.25beta1
+# 0.7.25
 
 - Fixed brl-fetch centos
 - Fixed brl-fetch fedora
 - Fixed brl-fetch gentoo
+- Improved brl-fetch error message
 - Improved systemd 250 shutdown performance
 - Increased hijack-time GRUB+BTRFS detection sensitivity
 
