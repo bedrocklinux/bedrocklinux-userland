@@ -1,3 +1,7 @@
+# 0.7.26
+
+- Fixed GRUB+BTRFS check false-positives.
+
 # 0.7.25
 
 - Fixed brl-fetch centos
