@@ -1,3 +1,7 @@
+# 0.7.27beta1
+
+- Fixed brl-fetch arch
+
 # 0.7.26
 
 - Fixed GRUB+BTRFS check false-positives.

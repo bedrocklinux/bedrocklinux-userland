@@ -4,7 +4,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2012-2021 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2012-2022 Daniel Thau <danthau@bedrocklinux.org>
 #
 # This creates a script which can be used to install or update a Bedrock Linux
 # system.
@@ -131,7 +131,7 @@
 #
 #     make check
 
-BEDROCK_VERSION=0.7.26
+BEDROCK_VERSION=0.7.27beta1
 CODENAME=Poki
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | awk 'NR==2')
