@@ -18,7 +18,7 @@ check_supported() {
 }
 
 set_url_type() {
-	if [[ $(list_development | tr -d '[:space:]') == *${target_release}* ]]; then
+	if ! list_development | awk -v"x=${target_release}" '$0 == x {exit 1}'; then
 		url_type="development"
 	else
 		url_type="releases"
