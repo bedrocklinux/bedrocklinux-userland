@@ -17,14 +17,16 @@ check_supported() {
 	true
 }
 
-speed_test_url() {
-
+set_url_type() {
 	if [[ $(list_development | tr -d '[:space:]') == *${target_release}* ]]; then
 		url_type="development"
 	else
 		url_type="releases"
 	fi
-	
+}
+
+speed_test_url() {
+	set_url_type
 	echo "${url_type}/${target_release}/Everything/${distro_arch}/os/repodata/repomd.xml"
 }
 
@@ -99,11 +101,7 @@ bootstrap_deps() {
 }
 
 fetch() {	
-	if [[ $(list_development | tr -d '[:space:]') == *${target_release}* ]]; then
-		url_type="development"
-	else
-		url_type="releases"
-	fi
+	set_url_type
 	
 	suffix="${url_type}/${target_release}/Everything/${distro_arch}/os"
 
