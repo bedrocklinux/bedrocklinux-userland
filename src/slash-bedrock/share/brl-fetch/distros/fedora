@@ -68,24 +68,24 @@ default_release() {
 }
 
 list_releases() {
-	list_release
-	list_development
+	(
+		list_release
+		list_development
+	) | sort -n
 }
 
 list_release() {
 	download -q 'https://dl.fedoraproject.org/pub/fedora/linux/releases/' - |
 		list_links |
 		grep '^[0-9][0-9]*/$' |
-		sed 's,/$,,' |
-		sort -n
+		sed 's,/$,,'
 }
 
 list_development() {
 	download -q 'https://dl.fedoraproject.org/pub/fedora/linux/development/' - |
 	list_links |
 	sed 's,/$,,' |
-	grep -v "/" |
-	sort -n
+	grep -v "/"
 }
 
 determine_package_manager() {
