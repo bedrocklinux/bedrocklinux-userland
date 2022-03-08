@@ -66,17 +66,7 @@ default_release() {
 }
 
 list_releases() {
-
-	echo
-	echo "Release"
-	echo "---------------------"
-
 	list_release
-
-	echo
-	echo "Development"
-	echo "---------------------"
-	
 	list_development
 }
 
