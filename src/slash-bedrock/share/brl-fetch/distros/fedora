@@ -18,7 +18,14 @@ check_supported() {
 }
 
 speed_test_url() {
-	echo "releases/${target_release}/Everything/${distro_arch}/os/repodata/repomd.xml"
+
+	if [[ $(list_development | tr -d '[:space:]') == *${target_release}* ]]; then
+		url_type="development"
+	else
+		url_type="releases"
+	fi
+	
+	echo "${url_type}/${target_release}/Everything/${distro_arch}/os/repodata/repomd.xml"
 }
 
 list_mirrors() {
@@ -53,17 +60,40 @@ EOF
 }
 
 default_release() {
-	list_releases |
+	list_release |
 		sort -n |
 		tail -n1
 }
 
 list_releases() {
+
+	echo
+	echo "Release"
+	echo "---------------------"
+
+	list_release
+
+	echo
+	echo "Development"
+	echo "---------------------"
+	
+	list_development
+}
+
+list_release() {
 	download -q 'https://dl.fedoraproject.org/pub/fedora/linux/releases/' - |
 		list_links |
 		grep '^[0-9][0-9]*/$' |
 		sed 's,/$,,' |
 		sort -n
+}
+
+list_development() {
+	download -q 'https://dl.fedoraproject.org/pub/fedora/linux/development/' - |
+	list_links |
+	sed 's,/$,,' |
+	grep -v "/" |
+	sort -n
 }
 
 determine_package_manager() {
@@ -78,8 +108,14 @@ bootstrap_deps() {
 	echo "${package_manager} rpm fedora-release filesystem fedora-gpg-keys"
 }
 
-fetch() {
-	suffix="releases/${target_release}/Everything/${distro_arch}/os"
+fetch() {	
+	if [[ $(list_development | tr -d '[:space:]') == *${target_release}* ]]; then
+		url_type="development"
+	else
+		url_type="releases"
+	fi
+	
+	suffix="${url_type}/${target_release}/Everything/${distro_arch}/os"
 
 	step "Downloading package information database"
 	url="$(find_link "${target_mirror}/${suffix}/repodata/" "primary.xml.gz")"
