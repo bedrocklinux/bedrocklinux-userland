@@ -1,4 +1,4 @@
-# 0.7.27beta1
+# 0.7.27
 
 - Fixed brl-fetch arch
 
