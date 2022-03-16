@@ -62,12 +62,12 @@ fetch() {
 	"i686") ex_stage="exherbo-i686-pc-linux-gnu-current.tar.xz" ;;
 	"x86_64") ex_stage="exherbo-x86_64-pc-linux-gnu-current.tar.xz" ;;
 	esac
-	ex_checksum_fn=sha1sum
+	ex_checksum_fn=sha256sum
 
 	step "Downloading & verifying bootstrap software"
-	download "${target_mirror}"/stages/"${ex_checksum_fn}" "${bootstrap_dir}/${ex_checksum_fn}"
-	ex_sha1sum="$(awk -v"name=${ex_stage}" '/^# .* HASH$/ {hash=$1;next} $2 == name {print$1;exit}' "${bootstrap_dir}/${ex_checksum_fn}")"
-	checksum_download "${cache}/${ex_stage}" "sha1sum" "${ex_sha1sum}" "${target_mirror}"/stages/"${ex_stage}"
+	download "${target_mirror}"/stages/"${ex_stage}.${ex_checksum_fn}" "${bootstrap_dir}/${ex_stage}.${ex_checksum_fn}"
+	ex_sha256sum="$(awk -v"name=exherbo" '/^# .* HASH$/ {hash=$1;next} index($2, name) {print$1;exit}' "${bootstrap_dir}/${ex_stage}.${ex_checksum_fn}")"
+	checksum_download "${cache}/${ex_stage}" "sha256sum" "${ex_sha256sum}" "${target_mirror}"/stages/"${ex_stage}"
 
 	step "Preparing bootstrap software"
 	tar xvJp -C "${bootstrap_dir}" -f "${cache}"/"${ex_stage}" | awk 'NR%100==0' | progress_unknown
