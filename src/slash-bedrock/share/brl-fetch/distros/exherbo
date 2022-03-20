@@ -20,7 +20,7 @@ check_supported() {
 }
 
 speed_test_url() {
-	echo "/stages/sha1sum"
+	echo "/index.html"
 }
 
 list_mirrors() {
