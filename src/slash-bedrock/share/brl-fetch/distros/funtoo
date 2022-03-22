@@ -1,0 +1,85 @@
+#!/bedrock/libexec/busybox sh
+#
+# Funtoo Linux bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2022-2022 Nicolas Lorin <androw95220@gmail.com>
+#
+
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+        false
+}
+
+speed_test_url() {
+        echo "index.xml"
+}
+
+list_mirrors() {
+        echo "https://build.funtoo.org/"
+}
+
+brl_arch_to_distro() {
+        case "${1}" in
+        "aarch64") echo "arm64_generic" ;;
+        "armv7hl") echo "armv7a_vfpv3_hardfp" ;;
+        "armv6j") echo "armv6j_hardfp" ;;
+        "i686") echo "i686" ;;
+        "x86_64") echo "generic_64" ;;
+        *) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+        esac
+}
+
+list_architectures() {
+        cat <<EOF
+aarch64
+armv7hl
+armv6j
+i686
+x86_64
+EOF
+}
+
+default_release() {
+        echo "1.4-release-std"
+}                           
+
+list_releases() {
+        cat <<EOF
+1.4-release-std
+next
+EOF
+}
+
+fetch() {
+        flavor="stage3"
+
+        step "Downloading files list"
+        download "${target_mirror}index.xml" "${bootstrap_dir}/index.xml"  
+        bootstrap_url="$(awk -v"flavor=${flavor}" -v"release=${target_release}" -v"arch=${distro_arch}" '$3~flavor && $4~release && $5~arch {l=length($7);s=substr($7,11,l-11);print s;exit;}' "${bootstrap_dir}/index.xml")"
+
+        step "Downloading bootstrap software"
+        download "${target_mirror}${bootstrap_url}.hash.txt" "${bootstrap_dir}/checksum"
+        bootstrap_checksum="$(awk '$1=="sha256" {print $2;exit;}' "${bootstrap_dir}/checksum")"
+        cache_name=${flavor}"-"${distro_arch}"-"${target_release}".tar.xz"
+        checksum_download "${cache}/${cache_name}" "sha256sum" "${bootstrap_checksum}" "${target_mirror}${bootstrap_url}"
+
+        step "Preparing bootstrap software"
+        tar -xv -f "${cache}/${cache_name}" -C "${bootstrap_dir}" | awk 'NR%100==0' | progress_unknown
+
+        step "Running bootstrap software"
+        setup_chroot "${bootstrap_dir}"
+        setup_ssl "${bootstrap_dir}"
+        share_cache "." "${bootstrap_dir}/tarballs"
+        chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xpfv /tarballs/${cache_name} --xattrs --xattrs-include='*.*' --numeric-owner" | awk 'NR%100==0' | progress_unknown
+
+        step "Configuring"
+        setup_chroot "${target_dir}"
+        LC_ALL=C chroot "${target_dir}" sh -c "ego sync"
+}
