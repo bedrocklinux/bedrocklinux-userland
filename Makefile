@@ -532,8 +532,10 @@ build/all/busybox/bedrock-config: vendor/busybox/.success_retrieving_source
 		./set_bb_option "CONFIG_FEATURE_AR_CREATE" "y" && \
 		./set_bb_option "CONFIG_FEATURE_AR_LONG_FILENAMES" "y" && \
 		./set_bb_option "CONFIG_FEATURE_CHECK_TAINTED_MODULE" "y" && \
+		./set_bb_option "CONFIG_FEATURE_FDISK_ADVANCED" "n" && \
 		./set_bb_option "CONFIG_FEATURE_FIND_MMIN" "y" && \
 		./set_bb_option "CONFIG_FEATURE_FIND_XDEV" "y" && \
+		./set_bb_option "CONFIG_FEATURE_GPT_LABEL" "y" && \
 		./set_bb_option "CONFIG_FEATURE_MODUTILS_ALIAS" "y" && \
 		./set_bb_option "CONFIG_FEATURE_MODUTILS_SYMBOLS" "y" && \
 		./set_bb_option "CONFIG_FEATURE_PREFER_APPLETS" "y" && \

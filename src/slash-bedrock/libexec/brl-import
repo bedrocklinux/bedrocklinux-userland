@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2020-2021 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2020-2022 Daniel Thau <danthau@bedrocklinux.org>
 #
 # Creates strata from specified file(s)
 
@@ -18,7 +18,9 @@ print_help() {
 Creates a new ${color_term}stratum${color_norm} named ${color_sub}<name>${color_norm} from specified a ${color_sub}<source>${color_norm}.
 Requires root.  Some sources may require external tooling (e.g. ${color_cmd}qemu-img${color_norm})
 
-If using a VM image, use one large partition.  Do not use separate /boot or /home.
+If using a VM image with multiple partitions, ${color_cmd}brl import${color_norm} will attempt to guess
+the root partition.  ${color_warn}This is error-prone.${color_norm}  For best results, prefer using one
+large partition; avoid things like separate ${color_file}/boot${color_norm} and ${color_file}/home${color_norm} partitions.
 
 Sources:
   Directory
@@ -65,6 +67,58 @@ copy_dir_contents() {
 	done | progress_bar "${count}"
 }
 
+list_partitions() {
+	fdisk -lu "${1}" | awk '
+		/Found valid GPT/ {
+			gpt=1
+		}
+		# Busybox fdisk MBR mode sector size
+		/Units: sectors of/ {
+			sector_size = $(NF-1)
+		}
+		# Busybox fdisk GPT mode sector size
+		/Logical sector size:/ {
+			sector_size = $(NF)
+		}
+		# Busybox fdisk MBR mode partition list
+		# e.g.
+		# Device           Boot StartCHS    EndCHS        StartLBA     EndLBA    Sectors  Size Id Type
+		# /dev/shm/test.img1 *  0,32,33     12,223,19         2048     206847     204800  100M 83 Linux
+		!gpt && /^\// && $(NF) == "Linux" {
+			if ($2 == "*") {
+				print $5 * sector_size
+			} else {
+				print $4 * sector_size
+			}
+		}
+		# Busybox fdisk GPT mode partition list
+		# No type indicator, have to check things like swap.
+		# GPT first detected partition at 2048 is BIOS boot partition, not Linux partition.
+		# e.g.
+		# Number  Start (sector)    End (sector)  Size Name
+		#      1            2048           18431 8192K
+		gpt && /^  *[0-9]/ && $2 > 2048 {
+			print $2 * sector_size
+		}
+	'
+}
+
+mount_partition() {
+	partition_start="${1}"
+	image="${2}"
+	mount_point="${3}"
+	if mount -o loop,offset="${partition_start}" "${image}" "${mount_point}" 2>/dev/null; then
+		good=true
+	else
+		# Rapid mount -oloop calls can result in an undocumented EEXIST errors
+		# https://unix.stackexchange.com/questions/537029/error-for-mount-system-call-failed-file-exists
+		sleep 1
+		good=false
+	fi
+
+	"${good}"
+}
+
 # Some virtual machines hide everything in an `@` directory
 # Some directories/tarballs/etc contain an undesired parent directory
 remove_root_dir() {
@@ -95,6 +149,8 @@ name="${1}"
 src="${2}"
 tgt="/bedrock/strata/${name}/"
 tmp="${tgt}/brl-import/"
+mnt="${tgt}/brl-import/mnt"
+image="${tmp}/disk.img"
 
 require_root
 lock
@@ -107,37 +163,45 @@ fi
 
 trap 'import_abort "Unexpected error occurred."' EXIT
 
-mkdir -p "${tgt}" "${tmp}"
+mkdir -p "${tgt}" "${tmp}" "${mnt}"
 
 case "${src}" in
 *.qcow | *.qcow2 | *.qcow3 | *.vmdk | *.vdi)
 	require_cmd qemu-img
-	step_init 7
+	step_init 8
 
 	step "Converting image format"
 	# -p makes its own progress bar
-	qemu-img convert -p -Oraw "${src}" "${tmp}/disk.img"
+	qemu-img convert -p -Oraw "${src}" "${image}"
 
-	step "Mounting disk image"
-	sector_size="$(fdisk -l "${tmp}/disk.img" | awk '/Units: sectors of/ {print $(NF-1)}')"
+	step "Detecting target partition"
+	partitions="$(list_partitions "${image}")"
+	partition_count="$(echo "${partitions}" | wc -l)"
+	for partition in ${partitions}; do
+		if mount_partition "${partition}" "${image}" "${mnt}"; then
+			if [ -e "${mnt}/etc/os-release" ] || [ -h "${mnt}/etc/os-release" ]; then
+				echo "${partition}" >> "${tmp}/likely-root-partition"
+			fi
+			umount "${mnt}"
+			echo "${partition}" >> "${tmp}/linux-partitions"
+		fi
+		echo "${partition}"
+	done | progress_bar "${partition_count}"
 
-	partitions="$(fdisk -l "${tmp}/disk.img" | awk '/^\// && $NF == "Linux" {i++} END {print i+0}')"
-	if [ "${partitions}" -gt 1 ]; then
-		import_abort "Too many partitions; unable to guess root partition.  Install one big partition in VM and try again."
-	elif [ "${partitions}" -lt 1 ]; then
-		import_abort "Unable to find Linux partition in image."
+	if [ -e "${tmp}/linux-partitions" ] && [ "$(cat "${tmp}/linux-partitions" | wc -l)" -eq 1 ]; then
+		target_partition="$(cat "${tmp}/linux-partitions")"
+	elif [ -e "${tmp}/likely-root-partition" ] && [ "$(cat "${tmp}/likely-root-partition" | wc -l)" -eq 1 ]; then
+		printf "${color_warn}WARNING: Multiple Linux partitions found.  Guessing root partition.  This may fail to detect correct partition or miss information needed on other partitions.${color_norm}\n"
+		target_partition="$(cat "${tmp}/likely-root-partition")"
+	else
+		abort "Unable to detect target partition.  If ${src} contained multiple partitions, consider trying again with one large partition rather than multiple."
 	fi
-	offset="$(fdisk -l "${tmp}/disk.img" | awk -v"sector_size=${sector_size}" '/^\// && $NF == "Linux" {
-			if ($2 == "*") {
-				print $5 * sector_size
-			} else {
-				print $4 * sector_size
-			}
-		}')"
-	mount -oloop,offset="${offset}" "${tmp}/disk.img" "${tmp}"
+
+	step "Mounting partition"
+	mount_partition "${target_partition}" "${image}" "${mnt}"
 
 	step "Copying files"
-	copy_dir_contents "${tmp}" "${tgt}"
+	copy_dir_contents "${mnt}" "${tgt}"
 	;;
 *.tar | *.tar.gz | *.tar.bz2 | *.tar.xz)
 	step_init 6
