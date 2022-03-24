@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2018-2021 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2018-2022 Daniel Thau <danthau@bedrocklinux.org>
 #
 # Installs or updates a Bedrock Linux system.
 
@@ -320,17 +320,6 @@ Please type \"Not reversible!\" without quotes at the prompt to continue:
 	if [ -r /etc/fstab ]; then
 		awk '$1 !~ /^#/ && NF >= 6 {$6 = "0"} 1' /etc/fstab >/etc/fstab-new
 		mv /etc/fstab-new /etc/fstab
-	fi
-
-	if [ -r /boot/grub/grub.cfg ] && \
-		grep -q 'vt.handoff' /boot/grub/grub.cfg && \
-		grep -q 'splash' /boot/grub/grub.cfg && \
-		type grub-mkconfig >/dev/null 2>&1; then
-
-		notice "Configuring bootloader"
-		sed 's/splash//g' /etc/default/grub > /etc/default/grub-new
-		mv /etc/default/grub-new /etc/default/grub
-		grub-mkconfig -o /boot/grub/grub.cfg
 	fi
 
 	step "Finalizing"
