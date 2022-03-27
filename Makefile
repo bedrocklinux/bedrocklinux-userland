@@ -686,10 +686,8 @@ vendor/lvm2/.success_retrieving_source:
 		tail -n1 | \
 		sed 's/^/v/'` 'https://sourceware.org/git/lvm2.git' \
 		vendor/lvm2
-	wget -O vendor/lvm2/mallinfo.patch https://git.alpinelinux.org/aports/plain/main/lvm2/mallinfo.patch
-	wget -O vendor/lvm2/fix-stdio.patch https://git.alpinelinux.org/aports/plain/main/lvm2/fix-stdio-usage.patch
-	cd vendor/lvm2 && patch -p0 -i mallinfo.patch
-	cd vendor/lvm2 && patch -p0 -i fix-stdio.patch
+	cd vendor/lvm2 && patch -p0 -i ../../patches/lvm2/mallinfo.patch
+	cd vendor/lvm2 && patch -p0 -i ../../patches/lvm2/fix-stdio.patch
 	# hack to fix bad imports looking for LOCK_EX
 	echo '#include <sys/file.h>' >> vendor/lvm2/lib/misc/lib.h
 	touch vendor/lvm2/.success_retrieving_source
