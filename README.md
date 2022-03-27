@@ -226,8 +226,7 @@ Where To Get Help
 -----------------
 
 - Website: https://bedrocklinux.org
-- IRC: `#bedrock` on irc.freenode.net
-	- https://webchat.freenode.net/?channels=bedrock
+- IRC: `#bedrock` on libera.chat
 - Forums: http://www.linuxquestions.org/questions/bedrock-linux-118
 - Reddit: http://reddit.com/r/bedrocklinux
 - Github: https://github.com/bedrocklinux
