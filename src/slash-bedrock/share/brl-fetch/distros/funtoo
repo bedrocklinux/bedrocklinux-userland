@@ -47,7 +47,7 @@ EOF
 }
 
 default_release() {
-        echo "1.4-release-std"
+        echo "$(list_releases | grep "release-std$" | grep -v "^next$" | tail -n 1)"
 }                           
 
 list_releases() {
