@@ -51,10 +51,16 @@ default_release() {
 }                           
 
 list_releases() {
-        cat <<EOF
-1.4-release-std
-next
-EOF
+        for mirror in "${flag_mirror}" $(list_mirrors); do
+                if download -q "${mirror}/" - |
+                        list_links |
+                        grep '/$' |
+                        awk -F'/' '{print $4}' |
+                        grep -v '^livecd$' |
+                        grep -v '^distfiles$'; then
+                        break
+                fi
+        done
 }
 
 fetch() {
