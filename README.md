@@ -171,7 +171,7 @@ same file.  For example, `/home`.  Such shared files are referred to as
 	$ # which stratum provides ~/.vimrc
 	$ brl which --filepath ~/.vimrc
 	global
-	$ # global indicates all stratum seem the same file; not specific to any
+	$ # global indicates all stratum see the same file; not specific to any
 	$ # stratum.
 	$ brl which --filepath /bin/bash
 	gentoo
