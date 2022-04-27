@@ -418,7 +418,7 @@ $(COMPLETED)/libaio: vendor/libaio/.success_retrieving_source $(COMPLETED)/build
 	cp $(VENDOR)/libaio/src/libaio.h $(SUPPORT)/include
 	cd $(VENDOR)/libaio && $(MAKE) CC=$(MUSLCC)
 	cp $(VENDOR)/libaio/src/libaio.a $(SUPPORT)/lib
-	cp $(VENDOR)/libaio/src/libaio.so.1.0.1 $(SUPPORT)/lib/libaio.so
+	cp $(VENDOR)/libaio/src/libaio.so.1.0.2 $(SUPPORT)/lib/libaio.so
 	touch $(COMPLETED)/libaio
 libaio: $(COMPLETED)/libaio
 
