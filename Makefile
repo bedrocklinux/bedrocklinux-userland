@@ -732,7 +732,7 @@ zstd: $(COMPLETED)/zstd
 vendor/zlib/.success_retrieving_source:
 	rm -rf vendor/zlib/
 	mkdir -p vendor/zlib
-	cd vendor/zlib && wget -O- 'http://zlib.net/zlib-1.2.11.tar.gz' | gunzip | tar xf -
+	cd vendor/zlib && wget -O- 'http://zlib.net/zlib-1.2.12.tar.gz' | gunzip | tar xf -
 	mv vendor/zlib/*/* vendor/zlib/
 	touch vendor/zlib/.success_retrieving_source
 $(COMPLETED)/zlib: vendor/zlib/.success_retrieving_source $(COMPLETED)/musl
