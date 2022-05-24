@@ -1,0 +1,72 @@
+#!/bedrock/libexec/busybox sh
+#
+# Carbs Linux bootstrap support
+#
+#   This program comes with ABSOLUTELY NO WARRANTY;
+#   This is free software you can modify and/or redistribute it
+#   under the terms of the GNU General Public License version 3
+#   published by the Free Software Foundation
+#
+#   Copyright (c) 2021 howoz <howoz@airmail.cc>
+#
+
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported()
+{
+    true
+}
+
+speed_test_url()
+{
+    echo "sha256sums.txt"
+}
+
+list_mirrors()
+{
+    echo "https://dl.carbslinux.org/releases"
+}
+
+brl_arch_to_distro()
+{
+    case "${1}" in
+    "x86_64") echo "x86_64";;
+    "i686") echo "i686";;
+    *) abort "brl does not know how to translate arch \"${1}\" to ${distro} format";;
+    esac
+}
+
+list_architectures()
+{
+    cat << EOF
+x86_64
+i686
+EOF
+}
+
+default_release()
+{
+    echo "rolling"
+}
+
+list_releases()
+{
+    echo "rolling"
+}
+
+fetch()
+{
+    step "Downloading rootfs tarball"
+
+    rootfs_url="${target_mirror}/${distro_arch}/carbs-rootfs.tar.xz"
+    rootfs_checksum="$(download -q ${rootfs_url}.sha256 - | awk '{print $1}')"
+
+    cache_name="carbs-rootfs.tar.xz"
+
+    checksum_download "${cache}/${cache_name}" "sha256sum" "${rootfs_checksum}" "${rootfs_url}"
+
+    step "Extracting rootfs tarball"
+    tar -xv -f "${cache}/${cache_name}" -C "${target_dir}" | awk 'NR%100==0' | progress_unknown
+}
