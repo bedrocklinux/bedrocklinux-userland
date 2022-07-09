@@ -23,7 +23,7 @@ the root partition.  ${color_warn}This is error-prone.${color_norm}  For best re
 large partition; avoid things like separate ${color_file}/boot${color_norm} and ${color_file}/home${color_norm} partitions.
 
 Sources:
-  Directory
+  Directory (such as an unpacked tarball, ${color_cmd}docker${color_norm}/${color_cmd}podman${color_norm} image, etc)
   Tarball (${color_file}.tar${color_norm})
   Qemu qcow/qcow2/qcow3 image (${color_file}.qcow${color_norm}, ${color_file}.qcow2${color_norm}, ${color_file}.qcow3${color_norm})
   VirtualBox image (${color_file}.vdi${color_norm})
@@ -36,6 +36,11 @@ Example:
   ${color_cmd}$ qemu-image create -f qcow3 disk.qcow3 10G
   ${color_cmd}$ qemu-system-x86_64 ./disk.qcow3 -drive ubuntu.iso # install in VM
   ${color_rcmd}# brl import ubuntu disk.qcow3
+
+  ${color_cmd}$ # Also works with podman
+  ${color_rcmd}# docker pull hello-world
+  ${color_rcmd}# image=\"/bedrock/strata/\$(brl which docker)\$(docker inspect hello-world | jq -r '.[0].GraphDriver.Data.UpperDir')\"
+  ${color_rcmd}# brl import hello-world \"\${image}\"
 ${color_norm}"
 }
 
