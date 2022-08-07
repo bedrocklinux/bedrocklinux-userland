@@ -82,7 +82,7 @@ setup_pacman() {
 }
 
 fetch() {
-	bootstrap_deps="arch-install-scripts"
+	bootstrap_deps="arch-install-scripts archlinuxarm-keyring"
 
 	step "Downloading package information database"
 	download "${target_mirror}/${distro_arch}/core/core.db.tar.gz" "${bootstrap_dir}/core.db.tar.gz"

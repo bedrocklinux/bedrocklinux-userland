@@ -71,7 +71,7 @@ setup_pacman() {
 }
 
 fetch() {
-	bootstrap_deps="artools-base util-linux gettext pacman"
+	bootstrap_deps="artools-base util-linux gettext pacman artix-keyring"
 
 	step "Downloading package information database"
 	download "${target_mirror}/system/os/${distro_arch}/system.db.tar.gz" "${bootstrap_dir}/system.db.tar.gz"
