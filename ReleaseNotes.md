@@ -1,7 +1,8 @@
-# 0.7.28beta1
+# 0.7.28
 
 - Improved brl-fetch handling of GPT and multi-partition images
 - Removed redundant Ubuntu vt.handoff hack handling
+- Fixed brl-fetch arch, artix, gentoo, exherbo
 
 # 0.7.27
 
