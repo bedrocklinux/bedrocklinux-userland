@@ -131,7 +131,7 @@
 #
 #     make check
 
-BEDROCK_VERSION=0.7.28beta1
+BEDROCK_VERSION=0.7.28
 CODENAME=Poki
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | awk 'NR==2')
@@ -418,7 +418,7 @@ $(COMPLETED)/libaio: vendor/libaio/.success_retrieving_source $(COMPLETED)/build
 	cp $(VENDOR)/libaio/src/libaio.h $(SUPPORT)/include
 	cd $(VENDOR)/libaio && $(MAKE) CC=$(MUSLCC)
 	cp $(VENDOR)/libaio/src/libaio.a $(SUPPORT)/lib
-	cp $(VENDOR)/libaio/src/libaio.so.1.0.1 $(SUPPORT)/lib/libaio.so
+	cp $(VENDOR)/libaio/src/libaio.so.1.0.2 $(SUPPORT)/lib/libaio.so
 	touch $(COMPLETED)/libaio
 libaio: $(COMPLETED)/libaio
 
@@ -732,7 +732,7 @@ zstd: $(COMPLETED)/zstd
 vendor/zlib/.success_retrieving_source:
 	rm -rf vendor/zlib/
 	mkdir -p vendor/zlib
-	cd vendor/zlib && wget -O- 'http://zlib.net/zlib-1.2.11.tar.gz' | gunzip | tar xf -
+	cd vendor/zlib && wget -O- 'http://zlib.net/zlib-1.2.12.tar.gz' | gunzip | tar xf -
 	mv vendor/zlib/*/* vendor/zlib/
 	touch vendor/zlib/.success_retrieving_source
 $(COMPLETED)/zlib: vendor/zlib/.success_retrieving_source $(COMPLETED)/musl

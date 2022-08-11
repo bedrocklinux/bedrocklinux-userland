@@ -68,31 +68,40 @@ list_releases() {
 }
 
 fetch() {
-	# TODO: Gentoo apprently removed minimal Stage 3, now requires an init.
-	# Defaulting to openrc.  In Bedrock 0.8.0 when `brl fetch --flavor` is
-	# available make deskop vs hardened vs musl, openrc vs systemd,
-	# flavors.
-	flavor="desktop-openrc"
+	# Which flavors are available for a given stage 3 appears to be
+	# variable depending on time and mirror.  Iterate through possibilities
+	# in minimal-to-maximal order and go with the first found.
+	#
+	# TODO: In Bedrock 0.8.0 when `brl fetch --flavor` is available make desktop
+	# vs hardened vs musl, openrc vs systemd, etc flavors.
+	flavors="minimal openrc desktop-openrc"
 
 	step "Finding bootstrap software"
+	# stage3 balls are not necessarily in the obvious directory; need to
+	# search multiple to find where the tarball we are interested in is.
 	groups="$(download -q "${target_mirror}/releases/" - |
 		list_links |
 		grep '/$' |
 		sed -e 's,/$,,')"
-	group="$(for group in ${groups}; do
-		if download -q "${target_mirror}/releases/${group}/autobuilds/" - |
-			list_links |
-			grep "^current-stage3-${distro_arch}-${flavor}/$" >/dev/null; then
-			echo "${group}"
-			break
-		fi
+	group_flavor="$(for group in ${groups}; do
+		page="$(download -q "${target_mirror}/releases/${group}/autobuilds/" -)"
+		for flavor in ${flavors}; do
+			if echo "${page}" | list_links | grep "^current-stage3-${distro_arch}-${flavor}/$" >/dev/null; then
+				echo "${group}"
+				echo "${flavor}"
+				return
+			fi
+		done
 	done)"
-	if [ -z "${group}" ]; then
+	echo "group_flavor: ${group_flavor}"
+	group="$(echo "${group_flavor}" | sed -n 1p)"
+	flavor="$(echo "${group_flavor}" | sed -n 2p)"
+	if [ -z "${group}" ] || [ -z "${flavor}" ]; then
 		abort "Could not find bootstrap software at ${target_mirror} for ${distro_arch}."
 	fi
 
 	step "Downloading bootstrap software"
-	bootstrap_url="$(find_link "${target_mirror}/releases/${group}/autobuilds/current-stage3-${distro_arch}-${flavor}/" "^stage3-${distro_arch}-[^.]*[.]tar[.]\(xz\|bz2\)$")"
+	bootstrap_url="$(find_link "${target_mirror}/releases/${group}/autobuilds/current-stage3-${distro_arch}-${flavor}/" "^stage3-${distro_arch}-${flavor}-[^.]*[.]tar[.]\(xz\|bz2\)$")"
 	bootstrap_name="$(echo "${bootstrap_url}" | sed 's,^.*/,,')"
 	download "${bootstrap_url}.DIGESTS" "${bootstrap_dir}/checksum"
 	bootstrap_checksum="$(awk -v"name=${bootstrap_name}" '/^# .* HASH$/ {hash=$2;next} hash == "SHA512" && $2 == name {print$1;exit}' "${bootstrap_dir}/checksum")"
