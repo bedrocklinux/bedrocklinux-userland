@@ -77,14 +77,12 @@ fetch() {
 	step "Downloading package information database"
 	download "${target_mirror}/core/os/${distro_arch}/core.db.tar.gz" "${bootstrap_dir}/core.db.tar.gz"
 	download "${target_mirror}/extra/os/${distro_arch}/extra.db.tar.gz" "${bootstrap_dir}/extra.db.tar.gz"
-	download "${target_mirror}/community/os/${distro_arch}/community.db.tar.gz" "${bootstrap_dir}/community.db.tar.gz"
 
 	step "Decompressing package information database"
-	mkdir -p "${bootstrap_dir}/pacmandb/core" "${bootstrap_dir}/pacmandb/extra" "${bootstrap_dir}/pacmandb/community"
+	mkdir -p "${bootstrap_dir}/pacmandb/core" "${bootstrap_dir}/pacmandb/extra"
 	(
 		tar -xv -f "${bootstrap_dir}/core.db.tar.gz" -C "${bootstrap_dir}/pacmandb/core/"
 		tar -xv -f "${bootstrap_dir}/extra.db.tar.gz" -C "${bootstrap_dir}/pacmandb/extra/"
-		tar -xv -f "${bootstrap_dir}/community.db.tar.gz" -C "${bootstrap_dir}/pacmandb/community/"
 	) | awk 'NR%100==0' | progress_unknown
 
 	step "Converting distro package information database to brl format"
