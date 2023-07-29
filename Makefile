@@ -4,7 +4,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2012-2022 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2012-2023 Daniel Thau <danthau@bedrocklinux.org>
 #
 # This creates a script which can be used to install or update a Bedrock Linux
 # system.
@@ -686,7 +686,6 @@ vendor/lvm2/.success_retrieving_source:
 		tail -n1 | \
 		sed 's/^/v/'` 'https://sourceware.org/git/lvm2.git' \
 		vendor/lvm2
-	cd vendor/lvm2 && patch -p0 -i ../../patches/lvm2/mallinfo.patch
 	cd vendor/lvm2 && patch -p0 -i ../../patches/lvm2/fix-stdio.patch
 	# hack to fix bad imports looking for LOCK_EX
 	echo '#include <sys/file.h>' >> vendor/lvm2/lib/misc/lib.h
