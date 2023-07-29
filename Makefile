@@ -1303,6 +1303,12 @@ release-aarch64: fetch_vendor_sources build/all/busybox/bedrock-config
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-gcc' \
 		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-ld' \
+		musl
+	cp /bedrock/strata/brl-build-cross-void/usr/aarch64-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/aarch64/support/lib/
+	strat -r brl-build-aarch64 make -j$(SUBJOBS) GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-ar' \
+		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-gcc' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-aarch64.sh
 release-armv7hl: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-armv7hl make -j$(SUBJOBS) GPGID='$(GPGID)' \
@@ -1317,13 +1323,13 @@ release-armv7l: fetch_vendor_sources build/all/busybox/bedrock-config
 		LD='/bedrock/strata/brl-build-cross-debian/usr/local/bin/brl-arm-linux-gnueabi-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-armv7l.sh
 release-i386: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i386 make -j$(SUBJOBS) GPGID='$(GPGID)' \
+	strat -r brl-build-i386 make -j$(SUBJOBS) GPGID='$(GPGID)' CFLAGS='$(CFLAGS) -fno-stack-protector' \
 		bedrock-linux-$(BEDROCK_VERSION)-i386.sh
 release-i486: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i486 make -j$(SUBJOBS) GPGID='$(GPGID)' \
+	strat -r brl-build-i486 make -j$(SUBJOBS) GPGID='$(GPGID)' CFLAGS='$(CFLAGS) -fno-stack-protector' \
 		bedrock-linux-$(BEDROCK_VERSION)-i486.sh
 release-i586: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i586 make -j$(SUBJOBS) GPGID='$(GPGID)' \
+	strat -r brl-build-i586 make -j$(SUBJOBS) GPGID='$(GPGID)' CFLAGS='$(CFLAGS) -fno-stack-protector' \
 		bedrock-linux-$(BEDROCK_VERSION)-i586.sh
 release-i686: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-i686 make -j$(SUBJOBS) GPGID='$(GPGID)' \
@@ -1333,8 +1339,20 @@ release-mips: fetch_vendor_sources build/all/busybox/bedrock-config
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-gcc' \
 		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-ld' \
+		musl
+	cp /bedrock/strata/brl-build-cross-void/usr/mips-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/mips/support/lib/
+	strat -r brl-build-mips make -j$(SUBJOBS) GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-ar' \
+		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-gcc' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-mips.sh
 release-mipsel: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-mipsel make -j$(SUBJOBS) GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ar' \
+		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-gcc' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ld' \
+		musl
+	cp /bedrock/strata/brl-build-cross-void/usr/mipsel-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/mipsel/support/lib/
 	strat -r brl-build-mipsel make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-gcc' \
@@ -1351,14 +1369,32 @@ release-ppc: fetch_vendor_sources build/all/busybox/bedrock-config
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-gcc' \
 		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-gcc' \
+		musl
+	cp /bedrock/strata/brl-build-cross-void/usr/powerpc-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/ppc/support/lib/
+	strat -r brl-build-ppc make -j$(SUBJOBS) GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-ar' \
+		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-gcc' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-gcc' \
 		bedrock-linux-$(BEDROCK_VERSION)-ppc.sh
 release-ppc64: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-ppc64 make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-gcc' \
 		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-gcc' \
+		musl
+	cp /bedrock/strata/brl-build-cross-void/usr/powerpc64-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/ppc64/support/lib/
+	strat -r brl-build-ppc64 make -j$(SUBJOBS) GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-ar' \
+		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-gcc' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-gcc' \
 		bedrock-linux-$(BEDROCK_VERSION)-ppc64.sh
 release-ppc64le: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-ppc64le make -j$(SUBJOBS) GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64le-linux-musl-ar' \
+		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64le-linux-musl-gcc' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64le-linux-musl-ld' \
+		musl
+	cp /bedrock/strata/brl-build-cross-void/usr/powerpc64le-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/ppc64le/support/lib/
 	strat -r brl-build-ppc64le make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64le-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64le-linux-musl-gcc' \
