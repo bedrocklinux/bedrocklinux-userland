@@ -194,7 +194,11 @@ $(COMPLETED)/builddir:
 	fi; \
 	# build internal directory structure
 	mkdir -p $(BUILD) $(SRC) $(VENDOR)
-	mkdir -p $(SUPPORT)/include $(SUPPORT)/lib
+	mkdir -p $(SUPPORT)/include $(SUPPORT)/lib $(SUPPORT)/bin
+	# Some dependencies seem to require gtkdocize with no way to opt-out.
+	# Make a no-op one to fulfill the need.
+	printf '#!/bin/sh\nmkdir -p libkmod/docs\ntouch libkmod/docs/gtk-doc.make' > $(SUPPORT)/bin/gtkdocize
+	chmod a+rx $(SUPPORT)/bin/gtkdocize
 	# copy /bedrock into build structure
 	cp -r src/slash-bedrock/ $(SLASHBR)
 	# create bedrock-release
@@ -293,14 +297,14 @@ vendor/libcap/.success_fetching_source:
 	rm -rf vendor/libcap
 	mkdir -p vendor/libcap
 	git clone --depth=1 \
-		-b `git ls-remote --tags 'https://git.kernel.org/pub/scm/linux/kernel/git/morgan/libcap.git' | \
+		-b `git ls-remote --tags 'https://git.kernel.org/pub/scm/libs/libcap/libcap.git/' | \
 		awk -F/ '{print $$NF}' | \
 		sed 's/^libcap-//g' | \
 		grep '^[0-9.]*$$' | \
 		grep '[.]' | \
 		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
 		tail -n1 | \
-		sed 's/^/libcap-/'` 'https://git.kernel.org/pub/scm/linux/kernel/git/morgan/libcap.git' \
+		sed 's/^/libcap-/'` 'https://git.kernel.org/pub/scm/libs/libcap/libcap.git/' \
 		vendor/libcap
 	touch vendor/libcap/.success_fetching_source
 $(COMPLETED)/libcap: vendor/libcap/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/musl
@@ -324,20 +328,16 @@ libcap: $(COMPLETED)/libcap
 vendor/libfuse/.success_fetching_source:
 	rm -rf vendor/libfuse
 	mkdir -p vendor/libfuse
+	# More recent libfuse versions bumped up meson requirements which breaks build environment.  Stick with 3.12.x for now.
 	git clone --depth=1 \
-		-b `git ls-remote --tags 'https://github.com/libfuse/libfuse.git' | \
-		awk -F/ '{print $$NF}' | \
-		sed 's/^fuse-//g' | \
-		grep '^[0-9.]*$$' | \
-		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
-		tail -n1 | \
-		sed 's/^/fuse-/'` 'https://github.com/libfuse/libfuse.git' \
+		-b 'fuse-3.12.0' 'https://github.com/libfuse/libfuse.git' \
 		vendor/libfuse
 	touch vendor/libfuse/.success_fetching_source
 $(COMPLETED)/libfuse: vendor/libfuse/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/musl
 	rm -rf $(VENDOR)/libfuse
 	cp -r vendor/libfuse/ $(VENDOR)
 	mkdir -p $(VENDOR)/libfuse/build
+	# ln -s $(VENDOR)/libfuse/build/libfuse_config.h $(SUPPORT)/include/
 	# meson/ninja sometimes fails with
 	#     ninja: error: unknown target 'lib/libfuse3.a'
 	# for no apparent reason.  It seems to eventually take after multiple
@@ -465,6 +465,8 @@ $(COMPLETED)/openssl: vendor/openssl/.success_retrieving_source $(COMPLETED)/bui
 			CC=$(MUSLCC) linux$(ARCH_BIT_DEPTH) ./Configure --prefix="$(SUPPORT)" no-shared linux64-mips64; \
 		elif [ "$(ARCHITECTURE)" = "ppc64" ]; then \
 			CC=$(MUSLCC) linux$(ARCH_BIT_DEPTH) ./Configure --prefix="$(SUPPORT)" no-shared linux-ppc64le; \
+		elif [ "$(ARCHITECTURE)" = "armv7hl" ]; then \
+			CC=$(MUSLCC) linux$(ARCH_BIT_DEPTH) ./Configure --prefix="$(SUPPORT)" no-shared linux-armv4; \
 		else \
 			CC=$(MUSLCC) linux$(ARCH_BIT_DEPTH) ./config --prefix="$(SUPPORT)" no-shared; \
 		fi && \
@@ -731,7 +733,7 @@ zstd: $(COMPLETED)/zstd
 vendor/zlib/.success_retrieving_source:
 	rm -rf vendor/zlib/
 	mkdir -p vendor/zlib
-	cd vendor/zlib && wget -O- 'http://zlib.net/zlib-1.2.12.tar.gz' | gunzip | tar xf -
+	cd vendor/zlib && wget -O- 'http://zlib.net/zlib-1.2.13.tar.gz' | gunzip | tar xf -
 	mv vendor/zlib/*/* vendor/zlib/
 	touch vendor/zlib/.success_retrieving_source
 $(COMPLETED)/zlib: vendor/zlib/.success_retrieving_source $(COMPLETED)/musl
@@ -760,7 +762,7 @@ $(COMPLETED)/xz: vendor/xz/.success_retrieving_source $(COMPLETED)/musl
 	rm -rf $(VENDOR)/xz
 	cp -r vendor/xz $(VENDOR)
 	cd $(VENDOR)/xz && \
-		./autogen.sh --no-po4a
+		./autogen.sh --no-po4a --no-doxygen
 	cd $(VENDOR)/xz && \
 		CFLAGS="-static" LDFLAGS="-static" ./configure --prefix=$(SUPPORT) --enable-static --disable-shared
 	cd $(VENDOR)/xz && $(MAKE) CC=$(MUSLCC) install prefix=$(SUPPORT)
@@ -786,7 +788,7 @@ $(SLASHBR)/libexec/kmod: vendor/kmod/.success_retrieving_source $(COMPLETED)/mus
 	rm -rf $(VENDOR)/kmod
 	cp -r vendor/kmod $(VENDOR)
 	cd $(VENDOR)/kmod && \
-		./autogen.sh --with-xz --with-zlib --with-zstd --prefix=$(SUPPORT) --includedir=$(SUPPORT)/include --libdir=$(SUPPORT)/lib --bindir=$(SUPPORT)/bin \
+		PATH="$(SUPPORT)/bin:${PATH}" ./autogen.sh --with-xz --with-zlib --with-zstd --prefix=$(SUPPORT) --includedir=$(SUPPORT)/include --libdir=$(SUPPORT)/lib --bindir=$(SUPPORT)/bin \
 			CC=$(MUSLCC) CCLD=$(MUSLCC) LD=$(MUSLCC) PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig && \
 		./configure --with-xz --with-zlib --with-zstd --prefix=$(SUPPORT) --includedir=$(SUPPORT)/include --libdir=$(SUPPORT)/lib --bindir=$(SUPPORT)/bin \
 			CC=$(MUSLCC) LDFLAGS="-L$(SUPPORT)/lib" PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig && \
@@ -1155,7 +1157,7 @@ release-build-environment-aarch64 release-build-environment-armv7hl release-buil
 	[ $$(id -u) = 0 ]
 	if ! /bedrock/libexec/getfattr -d /bedrock/strata/brl-build-$(subst release-build-environment-,,$@) 2>/dev/null | grep -q user.bedrock.show_boot; then \
 		brl remove -d "brl-build-$(subst release-build-environment-,,$@)" 2>/dev/null || true; \
-		brl fetch -n "brl-build-$(subst release-build-environment-,,$@)" -a "$(subst release-build-environment-,,$@)" -s debian; \
+		brl fetch -n "brl-build-$(subst release-build-environment-,,$@)" -a "$(subst release-build-environment-,,$@)" -s debian -r buster; \
 		brl show -b "brl-build-$(subst release-build-environment-,,$@)"; \
 	fi
 	strat -r "brl-build-$(subst release-build-environment-,,$@)" apt -y install autoconf autopoint automake bison build-essential fakeroot gpg libtool meson ninja-build pkg-config rsync udev; \
