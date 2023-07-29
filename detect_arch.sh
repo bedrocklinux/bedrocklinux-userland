@@ -60,12 +60,12 @@ case "$(gcc -dumpmachine)" in
 		;;
 	mips-*)
 		echo "mips"
-		echo "MIPS32"
+		echo "MIPS\(32\|-I\)"
 		echo "32"
 		;;
 	mipsel-*)
 		echo "mipsel"
-		echo "MIPS32"
+		echo "MIPS\(32\|-I\)"
 		echo "32"
 		;;
 	mips64el-*)
