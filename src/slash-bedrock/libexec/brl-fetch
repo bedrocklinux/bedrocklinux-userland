@@ -1165,7 +1165,7 @@ for distro in ${distros}; do
 		/bedrock/libexec/brl-enable "${target_name}"
 	fi
 
-	notice "Successfully ${color_term}fetched${color_norm} a new ${distro} ${color_term}stratum${color_norm} with name ${color_strat}${target_name}${color_norm}"
+	notice "Successfully ${color_term}fetched${color_norm} a new ${color_distro}${distro}${color_norm} ${color_term}stratum${color_norm} with name ${color_strat}${target_name}${color_norm}"
 done
 
 exit_success
