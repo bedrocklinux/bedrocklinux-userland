@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2012-2020 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2012-2023 Daniel Thau <danthau@bedrocklinux.org>
 #
 # Performs cross-package-manager and multi-package-manager operations.
 
@@ -97,8 +97,18 @@ strata="$(
 	done | sort
 )"
 export strata
+aliases="$(
+	for alias in $(list_aliases); do
+		if is_enabled "${alias}" && has_attr "/bedrock/strata/${alias}" "show_pmm"; then
+			deref="$(brl deref "${alias}")"
+			echo "aliases[\"${alias}\"] = \"${deref}\""
+		fi
+	done | sort
+)"
+export aliases
 initialize_awk_variables="${initialize_awk_variables}
-${strata}"
+${strata}
+${aliases}"
 bedrock_conf_sha1sum="$(sha1sum <"/bedrock/etc/bedrock.conf")"
 export bedrock_conf_sha1sum
 
@@ -228,6 +238,7 @@ $(cat /bedrock/share/pmm/package_managers/* /bedrock/share/pmm/help /bedrock/sha
 # Internal terminology:
 #
 # - "pair" is used to describe a (<stratum>, <package-manager>) tuple.
+# - "triplet" is used to describe a (<stratum>, <package-manager>, <package>) tuple.
 #
 # Style notes:
 #
@@ -873,8 +884,16 @@ function get_shell_output(cmd, stratum, package_manager, items, show,
 	return close(env""cmd)
 }
 
+function deref_stratum(stratum) {
+	if (stratum in aliases) {
+		return aliases[stratum]
+	} else {
+		return stratum
+	}
+}
+
 function world_func_prep(_output, world_missing, sys_missing,
-	_local, a, b, n, p, q, superceded, available, stratum, package_manager) {
+	_local, a, b, n, p, q, superceded, available, stratum, package_manager, world, world_cfg, sys, sys_deref) {
 	# Generate inverse of supersedes[] for quick look ups in the other direction
 	split("", superseded, "")
 	for (n in supersedes) {
@@ -894,8 +913,13 @@ function world_func_prep(_output, world_missing, sys_missing,
 			continue
 		}
 		split($1, a, ":")
-		for (n = 2; n <= NF; n++) {
-			world[a[1],a[2],$n]
+		if (a[1]":"a[2] in available || deref_stratum(a[1])":"a[2] in available) {
+			for (n = 2; n <= NF; n++) {
+				# Track derefed strata to normalize comparisons.
+				world[deref_stratum(a[1]),a[2],$n]
+				# Also track configured strata descriptors for expected output.
+				world_cfg[a[1],a[2],$n]
+			}
 		}
 	}
 	close(worldfile)
@@ -904,42 +928,42 @@ function world_func_prep(_output, world_missing, sys_missing,
 	split("", sys, "")
 	for (p = 1; p in pairs; p++) {
 		split(pairs[p], a, ":")
-		stratum = a[1]
+		stratum = deref_stratum(a[1])
 		package_manager = a[2]
 		if (package_manager in superseded && stratum":"superseded[package_manager] in available) {
 			package_manager = superseded[package_manager]
 		}
 		get_shell_output(implementations[package_manager, "list-installed-explicit"], stratum, package_manager, "", 0, _return, output)
 		for (n = 1; n in output; n++) {
-			sys[stratum, package_manager, output[n]]
+			sys[deref_stratum(stratum), package_manager, output[n]]
 		}
 	}
 
 	# Calculate diffs
 	split("", world_missing, "")
 	for (n in sys) {
-		if (n in world) {
-			continue
-		}
 		split(n, a, SUBSEP)
-		if (a[2] in supersedes && (a[1], supersedes[a[2]], a[3]) in world) {
+		if ( (a[1],a[2],a[3]) in world) {
 			continue
 		}
-		if (a[2] in superseded && (a[1], superseded[a[2]], a[3]) in world) {
+		if (a[2] in supersedes && (a[1], supersedes[a[2]], a[3]) in world_deref) {
+			continue
+		}
+		if (a[2] in superseded && (a[1], superseded[a[2]], a[3]) in world_deref) {
 			continue
 		}
 		world_missing[n]
 	}
 	split("", sys_missing, "")
-	for (n in world) {
-		if (n in sys) {
-			continue
-		}
+	for (n in world_cfg) {
 		split(n, a, SUBSEP)
-		if ( (a[1], supersedes[a[2]], a[3]) in sys) {
+		if ( (deref_stratum(a[1]),a[2],a[3]) in sys) {
 			continue
 		}
-		if ( (a[1], superseded[a[2]], a[3]) in sys) {
+		if ( (deref_stratum(a[1]), supersedes[a[2]], a[3]) in sys) {
+			continue
+		}
+		if ( (deref_stratum(a[1]), superseded[a[2]], a[3]) in sys) {
 			continue
 		}
 		sys_missing[n]
@@ -1082,7 +1106,7 @@ function apply_world(install, remove, cmds,
 		pkgs = ""
 		for (i in sys_missing) {
 			split(i, a, SUBSEP)
-			if (a[1] == stratum && a[2] == package_manager) {
+			if (deref_stratum(a[1]) == stratum && a[2] == package_manager) {
 				pkgs = pkgs" "a[3]
 			}
 		}
