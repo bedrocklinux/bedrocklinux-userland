@@ -74,6 +74,12 @@ initialize_awk_variables="${initialize_awk_variables}
 unprivileged_user=\"$(cfg_value "pmm" "unprivileged-user" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//")\""
 
 #
+# Gather sudo exectutable
+#
+initialize_awk_variables="${initialize_awk_variables}
+sudo=\"$(cfg_value "pmm" "sudo" | sed -e "s/['\"\\]/\\\&/" -e "s/^x//")\""
+
+#
 # Check if warnings are desired when skipping package managers.
 #
 if [ "$(cfg_value "pmm" "warn-about-skipping-package-managers")" = "true" ]; then
@@ -785,7 +791,7 @@ function prep_shell_environment(stratum, package_manager, items, cmd,
 	} else if (unprivileged_user ~ /^[$]/ && ENVIRON[substr(unprivileged_user,2)] == "") {
 		abort("/bedrock/etc/bedrock.conf [pmm]/unprivileged-user is set to "unprivileged_user" but that envvar is empty/unset.\nEither populate envvar or change bedrock.conf [pmm]/unprivileged-user to run `"cmd"`")
 	} else {
-		output = output " export unprivileged_user=\"sudo -u " unprivileged_user "\";"
+		output = output " export unprivileged_user=\""sudo" -u " unprivileged_user "\";"
 	}
 
 	output = output " export flags=\""
