@@ -314,14 +314,19 @@ $(COMPLETED)/libcap: vendor/libcap/.success_fetching_source $(COMPLETED)/builddi
 	if ! [ -e $(SUPPORT)/include/sys/capability.h ]; then \
 		cp $(SUPPORT)/include/linux/capability.h $(SUPPORT)/include/sys/capability.h; \
 	fi
-	sed 's/^BUILD_GPERF.*/BUILD_GPERF=no/' $(VENDOR)/libcap/Make.Rules > $(VENDOR)/libcap/Make.Rules-new
+	sed \
+		-e 's/^BUILD_GPERF.*/BUILD_GPERF=no/' $(VENDOR)/libcap/Make.Rules \
+		-e 's/^SHARED.*/SHARED=no/' $(VENDOR)/libcap/Make.Rules \
+		-e 's/^DYNAMIC.*/DYNAMIC=no/' $(VENDOR)/libcap/Make.Rules \
+		-e 's/^LIBCSTATIC.*/LIBCSTATIC=yes/' $(VENDOR)/libcap/Make.Rules \
+		> $(VENDOR)/libcap/Make.Rules-new
 	mv $(VENDOR)/libcap/Make.Rules-new $(VENDOR)/libcap/Make.Rules
 	cd $(VENDOR)/libcap/libcap && \
-		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) LD="$(MUSLCC) -Wl,-x -shared" lib=$(SUPPORT)/lib prefix=$(SUPPORT) BUILD_CFLAGS="$(CFLAGS) -static" && \
-		$(MAKE) install-static RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib
+		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) LD="$(MUSLCC) -Wl,-x -shared" lib=$(SUPPORT)/lib prefix=$(SUPPORT) BUILD_CFLAGS="$(CFLAGS) -static" SHARED=no DYNAMIC=no LIBCSTATIC=yes && \
+		$(MAKE) install-static RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib SHARED=no DYNAMIC=no LIBCSTATIC=yes
 	cd $(VENDOR)/libcap/progs && \
-		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) LD="$(MUSLCC) -Wl,-x -shared" lib=$(SUPPORT)/lib prefix=$(SUPPORT) LDFLAGS=-static DYNAMIC=no && \
-		$(MAKE) install RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib DYNAMIC=no
+		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) LD="$(MUSLCC) -Wl,-x -shared" lib=$(SUPPORT)/lib prefix=$(SUPPORT) LDFLAGS=-static SHARED=no DYNAMIC=no LIBCSTATIC=yes && \
+		$(MAKE) install RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib SHARED=no DYNAMIC=no LIBCSTATIC=yes
 	touch $(COMPLETED)/libcap
 libcap: $(COMPLETED)/libcap
 
