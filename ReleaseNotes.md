@@ -1,3 +1,8 @@
+# 0.7.29beta2
+
+- Fix setcap linkage
+- Improve build system dynamic link detection
+
 # 0.7.29beta1
 
 - Build system updates
