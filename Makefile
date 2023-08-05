@@ -891,7 +891,7 @@ $(BUILD)/userland.tar: \
 	rm -f $(SLASHBR)/strata/local
 	# ensure static
 	for bin in $(SLASHBR)/bin/* $(SLASHBR)/libexec/*; do \
-		if ldd "$$bin" >/dev/null 2>&1; then \
+		if ldd "$$bin" >/dev/null 2>&1 || ! ldd "$$bin" 2>&1 | grep -q "not a dynamic executable" ; then \
 			echo "error: $$bin is dynamically linked"; exit 1; \
 		fi; \
 	done
