@@ -163,10 +163,12 @@ export LANG="$(cfg_value "locale" LANG)"
 $(
 	# shellcheck disable=SC2030
 	for envvar in ${envvars}; do
-		printf "export %s=\"\$(br_dedup_envvar \"%s:\${%s}\" \"%s\")\"\n" \
+		printf "export %s=\"\$(br_dedup_envvar \"%s:\${%s}:%s:%s\" \"%s\")\"\n" \
 			"${envvar}" \
-			"$(cfg_value "env-vars" "PREFIX:${envvar}"):$(cfg_value "env-vars" "${envvar}"):$(cfg_value "env-vars" "INFIX:${envvar}")" \
+			"$(cfg_value "env-vars" "PREFIX:${envvar}")" \
 			"${envvar}" \
+			"$(cfg_value "env-vars" "${envvar}")" \
+			"$(cfg_value "env-vars" "INFIX:${envvar}")" \
 			"$(cfg_value "env-vars" "SUFFIX:${envvar}")"
 	done
 )

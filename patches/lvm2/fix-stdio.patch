@@ -1,35 +1,6 @@
---- ./tools/lvmcmdline.c
-+++ ./tools/lvmcmdline.c
-@@ -1252,7 +1252,7 @@
- 	int err = is_valid_fd(STDERR_FILENO);
- 
- 	if (!is_valid_fd(STDIN_FILENO) &&
--	    !(stdin = fopen(_PATH_DEVNULL, "r"))) {
-+	    !freopen(_PATH_DEVNULL, "r", stdin)) {
- 		if (err)
- 			perror("stdin stream open");
- 		else
-@@ -1262,7 +1262,7 @@
- 	}
- 
- 	if (!is_valid_fd(STDOUT_FILENO) &&
--	    !(stdout = fopen(_PATH_DEVNULL, "w"))) {
-+	    !freopen(_PATH_DEVNULL, "w", stdout)) {
- 		if (err)
- 			perror("stdout stream open");
- 		/* else no stdout */
-@@ -1270,7 +1270,7 @@
- 	}
- 
- 	if (!is_valid_fd(STDERR_FILENO) &&
--	    !(stderr = fopen(_PATH_DEVNULL, "w"))) {
-+	    !freopen(_PATH_DEVNULL, "w", stderr)) {
- 		printf("stderr stream open: %s\n",
- 		       strerror(errno));
- 		return 0;
---- ./lib/commands/toolcontext.c
-+++ ./lib/commands/toolcontext.c
-@@ -1869,7 +1869,7 @@
+--- lib/commands/toolcontext.c
++++ lib/commands/toolcontext.c
+@@ -1667,7 +1667,7 @@ struct cmd_context *create_toolcontext(unsigned is_clvmd,
  	/* FIXME Make this configurable? */
  	reset_lvm_errno(1);
  
@@ -38,7 +9,7 @@
  	/* Set in/out stream buffering before glibc */
  	if (set_buffering
  #ifdef SYS_gettid
-@@ -2274,7 +2274,7 @@
+@@ -2045,7 +2045,7 @@ void destroy_toolcontext(struct cmd_context *cmd)
  		dm_hash_destroy(cmd->cft_def_hash);
  
  	dm_device_list_destroy(&cmd->cache_dm_devs);
@@ -47,3 +18,34 @@
  	if (cmd->linebuffer) {
  		/* Reset stream buffering to defaults */
  		if (is_valid_fd(STDIN_FILENO) &&
+diff --git a/tools/lvmcmdline.c b/tools/lvmcmdline.c
+index a5bb6a5c5..0ebfa375c 100644
+--- tools/lvmcmdline.c
++++ tools/lvmcmdline.c
+@@ -3422,7 +3422,7 @@ static int _check_standard_fds(void)
+ 	int err = is_valid_fd(STDERR_FILENO);
+ 
+ 	if (!is_valid_fd(STDIN_FILENO) &&
+-	    !(stdin = fopen(_PATH_DEVNULL, "r"))) {
++	    !freopen(_PATH_DEVNULL, "r", stdin)) {
+ 		if (err)
+ 			perror("stdin stream open");
+ 		else
+@@ -3432,7 +3432,7 @@ static int _check_standard_fds(void)
+ 	}
+ 
+ 	if (!is_valid_fd(STDOUT_FILENO) &&
+-	    !(stdout = fopen(_PATH_DEVNULL, "w"))) {
++	    !freopen(_PATH_DEVNULL, "w", stdout)) {
+ 		if (err)
+ 			perror("stdout stream open");
+ 		/* else no stdout */
+@@ -3440,7 +3440,7 @@ static int _check_standard_fds(void)
+ 	}
+ 
+ 	if (!is_valid_fd(STDERR_FILENO) &&
+-	    !(stderr = fopen(_PATH_DEVNULL, "w"))) {
++	    !freopen(_PATH_DEVNULL, "w", stderr)) {
+ 		printf("stderr stream open: %s\n",
+ 		       strerror(errno));
+ 		return 0;

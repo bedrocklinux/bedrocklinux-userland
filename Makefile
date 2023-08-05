@@ -4,7 +4,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2012-2022 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2012-2023 Daniel Thau <danthau@bedrocklinux.org>
 #
 # This creates a script which can be used to install or update a Bedrock Linux
 # system.
@@ -131,7 +131,7 @@
 #
 #     make check
 
-BEDROCK_VERSION=0.7.28
+BEDROCK_VERSION=0.7.29beta2
 CODENAME=Poki
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | awk 'NR==2')
@@ -194,7 +194,11 @@ $(COMPLETED)/builddir:
 	fi; \
 	# build internal directory structure
 	mkdir -p $(BUILD) $(SRC) $(VENDOR)
-	mkdir -p $(SUPPORT)/include $(SUPPORT)/lib
+	mkdir -p $(SUPPORT)/include $(SUPPORT)/lib $(SUPPORT)/bin
+	# Some dependencies seem to require gtkdocize with no way to opt-out.
+	# Make a no-op one to fulfill the need.
+	printf '#!/bin/sh\nmkdir -p libkmod/docs\ntouch libkmod/docs/gtk-doc.make' > $(SUPPORT)/bin/gtkdocize
+	chmod a+rx $(SUPPORT)/bin/gtkdocize
 	# copy /bedrock into build structure
 	cp -r src/slash-bedrock/ $(SLASHBR)
 	# create bedrock-release
@@ -293,14 +297,14 @@ vendor/libcap/.success_fetching_source:
 	rm -rf vendor/libcap
 	mkdir -p vendor/libcap
 	git clone --depth=1 \
-		-b `git ls-remote --tags 'https://git.kernel.org/pub/scm/linux/kernel/git/morgan/libcap.git' | \
+		-b `git ls-remote --tags 'https://git.kernel.org/pub/scm/libs/libcap/libcap.git/' | \
 		awk -F/ '{print $$NF}' | \
 		sed 's/^libcap-//g' | \
 		grep '^[0-9.]*$$' | \
 		grep '[.]' | \
 		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
 		tail -n1 | \
-		sed 's/^/libcap-/'` 'https://git.kernel.org/pub/scm/linux/kernel/git/morgan/libcap.git' \
+		sed 's/^/libcap-/'` 'https://git.kernel.org/pub/scm/libs/libcap/libcap.git/' \
 		vendor/libcap
 	touch vendor/libcap/.success_fetching_source
 $(COMPLETED)/libcap: vendor/libcap/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/musl
@@ -310,34 +314,35 @@ $(COMPLETED)/libcap: vendor/libcap/.success_fetching_source $(COMPLETED)/builddi
 	if ! [ -e $(SUPPORT)/include/sys/capability.h ]; then \
 		cp $(SUPPORT)/include/linux/capability.h $(SUPPORT)/include/sys/capability.h; \
 	fi
-	sed 's/^BUILD_GPERF.*/BUILD_GPERF=no/' $(VENDOR)/libcap/Make.Rules > $(VENDOR)/libcap/Make.Rules-new
+	sed \
+		-e 's/^BUILD_GPERF.*/BUILD_GPERF=no/' $(VENDOR)/libcap/Make.Rules \
+		-e 's/^SHARED.*/SHARED=no/' $(VENDOR)/libcap/Make.Rules \
+		-e 's/^DYNAMIC.*/DYNAMIC=no/' $(VENDOR)/libcap/Make.Rules \
+		-e 's/^LIBCSTATIC.*/LIBCSTATIC=yes/' $(VENDOR)/libcap/Make.Rules \
+		> $(VENDOR)/libcap/Make.Rules-new
 	mv $(VENDOR)/libcap/Make.Rules-new $(VENDOR)/libcap/Make.Rules
 	cd $(VENDOR)/libcap/libcap && \
-		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) LD="$(MUSLCC) -Wl,-x -shared" lib=$(SUPPORT)/lib prefix=$(SUPPORT) BUILD_CFLAGS="$(CFLAGS) -static" && \
-		$(MAKE) install-static RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib
+		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) LD="$(MUSLCC) -Wl,-x -shared" lib=$(SUPPORT)/lib prefix=$(SUPPORT) BUILD_CFLAGS="$(CFLAGS) -static" SHARED=no DYNAMIC=no LIBCSTATIC=yes && \
+		$(MAKE) install-static RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib SHARED=no DYNAMIC=no LIBCSTATIC=yes
 	cd $(VENDOR)/libcap/progs && \
-		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) LD="$(MUSLCC) -Wl,-x -shared" lib=$(SUPPORT)/lib prefix=$(SUPPORT) LDFLAGS=-static DYNAMIC=no && \
-		$(MAKE) install RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib DYNAMIC=no
+		$(MAKE) BUILD_CC=$(MUSLCC) CC=$(MUSLCC) LD="$(MUSLCC) -Wl,-x -shared" lib=$(SUPPORT)/lib prefix=$(SUPPORT) LDFLAGS=-static SHARED=no DYNAMIC=no LIBCSTATIC=yes && \
+		$(MAKE) install RAISE_SETFCAP=no DESTDIR=$(SUPPORT) prefix=/ lib=lib SHARED=no DYNAMIC=no LIBCSTATIC=yes
 	touch $(COMPLETED)/libcap
 libcap: $(COMPLETED)/libcap
 
 vendor/libfuse/.success_fetching_source:
 	rm -rf vendor/libfuse
 	mkdir -p vendor/libfuse
+	# More recent libfuse versions bumped up meson requirements which breaks build environment.  Stick with 3.12.x for now.
 	git clone --depth=1 \
-		-b `git ls-remote --tags 'https://github.com/libfuse/libfuse.git' | \
-		awk -F/ '{print $$NF}' | \
-		sed 's/^fuse-//g' | \
-		grep '^[0-9.]*$$' | \
-		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
-		tail -n1 | \
-		sed 's/^/fuse-/'` 'https://github.com/libfuse/libfuse.git' \
+		-b 'fuse-3.12.0' 'https://github.com/libfuse/libfuse.git' \
 		vendor/libfuse
 	touch vendor/libfuse/.success_fetching_source
 $(COMPLETED)/libfuse: vendor/libfuse/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/musl
 	rm -rf $(VENDOR)/libfuse
 	cp -r vendor/libfuse/ $(VENDOR)
 	mkdir -p $(VENDOR)/libfuse/build
+	# ln -s $(VENDOR)/libfuse/build/libfuse_config.h $(SUPPORT)/include/
 	# meson/ninja sometimes fails with
 	#     ninja: error: unknown target 'lib/libfuse3.a'
 	# for no apparent reason.  It seems to eventually take after multiple
@@ -465,6 +470,8 @@ $(COMPLETED)/openssl: vendor/openssl/.success_retrieving_source $(COMPLETED)/bui
 			CC=$(MUSLCC) linux$(ARCH_BIT_DEPTH) ./Configure --prefix="$(SUPPORT)" no-shared linux64-mips64; \
 		elif [ "$(ARCHITECTURE)" = "ppc64" ]; then \
 			CC=$(MUSLCC) linux$(ARCH_BIT_DEPTH) ./Configure --prefix="$(SUPPORT)" no-shared linux-ppc64le; \
+		elif [ "$(ARCHITECTURE)" = "armv7hl" ]; then \
+			CC=$(MUSLCC) linux$(ARCH_BIT_DEPTH) ./Configure --prefix="$(SUPPORT)" no-shared linux-armv4; \
 		else \
 			CC=$(MUSLCC) linux$(ARCH_BIT_DEPTH) ./config --prefix="$(SUPPORT)" no-shared; \
 		fi && \
@@ -686,7 +693,6 @@ vendor/lvm2/.success_retrieving_source:
 		tail -n1 | \
 		sed 's/^/v/'` 'https://sourceware.org/git/lvm2.git' \
 		vendor/lvm2
-	cd vendor/lvm2 && patch -p0 -i ../../patches/lvm2/mallinfo.patch
 	cd vendor/lvm2 && patch -p0 -i ../../patches/lvm2/fix-stdio.patch
 	# hack to fix bad imports looking for LOCK_EX
 	echo '#include <sys/file.h>' >> vendor/lvm2/lib/misc/lib.h
@@ -732,7 +738,7 @@ zstd: $(COMPLETED)/zstd
 vendor/zlib/.success_retrieving_source:
 	rm -rf vendor/zlib/
 	mkdir -p vendor/zlib
-	cd vendor/zlib && wget -O- 'http://zlib.net/zlib-1.2.12.tar.gz' | gunzip | tar xf -
+	cd vendor/zlib && wget -O- 'http://zlib.net/zlib-1.2.13.tar.gz' | gunzip | tar xf -
 	mv vendor/zlib/*/* vendor/zlib/
 	touch vendor/zlib/.success_retrieving_source
 $(COMPLETED)/zlib: vendor/zlib/.success_retrieving_source $(COMPLETED)/musl
@@ -761,7 +767,7 @@ $(COMPLETED)/xz: vendor/xz/.success_retrieving_source $(COMPLETED)/musl
 	rm -rf $(VENDOR)/xz
 	cp -r vendor/xz $(VENDOR)
 	cd $(VENDOR)/xz && \
-		./autogen.sh --no-po4a
+		./autogen.sh --no-po4a --no-doxygen
 	cd $(VENDOR)/xz && \
 		CFLAGS="-static" LDFLAGS="-static" ./configure --prefix=$(SUPPORT) --enable-static --disable-shared
 	cd $(VENDOR)/xz && $(MAKE) CC=$(MUSLCC) install prefix=$(SUPPORT)
@@ -787,7 +793,7 @@ $(SLASHBR)/libexec/kmod: vendor/kmod/.success_retrieving_source $(COMPLETED)/mus
 	rm -rf $(VENDOR)/kmod
 	cp -r vendor/kmod $(VENDOR)
 	cd $(VENDOR)/kmod && \
-		./autogen.sh --with-xz --with-zlib --with-zstd --prefix=$(SUPPORT) --includedir=$(SUPPORT)/include --libdir=$(SUPPORT)/lib --bindir=$(SUPPORT)/bin \
+		PATH="$(SUPPORT)/bin:${PATH}" ./autogen.sh --with-xz --with-zlib --with-zstd --prefix=$(SUPPORT) --includedir=$(SUPPORT)/include --libdir=$(SUPPORT)/lib --bindir=$(SUPPORT)/bin \
 			CC=$(MUSLCC) CCLD=$(MUSLCC) LD=$(MUSLCC) PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig && \
 		./configure --with-xz --with-zlib --with-zstd --prefix=$(SUPPORT) --includedir=$(SUPPORT)/include --libdir=$(SUPPORT)/lib --bindir=$(SUPPORT)/bin \
 			CC=$(MUSLCC) LDFLAGS="-L$(SUPPORT)/lib" PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig && \
@@ -885,7 +891,7 @@ $(BUILD)/userland.tar: \
 	rm -f $(SLASHBR)/strata/local
 	# ensure static
 	for bin in $(SLASHBR)/bin/* $(SLASHBR)/libexec/*; do \
-		if ldd "$$bin" >/dev/null 2>&1; then \
+		if ldd "$$bin" >/dev/null 2>&1 || ! ldd "$$bin" 2>&1 | grep -q "not a dynamic executable" ; then \
 			echo "error: $$bin is dynamically linked"; exit 1; \
 		fi; \
 	done
@@ -1156,7 +1162,7 @@ release-build-environment-aarch64 release-build-environment-armv7hl release-buil
 	[ $$(id -u) = 0 ]
 	if ! /bedrock/libexec/getfattr -d /bedrock/strata/brl-build-$(subst release-build-environment-,,$@) 2>/dev/null | grep -q user.bedrock.show_boot; then \
 		brl remove -d "brl-build-$(subst release-build-environment-,,$@)" 2>/dev/null || true; \
-		brl fetch -n "brl-build-$(subst release-build-environment-,,$@)" -a "$(subst release-build-environment-,,$@)" -s debian; \
+		brl fetch -n "brl-build-$(subst release-build-environment-,,$@)" -a "$(subst release-build-environment-,,$@)" -s debian -r buster; \
 		brl show -b "brl-build-$(subst release-build-environment-,,$@)"; \
 	fi
 	strat -r "brl-build-$(subst release-build-environment-,,$@)" apt -y install autoconf autopoint automake bison build-essential fakeroot gpg libtool meson ninja-build pkg-config rsync udev; \
@@ -1304,6 +1310,12 @@ release-aarch64: fetch_vendor_sources build/all/busybox/bedrock-config
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-gcc' \
 		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-ld' \
+		musl
+	cp /bedrock/strata/brl-build-cross-void/usr/aarch64-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/aarch64/support/lib/
+	strat -r brl-build-aarch64 make -j$(SUBJOBS) GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-ar' \
+		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-gcc' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-aarch64.sh
 release-armv7hl: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-armv7hl make -j$(SUBJOBS) GPGID='$(GPGID)' \
@@ -1318,13 +1330,13 @@ release-armv7l: fetch_vendor_sources build/all/busybox/bedrock-config
 		LD='/bedrock/strata/brl-build-cross-debian/usr/local/bin/brl-arm-linux-gnueabi-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-armv7l.sh
 release-i386: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i386 make -j$(SUBJOBS) GPGID='$(GPGID)' \
+	strat -r brl-build-i386 make -j$(SUBJOBS) GPGID='$(GPGID)' CFLAGS='$(CFLAGS) -fno-stack-protector' \
 		bedrock-linux-$(BEDROCK_VERSION)-i386.sh
 release-i486: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i486 make -j$(SUBJOBS) GPGID='$(GPGID)' \
+	strat -r brl-build-i486 make -j$(SUBJOBS) GPGID='$(GPGID)' CFLAGS='$(CFLAGS) -fno-stack-protector' \
 		bedrock-linux-$(BEDROCK_VERSION)-i486.sh
 release-i586: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-i586 make -j$(SUBJOBS) GPGID='$(GPGID)' \
+	strat -r brl-build-i586 make -j$(SUBJOBS) GPGID='$(GPGID)' CFLAGS='$(CFLAGS) -fno-stack-protector' \
 		bedrock-linux-$(BEDROCK_VERSION)-i586.sh
 release-i686: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-i686 make -j$(SUBJOBS) GPGID='$(GPGID)' \
@@ -1334,8 +1346,20 @@ release-mips: fetch_vendor_sources build/all/busybox/bedrock-config
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-gcc' \
 		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-ld' \
+		musl
+	cp /bedrock/strata/brl-build-cross-void/usr/mips-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/mips/support/lib/
+	strat -r brl-build-mips make -j$(SUBJOBS) GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-ar' \
+		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-gcc' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-mips.sh
 release-mipsel: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-mipsel make -j$(SUBJOBS) GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ar' \
+		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-gcc' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ld' \
+		musl
+	cp /bedrock/strata/brl-build-cross-void/usr/mipsel-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/mipsel/support/lib/
 	strat -r brl-build-mipsel make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-gcc' \
@@ -1352,14 +1376,32 @@ release-ppc: fetch_vendor_sources build/all/busybox/bedrock-config
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-gcc' \
 		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-gcc' \
+		musl
+	cp /bedrock/strata/brl-build-cross-void/usr/powerpc-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/ppc/support/lib/
+	strat -r brl-build-ppc make -j$(SUBJOBS) GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-ar' \
+		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-gcc' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-gcc' \
 		bedrock-linux-$(BEDROCK_VERSION)-ppc.sh
 release-ppc64: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-ppc64 make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-gcc' \
 		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-gcc' \
+		musl
+	cp /bedrock/strata/brl-build-cross-void/usr/powerpc64-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/ppc64/support/lib/
+	strat -r brl-build-ppc64 make -j$(SUBJOBS) GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-ar' \
+		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-gcc' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-gcc' \
 		bedrock-linux-$(BEDROCK_VERSION)-ppc64.sh
 release-ppc64le: fetch_vendor_sources build/all/busybox/bedrock-config
+	strat -r brl-build-ppc64le make -j$(SUBJOBS) GPGID='$(GPGID)' \
+		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64le-linux-musl-ar' \
+		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64le-linux-musl-gcc' \
+		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64le-linux-musl-ld' \
+		musl
+	cp /bedrock/strata/brl-build-cross-void/usr/powerpc64le-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/ppc64le/support/lib/
 	strat -r brl-build-ppc64le make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64le-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64le-linux-musl-gcc' \

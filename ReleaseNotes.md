@@ -1,3 +1,17 @@
+# 0.7.29beta2
+
+- Fix setcap linkage
+- Improve build system dynamic link detection
+
+# 0.7.29beta1
+
+- Build system updates
+- Fixed brl-fetch Arch
+- Fixed brl-fetch Artix
+- Fixed brl-fetch Exherbo
+- Fixed brl-fetch Fedora
+- Various dependency updates
+
 # 0.7.28
 
 - Improved brl-fetch handling of GPT and multi-partition images
