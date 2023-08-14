@@ -14,3 +14,12 @@
 if command -v systemctl >/dev/null 2>&1 && [ "$(systemctl --version | awk '{print$2;exit}')" -lt 245 ]; then
 	umount -l /etc /bedrock/strata/*/etc /bedrock/cross /bedrock/strata/*/bedrock/cross
 fi
+
+# Some systemd version circa systemd 254 in 2023 was found to have difficulty
+# unmounting some mount points within the bedrock stratum for some users.
+# Specifics were difficult to nail down.  Unmount everything in the bedrock
+# stratum en mass as a work-around.
+for m in $(awk '{print$2}' /proc/mounts | grep '^/bedrock/strata/bedrock/' | sort -r); do
+	mount --make-private "${m}"
+	umount -l "${m}"
+done

@@ -1,3 +1,7 @@
+# 0.7.29beta3
+
+- Work-around systemd shutdown freeze
+
 # 0.7.29beta2
 
 - Fix setcap linkage
