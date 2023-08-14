@@ -1,3 +1,7 @@
+# 0.7.29beta4
+
+- Tweak systemd shutdown freeze work-around
+
 # 0.7.29beta3
 
 - Work-around systemd shutdown freeze

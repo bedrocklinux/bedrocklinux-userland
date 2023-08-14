@@ -19,7 +19,7 @@ fi
 # unmounting some mount points within the bedrock stratum for some users.
 # Specifics were difficult to nail down.  Unmount everything in the bedrock
 # stratum en mass as a work-around.
-for m in $(awk '{print$2}' /proc/mounts | grep '^/bedrock/strata/bedrock/' | sort -r); do
+for m in $(awk '{print$2}' /proc/mounts | grep '^/bedrock/strata/bedrock/'); do
 	mount --make-private "${m}"
 	umount -l "${m}"
 done
