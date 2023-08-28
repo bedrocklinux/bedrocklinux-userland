@@ -1,24 +1,13 @@
-# 0.7.29beta4
-
-- Tweak systemd shutdown freeze work-around
-
-# 0.7.29beta3
-
-- Work-around systemd shutdown freeze
-
-# 0.7.29beta2
-
-- Fix setcap linkage
-- Improve build system dynamic link detection
-
-# 0.7.29beta1
+# 0.7.29
 
 - Build system updates
 - Fixed brl-fetch Arch
 - Fixed brl-fetch Artix
 - Fixed brl-fetch Exherbo
 - Fixed brl-fetch Fedora
+- Improve build system dynamic link detection
 - Various dependency updates
+- Work-around systemd shutdown freeze
 
 # 0.7.28
 
