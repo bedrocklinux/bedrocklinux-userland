@@ -1,0 +1,75 @@
+#!/bedrock/libexec/busybox sh
+#
+# Chimera Linux bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	false
+}
+
+speed_test_url() {
+	echo "current/main/${distro_arch}/APKINDEX.tar.gz"
+}
+
+list_mirrors() {
+	echo 'https://repo.chimera-linux.org/'
+}
+
+brl_arch_to_distro() {
+	case "${1}" in
+	"aarch64") echo "aarch64" ;;
+	"ppc64le") echo "ppc64le" ;;
+	"ppc64" ) echo "ppc64" ;;
+	"x86_64") echo "x86_64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+	esac
+}
+
+list_architectures() {
+	cat <<EOF
+	aarch64
+	ppc64le
+	ppc64
+	x86_64
+EOF
+}
+
+default_release() {
+	echo "rolling"
+}
+
+list_releases() {
+	echo "rolling"
+}
+
+fetch() {
+	step "Downloading bootstrap software"
+	url="$(find_link "${target_mirror}/apk/" "^apk-${distro_arch}.*.static")"
+	download "${url}" "${bootstrap_dir}/apk-tools-static.apk"
+	
+	step "Preparing bootstrap software"
+	mv "${bootstrap_dir}/apk-tools-static.apk" "${bootstrap_dir}/apk"
+	chmod a+rx "${bootstrap_dir}/apk"
+	mkdir -p "${target_dir}/etc/apk/"
+
+	step "Running bootstrap software"
+	setup_chroot "${bootstrap_dir}"
+	setup_ssl "${bootstrap_dir}"
+	set +o pipefail
+	yes "" | LC_ALL=C chroot "${bootstrap_dir}" /apk -X "${target_mirror}/current/main" -U --allow-untrusted --root "/target-root" --initdb add base-minimal
+	set -o pipefail
+	
+	step "Configuring"
+	setup_chroot "${target_dir}"
+}
+
