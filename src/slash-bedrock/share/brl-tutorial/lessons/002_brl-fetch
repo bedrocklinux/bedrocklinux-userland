@@ -193,8 +193,8 @@ is appropriate.
 "
 
 section "Clean up" "
-This tutorial created a number of ${strata} which you are no longer need after
-the tutorial.  Clean those up to complete the tutorial:
+This tutorial created a number of ${strata} which you likely no longer need.  
+Clean those up to complete the tutorial:
 
 $(rcmd brl disable tut-alpine tut-alpine2 tut-edge tut-debian tut-${non_native_isa})
 $(rcmd brl remove tut-alpine tut-alpine2 tut-edge tut-debian tut-${non_native_isa})
