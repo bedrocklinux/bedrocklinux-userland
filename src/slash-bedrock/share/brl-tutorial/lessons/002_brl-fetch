@@ -30,7 +30,7 @@ $(standard_intro)
 "
 
 section "Listing distro options" "
-To see the of supported distros ${brl_fetch} can acquire, run it with the
+To see the list of supported distros ${brl_fetch} can acquire, run it with the
 $(flag -L) or $(flag --list) flag:
 
 $(cmd "brl fetch -L")
