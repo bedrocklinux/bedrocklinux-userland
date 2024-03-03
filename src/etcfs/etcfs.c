@@ -1812,7 +1812,7 @@ static int m_statfs(const char *path, struct statvfs *stbuf)
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDONLY | O_NOFOLLOW | O_DIRECTORY);
+	int fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDONLY | O_NOFOLLOW);
 
 	if (fd >= 0) {
 		rv = fstatvfs(fd, stbuf);
