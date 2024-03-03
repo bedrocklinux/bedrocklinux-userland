@@ -22,10 +22,9 @@ speed_test_url() {
 }
 
 list_mirrors() {
-	mirror_list_url='https://docs.voidlinux.org/xbps/repositories/mirrors/index.html'
-	download -q "${mirror_list_url}" - |
-		awk '/Tier 1 mirrors are/,/<\/table>/' |
-		list_links
+	# https://docs.voidlinux.org/xbps/repositories/mirrors/index.html
+	# > A fresh install will default to repo-default.voidlinux.org, which may map to any Tier 1 mirror
+	echo 'https://repo-default.voidlinux.org/'
 }
 
 brl_arch_to_distro() {
