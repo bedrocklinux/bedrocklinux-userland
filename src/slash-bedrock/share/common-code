@@ -1396,7 +1396,7 @@ cfg_crossfs() {
 	localfpath=''
 	for s in $(/bedrock/bin/brl list); do
 		if [ -r "/bedrock/strata/${s}/etc/profile" ]; then
-			out="$(/bedrock/bin/strat -r "${s}" /bin/sh -c '. /etc/profile ; env' 2>/dev/null)"
+			out="$(/bedrock/bin/strat -r "${s}" /bin/sh -c '. /etc/profile ; env' 2>/dev/null)" || true
 		else
 			out=""
 		fi
