@@ -2028,7 +2028,7 @@ static int m_listxattr(const char *path, char *list, size_t size)
 	FS_IMP_SETUP(path);
 	DISALLOW_ON_CFG(rpath);
 
-	int fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDWR | O_NOFOLLOW);
+	int fd = openat(ref_fd, rpath, O_NONBLOCK | O_RDONLY | O_NOFOLLOW);
 	if (fd >= 0) {
 		char buf[PATH_MAX];
 		if (procpath(fd, buf, sizeof(buf)) < 0) {
