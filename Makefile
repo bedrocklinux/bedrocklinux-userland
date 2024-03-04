@@ -267,7 +267,7 @@ $(COMPLETED)/musl: vendor/musl/.success_fetching_source $(COMPLETED)/builddir $(
 	rm -rf $(VENDOR)/musl
 	cp -r vendor/musl $(VENDOR)
 	cd $(VENDOR)/musl/ && \
-		./configure --prefix=$(SUPPORT) --enable-static --enable-gcc-wrapper && \
+		./configure --prefix=$(SUPPORT) --enable-static --enable-gcc-wrapper --disable-shared && \
 		$(MAKE) && \
 		$(MAKE) install
 	if ! [ -e $(SUPPORT)/lib64 ]; then \
