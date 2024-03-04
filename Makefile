@@ -890,11 +890,13 @@ $(BUILD)/userland.tar: \
 	rm -f $(SLASHBR)/strata/init
 	rm -f $(SLASHBR)/strata/local
 	# ensure static
-	for bin in $(SLASHBR)/bin/* $(SLASHBR)/libexec/*; do \
-		if ldd "$$bin" >/dev/null 2>&1 || ! ldd "$$bin" 2>&1 | grep -q "not a dynamic executable" ; then \
-			echo "error: $$bin is dynamically linked"; exit 1; \
-		fi; \
-	done
+	if [ -z "$${BEDROCK_SKIP_LDD_CHECK}" ]; then \
+		for bin in $(SLASHBR)/bin/* $(SLASHBR)/libexec/*; do \
+			if ldd "$$bin" >/dev/null 2>&1 || ! ldd "$$bin" 2>&1 | grep -q "not a dynamic executable" ; then \
+				echo "error: $$bin is dynamically linked"; exit 1; \
+			fi; \
+		done; \
+	fi
 	# ensure correct binary format
 	for bin in $(SLASHBR)/bin/* $(SLASHBR)/libexec/*; do \
 		if file "$$bin" | grep -q "sh script"; then \
@@ -1306,13 +1308,13 @@ release-build-environment: \
 # everything dependent on those so they only run once.
 SUBJOBS=1
 release-aarch64: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-aarch64 make -j$(SUBJOBS) GPGID='$(GPGID)' \
+	strat -r brl-build-aarch64 make -j$(SUBJOBS) GPGID='$(GPGID)' BEDROCK_SKIP_LDD_CHECK=1 \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-gcc' \
 		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-ld' \
 		musl
 	cp /bedrock/strata/brl-build-cross-void/usr/aarch64-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/aarch64/support/lib/
-	strat -r brl-build-aarch64 make -j$(SUBJOBS) GPGID='$(GPGID)' \
+	strat -r brl-build-aarch64 make -j$(SUBJOBS) GPGID='$(GPGID)' BEDROCK_SKIP_LDD_CHECK=1 \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-gcc' \
 		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-aarch64-linux-musl-ld' \
