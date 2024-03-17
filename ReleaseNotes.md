@@ -1,3 +1,10 @@
+# 0.7.30beta1
+
+- Fixed brl-fetch Void
+- Fixed etcfs listxattr read-only requests
+- Fixed etcfs statfs on non-directories
+- Fixed handling of missing/erroring /etc/profiles
+
 # 0.7.29
 
 - Build system updates
