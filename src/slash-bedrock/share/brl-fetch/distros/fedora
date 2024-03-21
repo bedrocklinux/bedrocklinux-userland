@@ -17,8 +17,17 @@ check_supported() {
 	true
 }
 
+set_url_type() {
+	if ! list_development | awk -v"x=${target_release}" '$0 == x {exit 1}'; then
+		url_type="development"
+	else
+		url_type="releases"
+	fi
+}
+
 speed_test_url() {
-	echo "releases/${target_release}/Everything/${distro_arch}/os/repodata/repomd.xml"
+	set_url_type
+	echo "${url_type}/${target_release}/Everything/${distro_arch}/os/repodata/repomd.xml"
 }
 
 list_mirrors() {
@@ -53,17 +62,30 @@ EOF
 }
 
 default_release() {
-	list_releases |
+	list_release |
 		sort -n |
 		tail -n1
 }
 
 list_releases() {
+	(
+		list_release
+		list_development
+	) | sort -n
+}
+
+list_release() {
 	download -q 'https://dl.fedoraproject.org/pub/fedora/linux/releases/' - |
 		list_links |
 		grep '^[0-9][0-9]*/$' |
-		sed 's,/$,,' |
-		sort -n
+		sed 's,/$,,'
+}
+
+list_development() {
+	download -q 'https://dl.fedoraproject.org/pub/fedora/linux/development/' - |
+	list_links |
+	sed 's,/$,,' |
+	grep -v "/"
 }
 
 determine_package_manager() {
@@ -78,8 +100,10 @@ bootstrap_deps() {
 	echo "${package_manager} rpm fedora-release filesystem fedora-gpg-keys"
 }
 
-fetch() {
-	suffix="releases/${target_release}/Everything/${distro_arch}/os"
+fetch() {	
+	set_url_type
+	
+	suffix="${url_type}/${target_release}/Everything/${distro_arch}/os"
 
 	step "Downloading package information database"
 	url="$(find_link "${target_mirror}/${suffix}/repodata/" "primary.xml.gz")"
@@ -152,7 +176,7 @@ fetch() {
 	fi
 
 	LC_ALL=C chroot "${bootstrap_dir}" rpm -i --root=/target-root --nodeps ./packages/fedora-release-*.rpm 2>/dev/null || true
-	LC_ALL=C chroot "${bootstrap_dir}" "${package_manager}" --installroot=/target-root install -y rpm-build "${package_manager}" fedora-repos
+	LC_ALL=C chroot "${bootstrap_dir}" "${package_manager}" --installroot=/target-root install -y rpm-build "${package_manager}" fedora-repos --releasever ${target_release}
 	# Need to set database timestamps for pmm due to `dnf -C` usage
 	umount -l "${bootstrap_dir}/var/cache/dnf" >/dev/null 2>&1 || true
 	umount -l "${bootstrap_dir}/var/cache/yum" >/dev/null 2>&1 || true
