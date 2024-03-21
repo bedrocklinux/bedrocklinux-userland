@@ -88,6 +88,7 @@ case "${words[2]}" in
 		args+=('(-f --file)'{-f,--file}'[which stratum provides a given file path]')
 		args+=('(-p --pid)'{-p,--pid}'[which stratum provides a given process ID]')
 		args+=('(-x --xwindow)'{-x,--xwindow}'[which stratum provides a given X11 window]')
+		args+=('(-a --all)'{-a,--all}'[search in all strata (files and binaries only)]')
 	fi
 	case "${words[3]}" in
 	"-c"|"--current")
