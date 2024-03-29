@@ -131,7 +131,7 @@
 #
 #     make check
 
-BEDROCK_VERSION=0.7.30beta1
+BEDROCK_VERSION=0.7.30beta2
 CODENAME=Poki
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | awk 'NR==2')
@@ -750,18 +750,18 @@ $(COMPLETED)/zlib: vendor/zlib/.success_retrieving_source $(COMPLETED)/musl
 	touch $(COMPLETED)/zlib
 zlib: $(COMPLETED)/zlib
 
+# Hard code v5.4.6 until xz CVE is resolved
+# https://nvd.nist.gov/vuln/detail/CVE-2024-3094
+# https://www.openwall.com/lists/musl/2022/08/23/5
 vendor/xz/.success_retrieving_source:
 	rm -rf vendor/xz/
 	mkdir -p vendor/xz
 	git clone \
-		-b `git ls-remote --tags 'https://git.tukaani.org/xz.git' | \
-		awk -F/ '{print $$NF}' | \
-		sed -e 's/^v//g' | \
-		grep '^[0-9.]*$$' | \
-		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
-		tail -n1 | \
-		sed -e 's/^/v/'` 'https://git.tukaani.org/xz.git' \
+		-b v5.4.6 \
+		'https://git.tukaani.org/xz.git' \
 		vendor/xz
+	# sanity check branch is expected commit
+	cd vendor/xz/ && git show | head -n1 | grep -q 'commit 6e8732c5a317a349986a4078718f1d95b67072c5'
 	touch vendor/xz/.success_retrieving_source
 $(COMPLETED)/xz: vendor/xz/.success_retrieving_source $(COMPLETED)/musl
 	rm -rf $(VENDOR)/xz
