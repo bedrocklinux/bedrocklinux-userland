@@ -1,10 +1,4 @@
-# 0.7.30beta2
-
-- Revert xz version to 5.4.6
-    - See https://nvd.nist.gov/vuln/detail/CVE-2024-3094
-    - Note beta1 build with 5.6.1 used git, not tarball, and was unaffected.  This is an unlikely unnecessary precaution.
-
-# 0.7.30beta1
+# 0.7.30
 
 - Fixed brl-fetch Void
 - Fixed etcfs listxattr read-only requests
