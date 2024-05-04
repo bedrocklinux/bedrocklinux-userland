@@ -700,6 +700,15 @@ rpmdb_to_brldb() {
 			print "x"
 		}
 	' "${2}/flattened" | progress_bar 100
+
+	# brldb was initially designed assuming repos will only contain one
+	# version of a given package, which is not actually the case.  Naively
+	# assume we always want the latest version.  Do this by inverse sorting
+	# paths so newest package versions show up first.
+	for pathfile in "${2}/paths"/*; do
+		cat "${pathfile}" | sort -rn > "${pathfile}-new"
+		mv "${pathfile}-new" "${pathfile}"
+	done
 }
 
 pacmandb_to_brldb() {

@@ -32,16 +32,21 @@ speed_test_url() {
 list_mirrors() {
 	if [ "$(echo "${target_release}" | sed 's/-[a-z]*$//')" -lt 8 ]; then
 		repo="os"
-	else
+		list="$(download -q "http://mirrorlist.centos.org/?release=${target_release}&arch=${distro_arch}&repo=${repo}" -)"
+	elif [ "$(echo "${target_release}" | sed 's/-[a-z]*$//')" -lt 9 ]; then
 		repo="BaseOS"
+		list="$(download -q "http://mirrorlist.centos.org/?release=${target_release}&arch=${distro_arch}&repo=${repo}" -)"
+	else
+		list="$(download -q "https://mirrors.centos.org/metalink?repo=centos-baseos-${target_release}&arch=${distro_arch}&protocol=https" -)"
+		# Strip XML
+		list="$(echo "${list}" | awk -F'[<>]' '/url protocol=/{print$3}')"
+		# strip post-8-stream suffix
+		list="$(echo "${list}" | sed 's,/repodata/repomd.xml,,')"
 	fi
-
-	#
-	# The API hit below will return mirrors with a repository suffix.
+	# The API will return mirrors with a predictable repository suffix.
 	# However, user-provided mirrors will most likely not include such a
 	# suffix.  To enforce uniformity, strip the repository suffix.
-	#
-	download -q "http://mirrorlist.centos.org/?release=${target_release}&arch=${distro_arch}&repo=${repo}" - |
+	echo "${list}" |
 		awk -vsuffix="$(get_mirror_suffix)" '{
 			sl=length(suffix)
 			ml=length($0)
@@ -49,6 +54,7 @@ list_mirrors() {
 			sub(/[0-9.]*$/,"")
 			print
 		}'
+
 }
 
 brl_arch_to_distro() {
@@ -80,14 +86,17 @@ default_release() {
 }
 
 list_releases() {
-	for mirror in "${flag_mirror}" "http://mirror.centos.org/centos/"; do
-		if download -q "${mirror}" - |
-			list_links |
-			grep '^[0-9][0-9a-z-]*/$' |
-			sed 's,/$,,'; then
-			break
-		fi
-	done
+	if [ -n "${flag_mirror}" ]; then
+		page="$(download -q "${mirror}" -)"
+	else
+		page="$(download -q "http://mirror.centos.org/centos/" -)"
+		page="${page}\n$(download -q "https://mirror.stream.centos.org/" -)"
+	fi
+	echo "${page}" |
+		list_links |
+		grep '^[0-9][0-9a-z-]*/$' |
+		sed 's,/$,,' |
+		sort -n
 }
 
 determine_package_manager() {
@@ -153,7 +162,7 @@ fetch() {
 	share_cache "packages" "${bootstrap_dir}/packages"
 	bootstrap_packages="$(awk -v"d=/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
 	# shellcheck disable=SC2086
-	LC_ALL=C chroot "${bootstrap_dir}" sh -c 'rpm --import /etc/pki/rpm-gpg/*'
+	LC_ALL=C chroot "${bootstrap_dir}" sh -c 'rpm --import /etc/pki/rpm-gpg/*' || true # allow failing on unsupported hashing algorithms
 	LC_ALL=C chroot "${bootstrap_dir}" rpm -i ${bootstrap_packages}
 
 	step "Running bootstrap software"
