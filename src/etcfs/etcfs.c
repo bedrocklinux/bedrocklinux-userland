@@ -1963,13 +1963,9 @@ static int m_getxattr(const char *path, const char *name, char *value, size_t si
 		 * - If it's a bad symlink, such as one that is EINVAL, ELOOP,
 		 *   or ENAMETOOLONG.
 		 *
-		 * Most users do not use xattrs, and thus our best guess in
-		 * these scenarios is that the proper return value is probably
-		 * ENODATA.  Until we have a better solution, use ENODATA.
+		 * All of these are valid for getxattr() and we should return
+		 * them as-is.
 		 */
-		if (errno == EACCES || errno == EINVAL || errno == ELOOP || errno == ENAMETOOLONG) {
-			errno = ENODATA;
-		}
 		rv = -1;
 	} else if (strcmp(STRATUM_XATTR, name) == 0 && ref_fd == global_ref_fd) {
 		if (size <= 0) {
