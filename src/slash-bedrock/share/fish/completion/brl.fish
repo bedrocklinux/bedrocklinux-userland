@@ -83,6 +83,8 @@ complete -f -c brl -n '_brl_arg_is 2 which; and _brl_argnum 2' -o 'p' -d 'which 
 complete -f -c brl -n '_brl_arg_is 2 which; and _brl_argnum 2' -l 'pid' -d 'which stratum provides a given process ID'
 complete -f -c brl -n '_brl_arg_is 2 which; and _brl_argnum 2' -o 'x' -d 'which stratum provides a given process ID'
 complete -f -c brl -n '_brl_arg_is 2 which; and _brl_argnum 2' -l 'xwindow' -d 'which stratum provides a given X11 window'
+complete -f -c brl -n '_brl_arg_is 2 which; and _brl_argnum 2' -o 'a' -d 'search in all strata (files and binaries only)'
+complete -f -c brl -n '_brl_arg_is 2 which; and _brl_argnum 2' -l 'all' -d 'search in all strata (files and binaries only)'
 complete -f -c brl -n '_brl_arg_is 2 which; and _brl_arg_is 3 -b' -a '(_brl_which_bin)' -d 'binary'
 complete -f -c brl -n '_brl_arg_is 2 which; and _brl_arg_is 3 --bin' -a '(_brl_which_bin)' -d 'binary'
 complete -f -c brl -n '_brl_arg_is 2 which; and _brl_arg_is 3 -f' -a '(__fish_complete_path)' -d 'file'
