@@ -17,12 +17,15 @@
 #define _GNU_SOURCE
 
 #include <errno.h>
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/capability.h>
+#include <sys/mount.h>
 #include <sys/param.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/xattr.h>
 #include <unistd.h>
 
@@ -41,6 +44,11 @@
 #undef MIN
 #endif
 #define MIN(x, y) (x < y ? x : y)
+
+enum root_mode {
+	root_mode_chroot,
+	root_mode_namespace,
+};
 
 /*
  * Check if this process has the proper CAP_SYS_CHROOT properties.
@@ -79,11 +87,12 @@ int check_capsyschroot(void)
 }
 
 void parse_args(int argc, char *argv[], int *flag_help, int *flag_restrict,
-	int *flag_unrestrict, char **param_stratum, char **param_arg0, char ***param_arglist)
+	int *flag_unrestrict, int *flag_namespace, char **param_stratum, char **param_arg0, char ***param_arglist)
 {
 	*flag_help = 0;
 	*flag_restrict = 0;
 	*flag_unrestrict = 0;
+	*flag_namespace = 0;
 	*param_stratum = NULL;
 	*param_arg0 = NULL;
 	*param_arglist = NULL;
@@ -101,6 +110,10 @@ void parse_args(int argc, char *argv[], int *flag_help, int *flag_restrict,
 			argc--;
 		} else if (argc > 0 && (strcmp(argv[0], "-u") == 0 || strcmp(argv[0], "--unrestrict") == 0)) {
 			*flag_unrestrict = 1;
+			argv++;
+			argc--;
+		} else if (argc > 0 && (strcmp(argv[0], "-n") == 0 || strcmp(argv[0], "--namespace") == 0)) {
+			*flag_namespace = 1;
 			argv++;
 			argc--;
 		} else if (argc > 1 && (strcmp(argv[0], "-a") == 0 || strcmp(argv[0], "--arg0") == 0)) {
@@ -132,6 +145,7 @@ void print_help(void)
 		"Options:\n"
 		"  -r, --restrict    disable cross-stratum hooks\n"
 		"  -u, --unrestrict  do not disable cross-stratum hooks\n"
+		"  -n, --namespace   make a new mount namespace with the new stratum at the root, instead of using chroot\n"
 		"  -a, --arg0 <ARG0> specify arg0\n"
 		"  -h, --help        print this message\n"
 		"\n"
@@ -375,6 +389,69 @@ int chroot_to_stratum(char *stratum_path)
 	return chroot(".");
 }
 
+int pivot_root_to_stratum(char *stratum_path, char *current_stratum)
+{
+	/*
+	 * This moves around mounts in the namespace, ultimately making it
+	 * look like the stratum we are switching to was the init stratum.
+	 *
+	 * This was originally written as a shell script. The shell commands
+	 * are preserved here as comments.
+	 */
+
+	char src_buf[strlen(stratum_path) + strlen("/bedrock/strata/") + strlen(current_stratum) + 1];
+	char dst_buf[strlen(stratum_path) + strlen("/bedrock/strata/") + strlen(current_stratum) + 1];
+
+	/* unshare --mount */
+	if (unshare(CLONE_NEWNS) != 0) {
+		perror("unshare(CLONE_NEWNS)");
+		return -1;
+	}
+	if (mount(NULL, "/", NULL, MS_PRIVATE | MS_REC, NULL) != 0) {
+		perror("mount(/, MS_PRIVATE | MS_REC)");
+		return -1;
+	}
+
+	/* pivot_root /bedrock/strata/${to} /bedrock/strata/${to}/bedrock/strata/${from} */
+	sprintf(dst_buf, "%s/bedrock/strata/%s", stratum_path, current_stratum);
+	if (syscall(SYS_pivot_root, stratum_path, dst_buf) != 0) {
+		perror("pivot_root");
+		return -1;
+	}
+
+	/* mount --move /bedrock/strata/${from}/bedrock /tmp */
+	sprintf(src_buf, "/bedrock/strata/%s/bedrock", current_stratum);
+	sprintf(dst_buf, "/tmp");
+	if (mount(src_buf, dst_buf, NULL, MS_MOVE, NULL) != 0) {
+		perror("move /bedrock/strata/current/bedrock -> /tmp");
+		return -1;
+	}
+
+	/* mount --move /bedrock/strata/${from} /tmp/strata/${from} */
+	sprintf(src_buf, "/bedrock/strata/%s", current_stratum);
+	sprintf(dst_buf, "/tmp/strata/%s", current_stratum);
+	if (mount(src_buf, dst_buf, NULL, MS_MOVE, NULL) != 0) {
+		perror("move /bedrock/strata/current -> /tmp/strata/current");
+		return -1;
+	}
+
+	/* mount --move /bedrock /tmp/strata/${from}/bedrock */
+	sprintf(src_buf, "/bedrock");
+	sprintf(dst_buf, "/tmp/strata/%s/bedrock", current_stratum);
+	if (mount(src_buf, dst_buf, NULL, MS_MOVE, NULL) != 0) {
+		perror("move /bedrock -> /tmp/strata/current/bedrock");
+		return -1;
+	}
+
+	/* mount --move /tmp /bedrock */
+	if (mount("/tmp", "/bedrock", NULL, MS_MOVE, NULL) != 0) {
+		perror("move /tmp -> /bedrock");
+		return -1;
+	}
+
+	return 0;
+}
+
 /*
  * Like execvp(), but skips certain $PATH entries
  */
@@ -437,7 +514,7 @@ void execv_skip(char *file, char *argv[], char *skip)
 	return;
 }
 
-int switch_stratum(const char *alias)
+int switch_stratum(const char *alias, enum root_mode mode)
 {
 	/*
 	 * local alias indicates no stratum change is needed.  Hard code this
@@ -530,9 +607,20 @@ int switch_stratum(const char *alias)
 	strcpy(stratum_path, STRATA_ROOT);
 	strcat(stratum_path, stratum);
 
-	if (chroot_to_stratum(stratum_path) < 0) {
-		fprintf(stderr, "strat: unable chroot() to %s\n", stratum_path);
-		return -1;
+	switch (mode) {
+	case root_mode_chroot:
+		if (chroot_to_stratum(stratum_path) < 0) {
+			fprintf(stderr, "strat: unable chroot() to %s\n", stratum_path);
+			return -1;
+		}
+		break;
+
+	case root_mode_namespace:
+		if (pivot_root_to_stratum(stratum_path, current_stratum) < 0) {
+			fprintf(stderr, "strat: unable to create namespace for stratum %s\n", stratum);
+			return -1;
+		}
+		break;
 	}
 
 	/*
@@ -564,11 +652,12 @@ int main(int argc, char *argv[])
 	int flag_help;
 	int flag_restrict;
 	int flag_unrestrict;
+	int flag_namespace;
 	char *param_stratum;
 	char *param_arg0;
 	char **param_arglist;
 	parse_args(argc, argv, &flag_help, &flag_restrict, &flag_unrestrict,
-		&param_stratum, &param_arg0, &param_arglist);
+		&flag_namespace, &param_stratum, &param_arg0, &param_arglist);
 
 	if (flag_help) {
 		print_help();
@@ -585,7 +674,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	if (switch_stratum(param_stratum) < 0) {
+	if (switch_stratum(param_stratum, flag_namespace) < 0) {
 		return 1;
 	}
 
