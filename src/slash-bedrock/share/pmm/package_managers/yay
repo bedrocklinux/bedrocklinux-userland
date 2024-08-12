@@ -159,7 +159,7 @@ implementations["yay", "print-package-version"]              = "${unprivileged_u
 		}'"
 implementations["yay", "cache-package-db"]                   = "${unprivileged_user} strat -r ${stratum} yay -Sl |\
 	awk '$3 == \"unknown-version\" {\
-		print $2\"\t0\"\
+		print $2\"\t0\";\
 		next\
 	}\
 	{\
