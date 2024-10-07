@@ -1,3 +1,9 @@
+# 0.7.31beta2
+
+- Fixed brl-fetch arch
+- Fixed brl-fetch void-musl
+- Deprecate big-endian 32-bit mips
+
 # 0.7.31beta1
 
 - Fixed brl-fetch centos -r 9-stream
