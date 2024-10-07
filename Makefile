@@ -1110,14 +1110,12 @@ release-build-environment-cross-void:
 	fi
 	strat -r brl-build-cross-void xbps-install -y \
 		cross-aarch64-linux-musl \
-		cross-mips-linux-musl \
 		cross-mipsel-linux-musl \
 		cross-powerpc-linux-musl \
 		cross-powerpc64-linux-musl \
 		cross-powerpc64le-linux-musl
 	for target in \
 			aarch64-linux-musl \
-			mips-linux-musl \
 			mipsel-linux-musl \
 			powerpc-linux-musl \
 			powerpc64-linux-musl \
@@ -1160,14 +1158,14 @@ release-build-environment-cross-debian:
 		done; \
 	done
 
-release-build-environment-aarch64 release-build-environment-armv7hl release-build-environment-armv7l release-build-environment-i686 release-build-environment-mips release-build-environment-mipsel  release-build-environment-mips64el release-build-environment-ppc64le release-build-environment-s390x release-build-environment-x86_64:
+release-build-environment-aarch64 release-build-environment-armv7hl release-build-environment-armv7l release-build-environment-i686 release-build-environment-mipsel  release-build-environment-mips64el release-build-environment-ppc64le release-build-environment-s390x release-build-environment-x86_64:
 	[ $$(id -u) = 0 ]
 	if ! /bedrock/libexec/getfattr -d /bedrock/strata/brl-build-$(subst release-build-environment-,,$@) 2>/dev/null | grep -q user.bedrock.show_boot; then \
 		brl remove -d "brl-build-$(subst release-build-environment-,,$@)" 2>/dev/null || true; \
-		brl fetch -n "brl-build-$(subst release-build-environment-,,$@)" -a "$(subst release-build-environment-,,$@)" -s debian -r buster; \
+		brl fetch -n "brl-build-$(subst release-build-environment-,,$@)" -a "$(subst release-build-environment-,,$@)" -s debian; \
 		brl show -b "brl-build-$(subst release-build-environment-,,$@)"; \
 	fi
-	strat -r "brl-build-$(subst release-build-environment-,,$@)" apt -y install autoconf autopoint automake bison build-essential fakeroot gpg libtool meson ninja-build pkg-config rsync udev; \
+	strat -r "brl-build-$(subst release-build-environment-,,$@)" apt -y install autoconf autopoint automake bison build-essential fakeroot flex gpg libtool meson ninja-build pkg-config rsync udev; \
 
 release-build-environment-i486 release-build-environment-ppc release-build-environment-ppc64:
 	[ $$(id -u) = 0 ]
@@ -1181,9 +1179,9 @@ release-build-environment-i486 release-build-environment-ppc release-build-envir
 	if ! grep -q 'FEATURES="-pid-sandbox -network-sandbox -ipc-sandbox"' /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf; then \
 		echo 'FEATURES="-pid-sandbox -network-sandbox -ipc-sandbox"' >> /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf; \
 	fi
-	for pkg in dev-util/meson dev-util/ninja fakeroot; do \
+	for pkg in meson dev-ninja fakeroot; do \
 		if ! grep -q "$${pkg}" /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/var/lib/portage/world; then \
-			strat -r brl-build-$(subst release-build-environment-,,$@) emerge "$${pkg}"; \
+			strat -r brl-build-$(subst release-build-environment-,,$@) sh -c ". /etc/profile && emerge \"$${pkg}\""; \
 		fi; \
 	done
 	strat -r brl-build-$(subst release-build-environment-,,$@) libtool --finish /usr/lib; \
@@ -1208,8 +1206,9 @@ release-build-environment-i386 release-build-environment-i586:
 		echo 'FEATURES="-pid-sandbox -network-sandbox -ipc-sandbox"' >> /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf; \
 	fi
 	# i386 and i486 both need -latomic
+	# maybe i586 too?
 	# https://stackoverflow.com/questions/35884832/compile-error-undefined-reference-to-atomic-fetch-add-4/47498167#47498167
-	if echo $@ | grep -q -e i386 -e i486 && ! grep -q -- "-latomic" /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf; then \
+	if ! grep -q -- "-latomic" /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf; then \
 		sed "s/COMMON_FLAGS=\"/COMMON_FLAGS=\"-latomic /g" /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf > /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf-new && \
 		mv /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf-new /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf; \
 	fi
@@ -1224,10 +1223,12 @@ release-build-environment-i386 release-build-environment-i586:
 		mv /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf-new /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf; \
 	fi
 	if ! strat -r brl-build-$(subst release-build-environment-,,$@) binutils-config -c | grep -q "^$(subst release-build-environment-,,$@)-"; then \
-		strat -r brl-build-$(subst release-build-environment-,,$@) emerge --oneshot sys-devel/binutils; \
+		strat -r brl-build-$(subst release-build-environment-,,$@) sh -c '. /etc/profile && emerge --oneshot sys-devel/binutils'; \
 	fi
 	if ! strat -r brl-build-$(subst release-build-environment-,,$@) gcc-config -c | grep -q "^$(subst release-build-environment-,,$@)-"; then \
-		strat -r brl-build-$(subst release-build-environment-,,$@) emerge --oneshot sys-devel/gcc; \
+		strat -r brl-build-$(subst release-build-environment-,,$@) sh -c '. /etc/profile && emerge --oneshot sys-devel/gcc'; \
+		cp /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/usr/lib/gcc/*/*/libatomic* \
+			/bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/usr/lib/; \
 	fi
 	# Normally next one would recompile glibc, libtool, and @world.
 	# However, Gentoo doesn't like this for whatever reason.  Happily,
@@ -1242,9 +1243,9 @@ release-build-environment-i386 release-build-environment-i586:
 				/bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/ld.so.cache; \
 	fi
 	# Install required build tools
-	for pkg in dev-util/meson dev-util/ninja fakeroot; do \
+	for pkg in meson ninja fakeroot; do \
 		if ! grep -q "$${pkg}" /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/var/lib/portage/world; then \
-			strat -r brl-build-$(subst release-build-environment-,,$@) emerge "$${pkg}"; \
+			strat -r brl-build-$(subst release-build-environment-,,$@) sh -c ". /etc/profile && emerge \"$${pkg}\""; \
 		fi; \
 	done
 
@@ -1258,7 +1259,6 @@ release-build-environment: \
 	release-build-environment-i486 \
 	release-build-environment-i586 \
 	release-build-environment-i686 \
-	release-build-environment-mips \
 	release-build-environment-mips64el \
 	release-build-environment-mipsel \
 	release-build-environment-ppc \
@@ -1343,18 +1343,6 @@ release-i586: fetch_vendor_sources build/all/busybox/bedrock-config
 release-i686: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-i686 make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		bedrock-linux-$(BEDROCK_VERSION)-i686.sh
-release-mips: fetch_vendor_sources build/all/busybox/bedrock-config
-	strat -r brl-build-mips make -j$(SUBJOBS) GPGID='$(GPGID)' \
-		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-ar' \
-		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-gcc' \
-		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-ld' \
-		musl
-	cp /bedrock/strata/brl-build-cross-void/usr/mips-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/mips/support/lib/
-	strat -r brl-build-mips make -j$(SUBJOBS) GPGID='$(GPGID)' \
-		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-ar' \
-		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-gcc' \
-		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mips-linux-musl-ld' \
-		bedrock-linux-$(BEDROCK_VERSION)-mips.sh
 release-mipsel: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-mipsel make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ar' \
@@ -1426,7 +1414,6 @@ release: \
 	release-i486 \
 	release-i586 \
 	release-i686 \
-	release-mips \
 	release-mips64el \
 	release-mipsel \
 	release-ppc \
@@ -1441,7 +1428,6 @@ release: \
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-i486.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-i586.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-i686.sh ]
-	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-mips.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-mips64el.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-mipsel.sh ]
 	[ -e ./bedrock-linux-$(BEDROCK_VERSION)-ppc.sh ]

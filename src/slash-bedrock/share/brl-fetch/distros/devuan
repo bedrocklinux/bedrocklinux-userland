@@ -30,7 +30,6 @@ brl_arch_to_distro() {
 	"aarch64") echo "arm64" ;;
 	"armv7hl") echo "armhf" ;;
 	"armv7l") echo "armel" ;;
-	"mips") echo "mips" ;;
 	"mips64el") echo "mips64el" ;;
 	"mipsel") echo "mipsel" ;;
 	"ppc64le") echo "ppc64el" ;;
@@ -46,7 +45,6 @@ list_architectures() {
 aarch64
 armv7hl
 armv7l
-mips
 mips64el
 mipsel
 ppc64le
