@@ -1206,9 +1206,8 @@ release-build-environment-i386 release-build-environment-i586:
 		echo 'FEATURES="-pid-sandbox -network-sandbox -ipc-sandbox"' >> /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf; \
 	fi
 	# i386 and i486 both need -latomic
-	# maybe i586 too?
 	# https://stackoverflow.com/questions/35884832/compile-error-undefined-reference-to-atomic-fetch-add-4/47498167#47498167
-	if ! grep -q -- "-latomic" /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf; then \
+	if echo $@ | grep -q -e i386 -e i486 && ! grep -q -- "-latomic" /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf; then \
 		sed "s/COMMON_FLAGS=\"/COMMON_FLAGS=\"-latomic /g" /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf > /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf-new && \
 		mv /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf-new /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf; \
 	fi
@@ -1373,6 +1372,7 @@ release-ppc: fetch_vendor_sources build/all/busybox/bedrock-config
 		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-gcc' \
 		musl
 	cp /bedrock/strata/brl-build-cross-void/usr/powerpc-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/ppc/support/lib/
+	cp /bedrock/strata/brl-build-cross-void/usr/powerpc-linux-musl/usr/lib/libatomic* $(ROOT)/build/ppc/support/lib/
 	strat -r brl-build-ppc make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc-linux-musl-gcc' \
@@ -1385,6 +1385,7 @@ release-ppc64: fetch_vendor_sources build/all/busybox/bedrock-config
 		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-gcc' \
 		musl
 	cp /bedrock/strata/brl-build-cross-void/usr/powerpc64-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/ppc64/support/lib/
+	cp /bedrock/strata/brl-build-cross-void/usr/powerpc64-linux-musl/usr/lib/libatomic* $(ROOT)/build/ppc64/support/lib/
 	strat -r brl-build-ppc64 make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64-linux-musl-gcc' \
@@ -1397,6 +1398,7 @@ release-ppc64le: fetch_vendor_sources build/all/busybox/bedrock-config
 		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64le-linux-musl-ld' \
 		musl
 	cp /bedrock/strata/brl-build-cross-void/usr/powerpc64le-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/ppc64le/support/lib/
+	cp /bedrock/strata/brl-build-cross-void/usr/powerpc64le-linux-musl/usr/lib/libatomic* $(ROOT)/build/ppc64le/support/lib/
 	strat -r brl-build-ppc64le make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64le-linux-musl-ar' \
 		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-powerpc64le-linux-musl-gcc' \
