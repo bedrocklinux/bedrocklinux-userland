@@ -793,9 +793,9 @@ $(SLASHBR)/libexec/kmod: vendor/kmod/.success_retrieving_source $(COMPLETED)/mus
 	rm -rf $(VENDOR)/kmod
 	cp -r vendor/kmod $(VENDOR)
 	cd $(VENDOR)/kmod && \
-		PATH="$(SUPPORT)/bin:${PATH}" ./autogen.sh --with-xz --with-zlib --with-zstd --prefix=$(SUPPORT) --includedir=$(SUPPORT)/include --libdir=$(SUPPORT)/lib --bindir=$(SUPPORT)/bin \
+		PATH="$(SUPPORT)/bin:${PATH}" ./autogen.sh --with-xz --with-zlib --with-zstd --disable-manpages --prefix=$(SUPPORT) --includedir=$(SUPPORT)/include --libdir=$(SUPPORT)/lib --bindir=$(SUPPORT)/bin \
 			CC=$(MUSLCC) CCLD=$(MUSLCC) LD=$(MUSLCC) PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig && \
-		./configure --with-xz --with-zlib --with-zstd --prefix=$(SUPPORT) --includedir=$(SUPPORT)/include --libdir=$(SUPPORT)/lib --bindir=$(SUPPORT)/bin \
+		./configure --with-xz --with-zlib --with-zstd --disable-manpages --prefix=$(SUPPORT) --includedir=$(SUPPORT)/include --libdir=$(SUPPORT)/lib --bindir=$(SUPPORT)/bin \
 			CC=$(MUSLCC) LDFLAGS="-L$(SUPPORT)/lib" PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig && \
 		$(MAKE) CC=$(MUSLCC) LDFLAGS="-L$(SUPPORT)/lib" PKG_CONFIG_PATH=$(SUPPORT)/lib/pkgconfig tools/kmod
 	cp $(VENDOR)/kmod/tools/kmod $(SLASHBR)/libexec/kmod
