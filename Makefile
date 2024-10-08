@@ -1343,17 +1343,22 @@ release-i586: fetch_vendor_sources build/all/busybox/bedrock-config
 release-i686: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-i686 make -j$(SUBJOBS) GPGID='$(GPGID)' \
 		bedrock-linux-$(BEDROCK_VERSION)-i686.sh
+# Void's cross-mipsel-linux-musl-libc currently seems to be broken, confused by `-EL` (little-endian).
+# Fall back to slow qemu-based compilation for now.
+#release-mipsel: fetch_vendor_sources build/all/busybox/bedrock-config
+#	strat -r brl-build-mipsel make -j$(SUBJOBS) GPGID='$(GPGID)' \
+#		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ar' \
+#		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-gcc' \
+#		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ld' \
+#		musl
+#	cp /bedrock/strata/brl-build-cross-void/usr/mipsel-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/mipsel/support/lib/
+#	strat -r brl-build-mipsel make -j$(SUBJOBS) GPGID='$(GPGID)' \
+#		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ar' \
+#		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-gcc' \
+#		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ld' \
+#		bedrock-linux-$(BEDROCK_VERSION)-mipsel.sh
 release-mipsel: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-mipsel make -j$(SUBJOBS) GPGID='$(GPGID)' \
-		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ar' \
-		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-gcc' \
-		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ld' \
-		musl
-	cp /bedrock/strata/brl-build-cross-void/usr/mipsel-linux-musl/usr/lib/libssp_nonshared.a $(ROOT)/build/mipsel/support/lib/
-	strat -r brl-build-mipsel make -j$(SUBJOBS) GPGID='$(GPGID)' \
-		AR='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ar' \
-		CC='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-gcc' \
-		LD='/bedrock/strata/brl-build-cross-void/usr/local/bin/brl-mipsel-linux-musl-ld' \
 		bedrock-linux-$(BEDROCK_VERSION)-mipsel.sh
 release-mips64el: fetch_vendor_sources build/all/busybox/bedrock-config
 	strat -r brl-build-mips64el make -j$(SUBJOBS) GPGID='$(GPGID)' \
