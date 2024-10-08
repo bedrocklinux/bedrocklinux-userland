@@ -1179,7 +1179,7 @@ release-build-environment-i486 release-build-environment-ppc release-build-envir
 	if ! grep -q 'FEATURES="-pid-sandbox -network-sandbox -ipc-sandbox"' /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf; then \
 		echo 'FEATURES="-pid-sandbox -network-sandbox -ipc-sandbox"' >> /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/etc/portage/make.conf; \
 	fi
-	for pkg in meson dev-ninja fakeroot; do \
+	for pkg in meson ninja fakeroot; do \
 		if ! grep -q "$${pkg}" /bedrock/strata/brl-build-$(subst release-build-environment-,,$@)/var/lib/portage/world; then \
 			strat -r brl-build-$(subst release-build-environment-,,$@) sh -c ". /etc/profile && emerge \"$${pkg}\""; \
 		fi; \
