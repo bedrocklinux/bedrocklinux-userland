@@ -22,11 +22,15 @@ speed_test_url() {
 }
 
 list_mirrors() {
-	mirror_list_url='https://archlinuxarm.org/packages/any/pacman-mirrorlist/files/mirrorlist'
-	download -q "${mirror_list_url}" - |
-		awk '/\<code\>/,/<\/code>/' |
-		sed 's/^# *//' |
-		awk -F "[ $]" '/^Server/{print$3}'
+	# This returns an HTTP 500 error.
+	#mirror_list_url='https://archlinuxarm.org/packages/any/pacman-mirrorlist/files/mirrorlist'
+	#download -q "${mirror_list_url}" - |
+	#	awk '/\<code\>/,/<\/code>/' |
+	#	sed 's/^# *//' |
+	#	awk -F "[ $]" '/^Server/{print$3}'
+	#
+	# Geo-IP based mirror selection and load balancing
+	echo 'http://mirror.archlinuxarm.org/'
 }
 
 brl_arch_to_distro() {
@@ -65,10 +69,20 @@ list_releases() {
 }
 
 setup_pacman() {
+	# Remove auto architecture detection, as it will confuse things like
+	# i686 on an x86_64 box and armv7hl on a aarch64 box.
+	#
+	# Also remove CheckSpace, which sometimes gets confused by Bedrock's
+	# mount setup.
 	sed 's/^Architecture[ \t]*=.*$//' "${1}/etc/pacman.conf" |
 		awk -v"a=${distro_arch}" '{print} $0 == "[options]" {print "Architecture = "a}' |
 		sed 's/^[ \t]*CheckSpace/# &/' \
 			>"${1}/etc/pacman.conf-new"
+	mv "${1}/etc/pacman.conf-new" "${1}/etc/pacman.conf"
+
+	# pacman 7.0 defaults to using a limited-privilege alpm user to fetch packages
+	# This is a worthwhile idea, but brl-fetch doesn't currently have the infrastructure to support it
+	sed 's/DownloadUser/# DownloadUser/' "${1}/etc/pacman.conf" > "${1}/etc/pacman.conf-new"
 	mv "${1}/etc/pacman.conf-new" "${1}/etc/pacman.conf"
 
 	LC_ALL=C chroot "${1}" /usr/bin/update-ca-trust
@@ -129,7 +143,7 @@ fetch() {
 	step "Configuring"
 	setup_chroot "${target_dir}"
 	setup_pacman "${target_dir}"
-	cp "${cache}/packages/"* "${target_dir}/var/cache/pacman/"
+	cp -r "${cache}/packages/"* "${target_dir}/var/cache/pacman/"
 	if LC_ALL=C chroot "${target_dir}" pacman -Q linux >/dev/null 2>&1; then
 		LC_ALL=C chroot "${target_dir}" pacman --noconfirm -R linux
 	fi
