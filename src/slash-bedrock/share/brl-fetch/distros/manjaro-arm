@@ -1,0 +1,106 @@
+#!/bedrock/libexec/busybox sh
+#Manjaro Arm support
+#Implemented by Titaniumtown <titaniumtown@gmail.com>
+
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	true
+}
+
+speed_test_url() {
+	echo "arm-stable/core/${distro_arch}/core.db.tar.gz"
+}
+
+list_mirrors() {
+	mirror_list_url='https://repo.manjaro.org'
+	wget -qO- "${mirror_list_url}" | list_links | tail -n +5 | grep '^http'
+}
+
+brl_arch_to_distro() {
+	case "${1}" in
+	"aarch64") echo "aarch64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+	esac
+}
+
+list_architectures() {
+	echo "aarch64"
+}
+
+default_release() {
+	echo "rolling"
+}
+
+list_releases() {
+	echo "rolling"
+}
+
+setup_pacman() {
+	sed 's/^Architecture[ \t]*=.*$//' "${1}/etc/pacman.conf" |
+		awk -v"a=${distro_arch}" '{print} $0 == "[options]" {print "Architecture = "a}' |
+		sed 's/^[ \t]*CheckSpace/# &/' >"${1}/etc/pacman.conf-new"
+	mv "${1}/etc/pacman.conf-new" "${1}/etc/pacman.conf"
+
+	LC_ALL=C chroot "${1}" /usr/bin/update-ca-trust
+	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --init
+	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate manjaro archlinux
+
+	if ! grep -q "^Server" "${1}/etc/pacman.d/mirrorlist"; then
+		echo "### Set by Bedrock Linux when acquiring this stratum" >>"${1}/etc/pacman.d/mirrorlist"
+		echo "Server = ${target_mirror}/arm-stable\$repo/\$arch" >>"$1/etc/pacman.d/mirrorlist"
+	fi
+}
+
+fetch() {
+	bootstrap_deps="pacman pacman-mirrors ca-certificates ca-certificates-utils awk util-linux"
+
+	step "Downloading package information database"
+	wget -O "${bootstrap_dir}/core.db.tar.gz" "${target_mirror}/arm-stable/core/${distro_arch}/core.db.tar.gz"
+	wget -O "${bootstrap_dir}/extra.db.tar.gz" "${target_mirror}/arm-stable/extra/${distro_arch}/extra.db.tar.gz"
+	wget -O "${bootstrap_dir}/community.db.tar.gz" "${target_mirror}/arm-stable/community/${distro_arch}/community.db.tar.gz"
+
+	step "Decompressing package information database"
+	mkdir -p "${bootstrap_dir}/pacmandb/core" "${bootstrap_dir}/pacmandb/extra" "${bootstrap_dir}/pacmandb/community"
+	(
+		tar -xv -f "${bootstrap_dir}/core.db.tar.gz" -C "${bootstrap_dir}/pacmandb/core/"
+		tar -xv -f "${bootstrap_dir}/extra.db.tar.gz" -C "${bootstrap_dir}/pacmandb/extra/"
+		tar -xv -f "${bootstrap_dir}/community.db.tar.gz" -C "${bootstrap_dir}/pacmandb/community/"
+	) | awk 'NR%100==0' | progress_unknown
+
+	step "Converting distro package information database to brl format"
+	pacmandb_to_brldb "${bootstrap_dir}/pacmandb" "${bootstrap_dir}/brldb"
+
+	step "Calculating required bootstrap packages"
+	brldb_calculate_required_packages "${bootstrap_dir}/brldb" "${bootstrap_dir}/required_packages" "${bootstrap_deps}"
+
+	step "Downloading bootstrap packages"
+	# brldb contains repo/filename
+	# files are at mirror/stable/repo/arch/filename
+	checksum_downloads "${cache}/packages/" "$(awk -v"a=${distro_arch}" -v"m=${target_mirror}" '{sub("/", "/"a"/"); print m"/arm-stable/"$0}' "${bootstrap_dir}/required_packages")"
+	step "Extracting bootstrap packages"
+	bootstrap_packages="$(awk -v"d=${cache}/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
+	# shellcheck disable=SC2086
+	extract_pacman_pkgs "${bootstrap_dir}" ${bootstrap_packages}
+
+	step "Running bootstrap software"
+	mkdir -p "${target_dir}/etc"
+	cp -a "/etc/passwd" "${target_dir}/etc/passwd"
+	cp -a "/etc/group" "${target_dir}/etc/group"
+
+	setup_chroot "${bootstrap_dir}"
+	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/pacman/pkg/"
+
+	LC_ALL=C chroot "${bootstrap_dir}" pacman-mirrors -S stable -f 1 -a -P all -t 1	# -a to use the api, -P all protocols, -t 1 timeout if it takes longer than 1 second
+	setup_pacman "${bootstrap_dir}"
+	LC_ALL=C chroot "${bootstrap_dir}" basestrap "/target-root" base
+
+	step "Configuring"
+	setup_chroot "${target_dir}"
+	setup_pacman "${target_dir}"
+	cp "${cache}/packages/"* "${target_dir}/var/cache/pacman/"
+	if LC_ALL=C chroot "${target_dir}" pacman -Q linux >/dev/null 2>&1; then
+		LC_ALL=C chroot "${target_dir}" pacman --noconfirm -R linux
+	fi
+}
