@@ -1,0 +1,118 @@
+#!/bedrock/libexec/busybox awk -f
+#
+# Chimera Linux bootstrap support
+#
+# Permission to use, copy, modify, and/or distribute this software for
+# any purpose with or without fee is hereby granted;
+# According to the terms of the BSD Zero Clause License.
+# 
+# Copyright (c) 2024 Anthony Slab
+#
+
+package_manager_canary_executables["cargo"] = "cargo"
+
+user_interfaces["cargo", "assume-no"]  = ""
+user_interfaces["cargo", "assume-yes"] = ""
+user_interfaces["cargo", "confirm"]    = "" 
+user_interfaces["cargo", "quiet"]      = "-q/--quiet"
+user_interfaces["cargo", "verbose"]    = "-v/--verbose"
+
+user_interfaces["cargo", "install-packages"]         = "pmm install <pkgs>"
+user_interfaces["cargo", "reinstall-packages"]       = "pmm install -f/--force <pkgs>"
+user_interfaces["cargo", "remove-packages-limited"]  = "" 
+user_interfaces["cargo", "remove-packages-full"]     = "pmm uninstall" 
+user_interfaces["cargo", "verify-packages"]          = "" 
+user_interfaces["cargo", "verify-all-packages"]      = "" 
+user_interfaces["cargo", "mark-packages-explicit"]   = "" 
+user_interfaces["cargo", "mark-packages-implicit"]   = "" 
+user_interfaces["cargo", "show-package-information"] = "pmm info <pkgs>" # requires cargo-info
+user_interfaces["cargo", "clear-cache"]              = ""
+user_interfaces["cargo", "remove-orphans"]           = ""
+user_interfaces["cargo", "update-package-database"]  = ""
+user_interfaces["cargo", "update-file-database"]     = ""
+user_interfaces["cargo", "upgrade-packages-limited"] = ""
+user_interfaces["cargo", "upgrade-packages-full"]    = "pmm install-update -a/--all" # requires cargo-update
+
+implementations["cargo", "install-packages"]         = "strat -r ${stratum} cargo ${flags} install --locked ${items}"
+implementations["cargo", "reinstall-packages"]       = "strat -r ${startum} cargo ${flags} install --locked -f ${items}"
+implementations["cargo", "remove-packages-limited"]  = "strat -r ${stratum} cargo ${flags} uninstall ${items}"
+implementations["cargo", "remove-packages-full"]     = "strat -r ${stratum} cargo ${flags} uninstall ${items}"
+implementations["cargo", "verify-packages"]          = "" 
+implementations["cargo", "verify-all-packages"]      = ""
+implementations["cargo", "mark-packages-explicit"]   = "strat -r ${stratum} cargo ${flags} install --locked ${items}"
+implementations["cargo", "mark-packages-implicit"]   = "strat -r ${stratum} cargo ${flags} uninstall ${items}"
+implementations["cargo", "show-package-information"] = "which cargo-info >/dev/null && strat -r ${stratum} cargo ${flags} info ${items}"
+implementations["cargo", "clear-cache"]              = "" 
+implementations["cargo", "remove-orphans"]           = "" 
+implementations["cargo", "update-package-database"]  = ""
+implementations["cargo", "update-file-database"]     = "" 
+implementations["cargo", "upgrade-packages-limited"] = "which cargo-install-update >/dev/null && strat -r ${stratum} cargo ${flags} install-update -a --locked"
+implementations["cargo", "upgrade-packages-full"]    = "which cargo-install-update >/dev/null && strat -r ${stratum} cargo ${flags} install-update -a --locked"
+
+
+user_interfaces["cargo", "clear-cache,remove-orphans"]                                                             = ""
+user_interfaces["cargo", "mark-packages-implicit,remove-orphans"]                                                  = "pmm uninstall <pkgs>"
+user_interfaces["cargo", "remove-packages-limited,remove-orphans"]                                                 = ""
+user_interfaces["cargo", "remove-packages-full,remove-orphans"]                                                    = "pmm uninstall <pkgs>"
+user_interfaces["cargo", "update-package-database,update-file-database"]                                           = ""
+user_interfaces["cargo", "update-package-database,upgrade-packages-partial"]                                       = ""
+user_interfaces["cargo", "update-package-database,upgrade-packages-full"]                                          = ""
+user_interfaces["cargo", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""
+user_interfaces["cargo", "update-package-database,update-file-database,upgrade-packages-full"]                     = ""
+user_interfaces["cargo", "update-package-database,install-packages"]                                               = ""
+user_interfaces["cargo", "update-package-database,update-file-database,install-packages"]                          = ""
+user_interfaces["cargo", "upgrade-packages-limited,install-packages"]                                              = ""
+user_interfaces["cargo", "upgrade-packages-limited,remove-orphans"]                                                = ""
+user_interfaces["cargo", "upgrade-packages-full,install-packages"]                                                 = ""
+user_interfaces["cargo", "upgrade-packages-full,remove-orphans"]                                                   = ""
+user_interfaces["cargo", "update-package-database,upgrade-packages-partial,install-packages"]                      = ""
+user_interfaces["cargo", "update-package-database,upgrade-packages-full,install-packages"]                         = ""
+user_interfaces["cargo", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+user_interfaces["cargo", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+implementations["cargo", "clear-cache,remove-orphans"]                                                             = ""
+implementations["cargo", "mark-packages-implicit,remove-orphans"]                                                  = "strat -r ${stratum} cargo ${flags} uninstall ${items}"
+implementations["cargo", "remove-packages-limited,remove-orphans"]                                                 = "strat -r ${stratum} cargo ${flags} uninstall ${items}"
+implementations["cargo", "remove-packages-full,remove-orphans"]                                                    = "strat -r ${stratum} cargo ${flags} uninstall ${items}"
+implementations["cargo", "update-package-database,update-file-database"]                                           = ""
+implementations["cargo", "update-package-database,upgrade-packages-partial"]                                       = ""
+implementations["cargo", "update-package-database,upgrade-packages-full"]                                          = ""
+implementations["cargo", "update-package-database,update-file-database,upgrade-packages-partial"]                  = ""
+implementations["cargo", "update-package-database,update-file-database,upgrade-packages-full"]                     = ""
+implementations["cargo", "update-package-database,install-packages"]                                               = ""
+implementations["cargo", "update-package-database,update-file-database,install-packages"]                          = ""
+implementations["cargo", "upgrade-packages-limited,install-packages"]                                              = ""
+implementations["cargo", "upgrade-packages-limited,remove-orphans"]                                                = ""
+implementations["cargo", "upgrade-packages-full,install-packages"]                                                 = ""
+implementations["cargo", "upgrade-packages-full,remove-orphans"]                                                   = ""
+implementations["cargo", "update-package-database,upgrade-packages-partial,install-packages"]                      = ""
+implementations["cargo", "update-package-database,upgrade-packages-full,install-packages"]                         = ""
+implementations["cargo", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
+implementations["cargo", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
+
+
+user_interfaces["cargo", "list-installed-package-files"] = ""
+user_interfaces["cargo", "list-installed-explicit"]      = "" 
+user_interfaces["cargo", "list-installed-implicit"]      = "" 
+user_interfaces["cargo", "list-installed-packages"]      = ""
+user_interfaces["cargo", "list-available-packages"]      = "pmm list"
+user_interfaces["cargo", "search-for-package-by-name"]   = "pmm search <text>"
+user_interfaces["cargo", "search-for-package-by-all"]    = "pmm search <text>"
+user_interfaces["cargo", "which-package-owns-file"]      = ""
+user_interfaces["cargo", "which-packages-provide-file"]  = ""
+implementations["cargo", "list-installed-package-files"] = ""
+implementations["cargo", "list-installed-explicit"]      = ""
+implementations["cargo", "list-installed-implicit"]      = ""
+implementations["cargo", "list-installed-packages"]      = ""
+implementations["cargo", "list-available-packages"]      = ""
+implementations["cargo", "search-for-package-by-name"]   = "strat -r ${stratum} cargo search ${items} | awk '{print $1}'"
+implementations["cargo", "search-for-package-by-all"]    = "strat -r ${stratum} cargo search ${items}"
+implementations["cargo", "which-package-owns-file"]      = ""
+implementations["cargo", "which-packages-provide-file"]  = ""
+
+implementations["cargo", "is-package-installed"]         = "strat -r ${stratum} cargo install-update -l | tail +3 | cut -d' ' -f1 | grep -i ${items} >/dev/null 2>&1 || exit 1"
+implementations["cargo", "is-package-available"]         = "which cargo-info >/dev/null && strat -r ${stratum} cargo info ${items} >/dev/null 2>&1"
+implementations["cargo", "print-package-version"]        = "which cargo-info >/dev/null && strat -r ${stratum} cargo info ${items} | awk '/^version:/ {print $2; exit}'"
+implementations["cargo", "cache-package-db"]             = ""
+implementations["cargo", "is-file-db-available"]         = ""
+implementations["cargo", "print-file-db-install-instructions"] = ""
