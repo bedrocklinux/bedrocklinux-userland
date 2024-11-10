@@ -73,5 +73,5 @@ fetch() {
 	setup_chroot "${bootstrap_dir}"
 	setup_ssl "${bootstrap_dir}"
 	LC_ALL=C chroot "${bootstrap_dir}" "/${apk}" -X "${target_mirror}/${target_release}/main" -U \
-		--allow-untrusted --root "/target-root" --initdb add chimerautils base-minimal
+		--allow-untrusted --root "/target-root" --initdb add base-minimal
 }
