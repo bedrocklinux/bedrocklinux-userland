@@ -22,8 +22,10 @@ speed_test_url() {
 }
 
 list_mirrors() {
-	# pretty sure there's only the official one :p
-	echo "https://repo.chimera-linux.org"
+	cat >>EOF 
+https://repo.chimera-linux.org
+https://au.mirror.7bit.org/chimera
+EOF
 }
 
 brl_arch_to_distro() {
