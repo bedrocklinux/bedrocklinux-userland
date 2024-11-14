@@ -108,6 +108,7 @@ abort() {
 # `brl fetch`'s various back-ends trap EXIT with this to clean up on an
 # unexpected error.
 fetch_abort() {
+	set +x # if someone turned `set -x` on in a per-distro fetch script, it's probably no longer needed at this point
 	trap '' EXIT
 	printf "${color_alert}ERROR: %s\\n${color_norm}" "${@}" >&2
 	printf "${color_alert}This is commonly due to distro mirror layout changes breaking \`brl fetch\`.  Possible solutions:\\n${color_norm}" >&2
