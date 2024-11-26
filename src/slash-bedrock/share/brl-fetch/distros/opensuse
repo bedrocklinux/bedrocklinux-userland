@@ -1,0 +1,110 @@
+#!/bedrock/libexec/busybox sh
+#
+# OpenSUSE bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2016-2021 Rein Fernhout (LevitatingBusinessMan) <me@levitati.ng>
+#
+
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	true
+}
+
+speed_test_url() {
+	echo "/tumbleweed/repo/oss/INDEX.gz"
+}
+
+list_mirrors() {
+	# https://en.opensuse.org/openSUSE:Mirrors
+	# downloads from the master download server are redirect to the fastest mirror
+	echo "https://download.opensuse.org"
+}
+
+brl_arch_to_distro() {
+	case "${1}" in
+	"x86_64") echo "x86_64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+	esac
+}
+
+list_architectures() {
+	# other architectures do exist and can be found at
+	# https://download.opensuse.org/ports/
+	cat <<EOF
+x86_64
+EOF
+}
+
+default_release() {
+	list_releases | tail -n1
+}
+
+list_releases() {
+	echo "tumbleweed"
+}
+
+fetch() {
+	repo="${target_mirror}/tumbleweed/repo/oss"
+
+	step "Downloading package information database"
+	# url="$(find_link "${target_mirror}/tumbleweed/repo/oss/repodata/" "primary.xml.zst")"
+	# download "${url}" "${bootstrap_dir}/primary.xml.zst"
+
+	repomd_url="${repo}/repodata/repomd.xml"
+	download "${repomd_url}" "${bootstrap_dir}/repomd.xml"
+
+	# fetch the current primary.xml.zst filename from the repomd
+	primary_location=$(sed -n 's/\s*<location href="\(.*-primary.xml.zst\)"\/>/\1/p' "${bootstrap_dir}/repomd.xml")
+	primary_url="${repo}/${primary_location}"
+	download "${primary_url}" "${bootstrap_dir}/primary.xml.zst"
+
+	step "Extracting package information database"
+	zstd -d "${bootstrap_dir}/primary.xml.zst"
+
+	step "Converting distro package information database to brl format"
+	rpmdb_to_brldb "${bootstrap_dir}/primary.xml" "${bootstrap_dir}/brldb"
+
+	step "Removing blacklisted packages from brldb"
+	# brldb_calculate_required_packages find the first provider for a dependency.
+	# With openSUSE some packages should not be installed.
+	# For instance these packages require "this-is-only-for-build-envs" which has no provider.
+	# Here we remove these packages from brldb so that brldb_calculate_required_packages does not try to use them.
+	find "${bootstrap_dir}/brldb" -type f -exec sed -i -e '/bash-legacybin/d' -e '/libudev-mini1/d' -e '/glib2-stage1-devel/d' {} +
+
+	step "Calculating required bootstrap packages"
+	# rpm is linked to libz.so.1
+	# this isn't always installed for some reason
+	bootstrap_deps="rpm filesystem zypper zlib"
+	brldb_calculate_required_packages "${bootstrap_dir}/brldb" "${bootstrap_dir}/required_packages" "${bootstrap_deps}"
+
+	step "Downloading bootstrap packages"
+	checksum_downloads "${cache}/packages/" "$(awk -v"m=${repo}" '{print m"/"$0}' "${bootstrap_dir}/required_packages")"
+
+	step "Extracting bootstrap packages"
+	# This round is just to bootstrap the distro's rpm.
+	# In the next step we'll use the distro's rpm to install everything properly.
+	# We extract the filesystem first to ensure the directories are set up.
+	bootstrap_packages="$(awk -v"d=${cache}/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
+	# shellcheck disable=SC2086
+	extract_rpms "${bootstrap_dir}" "${cache}/packages"/filesystem*.rpm "${cache}/packages"/*.rpm
+
+	step "Installing bootstrap packages"
+	setup_chroot "${bootstrap_dir}"
+	share_cache "packages" "${bootstrap_dir}/packages"
+	bootstrap_packages="$(awk -v"d=/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
+	LC_ALL=C chroot "${bootstrap_dir}" rpm --noverify -i ${bootstrap_packages}
+
+	step "Running bootstrap software"
+	chroot "${bootstrap_dir:-}" zypper -nR /target-root ar http://download.opensuse.org/tumbleweed/repo/oss/ repo-oss
+	chroot "${bootstrap_dir:-}" zypper -nR /target-root ar http://download.opensuse.org/update/tumbleweed/ repo-update
+	chroot "${bootstrap_dir:-}" zypper -nR /target-root --gpg-auto-import-keys ref
+	chroot "${bootstrap_dir:-}" zypper -nR /target-root install filesystem openSUSE-release
+	chroot "${bootstrap_dir:-}" zypper -nR /target-root install -t pattern base
+}
