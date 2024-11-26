@@ -102,8 +102,12 @@ fetch() {
 	LC_ALL=C chroot "${bootstrap_dir}" rpm --noverify -i ${bootstrap_packages}
 
 	step "Running bootstrap software"
-	chroot "${bootstrap_dir:-}" zypper -nR /target-root ar http://download.opensuse.org/tumbleweed/repo/oss/ repo-oss
-	chroot "${bootstrap_dir:-}" zypper -nR /target-root ar http://download.opensuse.org/update/tumbleweed/ repo-update
+	chroot "${bootstrap_dir:-}" zypper -nR /target-root ar -d -n openSUSE-Tumbleweed-Debug http://download.opensuse.org/debug/tumbleweed/repo/oss/ repo-debug
+	chroot "${bootstrap_dir:-}" zypper -nR /target-root ar -f -n openSUSE-Tumbleweed-Non-Oss http://download.opensuse.org/tumbleweed/repo/non-oss/ repo-non-oss
+	chroot "${bootstrap_dir:-}" zypper -nR /target-root ar -f -n "Open H.264 Codec (openSUSE Tumbleweed)" http://codecs.opensuse.org/openh264/openSUSE_Tumbleweed repo-openh264
+	chroot "${bootstrap_dir:-}" zypper -nR /target-root ar -f -n openSUSE-Tumbleweed-Oss http://download.opensuse.org/tumbleweed/repo/oss/ repo-oss
+	chroot "${bootstrap_dir:-}" zypper -nR /target-root ar -d -n openSUSE-Tumbleweed-Source http://download.opensuse.org/source/tumbleweed/repo/oss/ repo-source
+	chroot "${bootstrap_dir:-}" zypper -nR /target-root ar -f -n openSUSE-Tumbleweed-Update http://download.opensuse.org/update/tumbleweed/ repo-update
 	chroot "${bootstrap_dir:-}" zypper -nR /target-root --gpg-auto-import-keys ref
 	chroot "${bootstrap_dir:-}" zypper -nR /target-root install filesystem openSUSE-release
 	chroot "${bootstrap_dir:-}" zypper -nR /target-root install -t pattern base
