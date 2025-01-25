@@ -26,6 +26,8 @@ list_mirrors() {
 https://repo.chimera-linux.org
 https://chimera.sakamoto.pl
 https://au.mirror.7bit.org/chimera
+https://mirror.accum.se/mirror/chimera-linux.org
+https://chimera.netig.net
 EOF
 }
 
