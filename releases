@@ -17,7 +17,7 @@
 # Update with internet
 # --------------------
 #
-# Provided you internet access is available, a Bedrock Linux 0.7.x system may
+# Provided your internet access is available, a Bedrock Linux 0.7.x system may
 # be updated by setting this file's URL in as the appropriate mirror value in
 # /bedrock/etc/bedrock.conf.  Once that is in place, run as root:
 #
