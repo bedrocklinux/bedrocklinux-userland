@@ -22,13 +22,7 @@ speed_test_url() {
 }
 
 list_mirrors() {
-	cat <<EOF # from https://chimera-linux.org/docs/apk/mirrors
-https://repo.chimera-linux.org
-https://chimera.sakamoto.pl
-https://au.mirror.7bit.org/chimera
-https://mirror.accum.se/mirror/chimera-linux.org
-https://chimera.netig.net
-EOF
+	curl -s "https://repo.chimera-linux.org/mirrors.txt" | cut -d' ' -f1
 }
 
 brl_arch_to_distro() {
@@ -62,13 +56,17 @@ list_releases() {
 
 fetch() {
 	step "Downloading bootstrap software"
-	url="$(find_link "${target_mirror}/apk/" "^apk-${target_arch}-.*.static")"
-	apk="$(basename ${url})"
-	download "${url}" "${bootstrap_dir}/${apk}"
 
-	download "${target_mirror}/apk/sha256sums.txt" "${bootstrap_dir}/shasums"
-	[ "$(sha256sum ${bootstrap_dir}/${apk} | tr -d' ' -f1)" = "$(grep ${apk} ${bootstrap_dir}/shasums | tr -d' ' -f1)" ] \
-      		|| { echo "ERROR: checksums did not match"; false; }
+	apk="apk-${distro_arch}.static"
+	download "${target_mirror}/apk/latest/${apk}" "${bootstrap_dir}/${apk}"
+
+	download "${target_mirror}/apk/latest/sha256sums.txt" "${bootstrap_dir}/shasums"
+	[ "$(sha256sum ${bootstrap_dir}/${apk} | cut -d' ' -f1)" = "$(grep ${apk} ${bootstrap_dir}/shasums | cut -d' ' -f1)" ] \
+		|| { echo "ERROR: checksums did not match"; false; }
+
+	mkdir -p "${bootstrap_dir}/apk-keys"
+	download "${target_mirror}/apk/keys/legacy.rsa.pub" "${bootstrap_dir}/apk-keys/legacy.rsa.pub"
+	download "${target_mirror}/apk/keys/${distro_arch}.rsa.pub" "${bootstrap_dir}/apk-keys/${distro_arch}.rsa.pub"
 
 	step "Preparing bootstrap software"
 	chmod a+rx "${bootstrap_dir}/${apk}"
@@ -77,6 +75,8 @@ fetch() {
 	step "Running bootstrap software"
 	setup_chroot "${bootstrap_dir}"
 	setup_ssl "${bootstrap_dir}"
+
+	# base-bootstrap instead of base-minimal, latter would need to be manually removed to install additional packages from it :L
 	LC_ALL=C chroot "${bootstrap_dir}" "/${apk}" -X "${target_mirror}/${target_release}/main" -U \
-		--allow-untrusted --root "/target-root" --initdb add base-minimal
+		--keys-dir "/apk-keys" --root "/target-root" --initdb add base-bootstrap
 }
