@@ -452,8 +452,10 @@ for stratum in $(list_strata); do
 		continue
 	fi
 	notice "Enabling ${color_strat}${stratum}${color_norm}"
-	/bedrock/libexec/brl-enable --skip-crossfs "${stratum}"
+	/bedrock/libexec/brl-enable --skip-crossfs "${stratum}" &
 done
+
+wait
 
 step "Applying configuration"
 /bedrock/libexec/brl-apply --skip-repair
