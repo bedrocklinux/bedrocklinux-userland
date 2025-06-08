@@ -1,0 +1,108 @@
+#!/bedrock/libexec/busybox sh
+#
+# idlebox bootstrap support
+#
+#      This is free and unencumbered software released into the public domain.
+#      Anyone is free to copy, modify, publish, use, compile, sell, or
+#      distribute this software, either in source code form or as a compiled
+#      binary, for any purpose, commercial or non-commercial, and by any means.
+#
+#      For more information, please refer to <https://unlicense.org/>
+#
+# Copyleft (ↄ) The Odd Cell <me@oddcell.ca>
+#
+
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	false
+}
+
+speed_test_url() {
+	echo "${target-release}-${distro_arch}-linux-musl/busybox"
+}
+
+list_mirrors() {
+	cat <<EOF
+https://busybox.net/downloads/binaries/
+EOF
+}
+
+list_architectures() {
+	cat <<EOF
+i686
+x86_64
+EOF
+}
+
+default_release() {
+	echo "1.35.0"
+}
+
+list_releases() {
+	cat <<EOF
+1.35.0
+EOF
+}
+
+brl_arch_to_distro() {
+	case "$1" in
+	"x86_64") echo "x86_64" ;;
+	"i686") echo "i686" ;;
+	*) abort "Unsupported architecture: $1" ;;
+	esac
+}
+
+
+fetch() {
+	case "${distro_arch}" in
+	"i686") busybox_name="busybox" ;;
+	"x86_64") busybox_name="busybox" ;;
+	*) abort "Unsupported architecture: ${distro_arch}" ;;
+	esac
+
+	step "Downloading BusyBox binary"
+	busybox_url="${target_mirror}1.35.0-${distro_arch}-linux-musl/${busybox_name}"
+	download "${busybox_url}" "${bootstrap_dir}/busybox"
+	chmod +x "${bootstrap_dir}/busybox"
+
+	step "Installing BusyBox to stratum"
+	mkdir -p "${target_dir}/sbin"
+	cp "${bootstrap_dir}/busybox" "${target_dir}/sbin/busybox"
+	chmod +x "${target_dir}/sbin/busybox"
+
+	step "Creating symlinks to BusyBox applets"
+	cd "${target_dir}/sbin"
+	for applet in $(./busybox --list); do
+		ln -sf busybox "$applet"
+		echo "Linking applet $applet to busybox"
+	done
+	ln -s sbin "${target_dir}/bin"
+
+	step "Creating minimal inittab and rcS"
+	mkdir -p "${target_dir}/etc/init.d"
+	cat > "${target_dir}/etc/inittab" <<'EOF'
+::sysinit:/etc/init.d/rcS
+::respawn:/bin/login
+::ctrlaltdel:/bin/reboot
+EOF
+
+	cat > "${target_dir}/etc/init.d/rcS" <<'EOF'
+#!/bin/sh
+echo "[idlebox] rcS starting..."
+
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -o remount,rw /
+
+# Has not worked that well, enable if you wish.
+#ifconfig lo up
+#ifconfig eth0 up || true
+#udhcpc -i eth0 || true
+
+echo "[idlebox] rcS complete."
+EOF
+	chmod +x "${target_dir}/etc/init.d/rcS"
+}
