@@ -82,11 +82,11 @@ fetch() {
 	suffix="releases/${target_release}/Everything/${distro_arch}/os"
 
 	step "Downloading package information database"
-	url="$(find_link "${target_mirror}/${suffix}/repodata/" "primary.xml.gz")"
-	download "${url}" "${bootstrap_dir}/primary.xml.gz"
+	url="$(find_link "${target_mirror}/${suffix}/repodata/" "primary.xml.zst")"
+	download "${url}" "${bootstrap_dir}/primary.xml.zst"
 
 	step "Extracting package information database"
-	gunzip "${bootstrap_dir}/primary.xml.gz"
+	zstd -d "${bootstrap_dir}/primary.xml.zst"
 
 	step "Converting distro package information database to brl format"
 	if [ "${target_arch}" = i686 ]; then
