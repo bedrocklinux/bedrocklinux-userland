@@ -662,16 +662,19 @@ vendor/lvm2/.success_retrieving_source:
 	rm -rf vendor/lvm2/
 	mkdir -p vendor/lvm2
 	# no `--depth 1` because this repo does not support it
-	git clone \
-		-b `git ls-remote --tags 'https://sourceware.org/git/lvm2.git' | \
-		awk -F/ '{print $$NF}' | \
-		grep '^v[0-9_]*$$' | \
-		sed 's/^v//g' | \
-		sort -t _ -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
-		tail -n1 | \
-		sed 's/^/v/'` 'https://sourceware.org/git/lvm2.git' \
-		vendor/lvm2
-	cd vendor/lvm2 && patch -p0 -i ../../patches/lvm2/fix-stdio.patch
+	#
+	# Use hard-coded version to avoid breaking patch compatibility
+	# git clone \
+	# 	-b `git ls-remote --tags 'https://sourceware.org/git/lvm2.git' | \
+	# 	awk -F/ '{print $$NF}' | \
+	# 	grep '^v[0-9_]*$$' | \
+	# 	sed 's/^v//g' | \
+	# 	sort -t _ -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+	# 	tail -n1 | \
+	# 	sed 's/^/v/'` 'https://sourceware.org/git/lvm2.git' \
+	# 	vendor/lvm2
+	git clone -b v2_03_34 'https://sourceware.org/git/lvm2.git' vendor/lvm2
+	cd vendor/lvm2 && patch -p1 -i ../../patches/lvm2/fix-stdio.patch
 	# hack to fix bad imports looking for LOCK_EX
 	echo '#include <sys/file.h>' >> vendor/lvm2/lib/misc/lib.h
 	touch vendor/lvm2/.success_retrieving_source
