@@ -9,7 +9,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-#	Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
+#	Copyright (c) 2016-2025 Daniel Thau <danthau@bedrocklinux.org>
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
 . /bedrock/share/common-code
@@ -24,7 +24,7 @@ speed_test_url() {
 }
 
 list_mirrors() {
-	echo "https://dev.exherbo.org/"
+	echo "https://stages.exherbo.org"
 }
 
 brl_arch_to_distro() {
@@ -53,31 +53,28 @@ fetch() {
 	paludis_user=paludisbuild
 	paludis_group=paludisbuild
 
-	ex_stage="exherbo-x86_64-pc-linux-musl-gcc-current.tar.xz"
-	ex_checksum_fn=sha256sum
+	case "${target_arch}" in
+	"x86_64") url="${target_mirror}/x86_64-pc-linux-musl/exherbo-x86_64-pc-linux-musl-gcc-current.tar.xz" ;;
+	esac
 
-	step "Downloading & verifying bootstrap software"
-	download "${target_mirror}"/stages/${ex_stage}."${ex_checksum_fn}" "${bootstrap_dir}/${ex_stage}.${ex_checksum_fn}"
-	ex_sha256sum="$(awk -v"name=exherbo" '/^# .* HASH$/ {hash=$1;next} index($2, name) {print$1;exit}' "${bootstrap_dir}/${ex_stage}.${ex_checksum_fn}")"
-	checksum_download "${cache}/${ex_stage}" "sha256sum" "${ex_sha256sum}" "${target_mirror}"/stages/"${ex_stage}"
-
-	step "Preparing bootstrap software"
-	tar xvJp -C "${bootstrap_dir}" -f "${cache}"/"${ex_stage}" | awk 'NR%100==0' | progress_unknown
+	step "Downloading bootstrap software"
+	download "${url}.sha256sum" "${bootstrap_dir}/sha256sum"
+	sum="$(awk '{print$1}' "${bootstrap_dir}/sha256sum")"
+	filename="$(echo "${url}" | awk -F/ '{print$NF}')"
+	checksum_download "${cache}/${filename}" "sha256sum" "${sum}" "${url}"
 
 	step "Running bootstrap software"
+	tar xvJp -C "${bootstrap_dir}" -f "${cache}"/"${filename}" | awk 'NR%100==0' | progress_unknown
 	setup_chroot "${bootstrap_dir}"
 	setup_ssl "${bootstrap_dir}"
 	share_cache "." "${bootstrap_dir}/tarballs"
-	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xvJpf /tarballs/${ex_stage}" | awk 'NR%100==0' | progress_unknown
+	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xvJpf /tarballs/${filename}" | awk 'NR%100==0' | progress_unknown
 
 	step "Configuring"
 	setup_chroot "${target_dir}"
 
-	step "Creating Paludis' build-dir & fixing permissions"
 	mkdir -p "${target_dir}/${paludis_builddir}/"
 	chroot "${target_dir}" chown -R "${paludis_user}":"${paludis_group}" "${paludis_builddir}"
 	chroot "${target_dir}" chmod -R g+rwx "${paludis_builddir}"
-
-	step "Modifying ${paludis_user}"
 	chroot "${target_dir}" usermod -a -G "$(stat -c %G /dev/tty)" ${paludis_user}
 }
