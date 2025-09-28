@@ -14,7 +14,7 @@
 # to force a package to be explicitly installed by installing it would fail if
 # it is already installed as a dependency.
 #
-# yay refuses to run as root.  ${unprivileged_user} wrapping is required for
+# yay refuses to run as root.  ${drop_privileges_command} wrapping is required for
 # all calls.
 #
 # yay effectively supersedes pacman.  If both are in consideration for a given
@@ -54,21 +54,21 @@ user_interfaces["yay", "update-file-database"]     = "pmm -F/--files -y/--refres
 user_interfaces["yay", "upgrade-packages-limited"] = "" # no partial upgrade concept
 user_interfaces["yay", "upgrade-packages-full"]    = "pmm -S/--sync -u/--sysupgrade"
 
-implementations["yay", "install-packages"]         = "${unprivileged_user} strat -r ${stratum} yay ${flags} -S --asexplicit ${items}"
-implementations["yay", "reinstall-packages"]       = "${unprivileged_user} strat -r ${stratum} yay ${flags} -S ${items}"
-implementations["yay", "remove-packages-limited"]  = "${unprivileged_user} strat -r ${stratum} yay ${flags} -R ${items}"
-implementations["yay", "remove-packages-full"]     = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Rn ${items}"
-implementations["yay", "verify-packages"]          = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Qk ${items}"
-implementations["yay", "verify-all-packages"]      = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Qk"
-implementations["yay", "mark-packages-explicit"]   = "${unprivileged_user} strat -r ${stratum} yay ${flags} -D --asexplicit ${items}"
-implementations["yay", "mark-packages-implicit"]   = "${unprivileged_user} strat -r ${stratum} yay ${flags} -D --asdeps ${items}"
-implementations["yay", "show-package-information"] = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Si ${items}"
-implementations["yay", "clear-cache"]              = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Sc ${items}"
-implementations["yay", "remove-orphans"]           = "! ${unprivileged_user} strat -r ${stratum} yay -Qdtq >/dev/null || ${unprivileged_user} strat -r ${stratum} yay -Qdtq | ${unprivileged_user} strat -r ${stratum} yay ${flags} -Rs -"
-implementations["yay", "update-package-database"]  = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Sy"
-implementations["yay", "update-file-database"]     = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Fy"
-implementations["yay", "upgrade-packages-limited"] = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Su"
-implementations["yay", "upgrade-packages-full"]    = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Su"
+implementations["yay", "install-packages"]         = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -S --asexplicit ${items}"
+implementations["yay", "reinstall-packages"]       = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -S ${items}"
+implementations["yay", "remove-packages-limited"]  = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -R ${items}"
+implementations["yay", "remove-packages-full"]     = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Rn ${items}"
+implementations["yay", "verify-packages"]          = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Qk ${items}"
+implementations["yay", "verify-all-packages"]      = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Qk"
+implementations["yay", "mark-packages-explicit"]   = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -D --asexplicit ${items}"
+implementations["yay", "mark-packages-implicit"]   = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -D --asdeps ${items}"
+implementations["yay", "show-package-information"] = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Si ${items}"
+implementations["yay", "clear-cache"]              = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Sc ${items}"
+implementations["yay", "remove-orphans"]           = "! ${drop_privileges_command} strat -r ${stratum} yay -Qdtq >/dev/null || ${drop_privileges_command} strat -r ${stratum} yay -Qdtq | ${drop_privileges_command} strat -r ${stratum} yay ${flags} -Rs -"
+implementations["yay", "update-package-database"]  = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Sy"
+implementations["yay", "update-file-database"]     = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Fy"
+implementations["yay", "upgrade-packages-limited"] = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Su"
+implementations["yay", "upgrade-packages-full"]    = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Su"
 
 #
 # Combine operations.
@@ -95,21 +95,21 @@ user_interfaces["yay", "update-package-database,update-file-database,upgrade-pac
 
 implementations["yay", "clear-cache,remove-orphans"]                                                             = ""
 implementations["yay", "mark-packages-implicit,remove-orphans"]                                                  = ""
-implementations["yay", "remove-packages-limited,remove-orphans"]                                                 = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Rs ${items}"
-implementations["yay", "remove-packages-full,remove-orphans"]                                                    = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Rs ${items}"
-implementations["yay", "update-package-database,update-file-database"]                                           = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Sy"
-implementations["yay", "update-package-database,upgrade-packages-partial"]                                       = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Syu"
-implementations["yay", "update-package-database,upgrade-packages-full"]                                          = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Syu"
-implementations["yay", "update-package-database,update-file-database,upgrade-packages-partial"]                  = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Syu"
-implementations["yay", "update-package-database,update-file-database,upgrade-packages-full"]                     = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Syu"
-implementations["yay", "update-package-database,install-packages"]                                               = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Sy --asexplicit ${items}"
-implementations["yay", "update-package-database,update-file-database,install-packages"]                          = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Sy --asexplicit ${items}"
-implementations["yay", "upgrade-packages-limited,install-packages"]                                              = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Su --asexplicit ${items}"
+implementations["yay", "remove-packages-limited,remove-orphans"]                                                 = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Rs ${items}"
+implementations["yay", "remove-packages-full,remove-orphans"]                                                    = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Rs ${items}"
+implementations["yay", "update-package-database,update-file-database"]                                           = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Sy"
+implementations["yay", "update-package-database,upgrade-packages-partial"]                                       = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Syu"
+implementations["yay", "update-package-database,upgrade-packages-full"]                                          = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Syu"
+implementations["yay", "update-package-database,update-file-database,upgrade-packages-partial"]                  = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Syu"
+implementations["yay", "update-package-database,update-file-database,upgrade-packages-full"]                     = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Syu"
+implementations["yay", "update-package-database,install-packages"]                                               = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Sy --asexplicit ${items}"
+implementations["yay", "update-package-database,update-file-database,install-packages"]                          = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Sy --asexplicit ${items}"
+implementations["yay", "upgrade-packages-limited,install-packages"]                                              = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Su --asexplicit ${items}"
 implementations["yay", "upgrade-packages-limited,remove-orphans"]                                                = ""
-implementations["yay", "upgrade-packages-full,install-packages"]                                                 = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Su --asexplicit ${items}"
+implementations["yay", "upgrade-packages-full,install-packages"]                                                 = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Su --asexplicit ${items}"
 implementations["yay", "upgrade-packages-full,remove-orphans"]                                                   = ""
-implementations["yay", "update-package-database,upgrade-packages-partial,install-packages"]                      = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Syu --asexplicit ${items}"
-implementations["yay", "update-package-database,upgrade-packages-full,install-packages"]                         = "${unprivileged_user} strat -r ${stratum} yay ${flags} -Syu --asexplicit ${items}"
+implementations["yay", "update-package-database,upgrade-packages-partial,install-packages"]                      = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Syu --asexplicit ${items}"
+implementations["yay", "update-package-database,upgrade-packages-full,install-packages"]                         = "${drop_privileges_command} strat -r ${stratum} yay ${flags} -Syu --asexplicit ${items}"
 implementations["yay", "update-package-database,update-file-database,upgrade-packages-partial,install-packages"] = ""
 implementations["yay", "update-package-database,update-file-database,upgrade-packages-full,install-packages"]    = ""
 
@@ -126,15 +126,15 @@ user_interfaces["yay", "search-for-package-by-all"]    = "pmm -S/--sync -s/--sea
 user_interfaces["yay", "which-package-owns-file"]      = "pmm -Q/--query -o/--owns <file>"
 user_interfaces["yay", "which-packages-provide-file"]  = "pmm -F/--files <file>"
 
-implementations["yay", "list-installed-package-files"] = "${unprivileged_user} strat -r ${stratum} yay -Ql ${items} | cut -d' ' -f2-"
-implementations["yay", "list-installed-explicit"]      = "${unprivileged_user} strat -r ${stratum} yay -Qe | cut -d' ' -f1"
-implementations["yay", "list-installed-implicit"]      = "${unprivileged_user} strat -r ${stratum} yay -Qd | cut -d' ' -f1"
-implementations["yay", "list-installed-packages"]      = "${unprivileged_user} strat -r ${stratum} yay -Q | cut -d' ' -f1"
-implementations["yay", "list-available-packages"]      = "${unprivileged_user} strat -r ${stratum} yay -Sl | cut -d' ' -f2"
-implementations["yay", "search-for-package-by-name"]   = "${unprivileged_user} strat -r ${stratum} yay -Sl | cut -d' ' -f2 | grep ${items}"
-implementations["yay", "search-for-package-by-all"]    = "${unprivileged_user} strat -r ${stratum} yay -Ss ${items} | awk -F'[ /]' '/^[^ ]/{print$2}'"
-implementations["yay", "which-package-owns-file"]      = "${unprivileged_user} strat -r ${stratum} yay -Qo ${items} | awk '{print$(NF-1)}'"
-implementations["yay", "which-packages-provide-file"]  = "${unprivileged_user} strat -r ${stratum} yay -F ${items} |\
+implementations["yay", "list-installed-package-files"] = "${drop_privileges_command} strat -r ${stratum} yay -Ql ${items} | cut -d' ' -f2-"
+implementations["yay", "list-installed-explicit"]      = "${drop_privileges_command} strat -r ${stratum} yay -Qe | cut -d' ' -f1"
+implementations["yay", "list-installed-implicit"]      = "${drop_privileges_command} strat -r ${stratum} yay -Qd | cut -d' ' -f1"
+implementations["yay", "list-installed-packages"]      = "${drop_privileges_command} strat -r ${stratum} yay -Q | cut -d' ' -f1"
+implementations["yay", "list-available-packages"]      = "${drop_privileges_command} strat -r ${stratum} yay -Sl | cut -d' ' -f2"
+implementations["yay", "search-for-package-by-name"]   = "${drop_privileges_command} strat -r ${stratum} yay -Sl | cut -d' ' -f2 | grep ${items}"
+implementations["yay", "search-for-package-by-all"]    = "${drop_privileges_command} strat -r ${stratum} yay -Ss ${items} | awk -F'[ /]' '/^[^ ]/{print$2}'"
+implementations["yay", "which-package-owns-file"]      = "${drop_privileges_command} strat -r ${stratum} yay -Qo ${items} | awk '{print$(NF-1)}'"
+implementations["yay", "which-packages-provide-file"]  = "${drop_privileges_command} strat -r ${stratum} yay -F ${items} |\
 	awk '/^[^ ]/ {\
 		split($1, a, \"/\");\
 	} /^[ ]/ {\
@@ -144,11 +144,11 @@ implementations["yay", "which-packages-provide-file"]  = "${unprivileged_user} s
 #
 # Internal pmm operations.
 #
-implementations["yay", "is-package-installed"]               = "${unprivileged_user} strat -r ${stratum} yay -Q ${items} >/dev/null 2>&1"
-implementations["yay", "is-package-available"]               = "${unprivileged_user} strat -r ${stratum} yay -Si ${items} >/dev/null 2>&1"
+implementations["yay", "is-package-installed"]               = "${drop_privileges_command} strat -r ${stratum} yay -Q ${items} >/dev/null 2>&1"
+implementations["yay", "is-package-available"]               = "${drop_privileges_command} strat -r ${stratum} yay -Si ${items} >/dev/null 2>&1"
 implementations["yay", "is-file-db-available"]               = "true"
 implementations["yay", "print-file-db-install-instructions"] = ""
-implementations["yay", "print-package-version"]              = "${unprivileged_user} strat -r ${stratum} yay -Si ${items} |\
+implementations["yay", "print-package-version"]              = "${drop_privileges_command} strat -r ${stratum} yay -Si ${items} |\
 	awk '\
 		$1 == \"Version\" {\
 			sub(/[0-9]*:/, \"\", $3);\
@@ -157,7 +157,7 @@ implementations["yay", "print-package-version"]              = "${unprivileged_u
 			sub(/[.]$/, \"\", $3);\
 			print $3\
 		}'"
-implementations["yay", "cache-package-db"]                   = "${unprivileged_user} strat -r ${stratum} yay -Sl |\
+implementations["yay", "cache-package-db"]                   = "${drop_privileges_command} strat -r ${stratum} yay -Sl |\
 	awk '$3 == \"unknown-version\" {\
 		print $2\"\t0\";\
 		next\
