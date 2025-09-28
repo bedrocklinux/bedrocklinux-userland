@@ -82,11 +82,11 @@ fetch() {
 	suffix="releases/${target_release}/Everything/${distro_arch}/os"
 
 	step "Downloading package information database"
-	url="$(find_link "${target_mirror}/${suffix}/repodata/" "primary.xml.gz")"
-	download "${url}" "${bootstrap_dir}/primary.xml.gz"
+	url="$(find_link "${target_mirror}/${suffix}/repodata/" "primary.xml.zst")"
+	download "${url}" "${bootstrap_dir}/primary.xml.zst"
 
 	step "Extracting package information database"
-	gunzip "${bootstrap_dir}/primary.xml.gz"
+	zstd -d "${bootstrap_dir}/primary.xml.zst"
 
 	step "Converting distro package information database to brl format"
 	if [ "${target_arch}" = i686 ]; then
@@ -152,7 +152,7 @@ fetch() {
 	fi
 
 	LC_ALL=C chroot "${bootstrap_dir}" rpm -i --root=/target-root --nodeps ./packages/fedora-release-*.rpm 2>/dev/null || true
-	LC_ALL=C chroot "${bootstrap_dir}" "${package_manager}" --installroot=/target-root install -y rpm-build "${package_manager}" fedora-repos
+	LC_ALL=C chroot "${bootstrap_dir}" "${package_manager}" --installroot=/target-root --use-host-config install -y rpm-build "${package_manager}" fedora-repos
 	# Need to set database timestamps for pmm due to `dnf -C` usage
 	umount -l "${bootstrap_dir}/var/cache/dnf" >/dev/null 2>&1 || true
 	umount -l "${bootstrap_dir}/var/cache/yum" >/dev/null 2>&1 || true
