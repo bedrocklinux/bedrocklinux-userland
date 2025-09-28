@@ -333,9 +333,14 @@ libcap: $(COMPLETED)/libcap
 vendor/libfuse/.success_fetching_source:
 	rm -rf vendor/libfuse
 	mkdir -p vendor/libfuse
-	# More recent libfuse versions bumped up meson requirements which breaks build environment.  Stick with 3.12.x for now.
 	git clone --depth=1 \
-		-b 'fuse-3.12.0' 'https://github.com/libfuse/libfuse.git' \
+		-b `git ls-remote --tags 'https://github.com/libfuse/libfuse.git' | \
+		awk -F/ '{print $$NF}' | \
+		sed 's/^fuse-//g' | \
+		grep '^[0-9.]*$$' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed 's/^/fuse-/'` 'https://github.com/libfuse/libfuse.git' \
 		vendor/libfuse
 	touch vendor/libfuse/.success_fetching_source
 $(COMPLETED)/libfuse: vendor/libfuse/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/musl
@@ -343,35 +348,7 @@ $(COMPLETED)/libfuse: vendor/libfuse/.success_fetching_source $(COMPLETED)/build
 	cp -r vendor/libfuse/ $(VENDOR)
 	mkdir -p $(VENDOR)/libfuse/build
 	# ln -s $(VENDOR)/libfuse/build/libfuse_config.h $(SUPPORT)/include/
-	# meson/ninja sometimes fails with
-	#     ninja: error: unknown target 'lib/libfuse3.a'
-	# for no apparent reason.  It seems to eventually take after multiple
-	# tries.  Thus, retry a few times.
 	cd $(VENDOR)/libfuse/build && \
-		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
-		meson configure -D buildtype=release && \
-		meson configure -D default_library=static && \
-		meson configure -D strip=true && \
-		meson configure -D prefix=$(SUPPORT) && \
-		CC=$(MUSLCC) ninja lib/libfuse3.a || \
-		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
-		meson configure -D buildtype=release && \
-		meson configure -D default_library=static && \
-		meson configure -D strip=true && \
-		meson configure -D prefix=$(SUPPORT) && \
-		CC=$(MUSLCC) ninja lib/libfuse3.a || \
-		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
-		meson configure -D buildtype=release && \
-		meson configure -D default_library=static && \
-		meson configure -D strip=true && \
-		meson configure -D prefix=$(SUPPORT) && \
-		CC=$(MUSLCC) ninja lib/libfuse3.a || \
-		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
-		meson configure -D buildtype=release && \
-		meson configure -D default_library=static && \
-		meson configure -D strip=true && \
-		meson configure -D prefix=$(SUPPORT) && \
-		CC=$(MUSLCC) ninja lib/libfuse3.a || \
 		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
 		meson configure -D buildtype=release && \
 		meson configure -D default_library=static && \
@@ -381,6 +358,7 @@ $(COMPLETED)/libfuse: vendor/libfuse/.success_fetching_source $(COMPLETED)/build
 	cp -r $(VENDOR)/libfuse/build/lib/* $(SUPPORT)/lib/
 	mkdir -p $(SUPPORT)/include/fuse3/
 	cp $(VENDOR)/libfuse/include/*.h $(SUPPORT)/include/fuse3/
+	cp $(VENDOR)/libfuse/build/*.h $(SUPPORT)/include/fuse3/
 	touch $(COMPLETED)/libfuse
 libfuse: $(COMPLETED)/libfuse
 
