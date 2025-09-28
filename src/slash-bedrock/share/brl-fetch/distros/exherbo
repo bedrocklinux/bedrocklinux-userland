@@ -9,7 +9,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-#	Copyright (c) 2016-2025 Daniel Thau <danthau@bedrocklinux.org>
+#	Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
 . /bedrock/share/common-code
@@ -24,7 +24,7 @@ speed_test_url() {
 }
 
 list_mirrors() {
-	echo "https://dev.exherbo.org/"
+	echo "https://stages.exherbo.org"
 }
 
 brl_arch_to_distro() {
@@ -69,12 +69,14 @@ fetch() {
 	filename="$(echo "${url}" | awk -F/ '{print$NF}')"
 	checksum_download "${cache}/${filename}" "sha256sum" "${sum}" "${url}"
 
+	step "Preparing bootstrap software"
+	tar xvJp -C "${bootstrap_dir}" -f "${cache}"/"${ex_stage}" | awk 'NR%100==0' | progress_unknown
+
 	step "Running bootstrap software"
-	tar xvJp -C "${bootstrap_dir}" -f "${cache}"/"${filename}" | awk 'NR%100==0' | progress_unknown
 	setup_chroot "${bootstrap_dir}"
 	setup_ssl "${bootstrap_dir}"
 	share_cache "." "${bootstrap_dir}/tarballs"
-	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xvJpf /tarballs/${filename}" | awk 'NR%100==0' | progress_unknown
+	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xvJpf /tarballs/${ex_stage}" | awk 'NR%100==0' | progress_unknown
 
 	step "Configuring"
 	setup_chroot "${target_dir}"
