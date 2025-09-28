@@ -320,9 +320,9 @@ static inline int set_caller_permissions(void)
 			return -ENOMEM;
 		}
 		int rv_heap;
-		if ((rv_heap = fuse_getgroups(rv, list)) < 0) {
+		if ((rv_heap = fuse_getgroups(rv, list_heap)) < 0) {
 			free(list_heap);
-			return rv;
+			return rv_heap;
 		}
 		if (rv_heap > rv) {
 			free(list_heap);
