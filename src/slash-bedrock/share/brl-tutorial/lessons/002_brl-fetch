@@ -30,7 +30,7 @@ $(standard_intro)
 "
 
 section "Listing distro options" "
-To see the of supported distros ${brl_fetch} can acquire, run it with the
+To see the list of supported distros ${brl_fetch} can acquire, run it with the
 $(flag -L) or $(flag --list) flag:
 
 $(cmd "brl fetch -L")
@@ -187,14 +187,14 @@ $(cmd "strat tut-${non_native_isa} uname -m | tee ${tmpfile2}")
 
 section "Skipping post-fetch setup" "
 By default, ${brl_fetch} will ${enable} and ${show} newly fetched ${strata} so
-that they are immediately available for use.  If this is not always desired and
+that they are immediately available for use.  If this is not desired, it
 may be skipped by providing $(flag --dont-enable) and/or $(flag --dont-show) as
 is appropriate.
 "
 
 section "Clean up" "
-This tutorial created a number of ${strata} which you are no longer need after
-the tutorial.  Clean those up to complete the tutorial:
+This tutorial created a number of ${strata} which you likely no longer need.  
+Clean those up to complete the tutorial:
 
 $(rcmd brl disable tut-alpine tut-alpine2 tut-edge tut-debian tut-${non_native_isa})
 $(rcmd brl remove tut-alpine tut-alpine2 tut-edge tut-debian tut-${non_native_isa})
