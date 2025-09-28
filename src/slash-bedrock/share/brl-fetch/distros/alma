@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2021 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2025 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -61,7 +61,10 @@ default_release() {
 }
 
 list_releases() {
-	for mirror in "${flag_mirror}" "https://rsync.repo.almalinux.org/almalinux/"; do
+	# Ideally we'd use a direct alma website rather than a mirror for this, but
+	# https://rsync.repo.almalinux.org/almalinux/
+	# appears to have an outdated certificate at the time of writing
+	for mirror in "${flag_mirror}" "https://na.edge.kernel.org/almalinux"; do
 		if download -q "${mirror}" - |
 			list_links |
 			grep '^[0-9][0-9a-z-]*/$' |
