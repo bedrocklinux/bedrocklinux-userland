@@ -1,3 +1,22 @@
+# 0.7.31beta3
+
+- Added brl-fetch opensuse
+- Added pmm support for cargo
+- Dropped brl-fetch clear
+- Fixed brl-fetch alma
+- Fixed brl-fetch artix-s6
+- Fixed brl-fetch centos
+- Fixed brl-fetch debian
+- Fixed brl-fetch devuan
+- Fixed brl-fetch exherbo
+- Fixed brl-fetch exherbo-musl
+- Fixed brl-fetch fedora
+- Fixed brl-fetch manjaro
+- Fixed brl-fetch openwrt
+- Fixed brl-tutorial typos
+- Fixed pmm handling of $PATH without Bedrock entries
+- Improved etcfs robustness
+
 # 0.7.31beta2
 
 - Fixed brl-fetch arch
