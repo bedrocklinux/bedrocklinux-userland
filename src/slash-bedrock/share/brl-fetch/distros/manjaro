@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2020 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2025 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -63,6 +63,11 @@ setup_pacman() {
 	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --init
 	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate manjaro archlinux
 
+	# pacman 7.0 defaults to using a limited-privilege alpm user to fetch packages
+	# This is a worthwhile idea, but brl-fetch doesn't currently have the infrastructure to support it
+	sed 's/DownloadUser/# DownloadUser/' "${1}/etc/pacman.conf" > "${1}/etc/pacman.conf-new"
+	mv "${1}/etc/pacman.conf-new" "${1}/etc/pacman.conf"
+
 	if ! grep -q "^Server" "${1}/etc/pacman.d/mirrorlist"; then
 		echo "### Set by Bedrock Linux when acquiring this stratum" >>"${1}/etc/pacman.d/mirrorlist"
 		echo "Server = ${target_mirror}/stable\$repo/\$arch" >>"$1/etc/pacman.d/mirrorlist"
@@ -70,19 +75,19 @@ setup_pacman() {
 }
 
 fetch() {
-	bootstrap_deps="manjaro-tools-base pacman pacman-mirrors ca-certificates ca-certificates-utils awk util-linux"
+	bootstrap_deps="manjaro-tools-base pacman pacman-mirrors ca-certificates ca-certificates-utils awk util-linux archlinux-keyring manjaro-keyring"
 
 	step "Downloading package information database"
 	download "${target_mirror}/stable/core/${distro_arch}/core.db.tar.gz" "${bootstrap_dir}/core.db.tar.gz"
 	download "${target_mirror}/stable/extra/${distro_arch}/extra.db.tar.gz" "${bootstrap_dir}/extra.db.tar.gz"
-	download "${target_mirror}/stable/community/${distro_arch}/community.db.tar.gz" "${bootstrap_dir}/community.db.tar.gz"
+	#download "${target_mirror}/stable/community/${distro_arch}/community.db.tar.gz" "${bootstrap_dir}/community.db.tar.gz"
 
 	step "Decompressing package information database"
-	mkdir -p "${bootstrap_dir}/pacmandb/core" "${bootstrap_dir}/pacmandb/extra" "${bootstrap_dir}/pacmandb/community"
+	mkdir -p "${bootstrap_dir}/pacmandb/core" "${bootstrap_dir}/pacmandb/extra"
 	(
 		tar -xv -f "${bootstrap_dir}/core.db.tar.gz" -C "${bootstrap_dir}/pacmandb/core/"
 		tar -xv -f "${bootstrap_dir}/extra.db.tar.gz" -C "${bootstrap_dir}/pacmandb/extra/"
-		tar -xv -f "${bootstrap_dir}/community.db.tar.gz" -C "${bootstrap_dir}/pacmandb/community/"
+		#tar -xv -f "${bootstrap_dir}/community.db.tar.gz" -C "${bootstrap_dir}/pacmandb/community/"
 	) | awk 'NR%100==0' | progress_unknown
 
 	step "Converting distro package information database to brl format"
@@ -110,6 +115,8 @@ fetch() {
 	cp -a "/etc/group" "${target_dir}/etc/group"
 
 	setup_chroot "${bootstrap_dir}"
+	# the bootstrap manjaro /etc/ssl is broken.  Rather than merging it with the host, delete it and use host directly.
+	rm "${bootstrap_dir}/etc/ssl"
 	setup_ssl "${bootstrap_dir}"
 	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/pacman/pkg/"
 	# -a to use the api, -P all protocols, -t 1 timeout if it takes longer than 1 second
