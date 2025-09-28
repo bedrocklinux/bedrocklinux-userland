@@ -97,15 +97,14 @@ strata="$(
 	done | sort
 )"
 export strata
-export PATH=$PATH:/bedrock/bin
 
 aliases="$(
-    for alias in $(list_aliases); do
-        if is_enabled "${alias}" && has_attr "/bedrock/strata/${alias}" "show_pmm"; then
-            deref="$(brl deref "${alias}")"
-            echo "aliases[\"${alias}\"] = \"${deref}\""
-        fi
-    done | sort
+for alias in $(list_aliases); do
+	if is_enabled "${alias}" && has_attr "/bedrock/strata/${alias}" "show_pmm"; then
+		deref="$(/bedrock/bin/brl deref "${alias}")"
+		echo "aliases[\"${alias}\"] = \"${deref}\""
+	fi
+done | sort
 )"
 export aliases
 initialize_awk_variables="${initialize_awk_variables}
