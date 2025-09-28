@@ -40,17 +40,17 @@ case "$(gcc -dumpmachine)" in
 		;;
 	i386-*)
 		echo "i386"
-		echo "Intel 80386"
+		echo "Intel \(80386\|i386\)"
 		echo "32"
 		;;
 	i486-*)
 		echo "i486"
-		echo "Intel 80386"
+		echo "Intel \(80386\|i386\)"
 		echo "32"
 		;;
 	i586-*)
 		echo "i586"
-		echo "Intel 80386"
+		echo "Intel \(80386\|i386\)"
 		echo "32"
 		;;
 	i686-*)
