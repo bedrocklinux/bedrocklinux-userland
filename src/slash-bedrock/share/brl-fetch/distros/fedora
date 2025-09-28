@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2021 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2025 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -66,27 +66,28 @@ list_releases() {
 		sort -n
 }
 
-determine_package_manager() {
-	if [ -e "${bootstrap_dir}/brldb/depends/dn" ] && grep -q '^dnf\>' "${bootstrap_dir}/brldb/depends/dn"; then
-		echo "dnf"
-	else
-		echo "yum"
-	fi
-}
-
 bootstrap_deps() {
-	echo "${package_manager} rpm fedora-release filesystem fedora-gpg-keys"
+	echo "dnf rpm fedora-release filesystem fedora-gpg-keys"
 }
 
 fetch() {
 	suffix="releases/${target_release}/Everything/${distro_arch}/os"
 
-	step "Downloading package information database"
-	url="$(find_link "${target_mirror}/${suffix}/repodata/" "primary.xml.zst")"
-	download "${url}" "${bootstrap_dir}/primary.xml.zst"
+	if [ "${target_release}" -lt 42 ]; then
+		step "Downloading package information database"
+		url="$(find_link "${target_mirror}/${suffix}/repodata/" "primary.xml.gz")"
+		download "${url}" "${bootstrap_dir}/primary.xml.gz"
 
-	step "Extracting package information database"
-	zstd -d "${bootstrap_dir}/primary.xml.zst"
+		step "Extracting package information database"
+		gunzip "${bootstrap_dir}/primary.xml.gz"
+	else
+		step "Downloading package information database"
+		url="$(find_link "${target_mirror}/${suffix}/repodata/" "primary.xml.zst")"
+		download "${url}" "${bootstrap_dir}/primary.xml.zst"
+
+		step "Extracting package information database"
+		zstd -d "${bootstrap_dir}/primary.xml.zst"
+	fi
 
 	step "Converting distro package information database to brl format"
 	if [ "${target_arch}" = i686 ]; then
@@ -97,7 +98,6 @@ fetch() {
 	fi
 
 	step "Calculating required bootstrap packages"
-	package_manager="$(determine_package_manager)"
 	brldb_calculate_required_packages "${bootstrap_dir}/brldb" "${bootstrap_dir}/required_packages" "$(bootstrap_deps)"
 
 	step "Downloading bootstrap packages"
@@ -143,26 +143,30 @@ fetch() {
 
 	# Configure the package manager to utilize the desired architecture
 	if [ "${target_arch}" = "i686" ]; then
-		mkdir -p "${bootstrap_dir}/etc/${package_manager}/vars/"
-		echo 'i686' >"${bootstrap_dir}/etc/${package_manager}/vars/arch"
-		echo 'i386' >"${bootstrap_dir}/etc/${package_manager}/vars/basearch"
-		mkdir -p "${target_dir}/etc/${package_manager}/vars/"
-		echo 'i686' >"${target_dir}/etc/${package_manager}/vars/arch"
-		echo 'i386' >"${target_dir}/etc/${package_manager}/vars/basearch"
+		mkdir -p "${bootstrap_dir}/etc/dnf/vars/"
+		echo 'i686' >"${bootstrap_dir}/etc/dnf/vars/arch"
+		echo 'i386' >"${bootstrap_dir}/etc/dnf/vars/basearch"
+		mkdir -p "${target_dir}/etc/dnf/vars/"
+		echo 'i686' >"${target_dir}/etc/dnf/vars/arch"
+		echo 'i386' >"${target_dir}/etc/dnf/vars/basearch"
 	fi
 
 	LC_ALL=C chroot "${bootstrap_dir}" rpm -i --root=/target-root --nodeps ./packages/fedora-release-*.rpm 2>/dev/null || true
-	LC_ALL=C chroot "${bootstrap_dir}" "${package_manager}" --installroot=/target-root --use-host-config install -y rpm-build "${package_manager}" fedora-repos
+	if [ "${target_release}" -lt 42 ]; then
+		LC_ALL=C chroot "${bootstrap_dir}" dnf --installroot=/target-root install -y rpm-build dnf fedora-repos
+	else
+		LC_ALL=C chroot "${bootstrap_dir}" dnf --installroot=/target-root --use-host-config install -y rpm-build dnf fedora-repos
+	fi
 	# Need to set database timestamps for pmm due to `dnf -C` usage
 	umount -l "${bootstrap_dir}/var/cache/dnf" >/dev/null 2>&1 || true
 	umount -l "${bootstrap_dir}/var/cache/yum" >/dev/null 2>&1 || true
 
 	step "Configuring"
 	setup_chroot "${target_dir}"
-	LC_ALL=C chroot "${target_dir}" "${package_manager}" -y update
+	LC_ALL=C chroot "${target_dir}" dnf -y update
 
 	# Fedora does not use localegen; need to special case locale handling.
-	LC_ALL=C chroot "${target_dir}" "${package_manager}" -y install glibc-locale-source
+	LC_ALL=C chroot "${target_dir}" dnf -y install glibc-locale-source
 	localegen="$(cfg_values "locale" "localegen")"
 	if [ -n "${localegen}" ]; then
 		unset IFS
