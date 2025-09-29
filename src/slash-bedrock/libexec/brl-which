@@ -24,6 +24,7 @@ Options:
   ${color_cmd}-f${color_norm}, ${color_cmd}--file      ${color_norm}which ${color_term}stratum${color_norm} provides a given file path
   ${color_cmd}-p${color_norm}, ${color_cmd}--pid       ${color_norm}which ${color_term}stratum${color_norm} provides a given process ID
   ${color_cmd}-x${color_norm}, ${color_cmd}--xwindow   ${color_norm}which ${color_term}stratum${color_norm} provides a given X11 window (requires xprop)
+  ${color_cmd}-a${color_norm}, ${color_cmd}--all       ${color_norm}search in all ${color_term}strata${color_norm} (files and binaries only)
   ${color_cmd}-h${color_norm}, ${color_cmd}--help      ${color_norm}print this message
 
 Guessing reasoning for ${color_sub}<blank>${color_norm} based on identifier:
@@ -67,6 +68,19 @@ which_bin() {
 	done
 }
 
+which_bin_all() (
+	min_args "${#}" "1"
+
+	while [ -n "${1:-}" ]; do
+		for stratum in $(list_strata); do
+			if path="$(strat -r "${stratum}" /bedrock/libexec/busybox which "$1" 2>/dev/null)"; then
+				which_file "/bedrock/strata/${stratum}/${path}"
+			fi
+		done
+		shift
+	done
+)
+
 which_file() {
 	while [ -n "${1:-}" ]; do
 		if ! [ -e "${1}" ]; then
@@ -89,6 +103,19 @@ which_file() {
 		shift
 	done
 }
+
+which_file_all() (
+	min_args "${#}" "1"
+
+	while [ -n "${1:-}" ]; do
+		for stratum in $(list_strata); do
+			if [ -e "/bedrock/strata/${stratum}/$1" ]; then
+				which_file "/bedrock/strata/${stratum}/$1"
+			fi
+		done
+		shift
+	done
+)
 
 which_pid() {
 	while [ -n "${1:-}" ]; do
@@ -135,30 +162,12 @@ which_xwindow() {
 	fi
 }
 
-handle_help "${@:-}"
+which_auto() {
+	if [ "${#}" -eq 0 ]; then
+		which_current
+		return
+	fi
 
-case "${1:-}" in
-"-c" | "--current" | "")
-	[ -n "${1:-}" ] && shift
-	which_current "${@}"
-	;;
-"-b" | "--bin")
-	shift
-	which_bin "${@}"
-	;;
-"-f" | "--file")
-	shift
-	which_file "${@}"
-	;;
-"-p" | "--pid")
-	shift
-	which_pid "${@}"
-	;;
-"-x" | "--xwindow")
-	shift
-	which_xwindow
-	;;
-*)
 	while [ -n "${1:-}" ]; do
 		if echo "${1}" | grep -q '^[0-9][0-9]*$'; then
 			which_pid "${1}"
@@ -169,7 +178,80 @@ case "${1:-}" in
 		fi
 		shift
 	done
-	;;
-esac
+}
+
+which_auto_all() {
+	min_args "${#}" "1"
+
+	while [ -n "${1:-}" ]; do
+		if echo "${1}" | grep -q '/'; then
+			which_file_all "${1}"
+		else
+			which_bin_all "${1}"
+		fi
+		shift
+	done
+}
+
+handle_help "${@:-}"
+
+OPTL="all,bin,file,current,pid,xwindow"
+OPTO="abcfpx"
+eval set -- "$(getopt -q -l "${OPTL}" -- "${OPTO}" "${@}")" || true
+
+list_all=false
+list_type=auto
+
+while [ -n "${1:-}" ]; do
+	case "${1:-}" in
+	"-c" | "--current")
+		shift
+		list_type=current
+		;;
+	"-b" | "--bin")
+		shift
+		list_type=bin
+		;;
+	"-a" | "--all")
+		shift
+		list_all=true
+		;;
+	"-f" | "--file")
+		shift
+		list_type=file
+		;;
+	"-p" | "--pid")
+		shift
+		list_type=pid
+		;;
+	"-x" | "--xwindow")
+		shift
+		list_type=xwindow
+		;;
+	--)
+		shift
+		break
+		;;
+	-*)
+		abort "Unrecognized argument: ${1}"
+		;;
+	*)
+		break
+		;;
+	esac
+done
+
+if [ "${list_all}" = true ]; then
+	case "${list_type}" in
+		auto|file|bin)
+			list_type="${list_type}_all"
+			;;
+		*)
+			abort "-a/--all can only be used with -f/--file or -b/--bin"
+			;;
+	esac
+fi
+
+which_${list_type} "$@"
 
 exit_success
