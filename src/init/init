@@ -413,6 +413,8 @@ if ! init_tuple="$(grep -q '\<bedrock_init=' /proc/cmdline && sed -e 's/^.*bedro
 fi
 init_stratum="$(echo "${init_tuple}" | cut -d: -f1)"
 init_cmd="$(echo "${init_tuple}" | cut -d: -f2-)"
+# Make init_cmd available to brl-apply when we call it later.
+export init_cmd
 
 echo ""
 step_init "6"
