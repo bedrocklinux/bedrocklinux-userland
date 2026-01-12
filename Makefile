@@ -131,7 +131,7 @@
 #
 #     make check
 
-BEDROCK_VERSION=0.7.31beta3
+BEDROCK_VERSION=0.7.31
 CODENAME=Poki
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | awk 'NR==2')
