@@ -74,6 +74,21 @@ setup_pacman() {
 	fi
 }
 
+ensure_ca_bundle() {
+	dir="${1}"
+
+	if [ ! -r "${dir}/etc/ssl/certs/ca-certificates.crt" ]; then
+		mkdir -p "${dir}/etc/ssl/certs"
+		if [ -r "/etc/ssl/certs/ca-certificates.crt" ]; then
+			cp -pL "/etc/ssl/certs/ca-certificates.crt" "${dir}/etc/ssl/certs/ca-certificates.crt"
+		elif [ -r "/etc/ssl/certs/ca-bundle.crt" ]; then
+			cp -pL "/etc/ssl/certs/ca-bundle.crt" "${dir}/etc/ssl/certs/ca-certificates.crt"
+		elif [ -r "/etc/ssl/cert.pem" ]; then
+			cp -pL "/etc/ssl/cert.pem" "${dir}/etc/ssl/certs/ca-certificates.crt"
+		fi
+	fi
+}
+
 fetch() {
 	bootstrap_deps="manjaro-tools-base pacman pacman-mirrors ca-certificates ca-certificates-utils awk util-linux archlinux-keyring manjaro-keyring"
 
@@ -115,9 +130,8 @@ fetch() {
 	cp -a "/etc/group" "${target_dir}/etc/group"
 
 	setup_chroot "${bootstrap_dir}"
-	# the bootstrap manjaro /etc/ssl is broken.  Rather than merging it with the host, delete it and use host directly.
-	rm "${bootstrap_dir}/etc/ssl"
 	setup_ssl "${bootstrap_dir}"
+	ensure_ca_bundle "${bootstrap_dir}"
 	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/pacman/pkg/"
 	# -a to use the api, -P all protocols, -t 1 timeout if it takes longer than 1 second
 	LC_ALL=C chroot "${bootstrap_dir}" pacman-mirrors -S stable -f 1 -a -P all -t 1

@@ -1,31 +1,31 @@
-# 0.7.31beta3
+# 0.7.31
 
 - Added brl-fetch opensuse
+- Added brl-import support for multi-partition VM images
+- Added brl-import first-class support for docker/podman containers
 - Added pmm support for cargo
-- Dropped brl-fetch clear
+- Deprecate big-endian 32-bit mips
+- Deprecate brl-fetch clear
 - Fixed brl-fetch alma
+- Fixed brl-fetch arch
 - Fixed brl-fetch artix-s6
 - Fixed brl-fetch centos
+- Fixed brl-fetch centos -r 9-stream
+- Fixed brl-fetch crux
 - Fixed brl-fetch debian
 - Fixed brl-fetch devuan
+- Fixed brl-fetch exherbo
 - Fixed brl-fetch exherbo
 - Fixed brl-fetch exherbo-musl
 - Fixed brl-fetch fedora
 - Fixed brl-fetch manjaro
+- Fixed brl-fetch manjaro
 - Fixed brl-fetch openwrt
+- Fixed brl-fetch solus
+- Fixed brl-fetch void-musl
 - Fixed brl-tutorial typos
 - Fixed pmm handling of $PATH without Bedrock entries
 - Improved etcfs robustness
-
-# 0.7.31beta2
-
-- Fixed brl-fetch arch
-- Fixed brl-fetch void-musl
-- Deprecate big-endian 32-bit mips
-
-# 0.7.31beta1
-
-- Fixed brl-fetch centos -r 9-stream
 
 # 0.7.30
 

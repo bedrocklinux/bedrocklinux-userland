@@ -70,13 +70,13 @@ fetch() {
 	checksum_download "${cache}/${filename}" "sha256sum" "${sum}" "${url}"
 
 	step "Preparing bootstrap software"
-	tar xvJp -C "${bootstrap_dir}" -f "${cache}"/"${ex_stage}" | awk 'NR%100==0' | progress_unknown
+	tar xvJp -C "${bootstrap_dir}" -f "${cache}"/"${filename}" | awk 'NR%100==0' | progress_unknown
 
 	step "Running bootstrap software"
 	setup_chroot "${bootstrap_dir}"
 	setup_ssl "${bootstrap_dir}"
 	share_cache "." "${bootstrap_dir}/tarballs"
-	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xvJpf /tarballs/${ex_stage}" | awk 'NR%100==0' | progress_unknown
+	chroot "${bootstrap_dir}" sh -c "cd /target-root && tar xvJpf /tarballs/${filename}" | awk 'NR%100==0' | progress_unknown
 
 	step "Configuring"
 	setup_chroot "${target_dir}"

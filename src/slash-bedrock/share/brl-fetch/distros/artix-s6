@@ -60,6 +60,11 @@ setup_pacman() {
 			>"${1}/etc/pacman.conf-new"
 	mv "${1}/etc/pacman.conf-new" "${1}/etc/pacman.conf"
 
+	# pacman 7.0 defaults to using a limited-privilege alpm user to fetch packages
+	# This is a worthwhile idea, but brl-fetch doesn't currently have the infrastructure to support it
+	sed 's/DownloadUser/# DownloadUser/' "${1}/etc/pacman.conf" > "${1}/etc/pacman.conf-new"
+	mv "${1}/etc/pacman.conf-new" "${1}/etc/pacman.conf"
+
 	LC_ALL=C chroot "${1}" /usr/bin/update-ca-trust
 	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --init
 	LC_ALL=C chroot "${1}" /usr/bin/pacman-key --populate artix

@@ -86,7 +86,7 @@ fetch() {
 		download "${url}" "${bootstrap_dir}/primary.xml.zst"
 
 		step "Extracting package information database"
-		zstd -d "${bootstrap_dir}/primary.xml.zst"
+		/bedrock/libexec/zstd -d "${bootstrap_dir}/primary.xml.zst"
 	fi
 
 	step "Converting distro package information database to brl format"

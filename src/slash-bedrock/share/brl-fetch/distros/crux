@@ -18,7 +18,7 @@ check_supported() {
 }
 
 speed_test_url() {
-	echo "loop/crux/handbook.txt"
+	echo "crux-${target_release}/ChangeLog"
 }
 
 list_mirrors() {

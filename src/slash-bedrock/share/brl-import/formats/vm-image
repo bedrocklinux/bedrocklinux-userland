@@ -1,0 +1,704 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl import VM image support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2020-2026 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Creates strata from VM image
+
+# Parse fdisk output to get partition byte offsets
+# We're guaranteed to use busybox's fdisk here; assume busybox fdisk formatting.
+# Outputs part_num:offset per line to ${tmp}/partition-list
+create_partitions_list() {
+	fdisk -lu "${1}" | awk '
+		/Found valid GPT/ {
+			gpt=1
+		}
+		# Busybox fdisk MBR mode sector size
+		/Units: sectors of/ {
+			sector_size = $(NF-1)
+		}
+		# Busybox fdisk GPT mode sector size
+		/Logical sector size:/ {
+			sector_size = $(NF)
+		}
+		# Busybox fdisk MBR mode partition list
+		# e.g.
+		# Device           Boot StartCHS    EndCHS        StartLBA     EndLBA    Sectors  Size Id Type
+		# /dev/shm/test.img1 *  0,32,33     12,223,19         2048     206847     204800  100M 83 Linux
+		# Also match multi-word types like "Linux LVM", "Linux RAID", but not "Linux swap"
+		!gpt && /^\// && ($(NF) == "Linux" || $(NF-1) == "Linux") && tolower($(NF)) != "swap" {
+			if (match($1, /[0-9]+$/)) {
+				part_num = substr($1, RSTART, RLENGTH)
+			} else {
+				next
+			}
+			if ($2 == "*") {
+				print part_num ":" $5 * sector_size
+			} else {
+				print part_num ":" $4 * sector_size
+			}
+		}
+		# Busybox fdisk GPT mode partition list
+		# No type indicator, have to check things like swap.
+		# e.g.
+		# Number  Start (sector)    End (sector)  Size Name
+		#      1            2048           18431 8192K
+		gpt && /^  *[0-9]/ && $2 >= 2048 {
+			print $1 ":" $2 * sector_size
+		}
+	' > "${tmp}/partition-list"
+}
+
+# Mount a partition from an image file using loop device with offset
+# Args: image partition_start mount_point [mount_opts]
+mount_partition() {
+	image="${1}"
+	partition_start="${2}"
+	mount_point="${3}"
+	mount_opts="${4:-}"
+
+	# Don't mount with `ro`; breaks some filesystems which, if not unmounted
+	# properly (which is common with VMs), refuse to mount ro.
+	# We're working on a copy of the VM image which we're going to throw away;
+	# modifying it accidentally is okay.
+
+	if [ -n "${mount_opts}" ]; then
+		opts="loop,offset=${partition_start},${mount_opts}"
+	else
+		opts="loop,offset=${partition_start}"
+	fi
+
+	if mount -o "${opts}" "${image}" "${mount_point}" 2>/dev/null; then
+		return 0
+	fi
+
+	# Rapid mount -oloop calls can result in undocumented EEXIST errors
+	# https://unix.stackexchange.com/questions/537029/error-for-mount-system-call-failed-file-exists
+	# Retry once after a short delay
+	sleep 1
+	mount -o "${opts}" "${image}" "${mount_point}" 2>/dev/null
+}
+
+# Check if LVM utilities are available
+# Returns 0 if all available, 1 otherwise
+check_lvm_available() {
+	found_all=true
+
+	for cmd in losetup partx pvscan vgscan pvs vgchange lvs; do
+		if ! command -v "${cmd}" >/dev/null 2>&1; then
+			found_all=false
+			notice "${color_warn}Cannot find ${color_cmd}${cmd}${color_warn} in ${color_file}\$PATH${color_warn}; skipping lvm partitions${color_norm}"
+		fi
+	done
+
+	if "$found_all"; then
+		return 0
+	else
+		return 1
+	fi
+
+}
+
+vg_has_active_lvs() {
+	vg="${1}"
+	lvm_filter="${2:-}"
+
+	command -v lvs >/dev/null 2>&1 || return 1
+
+	# shellcheck disable=SC2086
+	lvs ${lvm_filter} --noheadings -o lv_attr "${vg}" 2>/dev/null | awk '
+		{
+			gsub(/^ +| +$/, "", $0)
+			if (length($0) >= 5 && substr($0, 5, 1) == "a") {
+				found=1
+				exit
+			}
+		}
+		END { exit (!found) }
+	'
+}
+
+# Setup LVM: create loop device, scan and activate VGs
+# Args: image tmp_dir
+# Outputs LV paths to ${tmp}/lvm-volumes, tracks state in tmp_dir files
+setup_lvm() {
+	image="${1}"
+	tmp_dir="${2}"
+
+	loop_dev=$(losetup -f --show "${image}") || return 1
+	echo "${loop_dev}" >> "${tmp_dir}/loop-devices"
+
+	# Isolate LVM operations to this loop device only.
+	# This prevents accidentally accessing host VGs with colliding names.
+	# Filter accepts the loop device and its partitions, rejects all else.
+	lvm_filter="--config devices{filter=[\"a|${loop_dev}|\",\"r|.*|\"]}"
+	echo "${lvm_filter}" > "${tmp_dir}/lvm-filter"
+
+	# Add partitions to loop device and refresh LVM cache
+	partx -a "${loop_dev}" >/dev/null 2>&1 || true
+	# shellcheck disable=SC2086
+	pvscan ${lvm_filter} --cache >/dev/null 2>&1 || true
+	# shellcheck disable=SC2086
+	vgscan ${lvm_filter} --mknodes >/dev/null 2>&1 || true
+
+	# Get VG names from PVs on our loop device only
+	# shellcheck disable=SC2086
+	vg_list=$(pvs ${lvm_filter} --noheadings -o vg_name 2>/dev/null | sort -u | tr -d ' ' | grep -v '^$') || true
+
+	if [ -z "${vg_list}" ]; then
+		partx -d "${loop_dev}" >/dev/null 2>&1 || true
+		losetup -d "${loop_dev}" >/dev/null 2>&1 || true
+		sed -i "\|^${loop_dev}$|d" "${tmp_dir}/loop-devices" 2>/dev/null || true
+		rm -f "${tmp_dir}/lvm-filter"
+		return 1
+	fi
+
+	: > "${tmp_dir}/lvm-vgs"
+
+	for vg in ${vg_list}; do
+		was_active=0
+		if vg_has_active_lvs "${vg}" "${lvm_filter}"; then
+			was_active=1
+		fi
+
+		# shellcheck disable=SC2086
+		if vgchange ${lvm_filter} -ay "${vg}" >/dev/null 2>&1; then
+			if [ "${was_active}" -eq 0 ]; then
+				echo "${vg}" >> "${tmp_dir}/lvm-vgs"
+			fi
+		fi
+	done
+
+	# Record LV UUIDs for security verification and output paths
+	for vg in ${vg_list}; do
+		# shellcheck disable=SC2086
+		lvs ${lvm_filter} --noheadings -o lv_uuid,lv_path "${vg}" 2>/dev/null | \
+			awk '{gsub(/^ +| +$/, ""); if (NF >= 2) print $1":"$2}' >> "${tmp_dir}/lvm-lvs"
+		# shellcheck disable=SC2086
+		lvs ${lvm_filter} --noheadings -o lv_path "${vg}" 2>/dev/null | tr -d ' ' | grep -v '^$'
+	done > "${tmp_dir}/lvm-volumes"
+
+	[ -s "${tmp_dir}/lvm-volumes" ]
+}
+
+# Cleanup LVM: deactivate VGs and detach loop devices
+cleanup_lvm() {
+	tmp_dir="${1}"
+
+	lvm_filter=""
+	if [ -r "${tmp_dir}/lvm-filter" ]; then
+		lvm_filter=$(cat "${tmp_dir}/lvm-filter")
+	fi
+
+	if [ -e "${tmp_dir}/lvm-vgs" ]; then
+		while read -r vg; do
+			# shellcheck disable=SC2086
+			vgchange ${lvm_filter} -an "${vg}" >/dev/null 2>&1 || true
+		done < "${tmp_dir}/lvm-vgs"
+	fi
+
+	if [ -e "${tmp_dir}/loop-devices" ]; then
+		while read -r loop_dev; do
+			partx -d "${loop_dev}" >/dev/null 2>&1 || true
+			losetup -d "${loop_dev}" >/dev/null 2>&1 || true
+		done < "${tmp_dir}/loop-devices"
+	fi
+}
+
+backend_cleanup() {
+	# LVM cleanup (mounts are handled by brl-import's umount_r)
+	cleanup_lvm "${tmp}"
+}
+
+# Probe a device for UUID/LABEL/PARTUUID/PARTLABEL using blkid
+# Args: device
+# Outputs: uuid:label:partuuid:partlabel (fields may be empty)
+probe_uuid_label() {
+	dev="${1}"
+	uuid=""
+	label=""
+	partuuid=""
+	partlabel=""
+
+	# Try various blkid invocations for compatibility
+	for cmd_args in \
+		"-p -s UUID -s LABEL -s PARTUUID -s PARTLABEL -o export" \
+		"-c /dev/null -s UUID -s LABEL -s PARTUUID -s PARTLABEL -o export" \
+		"-s UUID -s LABEL -s PARTUUID -s PARTLABEL -o export"; do
+		# shellcheck disable=SC2086
+		output=$(blkid ${cmd_args} "${dev}" 2>/dev/null) || continue
+		uuid=$(echo "${output}" | awk -F= '/^UUID=/{print $2}')
+		label=$(echo "${output}" | awk -F= '/^LABEL=/{print $2}')
+		partuuid=$(echo "${output}" | awk -F= '/^PARTUUID=/{print $2}')
+		partlabel=$(echo "${output}" | awk -F= '/^PARTLABEL=/{print $2}')
+		break
+	done
+
+	echo "${uuid}:${label}:${partuuid}:${partlabel}"
+}
+
+# Parse fstab and output relevant mount entries
+# Args: fstab_path
+# Output format: device mountpoint fstype options (space-separated, one per line)
+parse_fstab() {
+	fstab_path="${1}"
+
+	[ ! -r "${fstab_path}" ] && return 0
+
+	awk '
+		/^#/ { next }
+		/^[[:space:]]*$/ { next }
+		$2 == "/" { next }
+		$2 == "none" { next }
+		$3 == "swap" { next }
+		$3 ~ /^(proc|sysfs|devpts|tmpfs|devtmpfs|securityfs|debugfs|cgroup|cgroup2|pstore|bpf|fusectl|configfs|hugetlbfs|mqueue|tracefs|efivarfs|autofs)$/ { next }
+		$1 ~ /^(proc|sysfs|devpts|tmpfs|none)$/ { next }
+		$1 ~ /^\/\// { next }                         # Skip CIFS/SMB
+		$1 ~ /:/ && $1 !~ /^(UUID|LABEL|PARTUUID|PARTLABEL)=/ { next }  # Skip NFS
+		$4 ~ /\<bind\>/ { next }
+		$4 ~ /\<noauto\>/ { next }
+		{
+			# Output: device mountpoint fstype options
+			print $1, $2, $3, ($4 ? $4 : "defaults")
+		}
+	' "${fstab_path}" | sort -t' ' -k2
+}
+
+# Resolve fstab device reference to partition offset or LVM:path
+# Args: device_spec partition_map_file [tmp_dir]
+# Output: offset, LVM:path, or empty if unresolved
+resolve_device_ref() {
+	device_spec="${1}"
+	partition_map="${2}"
+	tmp_dir="${3:-}"
+
+	case "${device_spec}" in
+	UUID=*)
+		uuid="${device_spec#UUID=}"
+		awk -F: -v "uuid=${uuid}" '
+			$3 == uuid {
+				if ($1 == "LVM") print "LVM:" $2
+				else print $2
+				exit
+			}
+		' "${partition_map}"
+		;;
+	LABEL=*)
+		label="${device_spec#LABEL=}"
+		awk -F: -v "label=${label}" '
+			$4 == label {
+				if ($1 == "LVM") print "LVM:" $2
+				else print $2
+				exit
+			}
+		' "${partition_map}"
+		;;
+	PARTUUID=*)
+		partuuid="${device_spec#PARTUUID=}"
+		awk -F: -v "partuuid=${partuuid}" '
+			$5 == partuuid {
+				if ($1 == "LVM") print "LVM:" $2
+				else print $2
+				exit
+			}
+		' "${partition_map}"
+		;;
+	PARTLABEL=*)
+		partlabel="${device_spec#PARTLABEL=}"
+		awk -F: -v "partlabel=${partlabel}" '
+			$6 == partlabel {
+				if ($1 == "LVM") print "LVM:" $2
+				else print $2
+				exit
+			}
+		' "${partition_map}"
+		;;
+	/dev/sd[a-z][0-9]* | /dev/vd[a-z][0-9]* | /dev/hd[a-z][0-9]*)
+		# Extract partition number from device name
+		part_num=$(echo "${device_spec}" | sed 's/.*[a-z]//')
+		awk -F: -v "num=${part_num}" '$1 == num { print $2; exit }' "${partition_map}"
+		;;
+	/dev/nvme[0-9]*n[0-9]*p[0-9]* | /dev/mmcblk[0-9]*p[0-9]*)
+		part_num=$(echo "${device_spec}" | sed 's/.*p//')
+		awk -F: -v "num=${part_num}" '$1 == num { print $2; exit }' "${partition_map}"
+		;;
+	/dev/disk/by-uuid/*)
+		uuid="${device_spec#/dev/disk/by-uuid/}"
+		awk -F: -v "uuid=${uuid}" '
+			$3 == uuid {
+				if ($1 == "LVM") print "LVM:" $2
+				else print $2
+				exit
+			}
+		' "${partition_map}"
+		;;
+	/dev/disk/by-label/*)
+		label="${device_spec#/dev/disk/by-label/}"
+		# Decode common escape sequences (e.g., \x20 for space)
+		label=$(printf '%b' "${label}")
+		awk -F: -v "label=${label}" '
+			$4 == label {
+				if ($1 == "LVM") print "LVM:" $2
+				else print $2
+				exit
+			}
+		' "${partition_map}"
+		;;
+	/dev/disk/by-partuuid/*)
+		partuuid="${device_spec#/dev/disk/by-partuuid/}"
+		awk -F: -v "partuuid=${partuuid}" '
+			$5 == partuuid {
+				if ($1 == "LVM") print "LVM:" $2
+				else print $2
+				exit
+			}
+		' "${partition_map}"
+		;;
+	/dev/disk/by-partlabel/*)
+		partlabel="${device_spec#/dev/disk/by-partlabel/}"
+		# Decode common escape sequences (e.g., \x20 for space)
+		partlabel=$(printf '%b' "${partlabel}")
+		awk -F: -v "partlabel=${partlabel}" '
+			$6 == partlabel {
+				if ($1 == "LVM") print "LVM:" $2
+				else print $2
+				exit
+			}
+		' "${partition_map}"
+		;;
+	/dev/mapper/* | /dev/*/*)
+		# LVM logical volume - verify it belongs to the image, not host
+		if [ -e "${device_spec}" ] && [ -n "${tmp_dir}" ] && [ -e "${tmp_dir}/lvm-lvs" ]; then
+			lvm_filter=""
+			if [ -r "${tmp_dir}/lvm-filter" ]; then
+				lvm_filter=$(cat "${tmp_dir}/lvm-filter")
+			fi
+			# shellcheck disable=SC2086
+			lv_uuid=$(lvs ${lvm_filter} --noheadings -o lv_uuid "${device_spec}" 2>/dev/null | tr -d ' ')
+			if [ -n "${lv_uuid}" ] && grep -q "^${lv_uuid}:" "${tmp_dir}/lvm-lvs" 2>/dev/null; then
+				echo "LVM:${device_spec}"
+			fi
+		fi
+		;;
+	esac
+}
+
+# Create partition map with UUID/LABEL/PARTUUID/PARTLABEL info
+# Format: part_num:offset:uuid:label:partuuid:partlabel (one per line)
+# Also adds LVM volumes as: LVM:lv_path:uuid:label:partuuid:partlabel
+create_partition_map() {
+	image="${1}"
+	partitions_file="${2}"
+	map_file="${3}"
+	tmp_dir="${4}"
+
+	: > "${map_file}"
+
+	# Map regular partitions using losetup to probe UUID without mounting
+	# This works for all filesystem types including btrfs without default subvol
+	while IFS=: read -r part_num offset; do
+		[ -z "${part_num}" ] && continue
+		[ -z "${offset}" ] && continue
+		uuid=""
+		label=""
+		partuuid=""
+		partlabel=""
+
+		# Create loop device at partition offset for blkid probing
+		if loop_dev=$(losetup -f --show -o "${offset}" "${image}" 2>/dev/null); then
+			uuid_label=$(probe_uuid_label "${loop_dev}")
+			IFS=: read -r uuid label partuuid partlabel <<EOF
+${uuid_label}
+EOF
+			losetup -d "${loop_dev}" 2>/dev/null || true
+		fi
+
+		echo "${part_num}:${offset}:${uuid}:${label}:${partuuid}:${partlabel}" >> "${map_file}"
+	done < "${partitions_file}"
+
+	# Add LVM volumes to map
+	if [ -e "${tmp_dir}/lvm-volumes" ]; then
+		while read -r lv_path; do
+			[ -z "${lv_path}" ] && continue
+			uuid_label=$(probe_uuid_label "${lv_path}")
+			IFS=: read -r uuid label partuuid partlabel <<EOF
+${uuid_label}
+EOF
+			echo "LVM:${lv_path}:${uuid}:${label}:${partuuid}:${partlabel}" >> "${map_file}"
+		done < "${tmp_dir}/lvm-volumes"
+	fi
+}
+
+# Detect and mount the root partition
+# Expects: ${img}, ${tmp}, ${mnt} set by import()
+# Outputs: writes root info to ${tmp}/root-info, mounts root at ${mnt}
+mount_root_partition() {
+	fstab_found="${tmp}/fstab-partitions"
+	osrelease_found="${tmp}/osrelease-partitions"
+	: > "${fstab_found}"
+	: > "${osrelease_found}"
+
+	probe_mnt="${tmp}/probe-mnt"
+	mkdir -p "${probe_mnt}"
+
+	# Check regular partitions
+	while IFS=: read -r part_num offset; do
+		[ -z "${offset}" ] && continue
+		found_on_partition=false
+		# Try standard mount
+		if mount_partition "${img}" "${offset}" "${probe_mnt}"; then
+			if [ -e "${probe_mnt}/etc/fstab" ]; then
+				echo "${offset}" >> "${fstab_found}"
+				found_on_partition=true
+			elif [ -e "${probe_mnt}/etc/os-release" ]; then
+				echo "${offset}" >> "${osrelease_found}"
+				found_on_partition=true
+			fi
+			umount "${probe_mnt}" 2>/dev/null || true
+		fi
+
+		# Skip subvol probing if standard mount already found root indicators
+		"${found_on_partition}" && continue
+
+		# Try btrfs subvolumes
+		for subvol in "@" "@root" "@rootfs" "root"; do
+			if mount_partition "${img}" "${offset}" "${probe_mnt}" "subvol=${subvol}"; then
+				if [ -e "${probe_mnt}/etc/fstab" ]; then
+					echo "${offset}:subvol=${subvol}" >> "${fstab_found}"
+					umount "${probe_mnt}" 2>/dev/null || true
+					break
+				elif [ -e "${probe_mnt}/etc/os-release" ]; then
+					echo "${offset}:subvol=${subvol}" >> "${osrelease_found}"
+					umount "${probe_mnt}" 2>/dev/null || true
+					break
+				fi
+				umount "${probe_mnt}" 2>/dev/null || true
+			fi
+		done
+	done < "${tmp}/partition-list"
+
+	# Check LVM volumes if available
+	if [ -e "${tmp}/lvm-volumes" ]; then
+		while read -r lv_path; do
+			[ -z "${lv_path}" ] && continue
+			found_on_partition=false
+
+			# Try standard mount
+			if mount "${lv_path}" "${probe_mnt}" 2>/dev/null; then
+				if [ -e "${probe_mnt}/etc/fstab" ]; then
+					echo "LVM:${lv_path}" >> "${fstab_found}"
+					found_on_partition=true
+				elif [ -e "${probe_mnt}/etc/os-release" ]; then
+					echo "LVM:${lv_path}" >> "${osrelease_found}"
+					found_on_partition=true
+				fi
+				umount "${probe_mnt}" 2>/dev/null || true
+			fi
+
+			# Skip subvol probing if standard mount already found root indicators
+			"${found_on_partition}" && continue
+
+			# Try btrfs subvolumes on LVM
+			for subvol in "@" "@root" "@rootfs" "root"; do
+				if mount -o "subvol=${subvol}" "${lv_path}" "${probe_mnt}" 2>/dev/null; then
+					if [ -e "${probe_mnt}/etc/fstab" ]; then
+						echo "LVM:${lv_path}:subvol=${subvol}" >> "${fstab_found}"
+						umount "${probe_mnt}" 2>/dev/null || true
+						break
+					elif [ -e "${probe_mnt}/etc/os-release" ]; then
+						echo "LVM:${lv_path}:subvol=${subvol}" >> "${osrelease_found}"
+						umount "${probe_mnt}" 2>/dev/null || true
+						break
+					fi
+					umount "${probe_mnt}" 2>/dev/null || true
+				fi
+			done
+		done < "${tmp}/lvm-volumes"
+	fi
+
+	# Determine root partition
+	fstab_count=$(wc -l < "${fstab_found}" | tr -d ' ')
+	if [ "${fstab_count}" -gt 1 ]; then
+		import_abort "Multiple partitions contain /etc/fstab - cannot determine root"
+	elif [ "${fstab_count}" -eq 1 ]; then
+		cat "${fstab_found}" > "${tmp}/root-info"
+	elif [ -s "${osrelease_found}" ]; then
+		osrelease_count=$(wc -l < "${osrelease_found}" | tr -d ' ')
+		if [ "${osrelease_count}" -eq 1 ]; then
+			cat "${osrelease_found}" > "${tmp}/root-info"
+		else
+			import_abort "Multiple partitions with /etc/os-release but no /etc/fstab - cannot determine root"
+		fi
+	else
+		import_abort "No partition contains /etc/fstab or /etc/os-release - cannot determine root"
+	fi
+
+	# Mount the root partition
+	root_info=$(cat "${tmp}/root-info")
+	case "${root_info}" in
+	LVM:*:subvol=*)
+		lvm_path="${root_info#LVM:}"
+		lvm_path="${lvm_path%%:subvol=*}"
+		subvol="${root_info##*:subvol=}"
+		mount -o "subvol=${subvol}" "${lvm_path}" "${mnt}" || import_abort "Failed to mount root LVM volume with subvol=${subvol}"
+		;;
+	LVM:*)
+		lvm_path="${root_info#LVM:}"
+		mount "${lvm_path}" "${mnt}" || import_abort "Failed to mount root LVM volume"
+		;;
+	*:subvol=*)
+		offset="${root_info%%:subvol=*}"
+		subvol="${root_info##*:subvol=}"
+		mount_partition "${img}" "${offset}" "${mnt}" "subvol=${subvol}" || import_abort "Failed to mount root partition with subvol=${subvol}"
+		;;
+	*)
+		mount_partition "${img}" "${root_info}" "${mnt}" || import_abort "Failed to mount root partition"
+		;;
+	esac
+}
+
+# Mount additional partitions from /etc/fstab
+# Expects: ${img}, ${tmp}, ${mnt} set by import()
+mount_fstab() {
+	if [ ! -e "${mnt}/etc/fstab" ]; then
+		notice "Root partition does not contain /etc/fstab; skipping /etc/fstab mounting"
+		return 0
+	fi
+
+	parse_fstab "${mnt}/etc/fstab" > "${tmp}/fstab-entries"
+	fstab_count=$(wc -l < "${tmp}/fstab-entries" | tr -d ' ')
+	[ "${fstab_count}" -eq 0 ] && return 0
+
+	# Check if we need blkid for UUID/LABEL resolution
+	# Match both KEY=value style (UUID=xxx) and /dev/disk/by-* style paths
+	needs_blkid=false
+	if grep -qE '^(UUID=|LABEL=|PARTUUID=|PARTLABEL=|/dev/disk/by-(uuid|label|partuuid|partlabel)/)' "${tmp}/fstab-entries"; then
+		needs_blkid=true
+		require_cmd blkid
+		require_cmd losetup
+	fi
+
+	# Create partition map
+	if "${needs_blkid}"; then
+		create_partition_map "${img}" "${tmp}/partition-list" "${tmp}/partition-map" "${tmp}"
+	else
+		# Simple map without UUID/LABEL/PARTUUID/PARTLABEL probing
+		while IFS=: read -r part_num offset; do
+			[ -z "${part_num}" ] && continue
+			[ -z "${offset}" ] && continue
+			echo "${part_num}:${offset}::::" >> "${tmp}/partition-map"
+		done < "${tmp}/partition-list"
+		# Add LVM volumes
+		if [ -e "${tmp}/lvm-volumes" ]; then
+			while read -r lv_path; do
+				[ -z "${lv_path}" ] && continue
+				echo "LVM:${lv_path}::::" >> "${tmp}/partition-map"
+			done < "${tmp}/lvm-volumes"
+		fi
+	fi
+
+	# Mount each fstab entry
+	: > "${tmp}/additional-mounts"
+	while read -r device_spec mount_point fstype options; do
+		[ -z "${device_spec}" ] && continue
+		[ -z "${mount_point}" ] && continue
+
+		# Security: reject path traversal
+		if echo "${mount_point}" | grep -qE '(^|/)\.\.(/|$)'; then
+			continue
+		fi
+
+		resolved=$(resolve_device_ref "${device_spec}" "${tmp}/partition-map" "${tmp}")
+		[ -z "${resolved}" ] && continue
+
+		notice "Mounting ${mount_point}"
+		target="${mnt}${mount_point}"
+		mkdir -p "${target}"
+
+		# Build mount options - extract subvol and filter problematic options
+		mount_opts=""
+		if [ -n "${options}" ] && [ "${options}" != "defaults" ]; then
+			# Keep subvol/subvolid, filter out noauto, _netdev, nofail, x-*, rw, ro
+			filtered=$(echo "${options}" | tr ',' '\n' | \
+				grep -vE '^(noauto|_netdev|nofail|rw|ro|defaults)$|^x-' | \
+				tr '\n' ',' | sed 's/,$//')
+			mount_opts="${filtered}"
+		fi
+
+		case "${resolved}" in
+		LVM:*)
+			lvm_path="${resolved#LVM:}"
+			if [ -n "${mount_opts}" ]; then
+				if ! mount -o "${mount_opts}" "${lvm_path}" "${target}" 2>/dev/null; then
+					notice "${color_warn}Could not mount ${mount_point}${color_norm}; skipping.${color_norm}"
+					continue
+				fi
+			else
+				if ! mount "${lvm_path}" "${target}" 2>/dev/null; then
+					notice "${color_warn}Could not mount ${mount_point}${color_norm}; skipping.${color_norm}"
+					continue
+				fi
+			fi
+			;;
+		*)
+			if ! mount_partition "${img}" "${resolved}" "${target}" "${mount_opts}"; then
+					notice "${color_warn}Could not mount ${mount_point}${color_norm}; skipping.${color_norm}"
+				continue
+			fi
+			;;
+		esac
+
+		echo "${target}" >> "${tmp}/additional-mounts"
+	done < "${tmp}/fstab-entries"
+}
+
+import() {
+	name="${1}"
+	src="${2}"
+	tgt="${3}"
+	tmp="${4}"
+	mnt="${5}"
+	img="${tmp}/raw.img"
+
+	mkdir -p "${mnt}"
+
+	step_init $((5 + 5)) # post import has five steps
+
+	case "${src}" in
+	*.img)
+		# Some filesystems refuse to mount read-only, e.g. incorrectly unmounted btrfs volumes
+		# Thus we need a copy we can potentially write to
+		step "Copying image"
+		cp "${src}" "${img}"
+		;;
+	*)
+		step "Converting image to raw format"
+		require_cmd qemu-img
+		qemu-img convert -p -Oraw "${src}" "${img}"
+		;;
+	esac
+
+	step "Detecting partitions"
+	create_partitions_list "${img}"
+
+	# Try LVM setup (optional - gracefully skip if tools unavailable)
+	if check_lvm_available; then
+		if setup_lvm "${img}" "${tmp}"; then
+			notice "LVM volumes detected"
+		fi
+	fi
+
+	step "Mounting root partition"
+	mount_root_partition
+
+	step "Mounting /etc/fstab entries"
+	mount_fstab
+
+	step "Copying files"
+	copy_dir_contents "${mnt}" "${tgt}"
+}

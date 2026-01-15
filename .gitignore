@@ -1,3 +1,5 @@
 bedrock-linux-*.sh
 build
 vendor
+tools/firecracker/include-in-vm/*
+tools/firecracker/out

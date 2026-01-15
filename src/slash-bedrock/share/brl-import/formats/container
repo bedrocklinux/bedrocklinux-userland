@@ -1,0 +1,131 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl import container support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2020-2026 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Creates strata from specified container image or container
+
+engine_image_exists() {
+	engine="${1}"
+	ref="${2}"
+
+	case "${engine}" in
+	docker)
+		"${engine}" image inspect "${ref}" >/dev/null 2>&1
+		;;
+	podman)
+		if "${engine}" image exists "${ref}" >/dev/null 2>&1; then
+			return 0
+		fi
+		"${engine}" image inspect "${ref}" >/dev/null 2>&1
+		;;
+	*)
+		return 1
+		;;
+	esac
+}
+
+engine_container_exists() {
+	engine="${1}"
+	ref="${2}"
+
+	case "${engine}" in
+	docker)
+		"${engine}" container inspect "${ref}" >/dev/null 2>&1
+		;;
+	podman)
+		if "${engine}" container exists "${ref}" >/dev/null 2>&1; then
+			return 0
+		fi
+		"${engine}" container inspect "${ref}" >/dev/null 2>&1
+		;;
+	*)
+		return 1
+		;;
+	esac
+}
+
+backend_cleanup() {
+	if [ -n "${temp_container:-}" ]; then
+		case "${temp_container}" in
+		docker:* | podman:*)
+			engine="${temp_container%%:*}"
+			container="${temp_container#*:}"
+			if command -v "${engine}" >/dev/null 2>&1; then
+				"${engine}" rm -f "${container}" >/dev/null 2>&1 || true
+			fi
+			;;
+		esac
+	fi
+}
+
+import() {
+	name="${1}"
+	src="${2}"
+	tgt="${3}"
+	tmp="${4}"
+	mnt="${5}"
+
+	engine="${src%%:*}"
+	ref="${src#*:}"
+	tarball="${tmp}/container.tar"
+	temp_container=""
+
+	if [ -z "${ref}" ] || [ "${ref}" = "${src}" ]; then
+		import_abort "Missing container reference in source."
+	fi
+
+	require_cmd "${engine}"
+
+	is_image=false
+	if engine_image_exists "${engine}" "${ref}"; then
+		is_image=true
+	elif engine_container_exists "${engine}" "${ref}"; then
+		is_image=false
+	else
+		import_abort "Could not find image or container \"${ref}\" in ${engine}."
+	fi
+
+	if "${is_image}"; then
+		step_init $((4 + 5)) # post import has five steps
+
+		step "Creating temporary container"
+		container_id="$("${engine}" create "${ref}")"
+		temp_container="${engine}:${container_id}"
+
+		step "Exporting container filesystem"
+		"${engine}" export "${container_id}" > "${tarball}"
+		"${engine}" rm -f "${container_id}" >/dev/null 2>&1 || true
+	else
+		step_init $((3 + 5)) # post import has five steps
+
+		step "Exporting container filesystem"
+		"${engine}" export "${ref}" > "${tarball}"
+	fi
+
+	if [ ! -s "${tarball}" ]; then
+		import_abort "Container export produced empty tarball."
+	fi
+
+	step "Reading tarball contents"
+	tar -tf "${tarball}" | tee "${tmp}/container-file-list" | awk 'NR%100==0' | progress_unknown
+	tar -tvf "${tarball}" > "${tmp}/container-verbose-list"
+
+	if grep -qE '(^|/)\.\.(\/|$)|^\/' "${tmp}/container-file-list"; then
+		import_abort "Container export contains path traversal or absolute paths - refusing to extract"
+	fi
+	if grep '^l' "${tmp}/container-verbose-list" | sed -n 's/.* -> //p' | grep -qE '(^|/)\.\.(\/|$)|^\/'; then
+		import_abort "Container export contains symlinks pointing outside target directory - refusing to extract"
+	fi
+	if grep '^h' "${tmp}/container-verbose-list" | sed -n 's/.* link to //p' | grep -qE '(^|/)\.\.(\/|$)|^\/'; then
+		import_abort "Container export contains hardlinks pointing outside target directory - refusing to extract"
+	fi
+
+	step "Extracting tarball"
+	tar -xv -f "${tarball}" -C "${tgt}" | awk 'NR%100==0' | progress_unknown
+}

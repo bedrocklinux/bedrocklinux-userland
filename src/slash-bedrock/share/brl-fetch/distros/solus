@@ -72,6 +72,9 @@ fetch() {
 
 	step "Running bootstrap software"
 	setup_chroot "${bootstrap_dir}"
+	# eopkg tries to rename across /var and /run for some reason, which fails with EXDEV if /run is tmpfs
+	chroot "${bootstrap_dir}" umount -f /run
+
 	setup_ssl "${bootstrap_dir}"
 	share_cache "packages" "${bootstrap_dir}/target-root/var/cache/eopkg/packages"
 
@@ -93,7 +96,6 @@ fetch() {
 	# Fix certs
 	# https://discuss.getsol.us/d/4996-help-with-ssl-certificate-error
 	chroot "${bootstrap_dir}" usysconf run -f ssl-certs
-
 	# system.base contains util-linux which depends on python3.  However,
 	# installing system.base does not pull in python3, but rather just
 	# errors about a missing dependency.  To resolve this, explicitly

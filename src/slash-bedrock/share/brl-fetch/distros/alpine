@@ -32,7 +32,7 @@ brl_arch_to_distro() {
 	"armv7hl") echo "armhf" ;;
 	"armv7l") echo "armv7" ;;
 	"ppc64le") echo "ppc64le" ;;
-	"s390x") echo "s3960x" ;;
+	"s390x") echo "s390x" ;;
 	"i586") echo "x86" ;;
 	"x86_64") echo "x86_64" ;;
 	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
