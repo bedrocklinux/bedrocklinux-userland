@@ -41,7 +41,6 @@ case "$1" in
     ;;
 esac
 
-echo "$1">/bedrock/etc/tmpinit
 notice "Please reboot manually to switch init systems."
 
 exit_success
