@@ -59,7 +59,7 @@ _brl() {
 	if [ "${COMP_CWORD}" -eq 1 ]; then
 		opts="${opts} help strat list which fetch"
 		opts="${opts} remove rename status enable"
-		opts="${opts} disable reename copy hide show"
+		opts="${opts} disable init copy hide show"
 		opts="${opts} alias deref update reload"
 		opts="${opts} version report tutorial"
 	fi
@@ -186,6 +186,9 @@ _brl() {
 	"enable")
 		opts="${opts} $(/bedrock/bin/brl list -dD)"
 		;;
+        "init")
+                opts="${opts} $(/bedrock/bin/brl list -dD)"
+                ;;
 	"disable")
 		for stratum in $(brl list -eE); do
 			if [ "$(/bedrock/bin/brl deref "${stratum}")" = "bedrock" ]; then
