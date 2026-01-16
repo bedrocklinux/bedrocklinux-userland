@@ -23,6 +23,8 @@ Examples:
 
   ${color_cmd}$ brl init ${color_strat}void${color_norm}:/sbin/init # make the ${color_strat}void${color_term} stratum ${color_norm}the next reboot's init, using /sbin/init
 
+  ${color_cmd}$ brl init ${color_strat}debian${color_norm} # make the ${color_strat}debian${color_term} stratum ${color_norm}the next reboot's init, using /sbin/init
+
 ${color_norm}"
 }
 
@@ -30,6 +32,15 @@ handle_help "${@:-}"
 min_args "${#}" "1"
 
 require_root
+case "$1" in
+  *:*)
+    echo "$1">/bedrock/etc/tmpinit
+    ;;
+  *)
+    echo "$1:/sbin/init">/bedrock/etc/tmpinit
+    ;;
+esac
+
 echo "$1">/bedrock/etc/tmpinit
 notice "Please reboot manually to switch init systems."
 
