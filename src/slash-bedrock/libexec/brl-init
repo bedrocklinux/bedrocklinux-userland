@@ -14,19 +14,20 @@
 . /bedrock/share/common-code
 
 print_help() {
-	printf "Usage: ${color_cmd}brl init ${color_sub}[identifier]${color_norm}
+	printf "Usage: ${color_cmd}brl init ${color_sub}[strat]${color_norm}
 
 Choose which ${color_term}stratum${color_norm} the next reboot's init be.
 
 Examples:
-  ${color_cmd}$ brl init ${color_strat}arch${color_norm}:/sbin/init # make the ${color_strat}arch${color_strat} the default init, using /sbin/init
+  ${color_cmd}$ brl init ${color_strat}arch${color_norm}:/sbin/init # make the ${color_strat}arch${color_strat} stratum the next reboot's init, using /lib/systemd/systemd
 
-  ${color_cmd}$ brl init ${color_strat}void${color_norm}:/sbin/init # make the ${color_strat}void${color_strat} the default init, using /sbin/init
+  ${color_cmd}$ brl init ${color_strat}void${color_norm}:/sbin/init # make the ${color_strat}void${color_strat} stratum the next reboot's init, using /sbin/init
 
 ${color_norm}"
 }
 
 handle_help "${@:-}"
+min_args "${#}" "1"
 
 require_root
 echo "$1">/bedrock/etc/tmpinit
