@@ -19,9 +19,9 @@ print_help() {
 Choose which ${color_term}stratum${color_norm} the next reboot's init be.
 
 Examples:
-  ${color_cmd}$ brl init ${color_strat}arch${color_norm}:/sbin/init # make the ${color_strat}arch${color_strat} stratum the next reboot's init, using /lib/systemd/systemd
+  ${color_cmd}$ brl init ${color_strat}arch${color_norm}:/lib/systemd/systemd # make the ${color_strat}arch${color_term} stratum ${color_norm}the next reboot's init, using /lib/systemd/systemd
 
-  ${color_cmd}$ brl init ${color_strat}void${color_norm}:/sbin/init # make the ${color_strat}void${color_strat} stratum the next reboot's init, using /sbin/init
+  ${color_cmd}$ brl init ${color_strat}void${color_norm}:/sbin/init # make the ${color_strat}void${color_term} stratum ${color_norm}the next reboot's init, using /sbin/init
 
 ${color_norm}"
 }
