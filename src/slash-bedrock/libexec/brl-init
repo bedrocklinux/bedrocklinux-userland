@@ -1,0 +1,35 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl init
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2012-2018 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2026 TheOddCell <me@oddcell.a>
+#
+# Choose which stratum should be used as the default init for simply the next reboot.
+
+. /bedrock/share/common-code
+
+print_help() {
+	printf "Usage: ${color_cmd}brl init ${color_sub}[identifier]${color_norm}
+
+Choose which ${color_term}stratum${color_norm} the next reboot's init be.
+
+Examples:
+  ${color_cmd}$ brl init ${color_strat}arch${color_norm}:/sbin/init # make the ${color_strat}arch${color_strat} the default init, using /sbin/init
+
+  ${color_cmd}$ brl init ${color_strat}void${color_norm}:/sbin/init # make the ${color_strat}void${color_strat} the default init, using /sbin/init
+
+${color_norm}"
+}
+
+handle_help "${@:-}"
+
+require_root
+echo "$1">/bedrock/etc/tmpinit
+notice "Please reboot manually to switch init systems."
+
+exit_success

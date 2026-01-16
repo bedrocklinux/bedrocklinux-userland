@@ -36,7 +36,7 @@ ${color_term}Strata${color_norm} status management commands:
   ${color_cmd}enable    ${color_norm}${color_term}Enable${color_norm} ${color_term}strata${color_norm}
   ${color_cmd}disable   ${color_norm}${color_term}Disable${color_norm} ${color_term}strata${color_norm}
   ${color_cmd}repair    ${color_norm}Repairs ${color_term}broken${color_norm} ${color_term}strata${color_norm}
-
+  ${color_cmd}init      ${color_norm}Choose which ${color_term}stratum${color_norm} the next reboot's init be.
 ${color_term}Strata${color_norm} visibility management commands:
   ${color_cmd}hide      ${color_norm}${color_term}Hide${color_norm} ${color_term}strata${color_norm}
   ${color_cmd}show      ${color_norm}${color_term}Show${color_norm} ${color_term}strata${color_norm}
@@ -61,7 +61,7 @@ case "${1:-}" in
 	print_help
 	exit_success
 	;;
-"strat" | "list" | "which" | "fetch" | "import" | "remove" | "rename" | "copy" | "status" | "enable" | "disable" | "repair" | "hide" | "show" | "alias" | "deref" | "apply" | "update" | "version" | "report" | "tutorial")
+"strat" | "list" | "which" | "fetch" | "import" | "remove" | "rename" | "copy" | "status" | "enable" | "disable" | "repair" | "init" | "hide" | "show" | "alias" | "deref" | "apply" | "update" | "version" | "report" | "tutorial")
 	backend="/bedrock/libexec/brl-${1}"
 	shift
 	exec "${backend}" "${@}"
