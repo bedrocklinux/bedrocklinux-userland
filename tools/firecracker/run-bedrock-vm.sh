@@ -410,9 +410,8 @@ iface lo inet loopback
 
 auto eth0
 iface eth0 inet static
-	address $guest_ip
-	netmask $guest_netmask
-	gateway $guest_gateway
+address $guest_ip/$guest_netmask_bits
+gateway $guest_gateway
 EOF
 
 	echo "bedrock-fc" | $sudo_cmd tee "$mount_dir/etc/hostname" >/dev/null
