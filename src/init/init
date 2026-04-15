@@ -68,8 +68,8 @@ ensure_essential_environment() {
 
 	# If the user runs a non-zstd-aware depmod with a zstd-based module
 	# set, it may clear modules.dep.  If so, fix modules.dep.
-	if [ -e /lib/modules/$(uname -r)/modules.dep ] && \
-			[ "$(stat -c%s "/lib/modules/$(uname -r)/modules.dep")" -eq 0 ]; then
+	if [ -e /lib/modules/$(uname -r)/modules.dep ] &&
+		[ "$(stat -c%s "/lib/modules/$(uname -r)/modules.dep")" -eq 0 ]; then
 		printf "Regenerating modules.dep... "
 		/sbin/depmod
 		echo "done"
@@ -385,6 +385,12 @@ complete_upgrade
 
 init_timeout="$(cfg_values "init" "timeout")"
 def_tuple="$(cfg_values "init" "default")"
+tmpinit=""
+if [ -f "/bedrock/etc/tmpinit" ]; then
+	def_tuple="$(cat "/bedrock/etc/tmpinit")"
+	rm "/bedrock/etc/tmpinit"
+	tmpinit="true"
+fi
 def_stratum="$(deref "$(echo "${def_tuple}" | cut -d: -f1)")"
 def_cmd="$(echo "${def_tuple}" | cut -d: -f2-)"
 def_path=""
@@ -398,7 +404,11 @@ if [ -n "${def_tuple}" ] && [ -d "/bedrock/strata/${def_stratum}" ]; then
 	umount "${sproc}"
 fi
 if [ -n "${def_tuple}" ] && [ -z "${def_path:-}" ]; then
-	notice "${color_warn}WARNING: ${color_file}/bedrock/etc/bedrock.conf [init]/default ${color_warn}value does not describe a valid stratum:init pair.${color_norm}"
+	if [ -z "$tmpinit" ]; then
+		notice "${color_warn}WARNING: ${color_file}/bedrock/etc/bedrock.conf [init]/default ${color_warn}value does not describe a valid stratum:init pair.${color_norm}"
+	else
+		notice "${color_warn}WARNING: ${color_file}/bedrock/etc/tmpinit ${color_warn} does not describe a valid stratum:init pair.${color_norm}"
+	fi
 fi
 if [ -z "${def_path:-}" ]; then
 	init_timeout="-1"
