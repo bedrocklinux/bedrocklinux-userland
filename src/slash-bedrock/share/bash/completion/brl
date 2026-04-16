@@ -87,6 +87,7 @@ _brl() {
 			opts="${opts} $(_brl_unused_all "-f --file" "${COMP_WORDS[@]}")"
 			opts="${opts} $(_brl_unused_all "-p --pid" "${COMP_WORDS[@]}")"
 			opts="${opts} $(_brl_unused_all "-x --xwindow" "${COMP_WORDS[@]}")"
+			opts="${opts} $(_brl_unused_all "-a --all" "${COMP_WORDS[@]}")"
 		fi
 		case "${COMP_WORDS[2]}" in
 		"-c" | "--current") ;;
