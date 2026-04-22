@@ -34,6 +34,14 @@
 #include <sys/xattr.h>
 #include <unistd.h>
 
+/*
+ * for FUSE_PASSTHROUGH support.
+ * Requires Linux 6.9+ kernel headers.
+ * Enabled at runtime via ETCFS_ENABLE_PASSTHROUGH environment variable.
+ */
+#include <linux/fuse.h>
+#include <sys/ioctl.h>
+
 #define ARRAY_LEN(x) (sizeof(x) / sizeof(x[0]))
 #define MIN(x, y) (x < y ? x : y)
 
@@ -270,6 +278,12 @@ pthread_rwlock_t cfg_lock;
  * Tracks whether or not to enable debug output.
  */
 int debug = 0;
+
+/*
+ * Tracks whether FUSE_PASSTHROUGH is enabled at runtime.
+ * Set during initialization based on kernel capability.
+ */
+int use_fuse_passthrough = 0;
 
 /*
  * Set the thread's euid, egid, and grouplist to that of the
@@ -1150,10 +1164,56 @@ static int cfg_read(char *buf, size_t size, off_t offset)
 	return rv;
 }
 
+/*
+ * File descriptor for /dev/fuse, used for passthrough ioctls.
+ * Initialized during mount.
+ */
+static int fuse_dev_fd = -1;
+
+/*
+ * Register a backing file descriptor with the kernel for passthrough mode.
+ * Returns a backing_id on success, or -1 on failure.
+ */
+static int register_backing_fd(int fd)
+{
+	if (fuse_dev_fd < 0) {
+		DEBUG("register_backing_fd failed", "fuse_dev_fd not initialized");
+		return -1;
+	}
+	struct fuse_backing_map map = {
+		.fd = fd,
+		.flags = 0,
+		.padding = 0,
+	};
+
+	int backing_id = ioctl(fuse_dev_fd, FUSE_DEV_IOC_BACKING_OPEN, &map);
+	if (backing_id < 0) {
+		DEBUG("register_backing_fd failed", "ioctl failed");
+		return -1;
+	}
+	DEBUG("register_backing_fd success", "");
+	return backing_id;
+}
+
+/*
+ * Unregister a backing file descriptor from the kernel.
+ */
+static int unregister_backing_id(int backing_id)
+{
+	if (fuse_dev_fd < 0 || backing_id < 0) {
+		return -1;
+	}
+
+	uint32_t id = (uint32_t)backing_id;
+	int rv = ioctl(fuse_dev_fd, FUSE_DEV_IOC_BACKING_CLOSE, &id);
+	if (rv < 0) {
+		DEBUG("unregister_backing_id failed", "");
+	}
+	return rv;
+}
+
 static void *m_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 {
-	(void)conn;
-
 	/*
 	 * Do not allow requests to be interrupted.
 	 */
@@ -1175,6 +1235,35 @@ static void *m_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 	cfg->entry_timeout = 0;
 	cfg->attr_timeout = 0;
 	cfg->negative_timeout = 0;
+
+
+	const char *enable_passthrough = getenv("ETCFS_ENABLE_PASSTHROUGH");
+	// check if we want to enable passthrough or not
+	if (enable_passthrough && (strcmp(enable_passthrough, "1") == 0 || strcmp(enable_passthrough, "yes") == 0)) {
+		// if we do, check if the kernel fuse implementation supports passthrough.
+		if (conn->capable & FUSE_CAP_PASSTHROUGH) {
+			// add FUSE_CAP_PASSTHROUGH to the list of wanted capabilities
+			conn->want |= FUSE_CAP_PASSTHROUGH;
+			// now we need to use the fuse context to grab a sessino to grab ths ession fd
+			struct fuse_context *context = fuse_get_context();
+			if (context && context->fuse) {
+				struct fuse_session *session = fuse_get_session(context->fuse);
+				// open a session
+				if (session) {
+					// grab the session_fd from the fuse session
+					fuse_dev_fd = fuse_session_fd(session);
+					// and if its a valid fd, enable passthrough
+					if (fuse_dev_fd >= 0) {
+						use_fuse_passthrough = 1;
+						DEBUG("FUSE_PASSTHROUGH", "succesfully enabled");
+					}
+				}
+			}
+		}
+		if(use_fuse_passthrough == 0) {
+			DEBUG("FUSE_PASSTHROUGH", "requested but could not be enabled");
+		}
+	}
 
 	return NULL;
 }
@@ -1702,7 +1791,23 @@ static int m_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 		rv = -1;
 	} else {
 		rv = 0;
-		fi->fh = fd;
+		if (use_fuse_passthrough) {
+			int backing_id = register_backing_fd(fd);
+			if (backing_id >= 0) {
+				fi->backing_id = backing_id;
+				fi->flags |= FOPEN_PASSTHROUGH;
+				fi->fh = fd;  /* Keep fd for fallback, kernel uses backing_id */
+				// when we open in passthrough mode, we need to drop the old page cache, according to libfuse https://re/blob/master/example/passthrough_hp.cc
+				fi->keep_cache = false;
+				DEBUG("m_create: using passthrough", path);
+			} else {
+				/* Passthrough registration failed, use traditional mode */
+				fi->fh = fd;
+				DEBUG("m_create: passthrough failed, using traditional", path);
+			}
+		} else {
+			fi->fh = fd;
+		}
 	}
 
 	FS_IMP_RETURN(rv);
@@ -1729,7 +1834,24 @@ static int m_open(const char *path, struct fuse_file_info *fi)
 			fi->fh = -1;
 		} else {
 			rv = 0;
-			fi->fh = fd;
+
+			if (use_fuse_passthrough) {
+				int backing_id = register_backing_fd(fd);
+				if (backing_id >= 0) {
+					fi->backing_id = backing_id;
+					fi->flags |= FOPEN_PASSTHROUGH;
+					fi->fh = fd;  /* Keep fd for fallback, kernel uses backing_id */
+					// when we open in passthrough mode, we need to drop the old page cache, according to libfuse https://re/blob/master/example/passthrough_hp.cc
+					fi->keep_cache = false;
+					DEBUG("m_open: using passthrough", path);
+				} else {
+					/* Passthrough registration failed, use traditional mode */
+					fi->fh = fd;
+					DEBUG("m_open: passthrough failed, using traditional", path);
+				}
+			} else {
+				fi->fh = fd;
+			}
 		}
 	}
 
@@ -1835,6 +1957,7 @@ static int m_flush(const char *path, struct fuse_file_info *fi)
 	DEBUG("m_flush", path);
 	FS_IMP_SETUP_FD(fi->fh, path, 0);
 
+	// thinking about it, i believe that we do need to call flush even in passthrough, since i think the kernel will have the same page cache for both
 	rv = close(dup(fi->fh));
 
 	FS_IMP_RETURN(rv);
@@ -1848,7 +1971,16 @@ static int m_release(const char *path, struct fuse_file_info *fi)
 	DEBUG("m_release", path);
 	FS_IMP_SETUP_FD(fi->fh, path, 0);
 
-	rv = close(fi->fh);
+	/*
+	 * In passthrough mode, fi->backing_id contains the backing_id that needs
+	 * to be unregistered, and fi->fh still has the fd that needs closing.
+	 */
+	if (fi->flags & FOPEN_PASSTHROUGH) {
+		unregister_backing_id(fi->backing_id);
+		rv = close(fi->fh);
+	} else {
+		rv = close(fi->fh);
+	}
 
 	FS_IMP_RETURN(rv);
 }
