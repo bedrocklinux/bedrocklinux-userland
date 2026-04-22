@@ -1,0 +1,60 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl import tarball support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2020-2026 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Creates strata from specified tarball
+
+import() {
+	name="${1}"
+	src="${2}"
+	tgt="${3}"
+	tmp="${4}"
+
+	# post import has five steps
+	case "${src}" in
+	*.tar) step_init $((2 + 5));;
+	*.tar.*) step_init $((3 + 5));;
+	*) import_abort "Unrecognized tarball format"
+	esac
+
+	tarball="${tmp}/tar"
+	case "${src}" in
+	*.tar) tarball="${src}";;
+	*.tar.gz) step "Decompressing" ; gunzip < "${src}" > "${tarball}" ;;
+	*.tar.bz2) step "Decompressing" ; bzip2 -d < "${src}" > "${tarball}" ;;
+	*.tar.xz) step "Decompressing" ; unxz < "${src}" > "${tarball}" ;;
+	*.tar.zst | *.tar.zstd) step "Decompressing" ; /bedrock/libexec/zstd -d < "${src}" > "${tarball}" ;;
+	*) import_abort "Unrecognized tarball format"
+	esac
+
+	step "Reading tarball contents"
+	# -tf for file paths (one per line), -tvf for verbose output with link targets
+	tar -tf "${tarball}" | tee "${tmp}/tarball-file-list" | awk 'NR%100==0' | progress_unknown
+	tar -tvf "${tarball}" > "${tmp}/tarball-verbose-list"
+
+	# Security: Check for path traversal or absolute paths before extraction
+	# Matches: paths containing /../, starting with ../, ending with /.., exactly "..", or absolute paths
+	if grep -qE '(^|/)\.\.(\/|$)|^\/' "${tmp}/tarball-file-list"; then
+		import_abort "Tarball contains path traversal or absolute paths - refusing to extract"
+	fi
+	# Security: Check symlink targets for path traversal or absolute paths
+	# Prevents attacks like: symlink "foo -> /etc" followed by file "foo/passwd"
+	# tar -tvf shows symlinks as: lrwxrwxrwx user/group 0 date time name -> target
+	if grep '^l' "${tmp}/tarball-verbose-list" | sed -n 's/.* -> //p' | grep -qE '(^|/)\.\.(\/|$)|^\/'; then
+		import_abort "Tarball contains symlinks pointing outside target directory - refusing to extract"
+	fi
+	# Security: Check hardlink targets for path traversal or absolute paths
+	# tar -tvf shows hardlinks as: hrw-r--r-- user/group 0 date time name link to target
+	if grep '^h' "${tmp}/tarball-verbose-list" | sed -n 's/.* link to //p' | grep -qE '(^|/)\.\.(\/|$)|^\/'; then
+		import_abort "Tarball contains hardlinks pointing outside target directory - refusing to extract"
+	fi
+
+	step "Extracting tarball"
+	tar -xv -f "${tarball}" -C "${tgt}" | awk 'NR%100==0' | progress_unknown
+}

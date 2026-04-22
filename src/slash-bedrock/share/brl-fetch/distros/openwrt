@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2018-2019 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2018-2025 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -76,7 +76,7 @@ fetch() {
 	"aarch64") bootstrap_url="$(find_link "${target_mirror}/releases/${target_release}/targets/armvirt/64/" "^openwrt-${target_release}-${distro_arch}-default-rootfs.tar.gz$")" ;;
 	"armv7l") bootstrap_url="$(find_link "${target_mirror}/releases/${target_release}/targets/armvirt/32/" "^openwrt-${target_release}-${distro_arch}-default-rootfs.tar.gz$")" ;;
 	"i486") bootstrap_url="$(find_link "${target_mirror}/releases/${target_release}/targets/x86/generic/" "^openwrt-${target_release}-${distro_arch}-generic-rootfs.tar.gz$")" ;;
-	"x86_64") bootstrap_url="$(find_link "${target_mirror}/releases/${target_release}/targets/x86/64/" "^openwrt-${target_release}-${distro_arch}-generic-rootfs.tar.gz$")" ;;
+	"x86_64") bootstrap_url="$(find_link "${target_mirror}/releases/${target_release}/targets/x86/64/" "^openwrt-${target_release}-${distro_arch}-rootfs.tar.gz$")" ;;
 	esac
 
 	bootstrap_name="$(echo "${bootstrap_url}" | sed 's,^.*/,,')"

@@ -131,7 +131,7 @@
 #
 #     make check
 
-BEDROCK_VERSION=0.7.31beta2
+BEDROCK_VERSION=0.7.31
 CODENAME=Poki
 ARCHITECTURE=$(shell ./detect_arch.sh | head -n1)
 FILE_ARCH_NAME=$(shell ./detect_arch.sh | awk 'NR==2')
@@ -333,9 +333,14 @@ libcap: $(COMPLETED)/libcap
 vendor/libfuse/.success_fetching_source:
 	rm -rf vendor/libfuse
 	mkdir -p vendor/libfuse
-	# More recent libfuse versions bumped up meson requirements which breaks build environment.  Stick with 3.12.x for now.
 	git clone --depth=1 \
-		-b 'fuse-3.12.0' 'https://github.com/libfuse/libfuse.git' \
+		-b `git ls-remote --tags 'https://github.com/libfuse/libfuse.git' | \
+		awk -F/ '{print $$NF}' | \
+		sed 's/^fuse-//g' | \
+		grep '^[0-9.]*$$' | \
+		sort -t . -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+		tail -n1 | \
+		sed 's/^/fuse-/'` 'https://github.com/libfuse/libfuse.git' \
 		vendor/libfuse
 	touch vendor/libfuse/.success_fetching_source
 $(COMPLETED)/libfuse: vendor/libfuse/.success_fetching_source $(COMPLETED)/builddir $(COMPLETED)/musl
@@ -343,35 +348,7 @@ $(COMPLETED)/libfuse: vendor/libfuse/.success_fetching_source $(COMPLETED)/build
 	cp -r vendor/libfuse/ $(VENDOR)
 	mkdir -p $(VENDOR)/libfuse/build
 	# ln -s $(VENDOR)/libfuse/build/libfuse_config.h $(SUPPORT)/include/
-	# meson/ninja sometimes fails with
-	#     ninja: error: unknown target 'lib/libfuse3.a'
-	# for no apparent reason.  It seems to eventually take after multiple
-	# tries.  Thus, retry a few times.
 	cd $(VENDOR)/libfuse/build && \
-		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
-		meson configure -D buildtype=release && \
-		meson configure -D default_library=static && \
-		meson configure -D strip=true && \
-		meson configure -D prefix=$(SUPPORT) && \
-		CC=$(MUSLCC) ninja lib/libfuse3.a || \
-		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
-		meson configure -D buildtype=release && \
-		meson configure -D default_library=static && \
-		meson configure -D strip=true && \
-		meson configure -D prefix=$(SUPPORT) && \
-		CC=$(MUSLCC) ninja lib/libfuse3.a || \
-		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
-		meson configure -D buildtype=release && \
-		meson configure -D default_library=static && \
-		meson configure -D strip=true && \
-		meson configure -D prefix=$(SUPPORT) && \
-		CC=$(MUSLCC) ninja lib/libfuse3.a || \
-		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
-		meson configure -D buildtype=release && \
-		meson configure -D default_library=static && \
-		meson configure -D strip=true && \
-		meson configure -D prefix=$(SUPPORT) && \
-		CC=$(MUSLCC) ninja lib/libfuse3.a || \
 		CC=$(MUSLCC) CFLAGS="$(CFLAGS) -static" meson && \
 		meson configure -D buildtype=release && \
 		meson configure -D default_library=static && \
@@ -381,6 +358,7 @@ $(COMPLETED)/libfuse: vendor/libfuse/.success_fetching_source $(COMPLETED)/build
 	cp -r $(VENDOR)/libfuse/build/lib/* $(SUPPORT)/lib/
 	mkdir -p $(SUPPORT)/include/fuse3/
 	cp $(VENDOR)/libfuse/include/*.h $(SUPPORT)/include/fuse3/
+	cp $(VENDOR)/libfuse/build/*.h $(SUPPORT)/include/fuse3/
 	touch $(COMPLETED)/libfuse
 libfuse: $(COMPLETED)/libfuse
 
@@ -684,16 +662,19 @@ vendor/lvm2/.success_retrieving_source:
 	rm -rf vendor/lvm2/
 	mkdir -p vendor/lvm2
 	# no `--depth 1` because this repo does not support it
-	git clone \
-		-b `git ls-remote --tags 'https://sourceware.org/git/lvm2.git' | \
-		awk -F/ '{print $$NF}' | \
-		grep '^v[0-9_]*$$' | \
-		sed 's/^v//g' | \
-		sort -t _ -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
-		tail -n1 | \
-		sed 's/^/v/'` 'https://sourceware.org/git/lvm2.git' \
-		vendor/lvm2
-	cd vendor/lvm2 && patch -p0 -i ../../patches/lvm2/fix-stdio.patch
+	#
+	# Use hard-coded version to avoid breaking patch compatibility
+	# git clone \
+	# 	-b `git ls-remote --tags 'https://sourceware.org/git/lvm2.git' | \
+	# 	awk -F/ '{print $$NF}' | \
+	# 	grep '^v[0-9_]*$$' | \
+	# 	sed 's/^v//g' | \
+	# 	sort -t _ -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | \
+	# 	tail -n1 | \
+	# 	sed 's/^/v/'` 'https://sourceware.org/git/lvm2.git' \
+	# 	vendor/lvm2
+	git clone -b v2_03_34 'https://sourceware.org/git/lvm2.git' vendor/lvm2
+	cd vendor/lvm2 && patch -p1 -i ../../patches/lvm2/fix-stdio.patch
 	# hack to fix bad imports looking for LOCK_EX
 	echo '#include <sys/file.h>' >> vendor/lvm2/lib/misc/lib.h
 	touch vendor/lvm2/.success_retrieving_source

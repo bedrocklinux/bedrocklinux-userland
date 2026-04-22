@@ -1,0 +1,194 @@
+#!/bedrock/libexec/busybox sh
+#
+# MX Linux bootstrap support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2026 Daniel Thau <danthau@bedrocklinux.org>
+#
+
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	false
+}
+
+speed_test_url() {
+	echo "dists/${target_release}/Release"
+}
+
+list_mirrors() {
+	echo 'http://mxrepo.com/mx/repo'
+}
+
+brl_arch_to_distro() {
+	case "${1}" in
+	"aarch64") echo "arm64" ;;
+	"armv7hl") echo "armhf" ;;
+	"i686") echo "i386" ;;
+	"x86_64") echo "amd64" ;;
+	*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+	esac
+}
+
+list_architectures() {
+	cat <<EOF
+aarch64
+armv7hl
+i686
+x86_64
+EOF
+}
+
+list_releases() {
+	for mirror in "${flag_mirror}" $(list_mirrors); do
+		if download -q "${mirror}/dists" - |
+			list_links |
+			grep '/$' |
+			grep -v -- '-' |
+			grep -ve '[.]' -ve '^/' -ve '^temp/$' |
+			sed 's,/$,,g'; then
+			break
+		fi
+	done
+}
+
+default_release() {
+	best_version=''
+	best_release=''
+	for release in $(list_releases); do
+		for mirror in "${flag_mirror}" $(list_mirrors); do
+			version="$(download -q "${mirror}/dists/${release}/Release" - | awk '$1 == "Version:" {print$2;exit}')"
+			if [ -n "${version}" ]; then
+				break
+			fi
+		done
+		if [ -z "${version}" ]; then
+			continue
+		fi
+		if [ -z "${best_version}" ] || [ "$(printf '%s\n%s\n' "${version}" "${best_version}" | sort -V | tail -n1)" = "${version}" ]; then
+			best_version="${version}"
+			best_release="${release}"
+		fi
+	done
+	echo "${best_release}"
+}
+
+fetch() {
+	# MX Linux uses Debian as a base and publishes MX-specific packages in a
+	# separate repository. Bootstrap from Debian, then add MX repository lines.
+	debian_mirror='http://ftp.debian.org/debian'
+	bootstrap_deps="debootstrap apt dpkg coreutils dash bash grep sed awk perl bzip2 gzip tar gpgv debian-archive-keyring"
+
+	step "Downloading package information database"
+	download "${debian_mirror}/dists/${target_release}/main/binary-${distro_arch}/Packages.gz" "${bootstrap_dir}/Packages.gz"
+	gunzip "${bootstrap_dir}/Packages.gz"
+
+	step "Converting distro package information database to brl format"
+	debdb_to_brldb "${bootstrap_dir}/Packages" "${bootstrap_dir}/brldb"
+
+	step "Calculating required bootstrap packages"
+	brldb_calculate_required_packages "${bootstrap_dir}/brldb" "${bootstrap_dir}/required_packages" "${bootstrap_deps}"
+
+	step "Downloading bootstrap packages"
+	checksum_downloads "${cache}/packages/" "$(awk -v"m=${debian_mirror}" '{print m"/"$0}' "${bootstrap_dir}/required_packages")"
+
+	step "Extracting bootstrap packages"
+	bootstrap_packages="$(awk -v"d=${cache}/packages/" '{sub(/^.*\//,d);print $1}' "${bootstrap_dir}/required_packages")"
+	# shellcheck disable=SC2086
+	extract_debs "${bootstrap_dir}" ${bootstrap_packages}
+
+	step "Running bootstrap software"
+	setup_chroot "${bootstrap_dir}"
+	setup_ssl "${bootstrap_dir}"
+	set +o pipefail
+	if LANG=C chroot "${bootstrap_dir}" debootstrap --help | grep -q "cache-dir"; then
+		share_cache "packages" "${bootstrap_dir}/packages"
+		yes "" | LANG=C chroot "${bootstrap_dir}" debootstrap --variant=minbase --cache-dir="/packages" "${target_release}" "/target-root" "${debian_mirror}"
+	else
+		yes "" | LANG=C chroot "${bootstrap_dir}" debootstrap --variant=minbase "${target_release}" "/target-root" "${debian_mirror}"
+	fi
+	set -o pipefail
+
+	step "Configuring"
+	set +o pipefail
+	setup_chroot "${target_dir}"
+	autopkgs="$(LANG=C chroot "${target_dir}" /usr/bin/apt-mark showmanual)"
+	# word splitting is desired here
+	# shellcheck disable=SC2086
+	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-mark auto ${autopkgs}
+
+	if echo "${target_release}" | grep -q "^\(buzz\|rex\|bo\|hamm\|slink\|potato\|woody\|sarge\|etch\|lenny\|squeeze\|wheezy\|jessie\|stretch\|buster\)$"; then
+		# Pre-bullseye: one-line format, old security URL
+		echo "deb ${debian_mirror} ${target_release} main contrib non-free" >"${target_dir}/etc/apt/sources.list"
+		echo "deb ${debian_mirror} ${target_release}-updates main contrib non-free" >>"${target_dir}/etc/apt/sources.list"
+		echo "deb http://security.debian.org/ ${target_release}/updates main contrib non-free" >>"${target_dir}/etc/apt/sources.list"
+	else
+		# Bullseye+: deb822 format
+		if echo "${target_release}" | grep -q "^\(bullseye\)$"; then
+			debian_components="main contrib non-free"
+		else
+			debian_components="main contrib non-free non-free-firmware"
+		fi
+		: >"${target_dir}/etc/apt/sources.list"
+		cat >"${target_dir}/etc/apt/sources.list.d/debian.sources" <<EOF
+Types: deb
+Enabled: yes
+URIs: ${debian_mirror}/
+Suites: ${target_release}
+Components: ${debian_components}
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb
+Enabled: yes
+URIs: http://security.debian.org/debian-security/
+Suites: ${target_release}-security
+Components: ${debian_components}
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb
+Enabled: yes
+URIs: ${debian_mirror}/
+Suites: ${target_release}-updates
+Components: ${debian_components}
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+EOF
+	fi
+	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get update
+
+	step "Installing MX archive keyring"
+	download "${target_mirror}/dists/${target_release}/main/binary-${distro_arch}/Packages.gz" "${bootstrap_dir}/mx-Packages.gz"
+	gunzip "${bootstrap_dir}/mx-Packages.gz"
+	mx_keyring_paths="$(awk '/^Package: .*archive-keyring/{found=1} found && /^Filename:/{print $2; found=0}' "${bootstrap_dir}/mx-Packages")"
+	for mx_keyring_path in ${mx_keyring_paths}; do
+		download "${target_mirror}/${mx_keyring_path}" "${target_dir}/tmp/mx-keyring.deb"
+		yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get install "/tmp/mx-keyring.deb"
+	done
+
+	if echo "${target_release}" | grep -q "^\(buzz\|rex\|bo\|hamm\|slink\|potato\|woody\|sarge\|etch\|lenny\|squeeze\|wheezy\|jessie\|stretch\|buster\)$"; then
+		cat >"${target_dir}/etc/apt/sources.list.d/mx.list" <<EOF
+deb ${target_mirror} ${target_release} main non-free
+EOF
+	else
+		mx_signed_by=""
+		for f in "${target_dir}"/usr/share/keyrings/mx*archive-keyring*.gpg; do
+			[ -e "${f}" ] && mx_signed_by="/usr/share/keyrings/${f##*/}"
+		done
+		cat >"${target_dir}/etc/apt/sources.list.d/mx.sources" <<EOF
+Types: deb
+Enabled: yes
+URIs: ${target_mirror}/
+Suites: ${target_release}
+Components: main non-free
+Signed-By: ${mx_signed_by}
+EOF
+	fi
+
+	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get update
+	yes "" | LANG=C chroot "${target_dir}" /usr/bin/apt-get install locales-all
+	set -o pipefail
+}

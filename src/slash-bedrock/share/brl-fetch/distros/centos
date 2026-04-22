@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2021 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2025 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -113,6 +113,13 @@ bootstrap_deps() {
 	# At the time of writing, CentOS 8-stream no longer includes repos as a dependency of the package manager
 	if echo "${target_release}" | grep -q stream; then
 		echo "centos-stream-repos centos-gpg-keys"
+	fi
+
+	# Packages which seem like they should have been collected in dependency calculations
+	# Unclear if this is an upstream distro packaging, rpmdb_to_brldb(), or brldb_calculate_required_packages() failure.
+	# Listing separately with the intent of removing if/when resolved
+	if echo "${target_release}" | grep -q stream; then
+		echo "attr keyutils fips-provider-so"
 	fi
 }
 

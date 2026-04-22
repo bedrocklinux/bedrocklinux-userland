@@ -1,0 +1,82 @@
+#!/bedrock/libexec/busybox sh
+#
+# Chimera Linux bootstrap support
+#
+# Permission to use, copy, modify, and/or distribute this software for
+# any purpose with or without fee is hereby granted;
+# According to the terms of the BSD Zero Clause License.
+# 
+# Copyright (c) 2024 Anthony Slab
+#
+
+# shellcheck source=src/slash-bedrock/libexec/brl-fetch
+. /bedrock/share/common-code
+trap 'fetch_abort "Unexpected error occurred."' EXIT
+
+check_supported() {
+	false
+}
+
+speed_test_url() {
+	echo "current/main/${distro_arch}/APKINDEX.tar.gz"
+}
+
+list_mirrors() {
+	curl -s "https://repo.chimera-linux.org/mirrors.txt" | cut -d' ' -f1
+}
+
+brl_arch_to_distro() {
+	case "$1" in
+		"aarch64") echo "aarch64" ;;
+		"riscv64") echo "riscv64" ;;
+		"ppc64")   echo "ppc64" ;;
+		"ppc64le") echo "ppc64le" ;;
+		"x86_64")  echo "x86_64" ;;
+		*) abort "brl does not know how to translate arch \"${1}\" to ${distro} format" ;;
+	esac
+}
+
+list_architectures() {
+	cat <<EOF # from https://chimera-linux.org/docs/installation
+aarch64
+riscv64
+ppc64
+ppc64le
+x86_64
+EOF
+}
+
+default_release() {
+	echo "current"
+}
+
+list_releases() {
+	echo "current"
+}
+
+fetch() {
+	step "Downloading bootstrap software"
+
+	apk="apk-${distro_arch}.static"
+	download "${target_mirror}/apk/latest/${apk}" "${bootstrap_dir}/${apk}"
+
+	download "${target_mirror}/apk/latest/sha256sums.txt" "${bootstrap_dir}/shasums"
+	[ "$(sha256sum ${bootstrap_dir}/${apk} | cut -d' ' -f1)" = "$(grep ${apk} ${bootstrap_dir}/shasums | cut -d' ' -f1)" ] \
+		|| { echo "ERROR: checksums did not match"; false; }
+
+	mkdir -p "${bootstrap_dir}/apk-keys"
+	download "${target_mirror}/apk/keys/legacy.rsa.pub" "${bootstrap_dir}/apk-keys/legacy.rsa.pub"
+	download "${target_mirror}/apk/keys/${distro_arch}.rsa.pub" "${bootstrap_dir}/apk-keys/${distro_arch}.rsa.pub"
+
+	step "Preparing bootstrap software"
+	chmod a+rx "${bootstrap_dir}/${apk}"
+	mkdir -p "${target_dir}/etc/apk/"
+
+	step "Running bootstrap software"
+	setup_chroot "${bootstrap_dir}"
+	setup_ssl "${bootstrap_dir}"
+
+	# base-bootstrap instead of base-minimal, latter would need to be manually removed to install additional packages from it :L
+	LC_ALL=C chroot "${bootstrap_dir}" "/${apk}" -X "${target_mirror}/${target_release}/main" -U \
+		--keys-dir "/apk-keys" --root "/target-root" --initdb add base-bootstrap
+}

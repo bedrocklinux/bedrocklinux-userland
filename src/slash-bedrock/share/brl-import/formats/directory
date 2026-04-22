@@ -1,0 +1,23 @@
+#!/bedrock/libexec/busybox sh
+#
+# brl import directory support
+#
+#      This program is free software; you can redistribute it and/or
+#      modify it under the terms of the GNU General Public License
+#      version 2 as published by the Free Software Foundation.
+#
+# Copyright (c) 2020-2026 Daniel Thau <danthau@bedrocklinux.org>
+#
+# Creates strata from specified directory
+
+import() {
+	name="${1}"
+	src="${2}"
+	tgt="${3}"
+	tmp="${4}"
+
+	step_init $((1 + 5)) # post import has five steps
+
+	step "Copying directory contents"
+	copy_dir_contents "${src}" "${tgt}"
+}

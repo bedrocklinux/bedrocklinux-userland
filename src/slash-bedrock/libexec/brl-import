@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2020-2022 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2020-2026 Daniel Thau <danthau@bedrocklinux.org>
 #
 # Creates strata from specified file(s)
 
@@ -15,33 +15,69 @@
 print_help() {
 	printf "Usage: ${color_cmd}brl import ${color_sub}<name> <source>${color_norm}
 
-Creates a new ${color_term}stratum${color_norm} named ${color_sub}<name>${color_norm} from specified a ${color_sub}<source>${color_norm}.
-Requires root.  Some sources may require external tooling (e.g. ${color_cmd}qemu-img${color_norm})
-
-If using a VM image with multiple partitions, ${color_cmd}brl import${color_norm} will attempt to guess
-the root partition.  ${color_warn}This is error-prone.${color_norm}  For best results, prefer using one
-large partition; avoid things like separate ${color_file}/boot${color_norm} and ${color_file}/home${color_norm} partitions.
+Creates a new ${color_term}stratum${color_norm} named ${color_sub}<name>${color_norm} from a specified
+Requires root.
+Some sources may require external tooling (e.g. ${color_cmd}qemu-img${color_norm}, ${color_cmd}vgscan${color_norm}, ${color_cmd}skopeo${color_norm}, etc)
 
 Sources:
-  Directory (such as an unpacked tarball, ${color_cmd}docker${color_norm}/${color_cmd}podman${color_norm} image, etc)
-  Tarball (${color_file}.tar${color_norm})
-  Qemu qcow/qcow2/qcow3 image (${color_file}.qcow${color_norm}, ${color_file}.qcow2${color_norm}, ${color_file}.qcow3${color_norm})
-  VirtualBox image (${color_file}.vdi${color_norm})
-  VMware image (${color_file}.vmdk${color_norm})
+  Directory: ${color_sub}</path/to/directory>${color_norm}
+  Tarball
+    Uncompressed: ${color_sub}*${color_file}.tar${color_norm}
+    gzip compressed: ${color_sub}*${color_file}.tar.gz${color_norm}
+    bzip2 compressed: ${color_sub}*${color_file}.tar.bz2${color_norm}
+    xz compressed: ${color_sub}*${color_file}.tar.xz${color_norm}
+    zstd compressed; ${color_sub}*${color_file}.tar.zstd${color_norm}, ${color_sub}*${color_file}.tar.zst${color_norm}
+  VM image
+    Raw image: ${color_sub}*${color_file}.img${color_norm}
+    Qemu image: ${color_sub}*${color_file}.qcow${color_norm}, ${color_sub}*${color_file}.qcow2${color_norm}, ${color_sub}*${color_file}.qcow3${color_norm}
+    VirtualBox image: ${color_sub}*${color_file}.vdi${color_norm}
+    VMware image: ${color_sub}*${color_file}.vmdk${color_norm}
+  Container image
+    docker: ${color_file}docker:${color_sub}*${color_norm}
+    podman: ${color_file}podman:${color_sub}*${color_norm}
 
 Example:
-  ${color_cmd}$ wget http://example.com/arch-root.tar
-  ${color_rcmd}# brl import arch arch-root.tar
+  ${color_cmd}$ wget http://example.com/arch-linux-root.tar.zst
+  ${color_rcmd}# brl import arch ./arch-linux-root.tar.zst
 
-  ${color_cmd}$ qemu-image create -f qcow3 disk.qcow3 10G
-  ${color_cmd}$ qemu-system-x86_64 ./disk.qcow3 -drive ubuntu.iso # install in VM
-  ${color_rcmd}# brl import ubuntu disk.qcow3
+  ${color_cmd}$ qemu-img create -f qcow3 disk.qcow3 10G
+  ${color_cmd}$ qemu-system-x86_64 -drive file=disk.qcow3,if=virtio -cdrom ubuntu.iso # install in VM
+  ${color_rcmd}# brl import ubuntu ./disk.qcow3
 
-  ${color_cmd}$ # Also works with podman
-  ${color_rcmd}# docker pull hello-world
-  ${color_rcmd}# image=\"/bedrock/strata/\$(brl which docker)\$(docker inspect hello-world | jq -r '.[0].GraphDriver.Data.UpperDir')\"
-  ${color_rcmd}# brl import hello-world \"\${image}\"
+  ${color_cmd}$ podman pull quay.io/libpod/alpine:latest
+  ${color_rcmd}# brl import alpine podman:quay.io/libpod/alpine:latest
+
+  ${color_rcmd}# mkdir /mnt/laptop
+  ${color_rcmd}# sshfs root@laptop:/ /mnt/laptop
+  ${color_rcmd}# brl import laptop /mnt/laptop
 ${color_norm}"
+}
+
+import_abort() {
+	printf "${color_alert}ERROR: %s\\n${color_norm}" "${@}" >&2
+
+	notice "Cleaning up"
+	backend_cleanup
+	umount_r "${mnt}"
+	less_lethal_rm_rf "${tgt}"
+
+	exit 1
+}
+
+# Some virtual machines hide everything in an `@` directory
+# Some directories/tarballs/etc contain an undesired parent directory
+remove_redundant_root_dir() {
+	if [ -d "${tgt}/@" ] && ls "${tgt}/@/"* >/dev/null 2>&1; then
+		dir="${tgt}/@"
+	elif [ "$(find "${tgt}" -mindepth 1 -maxdepth 1 | wc -l)" -ne 1 ]; then
+		return
+	elif ! [ -d "$(find "${tgt}" -mindepth 1 -maxdepth 1)" ]; then
+		return
+	else
+		dir="$(find "${tgt}" -mindepth 1 -maxdepth 1)"
+	fi
+	find "${dir}" -mindepth 1 -maxdepth 1 -exec mv -- {} "${tgt}/" \;
+	less_lethal_rm_rf "${dir}"
 }
 
 require_cmd() {
@@ -56,96 +92,16 @@ copy_dir_contents() {
 	dst="${2}"
 
 	mkdir -p "${dst}"
-	count=0
-	for f in "${src}"/*; do
-		case "$(basename "${f}")" in
-		"*" | "brl-import") continue ;;
-		esac
-		count=$((count + 1))
-	done
-	for f in "${src}"/*; do
-		case "$(basename "${f}")" in
-		"*" | "brl-import") continue ;;
-		esac
-		cp -a "${f}" "${tgt}"
-		echo "x"
-	done | progress_bar "${count}"
-}
-
-list_partitions() {
-	fdisk -lu "${1}" | awk '
-		/Found valid GPT/ {
-			gpt=1
-		}
-		# Busybox fdisk MBR mode sector size
-		/Units: sectors of/ {
-			sector_size = $(NF-1)
-		}
-		# Busybox fdisk GPT mode sector size
-		/Logical sector size:/ {
-			sector_size = $(NF)
-		}
-		# Busybox fdisk MBR mode partition list
-		# e.g.
-		# Device           Boot StartCHS    EndCHS        StartLBA     EndLBA    Sectors  Size Id Type
-		# /dev/shm/test.img1 *  0,32,33     12,223,19         2048     206847     204800  100M 83 Linux
-		!gpt && /^\// && $(NF) == "Linux" {
-			if ($2 == "*") {
-				print $5 * sector_size
-			} else {
-				print $4 * sector_size
-			}
-		}
-		# Busybox fdisk GPT mode partition list
-		# No type indicator, have to check things like swap.
-		# GPT first detected partition at 2048 is BIOS boot partition, not Linux partition.
-		# e.g.
-		# Number  Start (sector)    End (sector)  Size Name
-		#      1            2048           18431 8192K
-		gpt && /^  *[0-9]/ && $2 > 2048 {
-			print $2 * sector_size
-		}
-	'
-}
-
-mount_partition() {
-	partition_start="${1}"
-	image="${2}"
-	mount_point="${3}"
-	if mount -o loop,offset="${partition_start}" "${image}" "${mount_point}" 2>/dev/null; then
-		good=true
-	else
-		# Rapid mount -oloop calls can result in an undocumented EEXIST errors
-		# https://unix.stackexchange.com/questions/537029/error-for-mount-system-call-failed-file-exists
-		sleep 1
-		good=false
+	count=$(find "${src}" -mindepth 1 -maxdepth 1 ! -name "brl-import" | wc -l)
+	if [ "${count}" -eq 0 ]; then
+		return 0
 	fi
-
-	"${good}"
+	find "${src}" -mindepth 1 -maxdepth 1 ! -name "brl-import" -exec cp -a -- {} "${dst}/" \; -exec echo x \; | progress_bar "${count}"
 }
 
-# Some virtual machines hide everything in an `@` directory
-# Some directories/tarballs/etc contain an undesired parent directory
-remove_root_dir() {
-	if [ -d "${tgt}/@" ] && ls "${tgt}/@/"* >/dev/null 2>&1; then
-		dir="${tgt}/@"
-	elif [ "$(find "${tgt}" -mindepth 1 -maxdepth 1 | wc -l)" -ne 1 ]; then
-		return
-	elif ! [ -d "$(find "${tgt}" -mindepth 1 -maxdepth 1)" ]; then
-		return
-	else
-		dir="$(find "${tgt}" -mindepth 1 -maxdepth 1)"
-	fi
-	notice "Moving files"
-	mv "${dir}/"* "${tgt}"
-	less_lethal_rm_rf "${dir}"
-}
-
-import_abort() {
-	printf "${color_alert}ERROR: %s\\n${color_norm}" "${@}" >&2
-	notice "Cleaning up"
-	less_lethal_rm_rf "${tgt}"
-	exit 1
+# Optionally implemented by back-ends to perform backend-specific cleanup
+backend_cleanup() {
+	true
 }
 
 handle_help "${@:-}"
@@ -154,81 +110,45 @@ name="${1}"
 src="${2}"
 tgt="/bedrock/strata/${name}/"
 tmp="${tgt}/brl-import/"
-mnt="${tgt}/brl-import/mnt"
-image="${tmp}/disk.img"
+mnt="${tmp}/mnt" # Expected temporary mount point; we'll unmount on unexpected error
+
+backend_dir="/bedrock/share/brl-import/formats/"
 
 require_root
 lock
-
 ensure_legal_stratum_name "${name}"
-
 if is_stratum_or_alias "${name}"; then
 	abort "Something already exists at \"/bedrock/strata/${name}\".  Either choose another name or remove preexisting stratum/alias with \`brl remove ${name}\` and try again."
 fi
 
 trap 'import_abort "Unexpected error occurred."' EXIT
 
-mkdir -p "${tgt}" "${tmp}" "${mnt}"
+mkdir -p "${tgt}" "${tmp}"
 
 case "${src}" in
-*.qcow | *.qcow2 | *.qcow3 | *.vmdk | *.vdi)
-	require_cmd qemu-img
-	step_init 8
-
-	step "Converting image format"
-	# -p makes its own progress bar
-	qemu-img convert -p -Oraw "${src}" "${image}"
-
-	step "Detecting target partition"
-	partitions="$(list_partitions "${image}")"
-	partition_count="$(echo "${partitions}" | wc -l)"
-	for partition in ${partitions}; do
-		if mount_partition "${partition}" "${image}" "${mnt}"; then
-			if [ -e "${mnt}/etc/os-release" ] || [ -h "${mnt}/etc/os-release" ]; then
-				echo "${partition}" >> "${tmp}/likely-root-partition"
-			fi
-			umount "${mnt}"
-			echo "${partition}" >> "${tmp}/linux-partitions"
-		fi
-		echo "${partition}"
-	done | progress_bar "${partition_count}"
-
-	if [ -e "${tmp}/linux-partitions" ] && [ "$(cat "${tmp}/linux-partitions" | wc -l)" -eq 1 ]; then
-		target_partition="$(cat "${tmp}/linux-partitions")"
-	elif [ -e "${tmp}/likely-root-partition" ] && [ "$(cat "${tmp}/likely-root-partition" | wc -l)" -eq 1 ]; then
-		printf "${color_warn}WARNING: Multiple Linux partitions found.  Guessing root partition.  This may fail to detect correct partition or miss information needed on other partitions.${color_norm}\n"
-		target_partition="$(cat "${tmp}/likely-root-partition")"
-	else
-		abort "Unable to detect target partition.  If ${src} contained multiple partitions, consider trying again with one large partition rather than multiple."
-	fi
-
-	step "Mounting partition"
-	mount_partition "${target_partition}" "${image}" "${mnt}"
-
-	step "Copying files"
-	copy_dir_contents "${mnt}" "${tgt}"
-	;;
-*.tar | *.tar.gz | *.tar.bz2 | *.tar.xz)
-	step_init 6
-	step "Extracting tarball"
-	mkdir -p "${tgt}"
-	tar -xv -f "${src}" -C "${tgt}" | awk 'NR%100==0' | progress_unknown
-	;;
+"-h" | "--help" | "help") print_help && exit 0;;
+*.tar | *.tar.gz | *.tar.bz2 | *.tar.xz | *.tar.zst | *.tar.zstd) . "${backend_dir}/tarball" ;;
+*.img | *.qcow | *.qcow2 | *.qcow3 | *.vmdk | *.vdi) . "${backend_dir}/vm-image" ;;
+docker:* | podman:*) . "${backend_dir}/container" ;;
 *)
 	if [ -d "${src}" ]; then
-		step_init 6
-		step "Copying files"
-		copy_dir_contents "${src}" "${tgt}"
+		. "${backend_dir}/directory"
 	else
 		import_abort "Could not determine source type.  See --help."
 	fi
 	;;
 esac
 
-remove_root_dir
+# defined by backend sourced above
+import "${name}" "${src}" "${tgt}" "${tmp}" "${mnt}"
 
 step "Cleaning up"
+backend_cleanup
+umount_r "${mnt}"
 less_lethal_rm_rf "${tmp}"
+
+step "Finalizing directory structure"
+remove_redundant_root_dir
 
 step "Importing users and groups"
 import_users_and_groups "${tgt}/etc/passwd" "${tgt}/etc/group"

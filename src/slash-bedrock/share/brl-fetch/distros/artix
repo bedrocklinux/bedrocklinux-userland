@@ -6,7 +6,7 @@
 #      modify it under the terms of the GNU General Public License
 #      version 2 as published by the Free Software Foundation.
 #
-# Copyright (c) 2016-2019 Daniel Thau <danthau@bedrocklinux.org>
+# Copyright (c) 2016-2026 Daniel Thau <danthau@bedrocklinux.org>
 #
 
 # shellcheck source=src/slash-bedrock/libexec/brl-fetch
@@ -58,6 +58,11 @@ setup_pacman() {
 		awk -v"a=${distro_arch}" '{print} $0 == "[options]" {print "Architecture = "a}' |
 		sed 's/^[ \t]*CheckSpace/# &/' \
 			>"${1}/etc/pacman.conf-new"
+	mv "${1}/etc/pacman.conf-new" "${1}/etc/pacman.conf"
+
+	# pacman 7.0 defaults to using a limited-privilege alpm user to fetch packages
+	# This is a worthwhile idea, but brl-fetch doesn't currently have the infrastructure to support it
+	sed 's/DownloadUser/# DownloadUser/' "${1}/etc/pacman.conf" > "${1}/etc/pacman.conf-new"
 	mv "${1}/etc/pacman.conf-new" "${1}/etc/pacman.conf"
 
 	LC_ALL=C chroot "${1}" /usr/bin/update-ca-trust
