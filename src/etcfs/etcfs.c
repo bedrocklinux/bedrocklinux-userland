@@ -1250,7 +1250,7 @@ static int m_opendir(const char *path, struct fuse_file_info *fi)
 		close(fd);
 	} else {
 		rv = 0;
-		close(fd);
+		// close(fd);
 		closedir(d);
 	}
 
@@ -1292,8 +1292,7 @@ static int m_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 			}
 		}
 		closedir(d);
-	}
-	if (fd >= 0) {
+	} else if (fd >= 0) {
 		close(fd);
 	}
 
@@ -1353,8 +1352,7 @@ static int m_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 			}
 		}
 		closedir(d);
-	}
-	if (fd >= 0) {
+	} else if (fd >= 0) {
 		close(fd);
 	}
 

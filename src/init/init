@@ -445,15 +445,15 @@ touch "/bedrock/strata/bedrock/bedrock/run/enabled_strata/${init_stratum}"
 notice "Enabling ${color_strat}${init_stratum}${color_norm}"
 /bedrock/libexec/brl-repair --skip-crossfs "${init_stratum}"
 
-for stratum in $(list_strata); do
+/bedrock/libexec/brl-enable --skip-crossfs --init $(for stratum in $(list_strata); do
 	if is_bedrock "${stratum}" ||
 		is_init "${stratum}" ||
 		! has_attr "/bedrock/strata/${stratum}" "show_boot"; then
 		continue
 	fi
-	notice "Enabling ${color_strat}${stratum}${color_norm}"
-	/bedrock/libexec/brl-enable --skip-crossfs "${stratum}"
-done
+	notice "Enabling ${color_strat}${stratum}${color_norm}" >&2
+	echo "${stratum}"
+done)
 
 step "Applying configuration"
 /bedrock/libexec/brl-apply --skip-repair

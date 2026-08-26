@@ -94,9 +94,7 @@ enable_stratum() {
 
 	stinit busybox touch "/bedrock/strata/bedrock/bedrock/run/enabled_strata/${1}"
 
-	enforce_shells
-	enforce_id_ranges
-
+	
 	if ! "${skip_crossfs}"; then
 		cfg_crossfs "/proc/1/root/bedrock/strata/bedrock/bedrock/cross"
 	fi
@@ -106,6 +104,12 @@ skip_crossfs="false"
 if [ "${1:-}" = "--skip-crossfs" ]; then
 	skip_crossfs="true"
 	shift
+fi
+
+init="false"
+if [ "${1:-}" = "--init" ]; then
+  init="true"
+  shift
 fi
 
 for alias in "${@}"; do
@@ -118,9 +122,11 @@ for alias in "${@}"; do
 	elif is_bedrock "${stratum}" || is_init "${stratum}"; then
 		abort "Cannot enable bedrock or init-providing stratum, as neither should ever be disabled."
 	else
-		disable_stratum "${stratum}"
-		enable_stratum "${stratum}"
+		 ([ "$init" = "false" ]&&disable_stratum "${stratum}";enable_stratum "${stratum}")&
+         notice "Started job for ${stratum}"
 	fi
 done
-
+wait
+enforce_shells
+enforce_id_ranges
 exit_success
