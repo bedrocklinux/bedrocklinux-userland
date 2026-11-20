@@ -283,29 +283,23 @@ int debug = 0;
  */
 static inline int set_caller_permissions(void)
 {
+	struct fuse_context *context = fuse_get_context();
 	int rv;
 
 	/*
 	 * Set group list.  For performance, try on the stack before heap.
+	 *
+	 * libfuse calls unlink() during shutdown with PID 0 and no request
+	 * for fuse_getgroups() to inspect. Skip the lookup in that case.
 	 */
 	gid_t list[64];
-	if ((rv = fuse_getgroups(ARRAY_LEN(list), list)) < 0) {
+	if (context->pid == 0 || (rv = fuse_getgroups(ARRAY_LEN(list), list)) < 0) {
 		/*
-		 * fuse_getgroups() is implemented by reading /proc/<pid>/.
-		 * This can fail if the request is not being made by something
-		 * with a /proc-visible pid such as by a kernel process, an
-		 * internal libfuse call, or a process outside of the visible
-		 * PID namespace.
-		 *
-		 * We need to support kernel requests and internal libfuse
-		 * requests, and thus we cannot abort when fuse_getgroups()
-		 * fails.
-		 *
-		 * In this situation, simply continue with an empty group list.
-		 * This minimizes the possibility that someone finds a way to
-		 * abuse fuse_getgroups() failing (we're providing no
-		 * priviledges) while still allowing legitimate requests to
-		 * succeed via UID=0.
+		 * Kernel requests and callers outside our PID namespace can
+		 * also lack a PID visible in /proc. Clear the worker's
+		 * supplementary groups so it cannot reuse a previous caller's
+		 * groups. The request can still proceed with the UID and GID
+		 * from its FUSE context, including UID 0 for shutdown cleanup.
 		 */
 		if ((rv = SET_THREAD_GROUPS(0, list)) < 0) {
 			return -errno;
@@ -338,7 +332,6 @@ static inline int set_caller_permissions(void)
 	/*
 	 * Set euid and egid
 	 */
-	struct fuse_context *context = fuse_get_context();
 	if ((rv = SET_THREAD_EGID(context->gid)) < 0) {
 		return -errno;
 	}
